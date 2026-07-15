@@ -14,6 +14,8 @@ const { SpeechQueue } = require('./core/speech-queue');
 const { TaskTracker } = require('./core/task-tracker');
 
 app.setName('BlobfishDesktopPet');
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) app.quit();
 
 const WINDOW_WIDTH = 340;
 const WINDOW_HEIGHT = 210;
@@ -286,6 +288,14 @@ function createSettingsWindow() {
   settingsWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   settingsWin.on('closed', () => { settingsWin = null; });
   settingsWin.loadFile(path.join(__dirname, 'settings.html'));
+}
+
+function revealExistingInstance() {
+  if (app.isReady()) {
+    createSettingsWindow();
+    return;
+  }
+  app.whenReady().then(() => createSettingsWindow());
 }
 
 function assertSettingsSender(event) {
@@ -902,7 +912,9 @@ function setupAgentBridge() {
   taskMaintenanceTimer = setInterval(runTaskMaintenance, 5 * 60 * 1000);
 }
 
-app.whenReady().then(() => {
+if (hasSingleInstanceLock) app.on('second-instance', revealExistingInstance);
+
+if (hasSingleInstanceLock) app.whenReady().then(() => {
   if (app.dock) app.dock.hide();
   configStore = new ConfigStore(app.getPath('userData'));
   config = configStore.load();
