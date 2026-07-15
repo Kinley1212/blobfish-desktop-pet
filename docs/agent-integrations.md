@@ -43,12 +43,19 @@ after 20 minutes. Turning off one provider in Settings removes its live tasks.
 
 ## Codex plugin
 
-Source: `integrations/codex/blobfish-agent-bridge`.
+Marketplace: `integrations/codex/.agents/plugins/marketplace.json`.
+Plugin source: `integrations/codex/plugins/blobfish-agent-bridge`.
 
 The plugin was scaffolded and validated with Codex `plugin-creator`. Its default
 `hooks/hooks.json` uses the documented `UserPromptSubmit`, `PermissionRequest`,
 `PostToolUse` and `Stop` events. Installed plugin hooks require review and trust
 inside Codex (`/hooks`) after a new task loads them.
+
+The packaged pet exposes **一键安装** in Settings. It copies this marketplace
+to the pet's private application-data directory, runs `codex plugin marketplace
+add` and `codex plugin add`, then reports the verified CLI status. This is local
+only and does not need an API key. A new Codex task and one `/hooks` review are
+still required by Codex's hook trust boundary.
 
 Current Codex hooks do not expose a dedicated turn-failure event. `Stop` reliably
 means the turn ended, but a failed tool call is not the same thing as a failed
@@ -58,7 +65,8 @@ or App Server integration.
 
 ## Claude Code plugin
 
-Marketplace: `integrations/claude-code/.claude-plugin/marketplace.json`.
+Marketplace: `integrations/claude-code/.claude-plugin/marketplace.json`
+(`blobfish-pet`).
 Plugin source: `integrations/claude-code/blobfish-agent-bridge`.
 
 Claude Code adds `PostToolUseFailure` as a return-to-running signal and its
@@ -67,8 +75,12 @@ dedicated `StopFailure` event maps to task failure. Validate and install with:
 ```bash
 claude plugin validate integrations/claude-code/blobfish-agent-bridge --strict
 claude plugin marketplace add /absolute/path/to/integrations/claude-code --scope user
-claude plugin install blobfish-agent-bridge@blobfish-local --scope user
+claude plugin install blobfish-agent-bridge@blobfish-pet --scope user
 ```
+
+The same two commands are run by the Settings one-click installer. It detects
+Claude installed through another marketplace and will not duplicate it. Restart
+the Claude Code session after a new install.
 
 Both hook senders exit successfully when the pet is not running, so they never
 block the coding agent. Set `BLOBFISH_SOCKET` only for isolated tests.

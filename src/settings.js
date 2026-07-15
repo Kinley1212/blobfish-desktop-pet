@@ -6,6 +6,10 @@ const speedInput = document.getElementById('pet-speed');
 const speedOutput = document.getElementById('speed-output');
 const scaleInput = document.getElementById('pet-scale');
 const scaleOutput = document.getElementById('scale-output');
+const integrationButtons = {
+  codex: document.getElementById('connect-codex'),
+  claude: document.getElementById('connect-claude'),
+};
 
 function byId(id) { return document.getElementById(id); }
 function setChecked(id, value) { byId(id).checked = value; }
@@ -55,6 +59,59 @@ function renderIntegrationStatus(integrationStatus = {}) {
   };
   const bridgeStatus = integrationStatus.agentBridge || 'stopped';
   byId('agent-bridge-status').textContent = `任务桥接：${bridgeLabels[bridgeStatus] || bridgeLabels.error}`;
+}
+
+function renderAgentIntegration(provider, result) {
+  const name = provider === 'codex' ? 'Codex' : 'Claude Code';
+  const statusElement = byId(`${provider}-install-status`);
+  const button = integrationButtons[provider];
+  const messages = {
+    connected: `已连接${result.version ? ` · v${result.version}` : ''}`,
+    disabled: '插件已安装，但当前被停用',
+    'not-installed': `已找到 ${name}，尚未安装状态插件`,
+    'cli-missing': `没有找到 ${name} CLI`,
+    error: `检测失败：${result.error || '未知错误'}`,
+  };
+  statusElement.textContent = messages[result.state] || '连接状态未知';
+  statusElement.classList.toggle('error', result.state === 'error');
+  button.disabled = result.state === 'connected' || result.state === 'cli-missing';
+  button.textContent = result.state === 'connected'
+    ? '已连接'
+    : result.state === 'disabled'
+      ? '重新启用'
+      : '一键安装';
+}
+
+async function refreshAgentIntegrations() {
+  byId('refresh-integrations').disabled = true;
+  try {
+    const results = await window.settingsAPI.getAgentIntegrations();
+    renderAgentIntegration('codex', results.codex);
+    renderAgentIntegration('claude', results.claude);
+  } catch (error) {
+    for (const provider of ['codex', 'claude']) {
+      renderAgentIntegration(provider, { state: 'error', error: error.message });
+    }
+  } finally {
+    byId('refresh-integrations').disabled = false;
+  }
+}
+
+async function installAgentIntegration(provider) {
+  const button = integrationButtons[provider];
+  button.disabled = true;
+  button.textContent = '安装中…';
+  try {
+    const result = await window.settingsAPI.installAgentIntegration(provider);
+    renderAgentIntegration(provider, result);
+    const followUp = provider === 'codex'
+      ? '请新开一个 Codex 任务，并在 /hooks 中审查这个本地 Hook。'
+      : '请重新打开 Claude Code 会话。';
+    showStatus(`连接完成。${followUp}`);
+  } catch (error) {
+    renderAgentIntegration(provider, { state: 'error', error: error.message });
+    showStatus(`连接失败：${error.message}`, true);
+  }
 }
 
 function renderConfig(config, languages) {
@@ -148,6 +205,10 @@ scaleInput.addEventListener('input', () => {
   scaleOutput.value = `${Math.round(Number(scaleInput.value) * 100)}%`;
 });
 
+integrationButtons.codex.addEventListener('click', () => installAgentIntegration('codex'));
+integrationButtons.claude.addEventListener('click', () => installAgentIntegration('claude'));
+byId('refresh-integrations').addEventListener('click', refreshAgentIntegrations);
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   setBusy(true);
@@ -155,6 +216,7 @@ form.addEventListener('submit', async (event) => {
     const result = await window.settingsAPI.save(readConfig());
     renderConfig(result.config, result.languages);
     renderIntegrationStatus(result.integrationStatus);
+    refreshAgentIntegrations();
     showStatus('已保存。鱼知道了。');
   } catch (error) {
     showStatus(`保存失败：${error.message}`, true);

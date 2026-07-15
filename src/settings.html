@@ -105,6 +105,25 @@
       </div>
       <p id="calendar-status" class="integration-status">日历：未启用</p>
       <p id="agent-bridge-status" class="integration-status">任务桥接：正在启动…</p>
+      <div class="connection-grid">
+        <article class="connection-card">
+          <div>
+            <h3>Codex</h3>
+            <p id="codex-install-status">正在检测插件…</p>
+          </div>
+          <button id="connect-codex" class="secondary compact" type="button">检测中…</button>
+          <p class="connection-note">安装后新开一个 Codex 任务，并在 <code>/hooks</code> 中审查一次。</p>
+        </article>
+        <article class="connection-card">
+          <div>
+            <h3>Claude Code</h3>
+            <p id="claude-install-status">正在检测插件…</p>
+          </div>
+          <button id="connect-claude" class="secondary compact" type="button">检测中…</button>
+          <p class="connection-note">安装后重新打开 Claude Code 会话即可。</p>
+        </article>
+      </div>
+      <button id="refresh-integrations" class="text-button" type="button">重新检测连接状态</button>
     </section>
 
     <div class="actions">

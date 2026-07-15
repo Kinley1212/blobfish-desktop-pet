@@ -5,6 +5,7 @@ const { AgentBridge } = require('./core/agent-bridge');
 const { BatteryThresholdTracker, readMacBattery } = require('./core/battery-monitor');
 const { CalendarService } = require('./core/calendar-service');
 const { ConfigStore, DEFAULT_CONFIG, validateConfig } = require('./core/config-store');
+const { IntegrationManager } = require('./core/integration-manager');
 const { loadCharacterPack } = require('./core/pack-loader');
 const { loadLanguagePack } = require('./core/language-pack-loader');
 const { PhraseEngine } = require('./core/phrase-engine');
@@ -84,6 +85,7 @@ let lockedAt = null;
 let lastWakeSpokenAt = 0;
 let agentBridge;
 let agentBridgeStatus = 'stopped';
+let integrationManager;
 let taskTracker;
 let taskMaintenanceTimer = null;
 let quitTimer = null;
@@ -299,6 +301,11 @@ function getSettingsPayload() {
     warning: runtimeWarning || configStore.loadWarning,
     integrationStatus: { calendar: calendarStatus, agentBridge: agentBridgeStatus },
   };
+}
+
+function getIntegrationResourcesRoot() {
+  if (app.isPackaged) return path.join(process.resourcesPath, 'integrations');
+  return path.join(__dirname, '..', 'integrations');
 }
 
 function applyConfig(nextConfig) {
@@ -936,11 +943,32 @@ app.whenReady().then(() => {
     applyConfig(reset);
     return getSettingsPayload();
   });
+  ipcMain.handle('agent-integrations:get', async (event) => {
+    assertSettingsSender(event);
+    return integrationManager.inspectAll();
+  });
+  ipcMain.handle('agent-integrations:install', async (event, provider) => {
+    assertSettingsSender(event);
+    const result = await integrationManager.install(provider);
+    if (result.changed) {
+      speak('system.integrationReady', { provider }, {
+        priority: SPEECH_PRIORITY.agent,
+        durationMs: 5000,
+        replaceKey: 'system.integrationReady',
+        allowDuringQuiet: true,
+      });
+    }
+    return result;
+  });
   createApplicationMenu();
   createTray();
   createWindow();
   setupSystemMonitors();
   setupCalendarService();
+  integrationManager = new IntegrationManager({
+    resourcesRoot: getIntegrationResourcesRoot(),
+    dataRoot: path.join(app.getPath('userData'), 'managed-integrations'),
+  });
   setupAgentBridge();
   if (process.argv.includes('--settings')) createSettingsWindow();
 });

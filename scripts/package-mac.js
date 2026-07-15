@@ -69,6 +69,9 @@ async function main() {
       extraResources: [{
         from: helperPath,
         to: 'native/blobfish-calendar-helper',
+      }, {
+        from: path.join(root, 'integrations'),
+        to: 'integrations',
       }],
       mac: {
         category: 'public.app-category.productivity',

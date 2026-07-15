@@ -125,6 +125,48 @@ input[type="range"] { width: 100%; accent-color: #6f9295; }
   line-height: 1.55;
 }
 
+.connection-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.connection-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 10px;
+  padding: 12px;
+  border: 1px solid #ddd8d3;
+  border-radius: 12px;
+  background: rgba(246, 244, 241, 0.72);
+}
+
+.connection-card h3 { margin: 0; font-size: 12px; }
+.connection-card p { margin: 4px 0 0; color: #77716d; font-size: 10px; line-height: 1.45; }
+.connection-card p.error { color: #a04444; }
+.connection-card .connection-note { grid-column: 1 / -1; margin: 0; }
+.connection-card code { font-size: 10px; }
+
+button.compact {
+  min-width: 72px;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 10px;
+}
+
+button.text-button {
+  display: block;
+  min-width: 0;
+  height: auto;
+  margin: 10px 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #587b7e;
+  font-size: 10px;
+}
+
 .actions {
   position: sticky;
   bottom: 0;
@@ -164,5 +206,5 @@ button:disabled { cursor: wait; opacity: 0.55; }
 
 @media (max-width: 580px) {
   body { min-width: 0; }
-  .grid.two, .checks { grid-template-columns: 1fr; }
+  .grid.two, .checks, .connection-grid { grid-template-columns: 1fr; }
 }

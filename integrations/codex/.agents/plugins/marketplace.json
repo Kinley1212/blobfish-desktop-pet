@@ -1,0 +1,20 @@
+{
+  "name": "blobfish-pet",
+  "interface": {
+    "displayName": "Blobfish Pet"
+  },
+  "plugins": [
+    {
+      "name": "blobfish-agent-bridge",
+      "source": {
+        "source": "local",
+        "path": "./plugins/blobfish-agent-bridge"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

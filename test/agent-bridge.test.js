@@ -74,6 +74,7 @@ test('Codex hook sender forwards only whitelisted lifecycle metadata', async () 
       '..',
       'integrations',
       'codex',
+      'plugins',
       'blobfish-agent-bridge',
       'scripts',
       'send-event.js',
