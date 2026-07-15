@@ -14,7 +14,8 @@ The settings window controls:
 - fish size, swimming speed and whether it roams with no active tasks;
 - launch at login without adding a Dock icon;
 - calendar, Codex and Claude Code integrations;
-- detected Codex/Claude plugin state and local one-click installation;
+- detected Codex/Claude plugin state and local one-click installation (Claude's
+  first install opens a visible Terminal task and then updates Settings automatically);
 - whether task and calendar titles may be included in local status messages.
 
 Settings are schema-validated before writing. The app writes an atomic JSON

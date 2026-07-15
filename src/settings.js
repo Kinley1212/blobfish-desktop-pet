@@ -72,17 +72,21 @@ function renderAgentIntegration(provider, result) {
     'not-installed': `已找到 ${name}，尚未安装状态插件`,
     'cli-missing': `没有找到 ${name} CLI`,
     opened: '已打开 Codex 插件页，请在那里确认安装',
+    'terminal-opened': '已在 Terminal 中开始连接，请稍候…',
     error: `检测失败：${result.error || '未知错误'}`,
   };
   statusElement.textContent = messages[result.state] || '连接状态未知';
   statusElement.classList.toggle('error', result.state === 'error');
   button.disabled = result.state === 'checking'
+    || result.state === 'terminal-opened'
     || result.state === 'connected'
     || (result.state === 'cli-missing' && provider === 'claude');
   button.textContent = result.state === 'connected'
     ? '已连接'
     : result.state === 'opened'
       ? '再次打开'
+      : result.state === 'terminal-opened'
+        ? '连接中…'
       : result.state === 'cli-missing' && provider === 'codex'
         ? '在 Codex 中打开'
     : result.state === 'disabled'
@@ -114,6 +118,24 @@ async function installAgentIntegration(provider) {
     renderAgentIntegration(provider, result);
     if (result.state === 'opened') {
       showStatus('已打开 Codex 插件页。请在那里确认安装，再新开任务审查 /hooks。');
+      return;
+    }
+    if (result.state === 'terminal-opened') {
+      showStatus('已在 Terminal 中开始连接 Claude Code。完成后这里会自动更新。');
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const statusResult = await window.settingsAPI.getAgentIntegration(provider);
+        renderAgentIntegration(provider, statusResult);
+        if (statusResult.state === 'connected') {
+          showStatus('连接完成。请重新打开 Claude Code 会话。');
+          return;
+        }
+        if (statusResult.state === 'error') {
+          showStatus(`连接失败：${statusResult.error}`, true);
+          return;
+        }
+      }
+      showStatus('暂时没有检测到连接。请查看 Terminal 中的结果，再点“重新检测连接状态”。', true);
       return;
     }
     const followUp = provider === 'codex'

@@ -83,9 +83,21 @@ claude plugin marketplace add /absolute/path/to/integrations/claude-code --scope
 claude plugin install blobfish-agent-bridge@blobfish-pet --scope user
 ```
 
-The same two commands are run by the Settings one-click installer. It detects
-Claude installed through another marketplace and will not duplicate it. Restart
-the Claude Code session after a new install.
+The Settings page reads only Claude Code's documented user settings and plugin
+cache locations (`~/.claude/settings.json` and `~/.claude/plugins/cache`) when
+checking whether the bridge is enabled. It does not start Claude, touch its
+credentials or inspect any conversation/project data.
+
+For the first install, the one-click button opens a short, visible Terminal
+task and runs the same official marketplace/install commands there. This avoids
+launching the current native CLI under a background-only GUI parent process,
+where it can wait indefinitely on macOS services; it also keeps errors visible
+and requires no command copying. The helper refuses a
+same-name marketplace that points somewhere else, verifies the installed plugin,
+and writes only a small local success/error result. The Settings page polls the
+documented local plugin state and updates automatically. It also detects the
+bridge when Claude was installed through another user marketplace and will not
+duplicate it. Restart the Claude Code session after a new install.
 
 Both hook senders exit successfully when the pet is not running, so they never
 block the coding agent. Set `BLOBFISH_SOCKET` only for isolated tests.

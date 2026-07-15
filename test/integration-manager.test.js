@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { IntegrationManager, findExecutable, runCommand } = require('../src/core/integration-manager');
+const { IntegrationManager, findExecutable, runCommand, shellQuote } = require('../src/core/integration-manager');
 
 function createResources(root, providerDirectory) {
   const source = path.join(root, providerDirectory);
@@ -28,24 +28,70 @@ test('findExecutable discovers CLIs installed inside an nvm Node version', () =>
   }
 });
 
-test('runCommand closes stdin and applies non-interactive CLI settings', async () => {
+test('runCommand ignores stdin and applies non-interactive CLI settings', async () => {
   let capturedOptions;
-  let stdinClosed = false;
   const result = await runCommand('/fake/claude', ['plugin', 'list', '--json'], {
     environment: { PATH: '/usr/bin' },
     timeoutMs: 8000,
   }, (_command, _args, options, callback) => {
     capturedOptions = options;
     queueMicrotask(() => callback(null, '[]', ''));
-    return { stdin: { end: () => { stdinClosed = true; } } };
   });
 
   assert.equal(result.stdout, '[]');
-  assert.equal(stdinClosed, true);
+  assert.deepEqual(capturedOptions.stdio, ['ignore', 'pipe', 'pipe']);
   assert.equal(capturedOptions.timeout, 8000);
   assert.equal(capturedOptions.env.CI, '1');
   assert.equal(capturedOptions.env.NO_COLOR, '1');
   assert.equal(capturedOptions.env.TERM, 'dumb');
+});
+
+test('Claude status is read locally without launching its CLI from the GUI app', async () => {
+  const homeDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-claude-local-'));
+  const pluginId = 'blobfish-agent-bridge@team-marketplace';
+  const pluginRoot = path.join(homeDirectory, '.claude', 'plugins', 'cache', 'team-marketplace', 'blobfish-agent-bridge', '0.2.0');
+  fs.mkdirSync(path.join(pluginRoot, '.claude-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(homeDirectory, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { [pluginId]: true } }));
+  fs.writeFileSync(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'blobfish-agent-bridge', version: '0.2.0' }));
+  const manager = new IntegrationManager({
+    resourcesRoot: '/unused',
+    dataRoot: '/unused',
+    homeDirectory,
+    locateCli: () => '/fake/claude',
+    run: async () => { throw new Error('CLI must not run during local Claude inspection'); },
+  });
+  try {
+    const result = await manager.inspect('claude');
+    assert.equal(result.state, 'connected');
+    assert.equal(result.pluginId, pluginId);
+    assert.equal(result.version, '0.2.0');
+  } finally {
+    fs.rmSync(homeDirectory, { recursive: true, force: true });
+  }
+});
+
+test('Claude Terminal installer is generated with quoted fixed paths', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "blobfish-claude-terminal-"));
+  const resourcesRoot = path.join(directory, 'resources');
+  createResources(resourcesRoot, 'claude-code');
+  fs.writeFileSync(path.join(resourcesRoot, 'claude-code', 'blobfish-terminal-installer.js'), 'module.exports = {};\n');
+  const executable = path.join(directory, "Fish's App");
+  fs.writeFileSync(executable, '');
+  fs.chmodSync(executable, 0o755);
+  try {
+    const manager = new IntegrationManager({
+      resourcesRoot,
+      dataRoot: path.join(directory, 'data'),
+      locateCli: () => '/fake/claude',
+    });
+    const prepared = manager.prepareClaudeTerminalInstaller(executable);
+    const script = fs.readFileSync(prepared.commandPath, 'utf8');
+    assert.match(script, /ELECTRON_RUN_AS_NODE=1/);
+    assert.ok(script.includes(shellQuote(executable)));
+    assert.equal(fs.statSync(prepared.commandPath).mode & 0o777, 0o700);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 for (const provider of ['codex', 'claude']) {
@@ -61,6 +107,7 @@ for (const provider of ['codex', 'claude']) {
     const manager = new IntegrationManager({
       resourcesRoot,
       dataRoot,
+      homeDirectory: directory,
       locateCli: () => `/fake/${provider}`,
       run: async (_command, args) => {
         calls.push(args);
@@ -97,6 +144,7 @@ test('missing CLI is reported without modifying integration files', async () => 
   const manager = new IntegrationManager({
     resourcesRoot: '/missing/resources',
     dataRoot: '/missing/data',
+    homeDirectory: '/missing/home',
     locateCli: () => null,
     run: async () => { throw new Error('must not run'); },
   });

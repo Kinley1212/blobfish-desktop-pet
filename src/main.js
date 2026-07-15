@@ -972,6 +972,22 @@ app.whenReady().then(() => {
         };
       }
     }
+    if (provider === 'claude') {
+      const status = await integrationManager.inspect('claude');
+      if (status.state === 'connected') return { ...status, changed: false, restartRequired: false };
+      const prepared = integrationManager.prepareClaudeTerminalInstaller(process.execPath);
+      const openError = await shell.openPath(prepared.commandPath);
+      if (openError) throw new Error(`无法打开 Terminal 安装窗口：${openError}`);
+      return {
+        provider,
+        state: 'terminal-opened',
+        cliFound: true,
+        installed: false,
+        enabled: false,
+        changed: false,
+        restartRequired: true,
+      };
+    }
     const result = await integrationManager.install(provider);
     if (result.changed) {
       speak('system.integrationReady', { provider }, {

@@ -70,6 +70,7 @@ function runCommand(command, args, options = {}, execFileImpl = execFile) {
       maxBuffer: 2 * 1024 * 1024,
       encoding: 'utf8',
       env: environment,
+      stdio: ['ignore', 'pipe', 'pipe'],
     }, (error, stdout = '', stderr = '') => {
       if (error) {
         const detail = String(stderr || error.message).trim().slice(-600);
@@ -78,7 +79,6 @@ function runCommand(command, args, options = {}, execFileImpl = execFile) {
       }
       resolve({ stdout, stderr });
     });
-    child?.stdin?.end();
   });
 }
 
@@ -114,6 +114,20 @@ function replaceDirectory(source, target) {
   }
 }
 
+function readOptionalJson(filePath, label) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    if (error instanceof SyntaxError) throw new Error(`${label} 格式无效`);
+    throw error;
+  }
+}
+
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
 class IntegrationManager {
   constructor(options) {
     this.resourcesRoot = options.resourcesRoot;
@@ -139,9 +153,89 @@ class IntegrationManager {
     return entries;
   }
 
+  inspectClaudeLocal(cliPath) {
+    const configRoot = this.environment.CLAUDE_CONFIG_DIR || path.join(this.homeDirectory, '.claude');
+    const pluginsRoot = this.environment.CLAUDE_CODE_PLUGIN_CACHE_DIR || path.join(configRoot, 'plugins');
+    const settings = readOptionalJson(path.join(configRoot, 'settings.json'), 'Claude Code 设置');
+    const enabledPlugins = settings?.enabledPlugins;
+    if (!enabledPlugins || typeof enabledPlugins !== 'object' || Array.isArray(enabledPlugins)) return null;
+
+    const matches = Object.entries(enabledPlugins)
+      .filter(([pluginId]) => pluginId.startsWith(`${PLUGIN_NAME}@`))
+      .sort((left, right) => Number(right[1] === true) - Number(left[1] === true));
+    if (matches.length === 0) return null;
+
+    const [pluginId, setting] = matches[0];
+    const marketplace = pluginId.slice(PLUGIN_NAME.length + 1);
+    if (!/^[A-Za-z0-9._-]+$/.test(marketplace)) throw new Error('Claude Code 插件来源名称无效');
+    const versionRoot = path.join(pluginsRoot, 'cache', marketplace, PLUGIN_NAME);
+    let version = null;
+    let installed = false;
+    try {
+      const candidates = fs.readdirSync(versionRoot, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => {
+          const directory = path.join(versionRoot, entry.name);
+          return { directory, name: entry.name, modifiedAt: fs.statSync(directory).mtimeMs };
+        })
+        .sort((left, right) => right.modifiedAt - left.modifiedAt);
+      if (candidates.length > 0) {
+        installed = true;
+        const manifest = readOptionalJson(
+          path.join(candidates[0].directory, '.claude-plugin', 'plugin.json'),
+          'Claude Code 插件清单',
+        );
+        version = manifest?.version || candidates[0].name;
+      }
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+
+    if (!installed) throw new Error('Claude Code 已记录这个插件，但本地插件缓存不存在');
+    const enabled = setting === true;
+    return {
+      provider: 'claude',
+      state: enabled ? 'connected' : 'disabled',
+      cliFound: Boolean(cliPath),
+      installed: true,
+      enabled,
+      pluginId,
+      version,
+    };
+  }
+
   async inspect(provider) {
     const definition = assertProvider(provider);
     const cliPath = this.locateCli(definition.cliName);
+    if (provider === 'claude') {
+      try {
+        const localStatus = this.inspectClaudeLocal(cliPath);
+        if (localStatus) return localStatus;
+        const installResult = readOptionalJson(
+          path.join(this.dataRoot, PROVIDERS.claude.resourceDirectory, 'install-result.json'),
+          'Claude Code 安装结果',
+        );
+        if (installResult?.state === 'error') {
+          return {
+            provider,
+            state: 'error',
+            cliFound: Boolean(cliPath),
+            installed: false,
+            enabled: false,
+            error: installResult.error || 'Terminal 安装没有完成',
+          };
+        }
+      } catch (error) {
+        return {
+          provider,
+          state: 'error',
+          cliFound: Boolean(cliPath),
+          installed: false,
+          enabled: false,
+          error: error.message,
+        };
+      }
+    }
     if (!cliPath) {
       return { provider, state: 'cli-missing', cliFound: false, installed: false, enabled: false };
     }
@@ -192,6 +286,40 @@ class IntegrationManager {
       : path.join(target, '.claude-plugin', 'marketplace.json');
     if (!fs.existsSync(marketplacePath)) throw new Error('内置 marketplace 清单不完整');
     return { target, marketplacePath };
+  }
+
+  prepareClaudeTerminalInstaller(appExecutable) {
+    const cliPath = this.locateCli(PROVIDERS.claude.cliName);
+    if (!cliPath) throw new Error('没有找到 claude CLI，请先安装或更新它');
+    if (!path.isAbsolute(appExecutable)) throw new Error('水滴鱼运行程序路径无效');
+    fs.accessSync(appExecutable, fs.constants.X_OK);
+
+    const { target } = this.prepare('claude');
+    const helperPath = path.join(target, 'blobfish-terminal-installer.js');
+    if (!fs.existsSync(helperPath)) throw new Error('内置 Claude Code 安装助手不完整');
+    const resultPath = path.join(target, 'install-result.json');
+    const commandPath = path.join(target, '连接水滴鱼.command');
+    fs.rmSync(resultPath, { force: true });
+    const script = [
+      '#!/bin/zsh',
+      'set -u',
+      'echo "水滴鱼正在连接 Claude Code…"',
+      'export ELECTRON_RUN_AS_NODE=1',
+      `${shellQuote(appExecutable)} ${shellQuote(helperPath)} ${shellQuote(cliPath)} ${shellQuote(target)} ${shellQuote(resultPath)}`,
+      'status=$?',
+      'unset ELECTRON_RUN_AS_NODE',
+      'if [[ $status -eq 0 ]]; then',
+      '  echo "连接完成。重新打开 Claude Code 会话就能生效。"',
+      'else',
+      '  echo "连接没有完成；请保留上面的错误信息。"',
+      'fi',
+      'echo "现在可以关闭这个窗口。"',
+      'exit $status',
+      '',
+    ].join('\n');
+    fs.writeFileSync(commandPath, script, { encoding: 'utf8', mode: 0o700 });
+    fs.chmodSync(commandPath, 0o700);
+    return { commandPath, resultPath };
   }
 
   async install(provider) {
@@ -251,4 +379,5 @@ module.exports = {
   parseJson,
   replaceDirectory,
   runCommand,
+  shellQuote,
 };
