@@ -18,3 +18,7 @@ npm start
 - macOS 菜单栏退出入口
 
 原始 App 仅作为行为和视觉基线，不纳入本项目版本控制。
+
+## 扩展形象
+
+角色图形和动作已经拆为独立形象包。目录结构、标准动作和回退规则见 [`docs/character-packs.md`](docs/character-packs.md)。

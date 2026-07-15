@@ -1,17 +1,20 @@
 const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
+const { loadCharacterPack } = require('./core/pack-loader');
 
-const WINDOW_WIDTH = 300;
-const WINDOW_HEIGHT = 170;
+const WINDOW_WIDTH = 340;
+const WINDOW_HEIGHT = 210;
 const SPEED = 1.5;
 const TICK_MS = 30;
+const CHARACTER_PACK_ID = 'blobfish';
+const characterPack = loadCharacterPack(path.join(__dirname, 'packs', 'characters'), CHARACTER_PACK_ID);
 
 // The visible fish only occupies a small box near the bottom-center of the
 // (much larger) transparent window, which also has room for the speech
 // bubble. Boundary checks are done against the fish's own box, not the
 // window's, so dragging/walking can reach the true screen edges.
-const PET_WIDTH = 82;
-const PET_HEIGHT = 70;
+const PET_WIDTH = characterPack.manifest.size.width;
+const PET_HEIGHT = characterPack.manifest.size.height;
 const PET_BOTTOM_MARGIN = 10;
 const PET_OFFSET_X = (WINDOW_WIDTH - PET_WIDTH) / 2;
 const PET_TOP_MARGIN = WINDOW_HEIGHT - PET_BOTTOM_MARGIN - PET_HEIGHT;
@@ -143,6 +146,7 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
+      sandbox: true,
     },
   });
 
@@ -356,6 +360,7 @@ function scheduleReminders() {
 }
 
 app.whenReady().then(() => {
+  ipcMain.handle('character-pack:get', () => characterPack);
   createTray();
   createWindow();
 });

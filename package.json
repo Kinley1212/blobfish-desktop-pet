@@ -5,7 +5,8 @@
   "description": "A tiny blobfish desktop pet for macOS",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "test": "node --test"
   },
   "devDependencies": {
     "electron": "31.7.7"

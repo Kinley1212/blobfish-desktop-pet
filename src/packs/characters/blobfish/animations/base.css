@@ -1,0 +1,13 @@
+#pet .tear {
+  opacity: 0;
+  transform-origin: center;
+}
+
+#pet .fin,
+#pet .body-shape,
+#pet .body-shading,
+#pet .mouth,
+#pet .nose {
+  transform-box: fill-box;
+  transform-origin: center;
+}

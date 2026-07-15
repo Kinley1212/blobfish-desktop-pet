@@ -1,0 +1,13 @@
+#pet .eye {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+#pet .eye.is-blinking {
+  animation: blobfish-blink 160ms ease-in-out;
+}
+
+@keyframes blobfish-blink {
+  0%, 100% { transform: scaleY(1); }
+  48%, 52% { transform: scaleY(0.08); }
+}

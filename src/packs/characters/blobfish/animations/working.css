@@ -1,0 +1,17 @@
+#pet[data-motion="working"] {
+  animation: blobfish-working 1.5s infinite ease-in-out;
+}
+
+#pet[data-motion="working"] .body-shape {
+  animation: blobfish-working-body 1.5s infinite ease-in-out;
+}
+
+@keyframes blobfish-working {
+  0%, 100% { margin-bottom: 0; }
+  50% { margin-bottom: 3px; }
+}
+
+@keyframes blobfish-working-body {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(1.025); }
+}

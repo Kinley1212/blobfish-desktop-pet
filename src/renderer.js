@@ -2,6 +2,10 @@ const pet = document.getElementById('pet');
 const bubble = document.getElementById('bubble');
 
 const VELOCITY_WINDOW_MS = 300;
+const BLINK_MIN_MS = 3500;
+const BLINK_MAX_MS = 9000;
+const BLINK_DURATION_MS = 180;
+const DOUBLE_BLINK_CHANCE = 0.12;
 // Minimum cumulative pointer movement (px) before a press-and-move counts as
 // a drag. Below this it's treated as a click even if the hand wasn't
 // perfectly still between mousedown and mouseup.
@@ -67,6 +71,73 @@ let dragging = false;
 let movedDuringDrag = false;
 let dragDistance = 0;
 let moveHistory = []; // recent { t, dx, dy } samples, used to estimate release velocity
+let blinkTimer = null;
+
+function sanitizeSvg(svgText) {
+  const parser = new DOMParser();
+  const documentNode = parser.parseFromString(svgText, 'image/svg+xml');
+  if (documentNode.querySelector('parsererror')) {
+    throw new Error('Character pack contains invalid SVG');
+  }
+
+  documentNode.querySelectorAll('script, foreignObject, iframe, object, embed').forEach((node) => node.remove());
+  documentNode.querySelectorAll('*').forEach((node) => {
+    for (const attribute of [...node.attributes]) {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value.trim();
+      if (name.startsWith('on')) {
+        node.removeAttribute(attribute.name);
+      } else if ((name === 'href' || name === 'xlink:href') && !value.startsWith('#')) {
+        node.removeAttribute(attribute.name);
+      }
+    }
+  });
+
+  return documentNode.documentElement.outerHTML;
+}
+
+async function installCharacterPack() {
+  const pack = await window.petAPI.getCharacterPack();
+  pet.innerHTML = sanitizeSvg(pack.svg);
+  pet.style.width = `${pack.manifest.size.width}px`;
+  pet.style.height = `${pack.manifest.size.height}px`;
+
+  for (const style of pack.styles) {
+    const styleElement = document.createElement('style');
+    styleElement.dataset.characterStyle = style.path;
+    styleElement.textContent = style.css;
+    document.head.appendChild(styleElement);
+  }
+}
+
+function scheduleBlink(delayOverride) {
+  clearTimeout(blinkTimer);
+  const delay = Number.isFinite(delayOverride)
+    ? delayOverride
+    : BLINK_MIN_MS + Math.random() * (BLINK_MAX_MS - BLINK_MIN_MS);
+
+  blinkTimer = setTimeout(() => {
+    if (dragging || pet.classList.contains('hit') || pet.classList.contains('bump')) {
+      scheduleBlink(900);
+      return;
+    }
+
+    const eyes = [...pet.querySelectorAll('.eye')];
+    if (eyes.length === 0) return;
+    eyes.forEach((eye) => eye.classList.remove('is-blinking'));
+    void pet.offsetWidth;
+    eyes.forEach((eye) => eye.classList.add('is-blinking'));
+
+    setTimeout(() => {
+      eyes.forEach((eye) => eye.classList.remove('is-blinking'));
+      if (Math.random() < DOUBLE_BLINK_CHANCE) {
+        scheduleBlink(170);
+      } else {
+        scheduleBlink();
+      }
+    }, BLINK_DURATION_MS);
+  }, delay);
+}
 
 function showBubble(text, duration) {
   bubble.textContent = text;
@@ -78,10 +149,7 @@ function showBubble(text, duration) {
 }
 
 function setDirection(dir) {
-  pet.style.setProperty('--dir', dir);
-  if (!pet.classList.contains('hit')) {
-    pet.style.transform = `translateX(-50%) scaleX(${dir})`;
-  }
+  pet.style.setProperty('--dir', dir >= 0 ? 1 : -1);
 }
 
 function triggerBump() {
@@ -124,7 +192,15 @@ function scheduleIdleChatter() {
 window.petAPI.onDirection((dir) => setDirection(dir));
 window.petAPI.onReminder((text) => showBubble(text, 9000));
 window.petAPI.onBump(() => triggerBump());
-scheduleIdleChatter();
+installCharacterPack()
+  .then(() => {
+    scheduleBlink();
+    scheduleIdleChatter();
+  })
+  .catch((error) => {
+    console.error('Failed to install character pack', error);
+    showBubble('形象包壞掉了……', 6000);
+  });
 // The window can move on its own (autonomous swimming, flinging) without the
 // cursor ever moving, so mousemove alone isn't enough to keep click-through
 // in sync - the main process calls this after every such move with the

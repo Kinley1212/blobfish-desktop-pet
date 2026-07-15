@@ -1,0 +1,45 @@
+{
+  "id": "blobfish",
+  "displayName": "水滴魚",
+  "version": 1,
+  "renderer": "svg",
+  "art": "art/character.svg",
+  "preview": "art/character.svg",
+  "size": {
+    "width": 105,
+    "height": 90
+  },
+  "anchor": "bottom-center",
+  "styles": [
+    "animations/base.css",
+    "animations/idle.css",
+    "animations/blink.css",
+    "animations/roam.css",
+    "animations/working.css",
+    "animations/waiting.css",
+    "animations/success.css",
+    "animations/failed.css",
+    "animations/hit.css",
+    "animations/bump.css",
+    "animations/dragging.css"
+  ],
+  "actions": {
+    "idle": "idle",
+    "blink": "blink",
+    "roam": "roam",
+    "working": "working",
+    "waiting": "waiting",
+    "success": "success",
+    "failed": "failed",
+    "hit": "hit",
+    "bump": "bump",
+    "dragging": "dragging"
+  },
+  "fallbacks": {
+    "working": "roam",
+    "waiting": "idle",
+    "success": "idle",
+    "failed": "idle"
+  },
+  "defaultLanguagePack": "blobfish-zh-TW"
+}
