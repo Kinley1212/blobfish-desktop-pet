@@ -31,6 +31,22 @@ function renderLanguages(languages, selectedId) {
   }
 }
 
+function renderIntegrationStatus(integrationStatus = {}) {
+  const labels = {
+    disabled: '未启用',
+    requesting: '正在请求日历权限…',
+    authorized: '已授权，只在本机读取',
+    notDetermined: '尚未决定权限',
+    denied: '权限被拒绝',
+    restricted: '权限受系统限制',
+    writeOnly: '只有写入权限，无法读取',
+    unknown: '权限状态未知',
+    error: '连接失败，请查看日志',
+  };
+  const statusName = integrationStatus.calendar || 'disabled';
+  byId('calendar-status').textContent = `日历：${labels[statusName] || labels.unknown}`;
+}
+
 function renderConfig(config, languages) {
   document.querySelectorAll('input[name="workday"]').forEach((input) => {
     input.checked = config.schedule.workdays.includes(Number(input.value));
@@ -117,6 +133,7 @@ form.addEventListener('submit', async (event) => {
   try {
     const result = await window.settingsAPI.save(readConfig());
     renderConfig(result.config, result.languages);
+    renderIntegrationStatus(result.integrationStatus);
     showStatus('已保存。鱼知道了。');
   } catch (error) {
     showStatus(`保存失败：${error.message}`, true);
@@ -131,6 +148,7 @@ resetButton.addEventListener('click', async () => {
   try {
     const result = await window.settingsAPI.reset();
     renderConfig(result.config, result.languages);
+    renderIntegrationStatus(result.integrationStatus);
     showStatus('已经恢复默认。');
   } catch (error) {
     showStatus(`恢复失败：${error.message}`, true);
@@ -142,6 +160,9 @@ resetButton.addEventListener('click', async () => {
 window.settingsAPI.load()
   .then((result) => {
     renderConfig(result.config, result.languages);
+    renderIntegrationStatus(result.integrationStatus);
     if (result.warning) showStatus(result.warning, true);
   })
   .catch((error) => showStatus(`读取设置失败：${error.message}`, true));
+
+window.settingsAPI.onIntegrationStatus((integrationStatus) => renderIntegrationStatus(integrationStatus));

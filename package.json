@@ -5,6 +5,7 @@
   "description": "A tiny blobfish desktop pet for macOS",
   "main": "src/main.js",
   "scripts": {
+    "build:native": "node scripts/build-calendar-helper.js",
     "start": "electron .",
     "test": "node --test"
   },

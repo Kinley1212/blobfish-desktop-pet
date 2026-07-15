@@ -1,6 +1,8 @@
-const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, powerMonitor } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { BatteryThresholdTracker, readMacBattery } = require('./core/battery-monitor');
+const { CalendarService } = require('./core/calendar-service');
 const { ConfigStore, DEFAULT_CONFIG } = require('./core/config-store');
 const { loadCharacterPack } = require('./core/pack-loader');
 const { loadLanguagePack } = require('./core/language-pack-loader');
@@ -53,6 +55,7 @@ let tray;
 let direction = 1;
 let paused = false;
 let manuallyPaused = false;
+let systemPaused = false;
 let currentY;
 let flingIntervalId = null;
 let speechQueue;
@@ -62,6 +65,13 @@ let configStore;
 let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 let phraseEngine = null;
 let runtimeWarning = null;
+let batteryTracker;
+let batteryPollTimer = null;
+let batteryReadErrorLogged = false;
+let calendarService;
+let calendarStatus = 'disabled';
+let lockedAt = null;
+let lastWakeSpokenAt = 0;
 
 function getDateContext(date = new Date()) {
   return {
@@ -116,7 +126,7 @@ function getEventCategory(event) {
 }
 
 function isMovementPaused() {
-  return paused || manuallyPaused;
+  return paused || manuallyPaused || systemPaused;
 }
 
 function speak(event, context = {}, options = {}) {
@@ -216,6 +226,7 @@ function getSettingsPayload() {
     config: JSON.parse(JSON.stringify(config)),
     languages: listLanguagePacks(),
     warning: runtimeWarning || configStore.loadWarning,
+    integrationStatus: { calendar: calendarStatus },
   };
 }
 
@@ -223,6 +234,7 @@ function applyConfig(nextConfig) {
   const languageChanged = !phraseEngine || nextConfig.language.packId !== config.language.packId;
   config = nextConfig;
   if (languageChanged) loadConfiguredLanguage(config.language.packId);
+  if (calendarService) calendarService.setEnabled(config.integrations.calendar);
   scheduleIdleChatter();
 }
 
@@ -576,6 +588,108 @@ function scheduleIdleChatter() {
   }, delay);
 }
 
+function pollBattery() {
+  readMacBattery()
+    .then((sample) => {
+      batteryReadErrorLogged = false;
+      batteryTracker.update(sample);
+    })
+    .catch((error) => {
+      if (!batteryReadErrorLogged) {
+        console.error(error.message);
+        batteryReadErrorLogged = true;
+      }
+    });
+}
+
+function speakAfterWake() {
+  const now = Date.now();
+  if (now - lastWakeSpokenAt < 2000) return;
+  lastWakeSpokenAt = now;
+  const lockedSeconds = lockedAt ? Math.max(0, Math.round((now - lockedAt) / 1000)) : 0;
+  lockedAt = null;
+  systemPaused = false;
+  speak('system.unlocked', { lockedSeconds }, {
+    priority: 70,
+    durationMs: 4500,
+    replaceKey: 'system.unlocked',
+  });
+  if (config.language.rareEnabled && lockedSeconds >= 7200) {
+    speak('rare.returnAfterLongLock', { lockedSeconds }, {
+      priority: 70,
+      durationMs: 5000,
+      replaceKey: 'rare.returnAfterLongLock',
+    });
+  }
+}
+
+function setupSystemMonitors() {
+  batteryTracker = new BatteryThresholdTracker((threshold) => {
+    speak('system.battery', { battery: threshold }, {
+      priority: SPEECH_PRIORITY.urgent,
+      durationMs: 10000,
+      replaceKey: 'system.battery',
+      allowDuringQuiet: true,
+      action: 'waiting',
+    });
+  });
+  pollBattery();
+  batteryPollTimer = setInterval(pollBattery, 60 * 1000);
+
+  powerMonitor.on('on-ac', pollBattery);
+  powerMonitor.on('on-battery', pollBattery);
+  powerMonitor.on('lock-screen', () => {
+    systemPaused = true;
+    lockedAt = Date.now();
+  });
+  powerMonitor.on('unlock-screen', speakAfterWake);
+  powerMonitor.on('suspend', () => {
+    systemPaused = true;
+    if (!lockedAt) lockedAt = Date.now();
+  });
+  powerMonitor.on('resume', speakAfterWake);
+}
+
+function getCalendarHelperPath() {
+  if (app.isPackaged) return path.join(process.resourcesPath, 'native', 'blobfish-calendar-helper');
+  return path.join(__dirname, '..', 'native', 'build', process.arch, 'blobfish-calendar-helper');
+}
+
+function handleCalendarEvent(calendarEvent) {
+  const context = {};
+  if (calendarEvent.event && config.privacy.includeCalendarTitles && calendarEvent.event.title) {
+    context.title = calendarEvent.event.title;
+  }
+  if (calendarEvent.minutes) context.minutes = calendarEvent.minutes;
+
+  const eventName = {
+    upcoming: 'calendar.upcoming',
+    starting: 'calendar.starting',
+    busyDay: 'calendar.busyDay',
+  }[calendarEvent.type];
+  if (!eventName) return;
+  speak(eventName, context, {
+    priority: SPEECH_PRIORITY.calendar,
+    durationMs: calendarEvent.type === 'starting' ? 7000 : 5500,
+    replaceKey: eventName,
+  });
+}
+
+function setupCalendarService() {
+  calendarService = new CalendarService({
+    helperPath: getCalendarHelperPath(),
+    onEvent: handleCalendarEvent,
+    onStatus: (status, error) => {
+      calendarStatus = status;
+      if (error) console.error(`Calendar integration: ${error}`);
+      if (settingsWin && !settingsWin.isDestroyed()) {
+        settingsWin.webContents.send('integration-status', { calendar: status });
+      }
+    },
+  });
+  calendarService.setEnabled(config.integrations.calendar);
+}
+
 app.whenReady().then(() => {
   configStore = new ConfigStore(app.getPath('userData'));
   config = configStore.load();
@@ -608,6 +722,8 @@ app.whenReady().then(() => {
   createApplicationMenu();
   createTray();
   createWindow();
+  setupSystemMonitors();
+  setupCalendarService();
   if (process.argv.includes('--settings')) createSettingsWindow();
 });
 
@@ -617,5 +733,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   clearTimeout(idleChatterTimer);
+  clearInterval(batteryPollTimer);
+  if (calendarService) calendarService.stop();
   if (speechQueue) speechQueue.clear();
 });

@@ -110,6 +110,12 @@ input[type="checkbox"] { accent-color: #6f9295; }
 .range-field output { color: #476d70; font-variant-numeric: tabular-nums; }
 input[type="range"] { width: 100%; accent-color: #6f9295; }
 
+.integration-status {
+  margin: 14px 0 0;
+  color: #77716d;
+  font-size: 11px;
+}
+
 .actions {
   position: sticky;
   bottom: 0;
