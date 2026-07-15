@@ -1,11 +1,11 @@
-const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, powerMonitor } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, powerMonitor, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { AgentBridge } = require('./core/agent-bridge');
 const { BatteryThresholdTracker, readMacBattery } = require('./core/battery-monitor');
 const { CalendarService } = require('./core/calendar-service');
 const { ConfigStore, DEFAULT_CONFIG, validateConfig } = require('./core/config-store');
-const { IntegrationManager } = require('./core/integration-manager');
+const { IntegrationManager, PLUGIN_NAME } = require('./core/integration-manager');
 const { loadCharacterPack } = require('./core/pack-loader');
 const { loadLanguagePack } = require('./core/language-pack-loader');
 const { PhraseEngine } = require('./core/phrase-engine');
@@ -949,6 +949,24 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('agent-integrations:install', async (event, provider) => {
     assertSettingsSender(event);
+    if (provider === 'codex') {
+      const status = await integrationManager.inspect('codex');
+      if (status.state === 'cli-missing') {
+        const prepared = integrationManager.prepare('codex');
+        const installUrl = `codex://plugins/${PLUGIN_NAME}?marketplacePath=${encodeURIComponent(prepared.marketplacePath)}`;
+        await shell.openExternal(installUrl);
+        return {
+          provider,
+          state: 'opened',
+          cliFound: false,
+          installed: false,
+          enabled: false,
+          changed: false,
+          restartRequired: true,
+          trustRequired: true,
+        };
+      }
+    }
     const result = await integrationManager.install(provider);
     if (result.changed) {
       speak('system.integrationReady', { provider }, {

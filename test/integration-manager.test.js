@@ -7,7 +7,11 @@ const { IntegrationManager, findExecutable } = require('../src/core/integration-
 
 function createResources(root, providerDirectory) {
   const source = path.join(root, providerDirectory);
-  fs.mkdirSync(source, { recursive: true });
+  const manifestDirectory = providerDirectory === 'codex'
+    ? path.join(source, '.agents', 'plugins')
+    : path.join(source, '.claude-plugin');
+  fs.mkdirSync(manifestDirectory, { recursive: true });
+  fs.writeFileSync(path.join(manifestDirectory, 'marketplace.json'), '{}');
   fs.writeFileSync(path.join(source, 'marker.txt'), providerDirectory);
 }
 
@@ -78,4 +82,29 @@ test('missing CLI is reported without modifying integration files', async () => 
   });
   assert.equal((await manager.inspect('codex')).state, 'cli-missing');
   await assert.rejects(() => manager.install('codex'), /没有找到 codex CLI/);
+});
+
+test('prepare returns the copied Codex marketplace path for the app install page', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-codex-page-'));
+  const resourcesRoot = path.join(directory, 'resources');
+  createResources(resourcesRoot, 'codex');
+  try {
+    const manager = new IntegrationManager({
+      resourcesRoot,
+      dataRoot: path.join(directory, 'data'),
+      locateCli: () => null,
+    });
+    const prepared = manager.prepare('codex');
+    assert.equal(prepared.marketplacePath, path.join(
+      directory,
+      'data',
+      'codex',
+      '.agents',
+      'plugins',
+      'marketplace.json',
+    ));
+    assert.equal(fs.existsSync(prepared.marketplacePath), true);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });

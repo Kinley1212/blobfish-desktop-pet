@@ -70,13 +70,18 @@ function renderAgentIntegration(provider, result) {
     disabled: '插件已安装，但当前被停用',
     'not-installed': `已找到 ${name}，尚未安装状态插件`,
     'cli-missing': `没有找到 ${name} CLI`,
+    opened: '已打开 Codex 插件页，请在那里确认安装',
     error: `检测失败：${result.error || '未知错误'}`,
   };
   statusElement.textContent = messages[result.state] || '连接状态未知';
   statusElement.classList.toggle('error', result.state === 'error');
-  button.disabled = result.state === 'connected' || result.state === 'cli-missing';
+  button.disabled = result.state === 'connected' || (result.state === 'cli-missing' && provider === 'claude');
   button.textContent = result.state === 'connected'
     ? '已连接'
+    : result.state === 'opened'
+      ? '再次打开'
+      : result.state === 'cli-missing' && provider === 'codex'
+        ? '在 Codex 中打开'
     : result.state === 'disabled'
       ? '重新启用'
       : '一键安装';
@@ -104,6 +109,10 @@ async function installAgentIntegration(provider) {
   try {
     const result = await window.settingsAPI.installAgentIntegration(provider);
     renderAgentIntegration(provider, result);
+    if (result.state === 'opened') {
+      showStatus('已打开 Codex 插件页。请在那里确认安装，再新开任务审查 /hooks。');
+      return;
+    }
     const followUp = provider === 'codex'
       ? '请新开一个 Codex 任务，并在 /hooks 中审查这个本地 Hook。'
       : '请重新打开 Claude Code 会话。';

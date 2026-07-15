@@ -177,6 +177,18 @@ class IntegrationManager {
     return { codex, claude };
   }
 
+  prepare(provider) {
+    const definition = assertProvider(provider);
+    const source = path.join(this.resourcesRoot, definition.resourceDirectory);
+    const target = path.join(this.dataRoot, definition.resourceDirectory);
+    replaceDirectory(source, target);
+    const marketplacePath = provider === 'codex'
+      ? path.join(target, '.agents', 'plugins', 'marketplace.json')
+      : path.join(target, '.claude-plugin', 'marketplace.json');
+    if (!fs.existsSync(marketplacePath)) throw new Error('内置 marketplace 清单不完整');
+    return { target, marketplacePath };
+  }
+
   async install(provider) {
     const definition = assertProvider(provider);
     const cliPath = this.locateCli(definition.cliName);
@@ -185,9 +197,7 @@ class IntegrationManager {
     const existing = await this.inspect(provider);
     if (existing.state === 'connected') return { ...existing, changed: false, restartRequired: false };
 
-    const source = path.join(this.resourcesRoot, definition.resourceDirectory);
-    const target = path.join(this.dataRoot, definition.resourceDirectory);
-    replaceDirectory(source, target);
+    const { target } = this.prepare(provider);
 
     const { stdout } = await this.run(cliPath, definition.listMarketplacesArgs);
     const parsedMarketplaces = parseJson(stdout, `${definition.cliName} marketplace`);

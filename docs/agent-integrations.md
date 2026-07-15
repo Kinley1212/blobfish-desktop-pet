@@ -57,6 +57,11 @@ add` and `codex plugin add`, then reports the verified CLI status. This is local
 only and does not need an API key. A new Codex task and one `/hooks` review are
 still required by Codex's hook trust boundary.
 
+If the Codex desktop app is present but its CLI is not discoverable, the same
+button prepares the local marketplace and opens the plugin's `codex://` install
+page instead. The user confirms installation in Codex, starts a new task and
+reviews the hook there; no terminal command is required.
+
 Current Codex hooks do not expose a dedicated turn-failure event. `Stop` reliably
 means the turn ended, but a failed tool call is not the same thing as a failed
 task, so the bridge does not mislabel `PostToolUse` failures. The local schema
