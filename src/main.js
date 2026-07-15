@@ -14,7 +14,9 @@ const { SpeechQueue } = require('./core/speech-queue');
 const { formatProviderTaskSummary } = require('./core/task-menu-summary');
 const { TaskTracker } = require('./core/task-tracker');
 
-app.setName('BlobfishDesktopPet');
+const userDataRoot = app.getPath('appData');
+app.setName('水滴鱼2.0');
+app.setPath('userData', path.join(userDataRoot, 'BlobfishDesktopPet'));
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 
@@ -257,7 +259,7 @@ function buildPetMenuTemplate() {
       },
     },
     { type: 'separator' },
-    { label: '退出水滴鱼', click: () => requestQuit() },
+    { label: '退出水滴鱼2.0', click: () => requestQuit() },
   ];
 }
 
@@ -269,7 +271,7 @@ function rebuildTrayMenu() {
 function createTray() {
   tray = new Tray(nativeImage.createEmpty());
   tray.setTitle('🐟');
-  tray.setToolTip('水滴魚桌寵');
+  tray.setToolTip('水滴鱼2.0');
   rebuildTrayMenu();
 }
 
@@ -280,7 +282,7 @@ function createApplicationMenu() {
       submenu: [
         { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => createSettingsWindow() },
         { type: 'separator' },
-        { label: '退出水滴鱼', accelerator: 'CmdOrCtrl+Q', click: () => requestQuit() },
+        { label: '退出水滴鱼2.0', accelerator: 'CmdOrCtrl+Q', click: () => requestQuit() },
       ],
     },
     { role: 'editMenu' },
@@ -300,7 +302,7 @@ function createSettingsWindow() {
     height: 760,
     minWidth: 520,
     minHeight: 620,
-    title: '水滴鱼设置',
+    title: '水滴鱼2.0设置',
     backgroundColor: '#f2f0ec',
     webPreferences: {
       preload: path.join(__dirname, 'settings-preload.js'),

@@ -16,7 +16,8 @@ const archValue = architecture === 'arm64' ? Arch.arm64 : Arch.x64;
 const outputDirectory = path.join(root, 'release', architecture);
 const helperPath = path.join(root, 'native', 'build', architecture, 'blobfish-calendar-helper');
 const iconPath = path.join(root, 'src', 'packs', 'characters', 'blobfish', 'art', 'character.svg');
-const zipPath = path.join(root, 'release', `BlobfishDesktopPet-macOS-${architecture}.zip`);
+const zipPath = path.join(root, 'release', `水滴鱼2.0-macOS-${architecture}.zip`);
+const legacyZipPath = path.join(root, 'release', `BlobfishDesktopPet-macOS-${architecture}.zip`);
 
 function findAppBundle(directory) {
   const queue = [directory];
@@ -48,6 +49,7 @@ async function main() {
   fs.mkdirSync(path.dirname(outputDirectory), { recursive: true });
   fs.rmSync(outputDirectory, { recursive: true, force: true });
   fs.rmSync(zipPath, { force: true });
+  fs.rmSync(legacyZipPath, { force: true });
 
   run(process.execPath, [path.join(__dirname, 'build-calendar-helper.js'), architecture]);
 
@@ -55,7 +57,7 @@ async function main() {
     targets: Platform.MAC.createTarget('dir', archValue),
     config: {
       appId: 'com.blobfish.desktop-pet',
-      productName: '水滴魚',
+      productName: '水滴鱼2.0',
       electronVersion: '43.1.1',
       asar: true,
       npmRebuild: false,
