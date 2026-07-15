@@ -10,6 +10,7 @@ const { loadCharacterPack } = require('./core/pack-loader');
 const { loadLanguagePack } = require('./core/language-pack-loader');
 const { PhraseEngine } = require('./core/phrase-engine');
 const { getScheduleReminder, isInQuietHours } = require('./core/reminder-scheduler');
+const { RuntimeErrorNotifier } = require('./core/runtime-error-notifier');
 const { SpeechQueue } = require('./core/speech-queue');
 const { formatProviderTaskSummary } = require('./core/task-menu-summary');
 const { TaskTracker } = require('./core/task-tracker');
@@ -101,6 +102,7 @@ let lastContextMenuSpokenAt = 0;
 let quitRequested = false;
 let allowImmediateQuit = false;
 let currentAgentSnapshot = Object.freeze({ activeCount: 0, waitingCount: 0, runningCount: 0 });
+let runtimeErrorNotifier;
 const longRunningNotified = new Set();
 
 function getDateContext(date = new Date()) {
@@ -140,7 +142,7 @@ function loadConfiguredLanguage(packId) {
     return packId;
   } catch (error) {
     runtimeWarning = `语言包 ${packId} 无法加载，已临时改用默认语言包：${error.message}`;
-    console.error(runtimeWarning);
+    reportRuntimeError('Language pack', error);
     const fallback = loadLanguagePack(LANGUAGES_ROOT, DEFAULT_LANGUAGE_PACK_ID);
     phraseEngine = new PhraseEngine(fallback.phrases);
     return DEFAULT_LANGUAGE_PACK_ID;
@@ -184,6 +186,18 @@ function speak(event, context = {}, options = {}) {
     replaceKey: options.replaceKey,
     action: options.action,
   });
+}
+
+runtimeErrorNotifier = new RuntimeErrorNotifier(() => speak('system.error', {}, {
+  priority: SPEECH_PRIORITY.urgent,
+  durationMs: 5500,
+  replaceKey: 'system.error',
+  allowDuringQuiet: true,
+  action: 'failed',
+}));
+
+function reportRuntimeError(scope, error) {
+  return runtimeErrorNotifier.report(scope, error);
 }
 
 function syncLaunchAtLogin(enabled) {
@@ -619,6 +633,7 @@ function createWindow() {
   }, TICK_MS);
 
   win.webContents.once('did-finish-load', () => {
+    runtimeErrorNotifier.setReady();
     scheduleReminders();
     scheduleIdleChatter();
   });
@@ -850,7 +865,7 @@ function setupCalendarService() {
     onEvent: handleCalendarEvent,
     onStatus: (status, error) => {
       calendarStatus = status;
-      if (error) console.error(`Calendar integration: ${error}`);
+      if (error) reportRuntimeError('Calendar integration', error);
       if (settingsWin && !settingsWin.isDestroyed()) {
         settingsWin.webContents.send('integration-status', { calendar: status, agentBridge: agentBridgeStatus });
       }
@@ -942,7 +957,7 @@ function setupAgentBridge() {
     onEvent: (event) => {
       if (isProviderEnabled(event.provider)) taskTracker.handle(event);
     },
-    onError: (error) => console.error(error.message),
+    onError: (error) => reportRuntimeError('Agent bridge', error),
   });
   agentBridgeStatus = 'starting';
   agentBridge.start()
@@ -954,65 +969,13 @@ function setupAgentBridge() {
     })
     .catch((error) => {
       agentBridgeStatus = 'error';
-      console.error(`Agent bridge: ${error.message}`);
+      reportRuntimeError('Agent bridge', error);
     });
   taskMaintenanceTimer = setInterval(runTaskMaintenance, 5 * 60 * 1000);
 }
 
-if (hasSingleInstanceLock) app.on('second-instance', revealExistingInstance);
-
-if (hasSingleInstanceLock) app.whenReady().then(() => {
-  if (app.dock) app.dock.hide();
-  configStore = new ConfigStore(app.getPath('userData'));
-  config = configStore.load();
-  const activeLanguageId = loadConfiguredLanguage(config.language.packId);
-  if (activeLanguageId !== config.language.packId) {
-    config = { ...config, language: { ...config.language, packId: activeLanguageId } };
-  }
-  if (config.startup.launchAtLogin) {
-    try {
-      syncLaunchAtLogin(true);
-    } catch (error) {
-      runtimeWarning = `无法同步登录启动设置：${error.message}`;
-      console.error(runtimeWarning);
-    }
-  }
-  updateAgentState(currentAgentSnapshot);
-
-  ipcMain.handle('character-pack:get', () => characterPack);
-  ipcMain.handle('pet-config:get', () => ({ scale: config.pet.scale }));
-  ipcMain.handle('agent-state:get', () => ({
-    ...currentAgentSnapshot,
-    motion: currentAgentSnapshot.activeCount > 0
-      ? (currentAgentSnapshot.waitingCount === currentAgentSnapshot.activeCount ? 'waiting' : 'working')
-      : (agentPaused ? 'idle' : 'roam'),
-  }));
-  ipcMain.handle('settings:get', (event) => {
-    assertSettingsSender(event);
-    return getSettingsPayload();
-  });
-  ipcMain.handle('settings:save', (event, nextConfig) => {
-    assertSettingsSender(event);
-    const availableIds = new Set(listLanguagePacks().map((language) => language.id));
-    if (!nextConfig || !availableIds.has(nextConfig.language?.packId)) {
-      throw new Error('Selected language pack is not installed or is invalid');
-    }
-    const saved = persistConfig(nextConfig);
-    applyConfig(saved);
-    return getSettingsPayload();
-  });
-  ipcMain.handle('settings:reset', (event) => {
-    assertSettingsSender(event);
-    const reset = persistConfig(DEFAULT_CONFIG);
-    applyConfig(reset);
-    return getSettingsPayload();
-  });
-  ipcMain.handle('agent-integrations:inspect', async (event, provider) => {
-    assertSettingsSender(event);
-    return integrationManager.inspect(provider);
-  });
-  ipcMain.handle('agent-integrations:install', async (event, provider) => {
-    assertSettingsSender(event);
+async function connectAgentIntegration(provider) {
+  try {
     if (provider === 'codex') {
       const status = await integrationManager.inspect('codex');
       if (status.state === 'cli-missing') {
@@ -1057,6 +1020,85 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       });
     }
     return result;
+  } catch (error) {
+    reportRuntimeError(`${provider} connection`, error);
+    throw error;
+  }
+}
+
+if (hasSingleInstanceLock) app.on('second-instance', revealExistingInstance);
+
+if (hasSingleInstanceLock) app.whenReady().then(() => {
+  if (app.dock) app.dock.hide();
+  configStore = new ConfigStore(app.getPath('userData'));
+  config = configStore.load();
+  if (configStore.loadWarning) reportRuntimeError('Settings', configStore.loadWarning);
+  const activeLanguageId = loadConfiguredLanguage(config.language.packId);
+  if (activeLanguageId !== config.language.packId) {
+    config = { ...config, language: { ...config.language, packId: activeLanguageId } };
+  }
+  if (config.startup.launchAtLogin) {
+    try {
+      syncLaunchAtLogin(true);
+    } catch (error) {
+      runtimeWarning = `无法同步登录启动设置：${error.message}`;
+      reportRuntimeError('Launch at login', error);
+    }
+  }
+  updateAgentState(currentAgentSnapshot);
+
+  ipcMain.handle('character-pack:get', () => characterPack);
+  ipcMain.handle('pet-config:get', () => ({ scale: config.pet.scale }));
+  ipcMain.handle('agent-state:get', () => ({
+    ...currentAgentSnapshot,
+    motion: currentAgentSnapshot.activeCount > 0
+      ? (currentAgentSnapshot.waitingCount === currentAgentSnapshot.activeCount ? 'waiting' : 'working')
+      : (agentPaused ? 'idle' : 'roam'),
+  }));
+  ipcMain.handle('settings:get', (event) => {
+    assertSettingsSender(event);
+    return getSettingsPayload();
+  });
+  ipcMain.handle('settings:save', (event, nextConfig) => {
+    assertSettingsSender(event);
+    try {
+      const availableIds = new Set(listLanguagePacks().map((language) => language.id));
+      if (!nextConfig || !availableIds.has(nextConfig.language?.packId)) {
+        throw new Error('Selected language pack is not installed or is invalid');
+      }
+      const saved = persistConfig(nextConfig);
+      applyConfig(saved);
+      return getSettingsPayload();
+    } catch (error) {
+      reportRuntimeError('Settings save', error);
+      throw error;
+    }
+  });
+  ipcMain.handle('settings:reset', (event) => {
+    assertSettingsSender(event);
+    try {
+      const reset = persistConfig(DEFAULT_CONFIG);
+      applyConfig(reset);
+      return getSettingsPayload();
+    } catch (error) {
+      reportRuntimeError('Settings reset', error);
+      throw error;
+    }
+  });
+  ipcMain.handle('agent-integrations:inspect', async (event, provider) => {
+    assertSettingsSender(event);
+    try {
+      const result = await integrationManager.inspect(provider);
+      if (result.state === 'error') reportRuntimeError(`${provider} connection check`, result.error || 'unknown error');
+      return result;
+    } catch (error) {
+      reportRuntimeError(`${provider} connection check`, error);
+      throw error;
+    }
+  });
+  ipcMain.handle('agent-integrations:install', async (event, provider) => {
+    assertSettingsSender(event);
+    return connectAgentIntegration(provider);
   });
   createApplicationMenu();
   createTray();

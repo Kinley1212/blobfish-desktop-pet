@@ -60,3 +60,12 @@ test('right-click, pause and resume phrases are additive interactions', () => {
     assert.ok(phrases.every((phrase) => phrase.sourcePath === 'additions/interactions.json'));
   }
 });
+
+test('runtime error phrases are short additive system lines', () => {
+  const pack = loadLanguagePack(languagesRoot, 'blobfish-zh-TW');
+  const phrases = pack.phrases.filter((phrase) => phrase.event === 'system.error');
+  assert.ok(phrases.length >= 4);
+  assert.ok(phrases.every((phrase) => phrase.sourceGroup === 'additions'));
+  assert.ok(phrases.every((phrase) => phrase.sourcePath === 'additions/errors.json'));
+  assert.ok(phrases.every((phrase) => phrase.text.length <= 16));
+});
