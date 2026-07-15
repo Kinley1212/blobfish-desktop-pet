@@ -48,8 +48,8 @@ test('runCommand ignores stdin and applies non-interactive CLI settings', async 
 
 test('Claude status is read locally without launching its CLI from the GUI app', async () => {
   const homeDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-claude-local-'));
-  const pluginId = 'blobfish-agent-bridge@team-marketplace';
-  const pluginRoot = path.join(homeDirectory, '.claude', 'plugins', 'cache', 'team-marketplace', 'blobfish-agent-bridge', '0.2.0');
+  const pluginId = 'blobfish-agent-bridge@blobfish-pet';
+  const pluginRoot = path.join(homeDirectory, '.claude', 'plugins', 'cache', 'blobfish-pet', 'blobfish-agent-bridge', '0.2.0');
   fs.mkdirSync(path.join(pluginRoot, '.claude-plugin'), { recursive: true });
   fs.writeFileSync(path.join(homeDirectory, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { [pluginId]: true } }));
   fs.writeFileSync(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'blobfish-agent-bridge', version: '0.2.0' }));
@@ -65,6 +65,28 @@ test('Claude status is read locally without launching its CLI from the GUI app',
     assert.equal(result.state, 'connected');
     assert.equal(result.pluginId, pluginId);
     assert.equal(result.version, '0.2.0');
+  } finally {
+    fs.rmSync(homeDirectory, { recursive: true, force: true });
+  }
+});
+
+test('Claude local inspection reports a same-name plugin from another source as a conflict', async () => {
+  const homeDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-claude-conflict-'));
+  const pluginId = 'blobfish-agent-bridge@team-marketplace';
+  const pluginRoot = path.join(homeDirectory, '.claude', 'plugins', 'cache', 'team-marketplace', 'blobfish-agent-bridge', '0.2.0');
+  fs.mkdirSync(path.join(pluginRoot, '.claude-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(homeDirectory, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { [pluginId]: true } }));
+  fs.writeFileSync(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'blobfish-agent-bridge', version: '0.2.0' }));
+  const manager = new IntegrationManager({
+    resourcesRoot: '/unused',
+    dataRoot: '/unused',
+    homeDirectory,
+    locateCli: () => '/fake/claude',
+  });
+  try {
+    const result = await manager.inspect('claude');
+    assert.equal(result.state, 'conflict');
+    assert.equal(result.pluginId, pluginId);
   } finally {
     fs.rmSync(homeDirectory, { recursive: true, force: true });
   }
@@ -88,6 +110,7 @@ test('Claude Terminal installer is generated with quoted fixed paths', () => {
     const script = fs.readFileSync(prepared.commandPath, 'utf8');
     assert.match(script, /ELECTRON_RUN_AS_NODE=1/);
     assert.ok(script.includes(shellQuote(executable)));
+    assert.ok(script.includes("'install'"));
     assert.equal(fs.statSync(prepared.commandPath).mode & 0o777, 0o700);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
@@ -134,6 +157,56 @@ for (const provider of ['codex', 'claude']) {
       assert.equal(marketplaceAdded, true);
       assert.equal(fs.readFileSync(path.join(dataRoot, providerDirectory, 'marker.txt'), 'utf8'), providerDirectory);
       assert.ok(calls.some((args) => args.includes('blobfish-agent-bridge@blobfish-pet')));
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const provider of ['codex', 'claude']) {
+  test(`${provider} repair refreshes its own plugin and uninstall removes only that selector`, async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), `blobfish-manage-${provider}-`));
+    const resourcesRoot = path.join(directory, 'resources');
+    const dataRoot = path.join(directory, 'data');
+    const providerDirectory = provider === 'codex' ? 'codex' : 'claude-code';
+    const target = path.join(dataRoot, providerDirectory);
+    createResources(resourcesRoot, providerDirectory);
+    let installed = true;
+    const calls = [];
+    const manager = new IntegrationManager({
+      resourcesRoot,
+      dataRoot,
+      homeDirectory: directory,
+      locateCli: () => `/fake/${provider}`,
+      run: async (_command, args) => {
+        calls.push(args);
+        if (args.join(' ') === 'plugin list --json') {
+          const entry = provider === 'codex'
+            ? { pluginId: 'blobfish-agent-bridge@blobfish-pet', name: 'blobfish-agent-bridge', enabled: true }
+            : { id: 'blobfish-agent-bridge@blobfish-pet', enabled: true };
+          return { stdout: JSON.stringify(provider === 'codex' ? { installed: installed ? [entry] : [] } : installed ? [entry] : []) };
+        }
+        if (args.join(' ') === 'plugin marketplace list --json') {
+          const marketplace = { name: 'blobfish-pet', root: target };
+          return { stdout: JSON.stringify(provider === 'codex' ? { marketplaces: [marketplace] } : [marketplace]) };
+        }
+        if (args.includes('remove') || args.includes('uninstall')) installed = false;
+        if ((args.includes('add') && !args.includes('marketplace')) || args.includes('install')) installed = true;
+        return { stdout: '{}' };
+      },
+    });
+
+    try {
+      assert.equal((await manager.repair(provider)).state, 'connected');
+      const removed = await manager.uninstall(provider);
+      assert.equal(removed.state, 'not-installed');
+      assert.equal(removed.changed, true);
+      assert.ok(calls.some((args) => provider === 'codex'
+        ? args.join(' ') === 'plugin remove blobfish-agent-bridge@blobfish-pet --json'
+        : args.join(' ') === 'plugin update blobfish-agent-bridge@blobfish-pet --scope user'));
+      assert.ok(calls.some((args) => provider === 'codex'
+        ? args.includes('add') && args.includes('blobfish-agent-bridge@blobfish-pet')
+        : args.join(' ') === 'plugin uninstall blobfish-agent-bridge@blobfish-pet --scope user'));
     } finally {
       fs.rmSync(directory, { recursive: true, force: true });
     }

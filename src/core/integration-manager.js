@@ -5,6 +5,7 @@ const path = require('path');
 
 const PLUGIN_NAME = 'blobfish-agent-bridge';
 const MARKETPLACE_NAME = 'blobfish-pet';
+const PLUGIN_SELECTOR = `${PLUGIN_NAME}@${MARKETPLACE_NAME}`;
 const PROVIDERS = Object.freeze({
   codex: Object.freeze({
     cliName: 'codex',
@@ -193,6 +194,18 @@ class IntegrationManager {
 
     if (!installed) throw new Error('Claude Code 已记录这个插件，但本地插件缓存不存在');
     const enabled = setting === true;
+    if (pluginId !== PLUGIN_SELECTOR) {
+      return {
+        provider: 'claude',
+        state: 'conflict',
+        cliFound: Boolean(cliPath),
+        installed: true,
+        enabled,
+        pluginId,
+        version,
+        error: `发现同名插件 ${pluginId}，但它不是水滴鱼管理的来源`,
+      };
+    }
     return {
       provider: 'claude',
       state: enabled ? 'connected' : 'disabled',
@@ -250,13 +263,26 @@ class IntegrationManager {
         return { provider, state: 'not-installed', cliFound: true, installed: false, enabled: false };
       }
       const enabled = plugin.enabled !== false;
+      const pluginId = plugin.pluginId || plugin.id || null;
+      if (pluginId && pluginId !== PLUGIN_SELECTOR) {
+        return {
+          provider,
+          state: 'conflict',
+          cliFound: true,
+          installed: true,
+          enabled,
+          pluginId,
+          version: plugin.version || null,
+          error: `发现同名插件 ${pluginId}，但它不是水滴鱼管理的来源`,
+        };
+      }
       return {
         provider,
         state: enabled ? 'connected' : 'disabled',
         cliFound: true,
         installed: true,
         enabled,
-        pluginId: plugin.pluginId || plugin.id,
+        pluginId,
         version: plugin.version || null,
       };
     } catch (error) {
@@ -289,6 +315,11 @@ class IntegrationManager {
   }
 
   prepareClaudeTerminalInstaller(appExecutable) {
+    return this.prepareClaudeTerminalAction(appExecutable, 'install');
+  }
+
+  prepareClaudeTerminalAction(appExecutable, action) {
+    if (!['install', 'repair', 'disconnect'].includes(action)) throw new Error('不支持的 Claude Code 连接操作');
     const cliPath = this.locateCli(PROVIDERS.claude.cliName);
     if (!cliPath) throw new Error('没有找到 claude CLI，请先安装或更新它');
     if (!path.isAbsolute(appExecutable)) throw new Error('水滴鱼运行程序路径无效');
@@ -305,11 +336,11 @@ class IntegrationManager {
       'set -u',
       'echo "水滴鱼正在连接 Claude Code…"',
       'export ELECTRON_RUN_AS_NODE=1',
-      `${shellQuote(appExecutable)} ${shellQuote(helperPath)} ${shellQuote(cliPath)} ${shellQuote(target)} ${shellQuote(resultPath)}`,
+      `${shellQuote(appExecutable)} ${shellQuote(helperPath)} ${shellQuote(action)} ${shellQuote(cliPath)} ${shellQuote(target)} ${shellQuote(resultPath)}`,
       'status=$?',
       'unset ELECTRON_RUN_AS_NODE',
       'if [[ $status -eq 0 ]]; then',
-      '  echo "连接完成。重新打开 Claude Code 会话就能生效。"',
+      `  echo "${action === 'disconnect' ? '已经断开水滴鱼。' : '连接操作完成。重新打开 Claude Code 会话就能生效。'}"`,
       'else',
       '  echo "连接没有完成；请保留上面的错误信息。"',
       'fi',
@@ -322,16 +353,8 @@ class IntegrationManager {
     return { commandPath, resultPath };
   }
 
-  async install(provider) {
+  async ensureMarketplace(provider, cliPath, target) {
     const definition = assertProvider(provider);
-    const cliPath = this.locateCli(definition.cliName);
-    if (!cliPath) throw new Error(`没有找到 ${definition.cliName} CLI，请先安装或更新它`);
-
-    const existing = await this.inspect(provider);
-    if (existing.state === 'connected') return { ...existing, changed: false, restartRequired: false };
-
-    const { target } = this.prepare(provider);
-
     const { stdout } = await this.run(cliPath, definition.listMarketplacesArgs);
     const parsedMarketplaces = parseJson(stdout, `${definition.cliName} marketplace`);
     const marketplaces = provider === 'codex' ? parsedMarketplaces.marketplaces : parsedMarketplaces;
@@ -347,14 +370,36 @@ class IntegrationManager {
         : ['plugin', 'marketplace', 'add', target, '--scope', 'user'];
       await this.run(cliPath, addArgs);
     }
+  }
 
-    if (provider === 'claude' && existing.state === 'disabled' && existing.pluginId) {
+  async install(provider, options = {}) {
+    const definition = assertProvider(provider);
+    const cliPath = this.locateCli(definition.cliName);
+    if (!cliPath) throw new Error(`没有找到 ${definition.cliName} CLI，请先安装或更新它`);
+
+    const existing = await this.inspect(provider);
+    if (existing.state === 'conflict') throw new Error(existing.error);
+    if (existing.state === 'connected' && !options.force) {
+      return { ...existing, changed: false, restartRequired: false };
+    }
+
+    const { target } = this.prepare(provider);
+    await this.ensureMarketplace(provider, cliPath, target);
+
+    if (options.force && existing.installed) {
+      if (provider === 'codex') {
+        await this.run(cliPath, ['plugin', 'remove', PLUGIN_SELECTOR, '--json']);
+        await this.run(cliPath, ['plugin', 'add', PLUGIN_SELECTOR, '--json']);
+      } else {
+        if (existing.state === 'disabled') await this.run(cliPath, ['plugin', 'enable', PLUGIN_SELECTOR]);
+        await this.run(cliPath, ['plugin', 'update', PLUGIN_SELECTOR, '--scope', 'user']);
+      }
+    } else if (provider === 'claude' && existing.state === 'disabled' && existing.pluginId) {
       await this.run(cliPath, ['plugin', 'enable', existing.pluginId]);
     } else {
-      const selector = `${PLUGIN_NAME}@${MARKETPLACE_NAME}`;
       const installArgs = provider === 'codex'
-        ? ['plugin', 'add', selector, '--json']
-        : ['plugin', 'install', selector, '--scope', 'user'];
+        ? ['plugin', 'add', PLUGIN_SELECTOR, '--json']
+        : ['plugin', 'install', PLUGIN_SELECTOR, '--scope', 'user'];
       await this.run(cliPath, installArgs);
     }
 
@@ -369,12 +414,36 @@ class IntegrationManager {
       trustRequired: provider === 'codex',
     };
   }
+
+  repair(provider) {
+    return this.install(provider, { force: true });
+  }
+
+  async uninstall(provider) {
+    const definition = assertProvider(provider);
+    const cliPath = this.locateCli(definition.cliName);
+    if (!cliPath) throw new Error(`没有找到 ${definition.cliName} CLI，无法自动断开`);
+    const existing = await this.inspect(provider);
+    if (existing.state === 'conflict') throw new Error(existing.error);
+    if (!existing.installed) {
+      return { ...existing, changed: false, restartRequired: false };
+    }
+
+    const args = provider === 'codex'
+      ? ['plugin', 'remove', PLUGIN_SELECTOR, '--json']
+      : ['plugin', 'uninstall', PLUGIN_SELECTOR, '--scope', 'user'];
+    await this.run(cliPath, args);
+    const removed = await this.inspect(provider);
+    if (removed.installed) throw new Error(`${definition.cliName} 插件卸载后仍然存在`);
+    return { ...removed, changed: true, restartRequired: true };
+  }
 }
 
 module.exports = {
   IntegrationManager,
   MARKETPLACE_NAME,
   PLUGIN_NAME,
+  PLUGIN_SELECTOR,
   findExecutable,
   parseJson,
   replaceDirectory,

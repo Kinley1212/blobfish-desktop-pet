@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { install } = require('../integrations/claude-code/blobfish-terminal-installer');
+const { install, runAction } = require('../integrations/claude-code/blobfish-terminal-installer');
 
 test('Claude Terminal helper checks the marketplace before installing and verifies the result', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-claude-helper-'));
@@ -26,6 +26,34 @@ test('Claude Terminal helper checks the marketplace before installing and verifi
     assert.ok(calls.some((args) => args.join(' ') === `plugin marketplace add ${directory} --scope user`));
     assert.ok(calls.some((args) => args.includes('blobfish-agent-bridge@blobfish-pet')));
     assert.equal(JSON.parse(fs.readFileSync(resultPath, 'utf8')).state, 'connected');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('Claude Terminal helper repairs and disconnects only the managed plugin', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-claude-actions-'));
+  const resultPath = path.join(directory, 'result.json');
+  const calls = [];
+  let installed = true;
+  const run = async (_command, args) => {
+    calls.push(args);
+    if (args.join(' ') === 'plugin marketplace list --json') {
+      return JSON.stringify([{ name: 'blobfish-pet', root: directory }]);
+    }
+    if (args.join(' ') === 'plugin list --json') {
+      return JSON.stringify(installed ? [{ id: 'blobfish-agent-bridge@blobfish-pet', enabled: true }] : []);
+    }
+    if (args.includes('uninstall')) installed = false;
+    return '';
+  };
+
+  try {
+    await runAction('repair', ['/fake/claude', directory, resultPath], { run });
+    assert.ok(calls.some((args) => args.join(' ') === 'plugin update blobfish-agent-bridge@blobfish-pet --scope user'));
+    await runAction('disconnect', ['/fake/claude', directory, resultPath], { run });
+    assert.ok(calls.some((args) => args.join(' ') === 'plugin uninstall blobfish-agent-bridge@blobfish-pet --scope user'));
+    assert.equal(JSON.parse(fs.readFileSync(resultPath, 'utf8')).state, 'disconnected');
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
