@@ -61,9 +61,12 @@ function runCommand(command, args, options = {}, execFileImpl = execFile) {
       ...process.env,
       ...options.environment,
       PATH: `${commandDirectory}${path.delimiter}${options.environment?.PATH || process.env.PATH || ''}`,
+      CI: '1',
+      NO_COLOR: '1',
+      TERM: 'dumb',
     };
-    execFileImpl(command, args, {
-      timeout: 30000,
+    const child = execFileImpl(command, args, {
+      timeout: options.timeoutMs || 30000,
       maxBuffer: 2 * 1024 * 1024,
       encoding: 'utf8',
       env: environment,
@@ -75,6 +78,7 @@ function runCommand(command, args, options = {}, execFileImpl = execFile) {
       }
       resolve({ stdout, stderr });
     });
+    child?.stdin?.end();
   });
 }
 
@@ -120,14 +124,15 @@ class IntegrationManager {
       homeDirectory: this.homeDirectory,
       environment: this.environment,
     }));
-    this.run = options.run || ((command, args) => runCommand(command, args, {
+    this.run = options.run || ((command, args, commandOptions = {}) => runCommand(command, args, {
       environment: this.environment,
+      ...commandOptions,
     }));
   }
 
   async readPlugins(provider, cliPath) {
     const definition = assertProvider(provider);
-    const { stdout } = await this.run(cliPath, definition.listPluginsArgs);
+    const { stdout } = await this.run(cliPath, definition.listPluginsArgs, { timeoutMs: 8000 });
     const parsed = parseJson(stdout, definition.cliName);
     const entries = provider === 'codex' ? parsed.installed : parsed;
     if (!Array.isArray(entries)) throw new Error(`${definition.cliName} 插件列表格式无效`);

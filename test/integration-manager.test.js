@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { IntegrationManager, findExecutable } = require('../src/core/integration-manager');
+const { IntegrationManager, findExecutable, runCommand } = require('../src/core/integration-manager');
 
 function createResources(root, providerDirectory) {
   const source = path.join(root, providerDirectory);
@@ -26,6 +26,26 @@ test('findExecutable discovers CLIs installed inside an nvm Node version', () =>
   } finally {
     fs.rmSync(homeDirectory, { recursive: true, force: true });
   }
+});
+
+test('runCommand closes stdin and applies non-interactive CLI settings', async () => {
+  let capturedOptions;
+  let stdinClosed = false;
+  const result = await runCommand('/fake/claude', ['plugin', 'list', '--json'], {
+    environment: { PATH: '/usr/bin' },
+    timeoutMs: 8000,
+  }, (_command, _args, options, callback) => {
+    capturedOptions = options;
+    queueMicrotask(() => callback(null, '[]', ''));
+    return { stdin: { end: () => { stdinClosed = true; } } };
+  });
+
+  assert.equal(result.stdout, '[]');
+  assert.equal(stdinClosed, true);
+  assert.equal(capturedOptions.timeout, 8000);
+  assert.equal(capturedOptions.env.CI, '1');
+  assert.equal(capturedOptions.env.NO_COLOR, '1');
+  assert.equal(capturedOptions.env.TERM, 'dumb');
 });
 
 for (const provider of ['codex', 'claude']) {

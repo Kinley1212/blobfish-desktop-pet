@@ -66,6 +66,7 @@ function renderAgentIntegration(provider, result) {
   const statusElement = byId(`${provider}-install-status`);
   const button = integrationButtons[provider];
   const messages = {
+    checking: `正在检测 ${name} 插件…`,
     connected: `已连接${result.version ? ` · v${result.version}` : ''}`,
     disabled: '插件已安装，但当前被停用',
     'not-installed': `已找到 ${name}，尚未安装状态插件`,
@@ -75,7 +76,9 @@ function renderAgentIntegration(provider, result) {
   };
   statusElement.textContent = messages[result.state] || '连接状态未知';
   statusElement.classList.toggle('error', result.state === 'error');
-  button.disabled = result.state === 'connected' || (result.state === 'cli-missing' && provider === 'claude');
+  button.disabled = result.state === 'checking'
+    || result.state === 'connected'
+    || (result.state === 'cli-missing' && provider === 'claude');
   button.textContent = result.state === 'connected'
     ? '已连接'
     : result.state === 'opened'
@@ -89,17 +92,17 @@ function renderAgentIntegration(provider, result) {
 
 async function refreshAgentIntegrations() {
   byId('refresh-integrations').disabled = true;
-  try {
-    const results = await window.settingsAPI.getAgentIntegrations();
-    renderAgentIntegration('codex', results.codex);
-    renderAgentIntegration('claude', results.claude);
-  } catch (error) {
-    for (const provider of ['codex', 'claude']) {
+  const providers = ['codex', 'claude'];
+  for (const provider of providers) renderAgentIntegration(provider, { state: 'checking' });
+  await Promise.allSettled(providers.map(async (provider) => {
+    try {
+      const result = await window.settingsAPI.getAgentIntegration(provider);
+      renderAgentIntegration(provider, result);
+    } catch (error) {
       renderAgentIntegration(provider, { state: 'error', error: error.message });
     }
-  } finally {
-    byId('refresh-integrations').disabled = false;
-  }
+  }));
+  byId('refresh-integrations').disabled = false;
 }
 
 async function installAgentIntegration(provider) {

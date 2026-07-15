@@ -948,9 +948,9 @@ app.whenReady().then(() => {
     applyConfig(reset);
     return getSettingsPayload();
   });
-  ipcMain.handle('agent-integrations:get', async (event) => {
+  ipcMain.handle('agent-integrations:inspect', async (event, provider) => {
     assertSettingsSender(event);
-    return integrationManager.inspectAll();
+    return integrationManager.inspect(provider);
   });
   ipcMain.handle('agent-integrations:install', async (event, provider) => {
     assertSettingsSender(event);
