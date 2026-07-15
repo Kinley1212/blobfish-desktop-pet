@@ -1,0 +1,10 @@
+{
+  "name": "blobfish-agent-bridge",
+  "displayName": "Blobfish Agent Bridge",
+  "version": "0.1.0",
+  "description": "Send local Claude Code task lifecycle states to the Blobfish desktop pet.",
+  "author": {
+    "name": "Blobfish Desktop Pet"
+  },
+  "keywords": ["desktop-pet", "hooks", "task-status"]
+}

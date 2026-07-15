@@ -1,0 +1,17 @@
+{
+  "name": "blobfish-agent-bridge",
+  "version": "0.1.0",
+  "description": "Send local Codex task lifecycle states to the Blobfish desktop pet.",
+  "author": {
+    "name": "Blobfish Desktop Pet"
+  },
+  "interface": {
+    "displayName": "Blobfish Agent Bridge",
+    "shortDescription": "Show Codex task states on the desktop pet.",
+    "longDescription": "Local-only lifecycle hooks send task start, approval, running and completion metadata to the Blobfish desktop pet.",
+    "developerName": "Blobfish Desktop Pet",
+    "category": "Productivity",
+    "capabilities": ["Local lifecycle hooks"],
+    "defaultPrompt": "Show the Blobfish task bridge status."
+  }
+}

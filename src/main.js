@@ -1,6 +1,7 @@
 const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, powerMonitor } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { AgentBridge } = require('./core/agent-bridge');
 const { BatteryThresholdTracker, readMacBattery } = require('./core/battery-monitor');
 const { CalendarService } = require('./core/calendar-service');
 const { ConfigStore, DEFAULT_CONFIG } = require('./core/config-store');
@@ -9,6 +10,7 @@ const { loadLanguagePack } = require('./core/language-pack-loader');
 const { PhraseEngine } = require('./core/phrase-engine');
 const { getScheduleReminder, isInQuietHours } = require('./core/reminder-scheduler');
 const { SpeechQueue } = require('./core/speech-queue');
+const { TaskTracker } = require('./core/task-tracker');
 
 app.setName('BlobfishDesktopPet');
 
@@ -56,6 +58,7 @@ let direction = 1;
 let paused = false;
 let manuallyPaused = false;
 let systemPaused = false;
+let agentPaused = false;
 let currentY;
 let flingIntervalId = null;
 let speechQueue;
@@ -72,6 +75,12 @@ let calendarService;
 let calendarStatus = 'disabled';
 let lockedAt = null;
 let lastWakeSpokenAt = 0;
+let agentBridge;
+let agentBridgeStatus = 'stopped';
+let taskTracker;
+let taskMaintenanceTimer = null;
+let currentAgentSnapshot = Object.freeze({ activeCount: 0, waitingCount: 0, runningCount: 0 });
+const longRunningNotified = new Set();
 
 function getDateContext(date = new Date()) {
   return {
@@ -126,7 +135,13 @@ function getEventCategory(event) {
 }
 
 function isMovementPaused() {
-  return paused || manuallyPaused || systemPaused;
+  return paused || manuallyPaused || systemPaused || agentPaused;
+}
+
+function isProviderEnabled(provider) {
+  if (provider === 'codex') return config.integrations.codex;
+  if (provider === 'claude-code') return config.integrations.claudeCode;
+  return false;
 }
 
 function speak(event, context = {}, options = {}) {
@@ -226,7 +241,7 @@ function getSettingsPayload() {
     config: JSON.parse(JSON.stringify(config)),
     languages: listLanguagePacks(),
     warning: runtimeWarning || configStore.loadWarning,
-    integrationStatus: { calendar: calendarStatus },
+    integrationStatus: { calendar: calendarStatus, agentBridge: agentBridgeStatus },
   };
 }
 
@@ -235,6 +250,11 @@ function applyConfig(nextConfig) {
   config = nextConfig;
   if (languageChanged) loadConfiguredLanguage(config.language.packId);
   if (calendarService) calendarService.setEnabled(config.integrations.calendar);
+  if (taskTracker) {
+    if (!config.integrations.codex) taskTracker.removeProvider('codex');
+    if (!config.integrations.claudeCode) taskTracker.removeProvider('claude-code');
+    updateAgentState(taskTracker.snapshot());
+  }
   scheduleIdleChatter();
 }
 
@@ -683,11 +703,113 @@ function setupCalendarService() {
       calendarStatus = status;
       if (error) console.error(`Calendar integration: ${error}`);
       if (settingsWin && !settingsWin.isDestroyed()) {
-        settingsWin.webContents.send('integration-status', { calendar: status });
+        settingsWin.webContents.send('integration-status', { calendar: status, agentBridge: agentBridgeStatus });
       }
     },
   });
   calendarService.setEnabled(config.integrations.calendar);
+}
+
+function updateAgentState(snapshot) {
+  currentAgentSnapshot = snapshot;
+  const anyIntegrationEnabled = config.integrations.codex || config.integrations.claudeCode;
+  const allWaiting = snapshot.activeCount > 0 && snapshot.waitingCount === snapshot.activeCount;
+  agentPaused = config.pet.stopWhenAllTasksComplete && anyIntegrationEnabled && (
+    snapshot.activeCount === 0 || allWaiting
+  );
+  const motion = snapshot.activeCount > 0
+    ? (allWaiting ? 'waiting' : 'working')
+    : (agentPaused ? 'idle' : 'roam');
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('agent-state', { ...snapshot, motion });
+  }
+}
+
+function handleTaskTransition(transition) {
+  updateAgentState(transition.snapshot);
+  const context = {
+    activeCount: transition.snapshot.activeCount,
+    remaining: transition.snapshot.activeCount,
+    provider: transition.event?.provider,
+  };
+  const speechOptions = {
+    priority: SPEECH_PRIORITY.agent,
+    durationMs: 4800,
+  };
+
+  if (transition.type === 'started') {
+    speak('agent.started', context, { ...speechOptions, replaceKey: 'agent.started' });
+  } else if (transition.type === 'needsInput') {
+    speak('agent.needsInput', context, {
+      priority: SPEECH_PRIORITY.urgent,
+      durationMs: 7000,
+      replaceKey: 'agent.needsInput',
+      allowDuringQuiet: true,
+      action: 'waiting',
+    });
+  } else if (transition.type === 'completed') {
+    speak('agent.completed', context, { ...speechOptions, replaceKey: 'agent.completed', action: 'success' });
+  } else if (transition.type === 'allCompleted') {
+    speak('agent.allCompleted', context, {
+      ...speechOptions,
+      durationMs: 6000,
+      replaceKey: 'agent.allCompleted',
+      action: 'success',
+    });
+  } else if (transition.type === 'failed') {
+    speak('agent.failed', context, {
+      priority: SPEECH_PRIORITY.urgent,
+      durationMs: 7000,
+      replaceKey: 'agent.failed',
+      allowDuringQuiet: true,
+      action: 'failed',
+    });
+  }
+}
+
+function runTaskMaintenance() {
+  taskTracker.pruneStale(12 * 60 * 60 * 1000);
+  const now = Date.now();
+  const activeKeys = new Set();
+  for (const task of taskTracker.getTasks()) {
+    activeKeys.add(task.key);
+    const durationSeconds = Math.floor((now - task.startedAt) / 1000);
+    if (durationSeconds >= 20 * 60 && !longRunningNotified.has(task.key)) {
+      longRunningNotified.add(task.key);
+      speak('agent.longRunning', { durationSeconds, provider: task.provider }, {
+        priority: SPEECH_PRIORITY.agent,
+        durationMs: 5500,
+        replaceKey: 'agent.longRunning',
+      });
+    }
+  }
+  for (const key of longRunningNotified) {
+    if (!activeKeys.has(key)) longRunningNotified.delete(key);
+  }
+}
+
+function setupAgentBridge() {
+  taskTracker = new TaskTracker(handleTaskTransition);
+  updateAgentState(taskTracker.snapshot());
+  agentBridge = new AgentBridge(path.join(app.getPath('userData'), 'agent-events.sock'), {
+    onEvent: (event) => {
+      if (isProviderEnabled(event.provider)) taskTracker.handle(event);
+    },
+    onError: (error) => console.error(error.message),
+  });
+  agentBridgeStatus = 'starting';
+  agentBridge.start()
+    .then(() => {
+      agentBridgeStatus = 'listening';
+      if (settingsWin && !settingsWin.isDestroyed()) {
+        settingsWin.webContents.send('integration-status', { calendar: calendarStatus, agentBridge: agentBridgeStatus });
+      }
+    })
+    .catch((error) => {
+      agentBridgeStatus = 'error';
+      console.error(`Agent bridge: ${error.message}`);
+    });
+  taskMaintenanceTimer = setInterval(runTaskMaintenance, 5 * 60 * 1000);
 }
 
 app.whenReady().then(() => {
@@ -697,8 +819,15 @@ app.whenReady().then(() => {
   if (activeLanguageId !== config.language.packId) {
     config = { ...config, language: { ...config.language, packId: activeLanguageId } };
   }
+  updateAgentState(currentAgentSnapshot);
 
   ipcMain.handle('character-pack:get', () => characterPack);
+  ipcMain.handle('agent-state:get', () => ({
+    ...currentAgentSnapshot,
+    motion: currentAgentSnapshot.activeCount > 0
+      ? (currentAgentSnapshot.waitingCount === currentAgentSnapshot.activeCount ? 'waiting' : 'working')
+      : (agentPaused ? 'idle' : 'roam'),
+  }));
   ipcMain.handle('settings:get', (event) => {
     assertSettingsSender(event);
     return getSettingsPayload();
@@ -724,6 +853,7 @@ app.whenReady().then(() => {
   createWindow();
   setupSystemMonitors();
   setupCalendarService();
+  setupAgentBridge();
   if (process.argv.includes('--settings')) createSettingsWindow();
 });
 
@@ -734,6 +864,8 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   clearTimeout(idleChatterTimer);
   clearInterval(batteryPollTimer);
+  clearInterval(taskMaintenanceTimer);
   if (calendarService) calendarService.stop();
+  if (agentBridge) agentBridge.stop();
   if (speechQueue) speechQueue.clear();
 });

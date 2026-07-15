@@ -29,3 +29,5 @@ npm start
 语言包的原版/扩展隔离规则见 [`docs/language-packs.md`](docs/language-packs.md)，设置存储与入口见 [`docs/settings.md`](docs/settings.md)。
 
 锁屏唤醒、电量阈值和授权日历的实现与隐私边界见 [`docs/system-integrations.md`](docs/system-integrations.md)。
+
+Codex / Claude Code 本地任务桥接、状态动作和零对话内容策略见 [`docs/agent-integrations.md`](docs/agent-integrations.md)。

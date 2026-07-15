@@ -116,6 +116,8 @@ input[type="range"] { width: 100%; accent-color: #6f9295; }
   font-size: 11px;
 }
 
+.integration-status + .integration-status { margin-top: 5px; }
+
 .actions {
   position: sticky;
   bottom: 0;

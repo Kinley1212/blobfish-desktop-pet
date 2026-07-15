@@ -45,6 +45,14 @@ function renderIntegrationStatus(integrationStatus = {}) {
   };
   const statusName = integrationStatus.calendar || 'disabled';
   byId('calendar-status').textContent = `日历：${labels[statusName] || labels.unknown}`;
+  const bridgeLabels = {
+    starting: '正在启动…',
+    listening: '已在本机监听',
+    stopped: '未启动',
+    error: '启动失败，请查看日志',
+  };
+  const bridgeStatus = integrationStatus.agentBridge || 'stopped';
+  byId('agent-bridge-status').textContent = `任务桥接：${bridgeLabels[bridgeStatus] || bridgeLabels.error}`;
 }
 
 function renderConfig(config, languages) {

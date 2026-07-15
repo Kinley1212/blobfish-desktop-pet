@@ -22,6 +22,7 @@ let movedDuringDrag = false;
 let dragDistance = 0;
 let moveHistory = []; // recent { t, dx, dy } samples, used to estimate release velocity
 let blinkTimer = null;
+let speechActionTimer = null;
 
 function sanitizeSvg(svgText) {
   const parser = new DOMParser();
@@ -102,6 +103,22 @@ function setDirection(dir) {
   pet.style.setProperty('--dir', dir >= 0 ? 1 : -1);
 }
 
+function applyAgentState(state) {
+  const allowedMotions = new Set(['idle', 'roam', 'working', 'waiting']);
+  pet.dataset.motion = allowedMotions.has(state.motion) ? state.motion : 'idle';
+}
+
+function triggerSpeechAction(action) {
+  clearTimeout(speechActionTimer);
+  pet.classList.remove('is-success', 'is-failed');
+  if (action !== 'success' && action !== 'failed') return;
+  void pet.offsetWidth;
+  pet.classList.add(action === 'success' ? 'is-success' : 'is-failed');
+  speechActionTimer = setTimeout(() => {
+    pet.classList.remove('is-success', 'is-failed');
+  }, action === 'success' ? 750 : 950);
+}
+
 function triggerBump() {
   pet.classList.remove('bump');
   void pet.offsetWidth;
@@ -126,8 +143,13 @@ function applyHoverAt(x, y) {
 }
 
 window.petAPI.onDirection((dir) => setDirection(dir));
-window.petAPI.onSpeech((message) => showBubble(message.text, message.durationMs));
+window.petAPI.onSpeech((message) => {
+  showBubble(message.text, message.durationMs);
+  triggerSpeechAction(message.action);
+});
+window.petAPI.onAgentState((state) => applyAgentState(state));
 window.petAPI.onBump(() => triggerBump());
+window.petAPI.getAgentState().then((state) => applyAgentState(state));
 installCharacterPack()
   .then(() => {
     scheduleBlink();
