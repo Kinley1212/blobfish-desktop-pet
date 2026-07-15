@@ -133,9 +133,6 @@ input[type="range"] { width: 100%; accent-color: #6f9295; }
 }
 
 .connection-card {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 8px 10px;
   padding: 12px;
   border: 1px solid #ddd8d3;
   border-radius: 12px;
@@ -145,8 +142,61 @@ input[type="range"] { width: 100%; accent-color: #6f9295; }
 .connection-card h3 { margin: 0; font-size: 12px; }
 .connection-card p { margin: 4px 0 0; color: #77716d; font-size: 10px; line-height: 1.45; }
 .connection-card p.error { color: #a04444; }
-.connection-card .connection-note { grid-column: 1 / -1; margin: 0; }
+.connection-card .connection-note { margin: 10px 0 0; }
 .connection-card code { font-size: 10px; }
+
+.connection-heading { min-height: 40px; }
+
+.connection-steps {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.connection-steps li {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: center;
+  gap: 8px;
+  color: #77716d;
+}
+
+.connection-steps li > span {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid #cbc5c0;
+  border-radius: 50%;
+  background: #fff;
+  color: #77716d;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.connection-steps strong,
+.connection-steps small { display: block; }
+.connection-steps strong { color: #575250; font-size: 10px; }
+.connection-steps small { margin-top: 1px; font-size: 9px; line-height: 1.35; }
+.connection-steps li[data-state="done"] > span { border-color: #6f9295; background: #6f9295; color: #fff; }
+.connection-steps li[data-state="active"] > span { border-color: #8c7557; background: #f4e9d9; color: #795f40; }
+.connection-steps li[data-state="error"] > span { border-color: #ad6a6a; background: #f6e4e4; color: #914b4b; }
+.connection-steps li[data-state="error"] small { color: #a04444; }
+
+.connection-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.connection-actions .text-button {
+  margin: 0 0 0 auto;
+  color: #77716d;
+}
+
+.connection-actions .text-button.danger:not(:disabled) { color: #a04444; }
 
 button.compact {
   min-width: 72px;

@@ -238,6 +238,15 @@ class IntegrationManager {
             error: installResult.error || 'Terminal 安装没有完成',
           };
         }
+        if (installResult?.state === 'disconnected') {
+          return {
+            provider,
+            state: 'not-installed',
+            cliFound: Boolean(cliPath),
+            installed: false,
+            enabled: false,
+          };
+        }
       } catch (error) {
         return {
           provider,

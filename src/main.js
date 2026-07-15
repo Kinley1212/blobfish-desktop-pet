@@ -988,7 +988,7 @@ function setupAgentBridge() {
   taskMaintenanceTimer = setInterval(runTaskMaintenance, 5 * 60 * 1000);
 }
 
-async function connectAgentIntegration(provider) {
+async function connectAgentIntegration(provider, force = false) {
   try {
     if (provider === 'codex') {
       const status = await integrationManager.inspect('codex');
@@ -1005,13 +1005,15 @@ async function connectAgentIntegration(provider) {
           changed: false,
           restartRequired: true,
           trustRequired: true,
+          operation: force ? 'repair' : 'install',
         };
       }
     }
     if (provider === 'claude') {
       const status = await integrationManager.inspect('claude');
-      if (status.state === 'connected') return { ...status, changed: false, restartRequired: false };
-      const prepared = integrationManager.prepareClaudeTerminalInstaller(process.execPath);
+      if (status.state === 'connected' && !force) return { ...status, changed: false, restartRequired: false };
+      const operation = force ? 'repair' : 'install';
+      const prepared = integrationManager.prepareClaudeTerminalAction(process.execPath, operation);
       const openError = await shell.openPath(prepared.commandPath);
       if (openError) throw new Error(`无法打开 Terminal 安装窗口：${openError}`);
       return {
@@ -1022,9 +1024,12 @@ async function connectAgentIntegration(provider) {
         enabled: false,
         changed: false,
         restartRequired: true,
+        operation,
       };
     }
-    const result = await integrationManager.install(provider);
+    const result = force
+      ? await integrationManager.repair(provider)
+      : await integrationManager.install(provider);
     if (result.changed) {
       speak('system.integrationReady', { provider }, {
         priority: SPEECH_PRIORITY.agent,
@@ -1040,6 +1045,49 @@ async function connectAgentIntegration(provider) {
   }
 }
 
+async function disconnectAgentIntegration(provider) {
+  try {
+    if (provider === 'claude') {
+      const prepared = integrationManager.prepareClaudeTerminalAction(process.execPath, 'disconnect');
+      const openError = await shell.openPath(prepared.commandPath);
+      if (openError) throw new Error(`无法打开 Terminal 断开窗口：${openError}`);
+      connectionHealth.clear(provider);
+      emitConnectionHealth(provider);
+      return {
+        provider,
+        state: 'terminal-opened',
+        cliFound: true,
+        installed: true,
+        enabled: true,
+        changed: false,
+        restartRequired: true,
+        operation: 'disconnect',
+      };
+    }
+
+    const status = await integrationManager.inspect(provider);
+    if (provider === 'codex' && status.state === 'cli-missing') {
+      const prepared = integrationManager.prepare('codex');
+      const installUrl = `codex://plugins/${PLUGIN_NAME}?marketplacePath=${encodeURIComponent(prepared.marketplacePath)}`;
+      await shell.openExternal(installUrl);
+      return {
+        ...status,
+        state: 'opened-disconnect',
+        operation: 'disconnect',
+        changed: false,
+      };
+    }
+
+    const result = await integrationManager.uninstall(provider);
+    connectionHealth.clear(provider);
+    emitConnectionHealth(provider);
+    return { ...result, operation: 'disconnect' };
+  } catch (error) {
+    reportRuntimeError(`${provider} disconnect`, error);
+    throw error;
+  }
+}
+
 async function inspectAgentIntegration(provider) {
   const result = await integrationManager.inspect(provider);
   if (result.state === 'error') reportRuntimeError(`${provider} connection check`, result.error || 'unknown error');
@@ -1048,7 +1096,10 @@ async function inspectAgentIntegration(provider) {
 
 async function testAgentIntegration(provider) {
   const status = await integrationManager.inspect(provider);
-  if (status.state !== 'connected') throw new Error('请先安装并启用状态插件');
+  const health = connectionHealth.snapshot(provider);
+  if (status.state !== 'connected' && health.health !== 'active') {
+    throw new Error('请先安装并启用状态插件');
+  }
   return connectionHealth.decorate(provider, {
     ...status,
     ...connectionHealth.startTest(provider),
@@ -1126,6 +1177,14 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('agent-integrations:install', async (event, provider) => {
     assertSettingsSender(event);
     return connectAgentIntegration(provider);
+  });
+  ipcMain.handle('agent-integrations:repair', async (event, provider) => {
+    assertSettingsSender(event);
+    return connectAgentIntegration(provider, true);
+  });
+  ipcMain.handle('agent-integrations:disconnect', async (event, provider) => {
+    assertSettingsSender(event);
+    return disconnectAgentIntegration(provider);
   });
   ipcMain.handle('agent-integrations:test', async (event, provider) => {
     assertSettingsSender(event);

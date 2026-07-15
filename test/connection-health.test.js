@@ -24,11 +24,16 @@ test('connection health requires a real event after a test starts', () => {
 test('installation failures stay unavailable without erasing last event time', () => {
   let now = 5000;
   const tracker = new ConnectionHealthTracker({ now: () => now });
-  tracker.noteEvent('claude');
 
   const disabled = tracker.decorate('claude', { state: 'disabled', installed: true });
   assert.equal(disabled.health, 'unavailable');
-  assert.equal(disabled.lastEventAt, 5000);
+  assert.equal(disabled.lastEventAt, null);
+
+  tracker.noteEvent('claude');
+  assert.equal(tracker.decorate('claude', { state: 'disabled', installed: true }).health, 'unavailable');
+  const provenActive = tracker.decorate('claude', { state: 'cli-missing', installed: false });
+  assert.equal(provenActive.health, 'active');
+  assert.equal(provenActive.lastEventAt, 5000);
 
   now = 6000;
   assert.equal(tracker.clear('claude').health, 'unverified');

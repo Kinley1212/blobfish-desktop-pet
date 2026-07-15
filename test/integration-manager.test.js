@@ -92,6 +92,29 @@ test('Claude local inspection reports a same-name plugin from another source as 
   }
 });
 
+test('Claude disconnect result is read without launching its CLI from the GUI app', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-claude-disconnected-'));
+  const dataRoot = path.join(directory, 'data');
+  const resultDirectory = path.join(dataRoot, 'claude-code');
+  fs.mkdirSync(resultDirectory, { recursive: true });
+  fs.writeFileSync(path.join(resultDirectory, 'install-result.json'), JSON.stringify({ state: 'disconnected' }));
+  const manager = new IntegrationManager({
+    resourcesRoot: '/unused',
+    dataRoot,
+    homeDirectory: directory,
+    locateCli: () => '/fake/claude',
+    run: async () => { throw new Error('CLI must not run after a Terminal disconnect'); },
+  });
+
+  try {
+    const result = await manager.inspect('claude');
+    assert.equal(result.state, 'not-installed');
+    assert.equal(result.cliFound, true);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('Claude Terminal installer is generated with quoted fixed paths', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "blobfish-claude-terminal-"));
   const resourcesRoot = path.join(directory, 'resources');

@@ -61,7 +61,8 @@ class ConnectionHealthTracker {
 
   decorate(provider, installation) {
     const snapshot = this.snapshot(provider);
-    if (installation.state !== 'connected') {
+    const appOnlyConnection = installation.state === 'cli-missing' && snapshot.health === 'active';
+    if (installation.state !== 'connected' && !appOnlyConnection) {
       return Object.freeze({ ...installation, ...snapshot, health: 'unavailable' });
     }
     return Object.freeze({ ...installation, ...snapshot });

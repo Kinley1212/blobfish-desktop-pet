@@ -6,10 +6,14 @@ const speedInput = document.getElementById('pet-speed');
 const speedOutput = document.getElementById('speed-output');
 const scaleInput = document.getElementById('pet-scale');
 const scaleOutput = document.getElementById('scale-output');
-const integrationButtons = {
-  codex: document.getElementById('connect-codex'),
-  claude: document.getElementById('connect-claude'),
-};
+const agentProviders = ['codex', 'claude'];
+const integrationControls = Object.fromEntries(agentProviders.map((provider) => [provider, {
+  connect: document.getElementById(`connect-${provider}`),
+  test: document.getElementById(`test-${provider}`),
+  disconnect: document.getElementById(`disconnect-${provider}`),
+}]));
+const integrationResults = {};
+const connectionTestTimers = {};
 
 function byId(id) { return document.getElementById(id); }
 function setChecked(id, value) { byId(id).checked = value; }
@@ -61,90 +65,185 @@ function renderIntegrationStatus(integrationStatus = {}) {
   byId('agent-bridge-status').textContent = `任务桥接：${bridgeLabels[bridgeStatus] || bridgeLabels.error}`;
 }
 
+function formatLastEvent(timestamp) {
+  if (!timestamp) return '尚未收到';
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(timestamp));
+}
+
+function setConnectionStep(provider, stage, state, detail) {
+  const element = byId(`${provider}-stage-${stage}`);
+  element.dataset.state = state;
+  element.querySelector('small').textContent = detail;
+}
+
 function renderAgentIntegration(provider, result) {
+  integrationResults[provider] = result;
   const name = provider === 'codex' ? 'Codex' : 'Claude Code';
+  const controls = integrationControls[provider];
   const statusElement = byId(`${provider}-install-status`);
-  const button = integrationButtons[provider];
-  const messages = {
-    checking: `正在检测 ${name} 插件…`,
-    connected: `已连接${result.version ? ` · v${result.version}` : ''}`,
-    disabled: '插件已安装，但当前被停用',
-    'not-installed': `已找到 ${name}，尚未安装状态插件`,
-    'cli-missing': `没有找到 ${name} CLI`,
-    opened: '已打开 Codex 插件页，请在那里确认安装',
-    'terminal-opened': '已在 Terminal 中开始连接，请稍候…',
-    error: `检测失败：${result.error || '未知错误'}`,
-  };
-  statusElement.textContent = messages[result.state] || '连接状态未知';
-  statusElement.classList.toggle('error', result.state === 'error');
-  button.disabled = result.state === 'checking'
-    || result.state === 'terminal-opened'
-    || result.state === 'connected'
-    || (result.state === 'cli-missing' && provider === 'claude');
-  button.textContent = result.state === 'connected'
-    ? '已连接'
-    : result.state === 'opened'
-      ? '再次打开'
-      : result.state === 'terminal-opened'
-        ? '连接中…'
-      : result.state === 'cli-missing' && provider === 'codex'
-        ? '在 Codex 中打开'
-    : result.state === 'disabled'
-      ? '重新启用'
-      : '一键安装';
+  const health = result.health || 'unavailable';
+  const live = health === 'active';
+  const busy = result.state === 'checking' || result.state === 'terminal-opened';
+  const installed = Boolean(result.installed) || result.state === 'connected' || result.state === 'disabled' || live;
+
+  let summary = '连接状态未知';
+  if (result.state === 'checking') summary = `正在检测 ${name}…`;
+  else if (live) summary = `连接正常 · 最近状态 ${formatLastEvent(result.lastEventAt)}`;
+  else if (health === 'awaiting-event') summary = '等待一条真实任务状态…';
+  else if (health === 'test-timeout') summary = '没有收到任务状态，连接尚未通过';
+  else if (result.state === 'connected') summary = `插件已安装${result.version ? ` · v${result.version}` : ''}，尚未验证`;
+  else if (result.state === 'disabled') summary = '插件已安装，但当前被停用';
+  else if (result.state === 'not-installed') summary = `已找到 ${name}，尚未安装状态插件`;
+  else if (result.state === 'cli-missing') summary = `没有找到 ${name} CLI`;
+  else if (result.state === 'opened') summary = '已打开 Codex 插件页，等待确认';
+  else if (result.state === 'opened-disconnect') summary = '已打开 Codex 插件页，等待手动移除';
+  else if (result.state === 'terminal-opened') summary = result.operation === 'disconnect' ? '正在断开…' : '正在执行连接操作…';
+  else if (result.state === 'conflict') summary = result.error || '发现同名插件来源冲突';
+  else if (result.state === 'error') summary = `检测失败：${result.error || '未知错误'}`;
+  statusElement.textContent = summary;
+  statusElement.classList.toggle('error', ['error', 'conflict'].includes(result.state) || health === 'test-timeout');
+
+  if (result.state === 'checking') setConnectionStep(provider, 'cli', 'pending', '正在检测…');
+  else if (result.cliFound) setConnectionStep(provider, 'cli', 'done', '已找到命令行工具');
+  else if (result.state === 'opened' || result.state === 'opened-disconnect') setConnectionStep(provider, 'cli', 'active', '已打开 Codex App 插件页');
+  else if (live) setConnectionStep(provider, 'cli', 'done', '已由真实任务事件确认');
+  else setConnectionStep(provider, 'cli', 'error', '未找到命令行工具');
+
+  if (live) setConnectionStep(provider, 'plugin', 'done', '插件正在发送状态');
+  else if (result.state === 'connected') setConnectionStep(provider, 'plugin', 'done', result.version ? `已安装 v${result.version}` : '已安装并启用');
+  else if (result.state === 'disabled') setConnectionStep(provider, 'plugin', 'error', '已安装，但被停用');
+  else if (result.state === 'conflict') setConnectionStep(provider, 'plugin', 'error', '同名插件来源冲突');
+  else if (result.state === 'error') setConnectionStep(provider, 'plugin', 'error', '检测或操作失败');
+  else if (result.state === 'opened' || result.state === 'terminal-opened') setConnectionStep(provider, 'plugin', 'active', '等待安装结果');
+  else if (result.state === 'opened-disconnect') setConnectionStep(provider, 'plugin', 'active', '等待手动移除');
+  else setConnectionStep(provider, 'plugin', 'pending', '尚未安装');
+
+  if (live) setConnectionStep(provider, 'live', 'done', `最近收到：${formatLastEvent(result.lastEventAt)}`);
+  else if (health === 'awaiting-event') setConnectionStep(provider, 'live', 'active', '请触发一条真实任务状态');
+  else if (health === 'test-timeout') setConnectionStep(provider, 'live', 'error', '60 秒内没有收到状态');
+  else setConnectionStep(provider, 'live', 'pending', '尚未验证');
+
+  const cannotUseClaudeCli = provider === 'claude' && result.cliFound === false;
+  controls.connect.disabled = busy || result.state === 'conflict' || cannotUseClaudeCli;
+  if (busy) controls.connect.textContent = '处理中…';
+  else if (result.state === 'conflict') controls.connect.textContent = '先处理冲突';
+  else if (cannotUseClaudeCli) controls.connect.textContent = '缺少 CLI';
+  else if (result.state === 'connected' || live) controls.connect.textContent = '修复 / 更新';
+  else if (result.state === 'disabled') controls.connect.textContent = '重新启用';
+  else if (result.state === 'cli-missing' && provider === 'codex') controls.connect.textContent = '在 Codex 中打开';
+  else controls.connect.textContent = '一键安装';
+
+  controls.test.disabled = busy || (!live && result.state !== 'connected') || health === 'awaiting-event';
+  controls.test.textContent = health === 'awaiting-event' ? '等待事件…' : '测试连接';
+  controls.disconnect.disabled = busy || !installed || result.state === 'conflict' || cannotUseClaudeCli;
+}
+
+async function refreshAgentIntegration(provider) {
+  try {
+    const result = await window.settingsAPI.getAgentIntegration(provider);
+    renderAgentIntegration(provider, result);
+    return result;
+  } catch (error) {
+    const result = { state: 'error', error: error.message };
+    renderAgentIntegration(provider, result);
+    return result;
+  }
 }
 
 async function refreshAgentIntegrations() {
   byId('refresh-integrations').disabled = true;
-  const providers = ['codex', 'claude'];
-  for (const provider of providers) renderAgentIntegration(provider, { state: 'checking' });
-  await Promise.allSettled(providers.map(async (provider) => {
-    try {
-      const result = await window.settingsAPI.getAgentIntegration(provider);
-      renderAgentIntegration(provider, result);
-    } catch (error) {
-      renderAgentIntegration(provider, { state: 'error', error: error.message });
-    }
-  }));
+  for (const provider of agentProviders) renderAgentIntegration(provider, { state: 'checking' });
+  await Promise.allSettled(agentProviders.map(refreshAgentIntegration));
   byId('refresh-integrations').disabled = false;
 }
 
-async function installAgentIntegration(provider) {
-  const button = integrationButtons[provider];
-  button.disabled = true;
-  button.textContent = '安装中…';
+async function pollTerminalOperation(provider, operation) {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const result = await refreshAgentIntegration(provider);
+    if (result.state === 'error') {
+      showStatus(`连接操作失败：${result.error}`, true);
+      return;
+    }
+    if (operation === 'disconnect' && result.state === 'not-installed') {
+      showStatus('已经断开。重新打开 Claude Code 会话后生效。');
+      return;
+    }
+    if (operation !== 'disconnect' && result.state === 'connected') {
+      showStatus('插件已经安装。请重新打开 Claude Code 会话，再点“测试连接”。');
+      return;
+    }
+  }
+  showStatus('暂时没有检测到结果。请查看 Terminal 中的信息，再点“重新检测连接状态”。', true);
+}
+
+async function manageAgentIntegration(provider) {
+  const current = integrationResults[provider] || {};
+  const repair = current.state === 'connected' || current.health === 'active';
+  renderAgentIntegration(provider, { ...current, state: 'terminal-opened', operation: repair ? 'repair' : 'install' });
   try {
-    const result = await window.settingsAPI.installAgentIntegration(provider);
+    const result = repair
+      ? await window.settingsAPI.repairAgentIntegration(provider)
+      : await window.settingsAPI.installAgentIntegration(provider);
     renderAgentIntegration(provider, result);
     if (result.state === 'opened') {
-      showStatus('已打开 Codex 插件页。请在那里确认安装，再新开任务审查 /hooks。');
+      showStatus('已打开 Codex 插件页。确认安装后，新开任务并在 /hooks 中审查这个 Hook。');
       return;
     }
     if (result.state === 'terminal-opened') {
-      showStatus('已在 Terminal 中开始连接 Claude Code。完成后这里会自动更新。');
-      for (let attempt = 0; attempt < 30; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        const statusResult = await window.settingsAPI.getAgentIntegration(provider);
-        renderAgentIntegration(provider, statusResult);
-        if (statusResult.state === 'connected') {
-          showStatus('连接完成。请重新打开 Claude Code 会话。');
-          return;
-        }
-        if (statusResult.state === 'error') {
-          showStatus(`连接失败：${statusResult.error}`, true);
-          return;
-        }
-      }
-      showStatus('暂时没有检测到连接。请查看 Terminal 中的结果，再点“重新检测连接状态”。', true);
+      showStatus('已在 Terminal 中开始操作 Claude Code，完成后这里会自动更新。');
+      await pollTerminalOperation(provider, result.operation);
       return;
     }
-    const followUp = provider === 'codex'
-      ? '请新开一个 Codex 任务，并在 /hooks 中审查这个本地 Hook。'
-      : '请重新打开 Claude Code 会话。';
-    showStatus(`连接完成。${followUp}`);
+    showStatus(provider === 'codex'
+      ? '插件操作完成。请新开一个 Codex 任务，在 /hooks 中审查后再测试连接。'
+      : '插件操作完成。请重新打开 Claude Code 会话，再测试连接。');
   } catch (error) {
-    renderAgentIntegration(provider, { state: 'error', error: error.message });
+    renderAgentIntegration(provider, { ...current, state: 'error', error: error.message });
     showStatus(`连接失败：${error.message}`, true);
+  }
+}
+
+async function disconnectAgentIntegration(provider) {
+  const name = provider === 'codex' ? 'Codex' : 'Claude Code';
+  if (!window.confirm(`断开水滴鱼与 ${name} 的状态连接？`)) return;
+  const current = integrationResults[provider] || {};
+  try {
+    const result = await window.settingsAPI.disconnectAgentIntegration(provider);
+    renderAgentIntegration(provider, result);
+    if (result.state === 'opened-disconnect') {
+      showStatus('已打开 Codex 插件页。此环境没有 Codex CLI，请在页面里移除水滴鱼插件。');
+      return;
+    }
+    if (result.state === 'terminal-opened') {
+      showStatus('已在 Terminal 中开始断开 Claude Code，完成后这里会自动更新。');
+      await pollTerminalOperation(provider, 'disconnect');
+      return;
+    }
+    showStatus(`已经断开 ${name}。`);
+    await refreshAgentIntegration(provider);
+  } catch (error) {
+    renderAgentIntegration(provider, { ...current, state: 'error', error: error.message });
+    showStatus(`断开失败：${error.message}`, true);
+  }
+}
+
+async function testAgentIntegration(provider) {
+  try {
+    const result = await window.settingsAPI.testAgentIntegration(provider);
+    renderAgentIntegration(provider, result);
+    showStatus(provider === 'codex'
+      ? '等待真实状态：请新开或继续一个 Codex 任务，并确认 /hooks 已信任。'
+      : '等待真实状态：请在新开的 Claude Code 会话里提交一条任务。');
+    clearTimeout(connectionTestTimers[provider]);
+    connectionTestTimers[provider] = setTimeout(() => refreshAgentIntegration(provider), 61000);
+  } catch (error) {
+    showStatus(`测试失败：${error.message}`, true);
   }
 }
 
@@ -239,8 +338,11 @@ scaleInput.addEventListener('input', () => {
   scaleOutput.value = `${Math.round(Number(scaleInput.value) * 100)}%`;
 });
 
-integrationButtons.codex.addEventListener('click', () => installAgentIntegration('codex'));
-integrationButtons.claude.addEventListener('click', () => installAgentIntegration('claude'));
+for (const provider of agentProviders) {
+  integrationControls[provider].connect.addEventListener('click', () => manageAgentIntegration(provider));
+  integrationControls[provider].test.addEventListener('click', () => testAgentIntegration(provider));
+  integrationControls[provider].disconnect.addEventListener('click', () => disconnectAgentIntegration(provider));
+}
 byId('refresh-integrations').addEventListener('click', refreshAgentIntegrations);
 
 form.addEventListener('submit', async (event) => {
@@ -284,3 +386,9 @@ window.settingsAPI.load()
   .catch((error) => showStatus(`读取设置失败：${error.message}`, true));
 
 window.settingsAPI.onIntegrationStatus((integrationStatus) => renderIntegrationStatus(integrationStatus));
+window.settingsAPI.onAgentConnectionHealth((health) => {
+  const current = integrationResults[health.provider] || { state: 'checking' };
+  const testPassed = current.health === 'awaiting-event' && health.health === 'active';
+  renderAgentIntegration(health.provider, { ...current, ...health });
+  if (testPassed) showStatus('连接测试通过。鱼已经收到真实任务状态。');
+});
