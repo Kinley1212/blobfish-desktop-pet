@@ -43,3 +43,10 @@ test('language pack contains dedicated 3% and 2% battery phrases', () => {
   assert.equal(batteryPhrases.filter((phrase) => phrase.conditions.batteryEquals === 3).length, 2);
   assert.equal(batteryPhrases.filter((phrase) => phrase.conditions.batteryEquals === 2).length, 2);
 });
+
+test('language additions include multiple farewell lines for graceful quit', () => {
+  const pack = loadLanguagePack(languagesRoot, 'blobfish-zh-TW');
+  const farewellPhrases = pack.phrases.filter((phrase) => phrase.event === 'interaction.goodbye');
+  assert.ok(farewellPhrases.length >= 4);
+  assert.ok(farewellPhrases.every((phrase) => phrase.sourcePath.startsWith('additions/')));
+});

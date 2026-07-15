@@ -83,6 +83,7 @@ function renderConfig(config, languages) {
   setValue('pet-scale', config.pet.scale);
   scaleOutput.value = `${Math.round(config.pet.scale * 100)}%`;
   setChecked('roam-without-tasks', config.pet.roamWhenNoTasks);
+  setChecked('launch-at-login', config.startup.launchAtLogin);
   setChecked('integration-codex', config.integrations.codex);
   setChecked('integration-claude', config.integrations.claudeCode);
   setChecked('integration-calendar', config.integrations.calendar);
@@ -123,6 +124,9 @@ function readConfig() {
       speed: Number(speedInput.value),
       scale: Number(scaleInput.value),
       roamWhenNoTasks: byId('roam-without-tasks').checked,
+    },
+    startup: {
+      launchAtLogin: byId('launch-at-login').checked,
     },
     integrations: {
       codex: byId('integration-codex').checked,

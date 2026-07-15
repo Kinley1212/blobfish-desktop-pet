@@ -4,7 +4,7 @@ const path = require('path');
 const { AgentBridge } = require('./core/agent-bridge');
 const { BatteryThresholdTracker, readMacBattery } = require('./core/battery-monitor');
 const { CalendarService } = require('./core/calendar-service');
-const { ConfigStore, DEFAULT_CONFIG } = require('./core/config-store');
+const { ConfigStore, DEFAULT_CONFIG, validateConfig } = require('./core/config-store');
 const { loadCharacterPack } = require('./core/pack-loader');
 const { loadLanguagePack } = require('./core/language-pack-loader');
 const { PhraseEngine } = require('./core/phrase-engine');
@@ -86,6 +86,9 @@ let agentBridge;
 let agentBridgeStatus = 'stopped';
 let taskTracker;
 let taskMaintenanceTimer = null;
+let quitTimer = null;
+let quitRequested = false;
+let allowImmediateQuit = false;
 let currentAgentSnapshot = Object.freeze({ activeCount: 0, waitingCount: 0, runningCount: 0 });
 const longRunningNotified = new Set();
 
@@ -172,22 +175,68 @@ function speak(event, context = {}, options = {}) {
   });
 }
 
-function rebuildTrayMenu() {
-  if (!tray) return;
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '设置…', click: () => createSettingsWindow() },
+function syncLaunchAtLogin(enabled) {
+  app.setLoginItemSettings({ openAtLogin: enabled });
+  const actual = app.getLoginItemSettings().openAtLogin;
+  if (actual !== enabled) throw new Error('macOS 未能更新登录时自动启动设置');
+}
+
+function requestQuit() {
+  if (quitRequested) return;
+  quitRequested = true;
+  manuallyPaused = true;
+  rebuildTrayMenu();
+  const spoken = speak('interaction.goodbye', {}, {
+    priority: SPEECH_PRIORITY.urgent,
+    durationMs: 1800,
+    replaceKey: 'interaction.goodbye',
+    allowDuringQuiet: true,
+  });
+  quitTimer = setTimeout(() => {
+    allowImmediateQuit = true;
+    app.quit();
+  }, spoken ? 1900 : 0);
+}
+
+function toggleManualPause(checked) {
+  manuallyPaused = checked;
+  rebuildTrayMenu();
+}
+
+function buildPetMenuTemplate() {
+  return [
+    { label: '打开设置…', click: () => createSettingsWindow() },
     {
-      label: '暂停游动',
+      label: manuallyPaused ? '继续游动' : '暂停游动',
+      click: () => toggleManualPause(!manuallyPaused),
+    },
+    {
+      label: '登录后自动启动',
       type: 'checkbox',
-      checked: manuallyPaused,
+      checked: config.startup.launchAtLogin,
       click: (item) => {
-        manuallyPaused = item.checked;
+        const previous = config.startup.launchAtLogin;
+        try {
+          syncLaunchAtLogin(item.checked);
+          config = configStore.save({
+            ...config,
+            startup: { ...config.startup, launchAtLogin: item.checked },
+          });
+        } catch (error) {
+          try { syncLaunchAtLogin(previous); } catch {}
+          console.error(error.message);
+        }
         rebuildTrayMenu();
       },
     },
     { type: 'separator' },
-    { label: '结束水滴鱼', click: () => app.quit() },
-  ]));
+    { label: '退出水滴鱼', click: () => requestQuit() },
+  ];
+}
+
+function rebuildTrayMenu() {
+  if (!tray) return;
+  tray.setContextMenu(Menu.buildFromTemplate(buildPetMenuTemplate()));
 }
 
 function createTray() {
@@ -204,7 +253,7 @@ function createApplicationMenu() {
       submenu: [
         { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => createSettingsWindow() },
         { type: 'separator' },
-        { role: 'quit', label: '结束水滴鱼' },
+        { label: '退出水滴鱼', accelerator: 'CmdOrCtrl+Q', click: () => requestQuit() },
       ],
     },
     { role: 'editMenu' },
@@ -267,6 +316,11 @@ function applyConfig(nextConfig) {
     syncHoverState();
   }
   scheduleIdleChatter();
+}
+
+function showPetContextMenu(event) {
+  if (!win || win.isDestroyed() || event.sender.id !== win.webContents.id) return;
+  Menu.buildFromTemplate(buildPetMenuTemplate()).popup({ window: win });
 }
 
 // Hard backstop: no real screen coordinate is ever remotely close to this,
@@ -411,6 +465,8 @@ function createWindow() {
       });
     }
   });
+
+  ipcMain.on('pet-context-menu', showPetContextMenu);
 
   ipcMain.on('drag-start', () => {
     paused = true;
@@ -824,8 +880,15 @@ function setupAgentBridge() {
 }
 
 app.whenReady().then(() => {
+  if (app.dock) app.dock.hide();
   configStore = new ConfigStore(app.getPath('userData'));
   config = configStore.load();
+  try {
+    syncLaunchAtLogin(config.startup.launchAtLogin);
+  } catch (error) {
+    runtimeWarning = `无法同步登录启动设置：${error.message}`;
+    console.error(runtimeWarning);
+  }
   const activeLanguageId = loadConfiguredLanguage(config.language.packId);
   if (activeLanguageId !== config.language.packId) {
     config = { ...config, language: { ...config.language, packId: activeLanguageId } };
@@ -850,7 +913,20 @@ app.whenReady().then(() => {
     if (!nextConfig || !availableIds.has(nextConfig.language?.packId)) {
       throw new Error('Selected language pack is not installed or is invalid');
     }
-    const saved = configStore.save(nextConfig);
+    const validated = validateConfig(nextConfig);
+    const previousLaunchAtLogin = config.startup.launchAtLogin;
+    if (validated.startup.launchAtLogin !== previousLaunchAtLogin) {
+      syncLaunchAtLogin(validated.startup.launchAtLogin);
+    }
+    let saved;
+    try {
+      saved = configStore.save(validated);
+    } catch (error) {
+      if (validated.startup.launchAtLogin !== previousLaunchAtLogin) {
+        try { syncLaunchAtLogin(previousLaunchAtLogin); } catch {}
+      }
+      throw error;
+    }
     applyConfig(saved);
     return getSettingsPayload();
   });
@@ -870,10 +946,16 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  app.quit();
+  if (allowImmediateQuit) app.quit();
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
+  if (!allowImmediateQuit && win && !win.isDestroyed()) {
+    event.preventDefault();
+    requestQuit();
+    return;
+  }
+  clearTimeout(quitTimer);
   clearTimeout(idleChatterTimer);
   clearInterval(batteryPollTimer);
   clearInterval(taskMaintenanceTimer);

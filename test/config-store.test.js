@@ -16,6 +16,7 @@ test('config store writes validated settings atomically and reloads them', () =>
     next.language.idleMaxMinutes = 45;
     next.pet.scale = 1.25;
     next.pet.roamWhenNoTasks = true;
+    next.startup.launchAtLogin = true;
     store.save(next);
 
     const reloaded = new ConfigStore(directory);
@@ -23,6 +24,7 @@ test('config store writes validated settings atomically and reloads them', () =>
     assert.deepEqual(reloaded.get().schedule.workdays, [1, 3, 5]);
     assert.equal(reloaded.get().pet.scale, 1.25);
     assert.equal(reloaded.get().pet.roamWhenNoTasks, true);
+    assert.equal(reloaded.get().startup.launchAtLogin, true);
     assert.equal(fs.statSync(reloaded.filePath).mode & 0o777, 0o600);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
@@ -34,11 +36,13 @@ test('legacy stop-after-task setting migrates without losing user intent', () =>
   delete legacy.pet.scale;
   delete legacy.pet.roamWhenNoTasks;
   legacy.pet.stopWhenAllTasksComplete = true;
+  delete legacy.startup;
   assert.deepEqual(validateConfig(legacy).pet, {
     speed: 1.5,
     scale: 1,
     roamWhenNoTasks: false,
   });
+  assert.deepEqual(validateConfig(legacy).startup, { launchAtLogin: false });
 });
 
 test('invalid config is rejected without weakening validation', () => {

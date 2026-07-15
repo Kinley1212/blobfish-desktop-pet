@@ -22,6 +22,7 @@ const DEFAULT_CONFIG = Object.freeze({
     categories: Object.freeze({ schedule: true, system: true, calendar: true, agents: true }),
   }),
   pet: Object.freeze({ speed: 1.5, scale: 1, roamWhenNoTasks: false }),
+  startup: Object.freeze({ launchAtLogin: false }),
   integrations: Object.freeze({ calendar: false, codex: true, claudeCode: true }),
   privacy: Object.freeze({ includeTaskTitles: false, includeCalendarTitles: true }),
 });
@@ -65,6 +66,8 @@ function validateConfig(input) {
   assertObject(input.language, 'language');
   assertObject(input.language.categories, 'language.categories');
   assertObject(input.pet, 'pet');
+  const startup = input.startup === undefined ? DEFAULT_CONFIG.startup : input.startup;
+  assertObject(startup, 'startup');
   assertObject(input.integrations, 'integrations');
   assertObject(input.privacy, 'privacy');
 
@@ -113,6 +116,9 @@ function validateConfig(input) {
       roamWhenNoTasks: input.pet.roamWhenNoTasks === undefined
         ? !requireBoolean(input.pet.stopWhenAllTasksComplete, 'pet.stopWhenAllTasksComplete')
         : requireBoolean(input.pet.roamWhenNoTasks, 'pet.roamWhenNoTasks'),
+    },
+    startup: {
+      launchAtLogin: requireBoolean(startup.launchAtLogin, 'startup.launchAtLogin'),
     },
     integrations: {
       calendar: requireBoolean(input.integrations.calendar, 'integrations.calendar'),

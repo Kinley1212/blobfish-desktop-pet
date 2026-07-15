@@ -118,6 +118,13 @@ input[type="range"] { width: 100%; accent-color: #6f9295; }
 
 .integration-status + .integration-status { margin-top: 5px; }
 
+.entry-hint {
+  margin: 8px 0 0;
+  color: #77716d;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
 .actions {
   position: sticky;
   bottom: 0;

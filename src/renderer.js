@@ -180,11 +180,20 @@ installCharacterPack()
 window.petAPI.onCheckHover((x, y) => applyHoverAt(x, y));
 
 pet.addEventListener('mousedown', (event) => {
+  if (event.button !== 0) return;
   dragging = true;
   movedDuringDrag = false;
   dragDistance = 0;
   moveHistory = [];
   event.preventDefault();
+});
+
+pet.addEventListener('contextmenu', (event) => {
+  event.preventDefault();
+  dragging = false;
+  movedDuringDrag = false;
+  pet.classList.remove('dragging');
+  window.petAPI.showContextMenu();
 });
 
 pet.addEventListener('click', () => {
