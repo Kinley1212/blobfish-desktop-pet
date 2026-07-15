@@ -23,10 +23,7 @@ function mapEvent(input) {
   if (eventName === 'PermissionRequest') return 'needs_input';
   if (eventName === 'PostToolUse' || eventName === 'PostToolUseFailure') return 'running';
   if (eventName === 'StopFailure') return 'failed';
-  if (eventName === 'Stop') {
-    if (input.success === false || input.status === 'failed') return 'failed';
-    return 'completed';
-  }
+  if (eventName === 'Stop') return 'ended';
   return null;
 }
 

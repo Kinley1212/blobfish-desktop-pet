@@ -37,11 +37,13 @@ class TaskTracker {
       task.state = 'waiting';
       task.updatedAt = now;
       this.tasks.set(key, task);
-    } else if (event.event === 'completed' || event.event === 'failed') {
+    } else if (event.event === 'ended' || event.event === 'completed' || event.event === 'failed') {
       if (!existing) return this.snapshot();
       this.tasks.delete(key);
       const remaining = this.tasks.size;
-      transition = event.event === 'failed' ? 'failed' : (remaining === 0 ? 'allCompleted' : 'completed');
+      if (event.event === 'failed') transition = 'failed';
+      else if (event.event === 'ended') transition = remaining === 0 ? 'allEnded' : 'ended';
+      else transition = remaining === 0 ? 'allCompleted' : 'completed';
     }
 
     const snapshot = this.snapshot();

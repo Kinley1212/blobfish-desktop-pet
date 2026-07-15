@@ -7,6 +7,18 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { AgentBridge } = require('../src/core/agent-bridge');
 
+function runSender(senderPath, socketPath, input) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [senderPath, '--provider', 'codex'], {
+      env: { ...process.env, BLOBFISH_SOCKET: socketPath },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    child.stdin.end(JSON.stringify(input));
+    child.on('error', reject);
+    child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`sender exited ${code}`)));
+  });
+}
+
 test('accepts validated status-only events over a private Unix socket', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-bridge-'));
   const socketPath = path.join(directory, 'events.sock');
@@ -79,28 +91,29 @@ test('Codex hook sender forwards only whitelisted lifecycle metadata', async () 
       'scripts',
       'send-event.js',
     );
-    await new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, [senderPath, '--provider', 'codex'], {
-        env: { ...process.env, BLOBFISH_SOCKET: socketPath },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      child.stdin.end(JSON.stringify({
-        hook_event_name: 'UserPromptSubmit',
-        session_id: 'session-hook',
-        turn_id: 'turn-hook',
-        prompt: 'this must never cross the bridge',
-        transcript_path: '/private/transcript.jsonl',
-      }));
-      child.on('error', reject);
-      child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`sender exited ${code}`)));
+    await runSender(senderPath, socketPath, {
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'session-hook',
+      turn_id: 'turn-hook',
+      prompt: 'this must never cross the bridge',
+      transcript_path: '/private/transcript.jsonl',
+    });
+    await runSender(senderPath, socketPath, {
+      hook_event_name: 'Stop',
+      session_id: 'session-hook',
+      turn_id: 'turn-hook',
+      success: true,
+      status: 'completed',
     });
     await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(received.length, 1);
-    assert.deepEqual(
-      Object.keys(received[0]).sort(),
-      ['event', 'provider', 'sessionId', 'timestamp', 'title', 'turnId', 'version'].sort(),
-    );
-    assert.equal(received[0].event, 'started');
+    assert.equal(received.length, 2);
+    for (const event of received) {
+      assert.deepEqual(
+        Object.keys(event).sort(),
+        ['event', 'provider', 'sessionId', 'timestamp', 'title', 'turnId', 'version'].sort(),
+      );
+    }
+    assert.deepEqual(received.map((event) => event.event), ['started', 'ended']);
   } finally {
     await bridge.stop();
     fs.rmSync(directory, { recursive: true, force: true });

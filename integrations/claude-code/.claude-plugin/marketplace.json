@@ -9,7 +9,7 @@
       "name": "blobfish-agent-bridge",
       "source": "./blobfish-agent-bridge",
       "description": "Send local Claude Code task states to the Blobfish desktop pet.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "category": "productivity"
     }
   ]

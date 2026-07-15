@@ -1,0 +1,14 @@
+{
+  "category": "agents",
+  "phrases": [
+    { "id": "agent-ended-01", "event": "agent.ended", "text": "這一輪停了。", "weight": 5 },
+    { "id": "agent-ended-02", "event": "agent.ended", "text": "它先停在這裡。", "weight": 4 },
+    { "id": "agent-ended-03", "event": "agent.ended", "text": "這一件收住了……還有 {remaining} 個。", "weight": 5, "conditions": { "remainingMin": 1 } },
+    { "id": "agent-ended-04", "event": "agent.ended", "text": "它不動了。其他的還在跑。", "weight": 3, "conditions": { "remainingMin": 1 } },
+
+    { "id": "agent-all-ended-01", "event": "agent.allEnded", "text": "都停下來了……先這樣。", "weight": 5 },
+    { "id": "agent-all-ended-02", "event": "agent.allEnded", "text": "現在沒有在跑的了。我也停一下。", "weight": 5 },
+    { "id": "agent-all-ended-03", "event": "agent.allEnded", "text": "這一輪結束了。成沒成，你最好還是看一眼。", "weight": 4 },
+    { "id": "agent-all-ended-04", "event": "agent.allEnded", "text": "它們都安靜了。我也是。", "weight": 3 }
+  ]
+}

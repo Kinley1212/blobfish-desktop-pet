@@ -16,6 +16,7 @@
       "additions/interactions.json",
       "additions/calendar.json",
       "additions/agents.json",
+      "additions/agent-lifecycle.json",
       "additions/rare.json"
     ]
   }

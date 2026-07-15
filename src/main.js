@@ -929,6 +929,14 @@ function handleTaskTransition(transition) {
       replaceKey: 'agent.allCompleted',
       action: 'success',
     });
+  } else if (transition.type === 'ended') {
+    speak('agent.ended', context, { ...speechOptions, replaceKey: 'agent.ended' });
+  } else if (transition.type === 'allEnded') {
+    speak('agent.allEnded', context, {
+      ...speechOptions,
+      durationMs: 6000,
+      replaceKey: 'agent.allEnded',
+    });
   } else if (transition.type === 'failed') {
     speak('agent.failed', context, {
       priority: SPEECH_PRIORITY.urgent,

@@ -32,3 +32,15 @@ test('failed tasks end without claiming successful all-complete and stale tasks 
   assert.equal(tracker.pruneStale(5000, 9001), 1);
   assert.deepEqual(transitions, ['started', 'failed', 'started', 'state']);
 });
+
+test('hook stops end tasks without claiming successful completion', () => {
+  const transitions = [];
+  const tracker = new TaskTracker((transition) => transitions.push(transition.type));
+  tracker.handle(event('started', 'one'));
+  tracker.handle(event('started', 'two'));
+  tracker.handle(event('ended', 'one'));
+  tracker.handle(event('ended', 'two'));
+
+  assert.deepEqual(transitions, ['started', 'started', 'ended', 'allEnded']);
+  assert.deepEqual(tracker.snapshot(), { activeCount: 0, waitingCount: 0, runningCount: 0 });
+});

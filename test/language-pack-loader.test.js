@@ -69,3 +69,13 @@ test('runtime error phrases are short additive system lines', () => {
   assert.ok(phrases.every((phrase) => phrase.sourcePath === 'additions/errors.json'));
   assert.ok(phrases.every((phrase) => phrase.text.length <= 16));
 });
+
+test('hook stop phrases are additive and do not claim successful completion', () => {
+  const pack = loadLanguagePack(languagesRoot, 'blobfish-zh-TW');
+  for (const eventName of ['agent.ended', 'agent.allEnded']) {
+    const phrases = pack.phrases.filter((phrase) => phrase.event === eventName);
+    assert.ok(phrases.length >= 4);
+    assert.ok(phrases.every((phrase) => phrase.sourcePath === 'additions/agent-lifecycle.json'));
+    assert.ok(phrases.every((phrase) => !phrase.text.includes('完成') && !phrase.text.includes('成功')));
+  }
+});

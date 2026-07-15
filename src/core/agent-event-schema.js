@@ -1,5 +1,5 @@
 const PROVIDERS = new Set(['codex', 'claude-code']);
-const EVENTS = new Set(['started', 'running', 'needs_input', 'completed', 'failed']);
+const EVENTS = new Set(['started', 'running', 'needs_input', 'ended', 'completed', 'failed']);
 const IDENTIFIER_PATTERN = /^[A-Za-z0-9._:@+-]{1,256}$/;
 
 function validateAgentEvent(input) {
