@@ -11,6 +11,7 @@ const { loadLanguagePack } = require('./core/language-pack-loader');
 const { PhraseEngine } = require('./core/phrase-engine');
 const { getScheduleReminder, isInQuietHours } = require('./core/reminder-scheduler');
 const { SpeechQueue } = require('./core/speech-queue');
+const { formatProviderTaskSummary } = require('./core/task-menu-summary');
 const { TaskTracker } = require('./core/task-tracker');
 
 app.setName('BlobfishDesktopPet');
@@ -208,7 +209,18 @@ function toggleManualPause(checked) {
 }
 
 function buildPetMenuTemplate() {
+  const tasks = taskTracker ? taskTracker.getTasks() : [];
   return [
+    { label: '任务状态', enabled: false },
+    {
+      label: formatProviderTaskSummary(tasks, 'codex', 'Codex', config.integrations.codex),
+      enabled: false,
+    },
+    {
+      label: formatProviderTaskSummary(tasks, 'claude-code', 'Claude', config.integrations.claudeCode),
+      enabled: false,
+    },
+    { type: 'separator' },
     { label: '打开设置…', click: () => createSettingsWindow() },
     {
       label: manuallyPaused ? '继续游动' : '暂停游动',
@@ -815,6 +827,7 @@ function setupCalendarService() {
 
 function updateAgentState(snapshot) {
   currentAgentSnapshot = snapshot;
+  rebuildTrayMenu();
   const allWaiting = snapshot.activeCount > 0 && snapshot.waitingCount === snapshot.activeCount;
   agentPaused = allWaiting || (snapshot.activeCount === 0 && !config.pet.roamWhenNoTasks);
   const motion = snapshot.activeCount > 0
