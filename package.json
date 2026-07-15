@@ -3,13 +3,20 @@
   "version": "1.0.0",
   "private": true,
   "description": "A tiny blobfish desktop pet for macOS",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "main": "src/main.js",
   "scripts": {
     "build:native": "node scripts/build-calendar-helper.js",
+    "package:mac": "npm run package:mac:arm64 && npm run package:mac:x64",
+    "package:mac:arm64": "node scripts/package-mac.js arm64",
+    "package:mac:x64": "node scripts/package-mac.js x64",
     "start": "electron .",
     "test": "node --test"
   },
   "devDependencies": {
-    "electron": "31.7.7"
+    "electron": "43.1.1",
+    "electron-builder": "26.15.3"
   }
 }

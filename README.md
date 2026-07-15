@@ -4,10 +4,28 @@
 
 ## 开发运行
 
+需要 Node.js 22.12 或更新版本。
+
 ```bash
 npm install
 npm start
 ```
+
+## macOS 打包
+
+```bash
+npm run package:mac:arm64
+npm run package:mac:x64
+```
+
+两个命令会分别编译同架构的 EventKit 日历助手、生成 App、做 ad-hoc
+本地签名、检查主程序与助手架构，并把交付包写入 `release/`。也可以运行
+`npm run package:mac` 顺序生成两种架构。
+
+ad-hoc 签名适合本机验收和开发者之间传递；面向普通用户分发时，仍需使用
+Apple Developer ID 证书签名并完成 notarization。主 App 不声明摄像头、
+麦克风、蓝牙或任意网络加载权限；日历用途声明只存在于独立助手中，且日历
+功能默认关闭。
 
 ## 基线功能
 
