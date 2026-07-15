@@ -253,6 +253,7 @@ window.settingsAPI.load()
   .then((result) => {
     renderConfig(result.config, result.languages);
     renderIntegrationStatus(result.integrationStatus);
+    refreshAgentIntegrations();
     if (result.warning) showStatus(result.warning, true);
   })
   .catch((error) => showStatus(`读取设置失败：${error.message}`, true));

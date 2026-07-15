@@ -325,6 +325,22 @@ function applyConfig(nextConfig) {
   scheduleIdleChatter();
 }
 
+function persistConfig(nextConfig) {
+  const validated = validateConfig(nextConfig);
+  const previousLaunchAtLogin = config.startup.launchAtLogin;
+  if (validated.startup.launchAtLogin !== previousLaunchAtLogin) {
+    syncLaunchAtLogin(validated.startup.launchAtLogin);
+  }
+  try {
+    return configStore.save(validated);
+  } catch (error) {
+    if (validated.startup.launchAtLogin !== previousLaunchAtLogin) {
+      try { syncLaunchAtLogin(previousLaunchAtLogin); } catch {}
+    }
+    throw error;
+  }
+}
+
 function showPetContextMenu(event) {
   if (!win || win.isDestroyed() || event.sender.id !== win.webContents.id) return;
   Menu.buildFromTemplate(buildPetMenuTemplate()).popup({ window: win });
@@ -890,15 +906,17 @@ app.whenReady().then(() => {
   if (app.dock) app.dock.hide();
   configStore = new ConfigStore(app.getPath('userData'));
   config = configStore.load();
-  try {
-    syncLaunchAtLogin(config.startup.launchAtLogin);
-  } catch (error) {
-    runtimeWarning = `无法同步登录启动设置：${error.message}`;
-    console.error(runtimeWarning);
-  }
   const activeLanguageId = loadConfiguredLanguage(config.language.packId);
   if (activeLanguageId !== config.language.packId) {
     config = { ...config, language: { ...config.language, packId: activeLanguageId } };
+  }
+  if (config.startup.launchAtLogin) {
+    try {
+      syncLaunchAtLogin(true);
+    } catch (error) {
+      runtimeWarning = `无法同步登录启动设置：${error.message}`;
+      console.error(runtimeWarning);
+    }
   }
   updateAgentState(currentAgentSnapshot);
 
@@ -920,26 +938,13 @@ app.whenReady().then(() => {
     if (!nextConfig || !availableIds.has(nextConfig.language?.packId)) {
       throw new Error('Selected language pack is not installed or is invalid');
     }
-    const validated = validateConfig(nextConfig);
-    const previousLaunchAtLogin = config.startup.launchAtLogin;
-    if (validated.startup.launchAtLogin !== previousLaunchAtLogin) {
-      syncLaunchAtLogin(validated.startup.launchAtLogin);
-    }
-    let saved;
-    try {
-      saved = configStore.save(validated);
-    } catch (error) {
-      if (validated.startup.launchAtLogin !== previousLaunchAtLogin) {
-        try { syncLaunchAtLogin(previousLaunchAtLogin); } catch {}
-      }
-      throw error;
-    }
+    const saved = persistConfig(nextConfig);
     applyConfig(saved);
     return getSettingsPayload();
   });
   ipcMain.handle('settings:reset', (event) => {
     assertSettingsSender(event);
-    const reset = configStore.reset();
+    const reset = persistConfig(DEFAULT_CONFIG);
     applyConfig(reset);
     return getSettingsPayload();
   });
