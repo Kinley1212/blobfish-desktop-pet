@@ -68,6 +68,7 @@ let tray;
 let direction = 1;
 let paused = false;
 let manuallyPaused = false;
+let contextMenuPaused = false;
 let systemPaused = false;
 let agentPaused = false;
 let currentY;
@@ -92,6 +93,9 @@ let integrationManager;
 let taskTracker;
 let taskMaintenanceTimer = null;
 let quitTimer = null;
+let contextMenuPauseTimer = null;
+let contextMenuSession = 0;
+let lastContextMenuSpokenAt = 0;
 let quitRequested = false;
 let allowImmediateQuit = false;
 let currentAgentSnapshot = Object.freeze({ activeCount: 0, waitingCount: 0, runningCount: 0 });
@@ -150,7 +154,7 @@ function getEventCategory(event) {
 }
 
 function isMovementPaused() {
-  return paused || manuallyPaused || systemPaused || agentPaused;
+  return paused || manuallyPaused || contextMenuPaused || systemPaused || agentPaused;
 }
 
 function isProviderEnabled(provider) {
@@ -204,7 +208,14 @@ function requestQuit() {
 }
 
 function toggleManualPause(checked) {
+  if (manuallyPaused === checked) return;
   manuallyPaused = checked;
+  speak(checked ? 'interaction.paused' : 'interaction.resumed', {}, {
+    priority: SPEECH_PRIORITY.interaction,
+    durationMs: 2800,
+    replaceKey: 'interaction.movementToggle',
+    allowDuringQuiet: true,
+  });
   rebuildTrayMenu();
 }
 
@@ -365,7 +376,28 @@ function persistConfig(nextConfig) {
 
 function showPetContextMenu(event) {
   if (!win || win.isDestroyed() || event.sender.id !== win.webContents.id) return;
-  Menu.buildFromTemplate(buildPetMenuTemplate()).popup({ window: win });
+  clearTimeout(contextMenuPauseTimer);
+  const session = ++contextMenuSession;
+  contextMenuPaused = true;
+  const now = Date.now();
+  if (now - lastContextMenuSpokenAt >= 5 * 60 * 1000 && Math.random() < 0.25) {
+    const spoken = speak('interaction.menuOpen', {}, {
+      priority: SPEECH_PRIORITY.interaction,
+      durationMs: 2800,
+      replaceKey: 'interaction.menuOpen',
+      allowDuringQuiet: true,
+    });
+    if (spoken) lastContextMenuSpokenAt = now;
+  }
+  Menu.buildFromTemplate(buildPetMenuTemplate()).popup({
+    window: win,
+    callback: () => {
+      if (session !== contextMenuSession) return;
+      contextMenuPauseTimer = setTimeout(() => {
+        if (session === contextMenuSession) contextMenuPaused = false;
+      }, 300);
+    },
+  });
 }
 
 // Hard backstop: no real screen coordinate is ever remotely close to this,
@@ -1049,6 +1081,7 @@ app.on('before-quit', (event) => {
   }
   clearTimeout(quitTimer);
   clearTimeout(idleChatterTimer);
+  clearTimeout(contextMenuPauseTimer);
   clearInterval(batteryPollTimer);
   clearInterval(taskMaintenanceTimer);
   if (calendarService) calendarService.stop();

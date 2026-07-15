@@ -50,3 +50,13 @@ test('language additions include multiple farewell lines for graceful quit', () 
   assert.ok(farewellPhrases.length >= 4);
   assert.ok(farewellPhrases.every((phrase) => phrase.sourcePath.startsWith('additions/')));
 });
+
+test('right-click, pause and resume phrases are additive interactions', () => {
+  const pack = loadLanguagePack(languagesRoot, 'blobfish-zh-TW');
+  for (const eventName of ['interaction.menuOpen', 'interaction.paused', 'interaction.resumed']) {
+    const phrases = pack.phrases.filter((phrase) => phrase.event === eventName);
+    assert.ok(phrases.length >= 3);
+    assert.ok(phrases.every((phrase) => phrase.sourceGroup === 'additions'));
+    assert.ok(phrases.every((phrase) => phrase.sourcePath === 'additions/interactions.json'));
+  }
+});
