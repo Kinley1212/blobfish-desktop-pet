@@ -1,0 +1,13 @@
+{
+  "category": "rare",
+  "phrases": [
+    { "id": "rare-late-night-01", "event": "rare.lateNight", "text": "你還沒睡。", "weight": 1, "rarity": "rare", "conditions": { "hourMin": 0, "hourMax": 4 } },
+    { "id": "rare-late-night-02", "event": "rare.lateNight", "text": "這個時間，深海都安靜了。", "weight": 1, "rarity": "rare", "conditions": { "hourMin": 0, "hourMax": 4 } },
+    { "id": "rare-friday-01", "event": "rare.friday", "text": "今天是星期五。至少這點還行。", "weight": 1, "rarity": "rare", "conditions": { "weekdays": [5] } },
+    { "id": "rare-completed-follow-up-01", "event": "rare.allCompletedFollowUp", "text": "……真的沒有了吧？", "weight": 1, "rarity": "rare" },
+    { "id": "rare-completed-follow-up-02", "event": "rare.allCompletedFollowUp", "text": "我先不動。免得又有事。", "weight": 1, "rarity": "rare" },
+    { "id": "rare-unlock-long-01", "event": "rare.returnAfterLongLock", "text": "你離開了很久。我還在這裡。", "weight": 1, "rarity": "rare", "conditions": { "lockedMinSeconds": 7200 } },
+    { "id": "rare-many-tasks-01", "event": "rare.manyTasks", "text": "這麼多一起跑……你認真的嗎。", "weight": 1, "rarity": "rare", "conditions": { "activeCountMin": 5 } },
+    { "id": "rare-clicks-01", "event": "rare.tooManyClicks", "text": "你是不是只會點我。", "weight": 1, "rarity": "rare", "conditions": { "clickCountMin": 10 } }
+  ]
+}

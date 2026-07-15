@@ -1,0 +1,13 @@
+{
+  "category": "original-click",
+  "phrases": [
+    { "id": "original-click-01", "event": "interaction.click", "text": "痛痛痛!!", "weight": 1 },
+    { "id": "original-click-02", "event": "interaction.click", "text": "幹嘛啦!", "weight": 1 },
+    { "id": "original-click-03", "event": "interaction.click", "text": "欺負魚喔", "weight": 1 },
+    { "id": "original-click-04", "event": "interaction.click", "text": "哼,不理你了", "weight": 1 },
+    { "id": "original-click-05", "event": "interaction.click", "text": "再點我要生氣了", "weight": 1 },
+    { "id": "original-click-06", "event": "interaction.click", "text": "唉唷!", "weight": 1 },
+    { "id": "original-click-07", "event": "interaction.click", "text": "住手啦!", "weight": 1 },
+    { "id": "original-click-08", "event": "interaction.click", "text": "很痛耶!", "weight": 1 }
+  ]
+}

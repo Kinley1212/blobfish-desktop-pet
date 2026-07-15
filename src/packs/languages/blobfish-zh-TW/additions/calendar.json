@@ -1,0 +1,19 @@
+{
+  "category": "calendar",
+  "phrases": [
+    { "id": "calendar-upcoming-01", "event": "calendar.upcoming", "text": "{minutes} 分鐘後有安排。", "weight": 5 },
+    { "id": "calendar-upcoming-02", "event": "calendar.upcoming", "text": "等一下是「{title}」。你記得吧。", "weight": 4, "conditions": { "requires": ["title"] } },
+    { "id": "calendar-upcoming-03", "event": "calendar.upcoming", "text": "時間快到了……還有 {minutes} 分鐘。", "weight": 4 },
+    { "id": "calendar-upcoming-04", "event": "calendar.upcoming", "text": "下一個安排快到了。", "weight": 3 },
+    { "id": "calendar-upcoming-05", "event": "calendar.upcoming", "text": "你等一下還有事。別忘了。", "weight": 3 },
+    { "id": "calendar-start-01", "event": "calendar.starting", "text": "時間到了。", "weight": 5 },
+    { "id": "calendar-start-02", "event": "calendar.starting", "text": "「{title}」要開始了。", "weight": 4, "conditions": { "requires": ["title"] } },
+    { "id": "calendar-start-03", "event": "calendar.starting", "text": "該去忙下一件事了……", "weight": 3 },
+    { "id": "calendar-busy-01", "event": "calendar.busyDay", "text": "今天排得很滿……", "weight": 4, "cooldownMs": 21600000 },
+    { "id": "calendar-busy-02", "event": "calendar.busyDay", "text": "你的日曆看起來不太想放過你。", "weight": 3, "cooldownMs": 21600000 },
+    { "id": "calendar-busy-03", "event": "calendar.busyDay", "text": "今天的空白不多。撐一下吧。", "weight": 2, "cooldownMs": 21600000 },
+    { "id": "calendar-free-01", "event": "calendar.freeGap", "text": "下一段時間是空的。難得。", "weight": 4, "cooldownMs": 10800000 },
+    { "id": "calendar-free-02", "event": "calendar.freeGap", "text": "暫時沒安排……先喘口氣。", "weight": 3, "cooldownMs": 10800000 },
+    { "id": "calendar-free-03", "event": "calendar.freeGap", "text": "現在有一小段安靜時間。", "weight": 2, "cooldownMs": 10800000 }
+  ]
+}

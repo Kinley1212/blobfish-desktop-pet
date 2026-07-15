@@ -14,56 +14,6 @@ const DRAG_THRESHOLD_PX = 4;
 // hand had already come to a stop - treat the release as velocity-free.
 const STILL_THRESHOLD_MS = 60;
 
-const CLICK_REACTIONS = [
-  '痛痛痛!!',
-  '幹嘛啦!',
-  '欺負魚喔',
-  '哼,不理你了',
-  '再點我要生氣了',
-  '唉唷!',
-  '住手啦!',
-  '很痛耶!',
-];
-
-const IDLE_CHATTER_LINES = [
-  '肚子餓了...',
-  '今天天氣不錯',
-  '要不要休息一下',
-  '游泳好累喔',
-  '主人在忙什麼呢',
-  '想睡覺了',
-  '水滴魚也是有尊嚴的',
-  '別再甩我了啦',
-  '今天也要加油喔',
-  '發呆中',
-  '有沒有人可以陪我聊天',
-  '我是水滴魚,不是普通的魚',
-  '泡泡都被我吐光了',
-  '深海的家好想念',
-  '主人今天喝水了嗎',
-  '電腦螢幕好亮喔',
-  '我也想要放假',
-  '鰭有點痠',
-  '誰把我丟到這裡的',
-  '其實我很可愛的',
-  '嘟嘟嘟',
-  '眼睛好像有點花',
-  '該不會忘記我了吧',
-  '游來游去也是一種運動',
-  '心情不錯',
-  '今天心情普通',
-  '想吃點什麼呢',
-  '主人辛苦了',
-  '我在想事情',
-  '別小看水滴魚',
-  '喘口氣',
-  '今天的雲很好看(如果我看得到的話)',
-  '滑鼠不要靠近我',
-  '我在思考鹹魚的意義',
-];
-const IDLE_CHATTER_MIN_MS = 60 * 1000;
-const IDLE_CHATTER_MAX_MS = 3 * 60 * 1000;
-
 let bubbleTimer = null;
 let hitTimer = null;
 let bumpTimer = null;
@@ -175,27 +125,12 @@ function applyHoverAt(x, y) {
   window.petAPI.setIgnoreMouse(!hovering);
 }
 
-// Random, unprompted flavor lines while the pet is just swimming around -
-// reschedules itself with a fresh random delay each time rather than a
-// fixed interval, so it doesn't feel mechanical.
-function scheduleIdleChatter() {
-  const delay = IDLE_CHATTER_MIN_MS + Math.random() * (IDLE_CHATTER_MAX_MS - IDLE_CHATTER_MIN_MS);
-  setTimeout(() => {
-    if (!dragging && !pet.classList.contains('hit')) {
-      const line = IDLE_CHATTER_LINES[Math.floor(Math.random() * IDLE_CHATTER_LINES.length)];
-      showBubble(line, 4000);
-    }
-    scheduleIdleChatter();
-  }, delay);
-}
-
 window.petAPI.onDirection((dir) => setDirection(dir));
-window.petAPI.onReminder((text) => showBubble(text, 9000));
+window.petAPI.onSpeech((message) => showBubble(message.text, message.durationMs));
 window.petAPI.onBump(() => triggerBump());
 installCharacterPack()
   .then(() => {
     scheduleBlink();
-    scheduleIdleChatter();
   })
   .catch((error) => {
     console.error('Failed to install character pack', error);
@@ -224,8 +159,7 @@ pet.addEventListener('click', () => {
   void pet.offsetWidth;
   pet.classList.add('hit');
 
-  const reaction = CLICK_REACTIONS[Math.floor(Math.random() * CLICK_REACTIONS.length)];
-  showBubble(reaction, 800);
+  window.petAPI.petClicked();
 
   clearTimeout(hitTimer);
   hitTimer = setTimeout(() => {

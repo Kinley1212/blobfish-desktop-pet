@@ -1,13 +1,29 @@
 const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const { loadCharacterPack } = require('./core/pack-loader');
+const { loadLanguagePack } = require('./core/language-pack-loader');
+const { PhraseEngine } = require('./core/phrase-engine');
+const { SpeechQueue } = require('./core/speech-queue');
 
 const WINDOW_WIDTH = 340;
 const WINDOW_HEIGHT = 210;
 const SPEED = 1.5;
 const TICK_MS = 30;
 const CHARACTER_PACK_ID = 'blobfish';
+const LANGUAGE_PACK_ID = 'blobfish-zh-TW';
 const characterPack = loadCharacterPack(path.join(__dirname, 'packs', 'characters'), CHARACTER_PACK_ID);
+const languagePack = loadLanguagePack(path.join(__dirname, 'packs', 'languages'), LANGUAGE_PACK_ID);
+const phraseEngine = new PhraseEngine(languagePack.phrases);
+const IDLE_CHATTER_MIN_MS = 12 * 60 * 1000;
+const IDLE_CHATTER_MAX_MS = 35 * 60 * 1000;
+const SPEECH_PRIORITY = Object.freeze({
+  idle: 10,
+  interaction: 30,
+  schedule: 40,
+  calendar: 50,
+  agent: 60,
+  urgent: 90,
+});
 
 // The visible fish only occupies a small box near the bottom-center of the
 // (much larger) transparent window, which also has room for the speech
@@ -36,6 +52,32 @@ let direction = 1;
 let paused = false;
 let currentY;
 let flingIntervalId = null;
+let speechQueue;
+let idleChatterTimer = null;
+let clickCount = 0;
+
+function getDateContext(date = new Date()) {
+  return {
+    hour: date.getHours(),
+    minute: date.getMinutes(),
+    weekday: date.getDay(),
+  };
+}
+
+function speak(event, context = {}, options = {}) {
+  if (!speechQueue) return false;
+  const phrase = phraseEngine.select(event, { ...getDateContext(), ...context });
+  if (!phrase) return false;
+  return speechQueue.enqueue({
+    event,
+    phraseId: phrase.id,
+    text: phrase.text,
+    priority: options.priority ?? SPEECH_PRIORITY.idle,
+    durationMs: options.durationMs ?? 4000,
+    replaceKey: options.replaceKey,
+    action: options.action,
+  });
+}
 
 function createTray() {
   tray = new Tray(nativeImage.createEmpty());
@@ -158,12 +200,33 @@ function createWindow() {
   });
   win.loadFile(path.join(__dirname, 'index.html'));
 
+  speechQueue = new SpeechQueue((message) => {
+    if (win && !win.isDestroyed()) win.webContents.send('speech', message);
+  });
+
   ipcMain.on('pause', (_event, value) => {
     paused = value;
   });
 
   ipcMain.on('set-ignore-mouse', (_event, ignore) => {
     win.setIgnoreMouseEvents(ignore, { forward: true });
+  });
+
+  ipcMain.on('pet-clicked', () => {
+    clickCount += 1;
+    speak('interaction.click', { clickCount }, {
+      priority: SPEECH_PRIORITY.interaction,
+      durationMs: 800,
+      replaceKey: 'interaction.click',
+    });
+
+    if (clickCount >= 10 && Math.random() < 0.12) {
+      speak('rare.tooManyClicks', { clickCount }, {
+        priority: SPEECH_PRIORITY.interaction,
+        durationMs: 4200,
+        replaceKey: 'rare.tooManyClicks',
+      });
+    }
   });
 
   ipcMain.on('drag-start', () => {
@@ -235,7 +298,10 @@ function createWindow() {
     safeSetPosition(newX, currentY);
   }, TICK_MS);
 
-  scheduleReminders();
+  win.webContents.once('did-finish-load', () => {
+    scheduleReminders();
+    scheduleIdleChatter();
+  });
 }
 
 function startFling(vx, vy) {
@@ -318,26 +384,25 @@ function startFling(vx, vy) {
   }, TICK_MS);
 }
 
-function getReminderMessage(date) {
+function getReminder(date) {
   const hour = date.getHours();
   const minute = date.getMinutes();
   const day = date.getDay();
 
   if (hour === 12 && minute === 55) {
-    return '主人還有五分鐘就可以去吃飯啦，您辛苦啦。';
+    return { event: 'schedule.lunchSoon' };
   }
 
   if (hour === 18 && minute === 55) {
-    const farewell = day === 5 ? '下週見' : '明天見';
-    return `主人還有五分鐘就下班啦，可以開始關閉軟件啦，記得先關梯子再關Claude喲。主人${farewell}～`;
+    return { event: 'schedule.offWorkSoon', context: { farewell: day === 5 ? '下週見' : '明天見' } };
   }
 
   if (hour === 18 && minute === 30) {
-    return '主人還有半個鐘就下班啦，主人今天太棒啦！';
+    return { event: 'schedule.offWorkHalfHour' };
   }
 
   if (minute === 0 || minute === 30) {
-    return '主人您辛苦了，您又工作了半小時。';
+    return { event: 'schedule.halfHour' };
   }
 
   return null;
@@ -345,9 +410,14 @@ function getReminderMessage(date) {
 
 function scheduleReminders() {
   function tick() {
-    const message = getReminderMessage(new Date());
-    if (message && win) {
-      win.webContents.send('reminder', message);
+    const now = new Date();
+    const reminder = getReminder(now);
+    if (reminder) {
+      speak(reminder.event, reminder.context, {
+        priority: SPEECH_PRIORITY.schedule,
+        durationMs: 9000,
+        replaceKey: reminder.event,
+      });
     }
   }
 
@@ -359,6 +429,34 @@ function scheduleReminders() {
   }, msUntilNextMinute);
 }
 
+function scheduleIdleChatter() {
+  clearTimeout(idleChatterTimer);
+  const delay = IDLE_CHATTER_MIN_MS + Math.random() * (IDLE_CHATTER_MAX_MS - IDLE_CHATTER_MIN_MS);
+  idleChatterTimer = setTimeout(() => {
+    if (paused || flingIntervalId) {
+      scheduleIdleChatter();
+      return;
+    }
+    const dateContext = getDateContext();
+    let usedRareLine = false;
+    if (Math.random() < 0.08) {
+      const rareEvent = dateContext.hour <= 4 ? 'rare.lateNight' : 'rare.friday';
+      usedRareLine = speak(rareEvent, dateContext, {
+        priority: SPEECH_PRIORITY.idle,
+        durationMs: 4500,
+      });
+    }
+    if (!usedRareLine) {
+      speak('idle.chatter', dateContext, {
+        priority: SPEECH_PRIORITY.idle,
+        durationMs: 4000,
+        replaceKey: 'idle.chatter',
+      });
+    }
+    scheduleIdleChatter();
+  }, delay);
+}
+
 app.whenReady().then(() => {
   ipcMain.handle('character-pack:get', () => characterPack);
   createTray();
@@ -367,4 +465,9 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   app.quit();
+});
+
+app.on('before-quit', () => {
+  clearTimeout(idleChatterTimer);
+  if (speechQueue) speechQueue.clear();
 });
