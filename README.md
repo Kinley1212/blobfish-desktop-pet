@@ -15,10 +15,15 @@ npm start
 - 自动游动、转向和多显示器边界处理
 - 点击反应、拖拽、甩动、惯性减速和碰撞回弹
 - 原版随机闲聊与日程提醒
-- macOS 菜单栏退出入口
+- 可替换的形象、动作与语言包
+- 随机眨眼、稀有台词、冷却和防重复
+- 可配置的吃饭、下班、半小时提醒与安静时段
+- macOS 菜单栏设置、暂停和退出入口
 
 原始 App 仅作为行为和视觉基线，不纳入本项目版本控制。
 
 ## 扩展形象
 
 角色图形和动作已经拆为独立形象包。目录结构、标准动作和回退规则见 [`docs/character-packs.md`](docs/character-packs.md)。
+
+语言包的原版/扩展隔离规则见 [`docs/language-packs.md`](docs/language-packs.md)，设置存储与入口见 [`docs/settings.md`](docs/settings.md)。

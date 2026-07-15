@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="styles/settings.css" />
+  <title>水滴鱼设置</title>
+</head>
+<body>
+  <header>
+    <p class="eyebrow">BLOBFISH DESKTOP PET</p>
+    <h1>水滴鱼设置</h1>
+    <p class="subtitle">别排太满。鱼也要喘气。</p>
+  </header>
+
+  <form id="settings-form">
+    <section>
+      <div class="section-heading">
+        <h2>作息提醒</h2>
+        <p>仅在选中的工作日触发。</p>
+      </div>
+      <fieldset class="weekdays">
+        <legend>工作日</legend>
+        <label><input type="checkbox" name="workday" value="1" />一</label>
+        <label><input type="checkbox" name="workday" value="2" />二</label>
+        <label><input type="checkbox" name="workday" value="3" />三</label>
+        <label><input type="checkbox" name="workday" value="4" />四</label>
+        <label><input type="checkbox" name="workday" value="5" />五</label>
+        <label><input type="checkbox" name="workday" value="6" />六</label>
+        <label><input type="checkbox" name="workday" value="0" />日</label>
+      </fieldset>
+      <div class="grid two">
+        <label class="field">吃饭时间<input id="lunch-time" type="time" required /></label>
+        <label class="field">下班时间<input id="off-work-time" type="time" required /></label>
+      </div>
+      <div class="checks">
+        <label><input id="lunch-reminder" type="checkbox" /> 提前 5 分钟提醒吃饭</label>
+        <label><input id="off-work-reminder" type="checkbox" /> 下班前 30 分钟和 5 分钟提醒</label>
+        <label><input id="half-hour-reminders" type="checkbox" /> 每工作半小时提醒一次</label>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-heading">
+        <h2>安静时段</h2>
+        <p>紧急低电量和等待确认仍会说话。</p>
+      </div>
+      <label class="switch-line"><input id="quiet-enabled" type="checkbox" /> 启用安静时段</label>
+      <div class="grid two">
+        <label class="field">开始<input id="quiet-start" type="time" required /></label>
+        <label class="field">结束<input id="quiet-end" type="time" required /></label>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-heading">
+        <h2>语言与性格</h2>
+        <p>原版台词锁在 original，扩展包只会增加。</p>
+      </div>
+      <label class="field">语言包<select id="language-pack"></select></label>
+      <div class="grid two">
+        <label class="field">最短闲聊间隔（分钟）<input id="idle-min" type="number" min="1" max="180" required /></label>
+        <label class="field">最长闲聊间隔（分钟）<input id="idle-max" type="number" min="1" max="240" required /></label>
+      </div>
+      <div class="checks">
+        <label><input id="idle-enabled" type="checkbox" /> 偶尔主动闲聊</label>
+        <label><input id="rare-enabled" type="checkbox" /> 允许稀有彩蛋台词</label>
+        <label><input id="category-schedule" type="checkbox" /> 作息台词</label>
+        <label><input id="category-system" type="checkbox" /> 系统状态台词</label>
+        <label><input id="category-calendar" type="checkbox" /> 日历台词</label>
+        <label><input id="category-agents" type="checkbox" /> Codex / Claude Code 台词</label>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-heading">
+        <h2>动作</h2>
+        <p>任务运行时会游动；全部结束后可以停下。</p>
+      </div>
+      <label class="field range-field">
+        <span>游动速度 <output id="speed-output" for="pet-speed"></output></span>
+        <input id="pet-speed" type="range" min="0.25" max="4" step="0.25" />
+      </label>
+      <label class="switch-line"><input id="stop-all-complete" type="checkbox" /> 所有任务结束后停止游动</label>
+    </section>
+
+    <section>
+      <div class="section-heading">
+        <h2>连接与隐私</h2>
+        <p>默认只接收状态元数据，不读取提示词、对话或代码内容。</p>
+      </div>
+      <div class="checks">
+        <label><input id="integration-codex" type="checkbox" /> Codex 任务状态</label>
+        <label><input id="integration-claude" type="checkbox" /> Claude Code 任务状态</label>
+        <label><input id="integration-calendar" type="checkbox" /> macOS 日历提醒</label>
+        <label><input id="privacy-task-titles" type="checkbox" /> 允许显示任务标题</label>
+        <label><input id="privacy-calendar-titles" type="checkbox" /> 允许显示日历标题</label>
+      </div>
+    </section>
+
+    <div class="actions">
+      <button id="reset-button" class="secondary" type="button">恢复默认</button>
+      <button type="submit">保存设置</button>
+    </div>
+    <p id="status" role="status" aria-live="polite"></p>
+  </form>
+  <script src="settings.js"></script>
+</body>
+</html>

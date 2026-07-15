@@ -1,21 +1,22 @@
 const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage } = require('electron');
+const fs = require('fs');
 const path = require('path');
+const { ConfigStore, DEFAULT_CONFIG } = require('./core/config-store');
 const { loadCharacterPack } = require('./core/pack-loader');
 const { loadLanguagePack } = require('./core/language-pack-loader');
 const { PhraseEngine } = require('./core/phrase-engine');
+const { getScheduleReminder, isInQuietHours } = require('./core/reminder-scheduler');
 const { SpeechQueue } = require('./core/speech-queue');
+
+app.setName('BlobfishDesktopPet');
 
 const WINDOW_WIDTH = 340;
 const WINDOW_HEIGHT = 210;
-const SPEED = 1.5;
 const TICK_MS = 30;
 const CHARACTER_PACK_ID = 'blobfish';
-const LANGUAGE_PACK_ID = 'blobfish-zh-TW';
+const DEFAULT_LANGUAGE_PACK_ID = 'blobfish-zh-TW';
+const LANGUAGES_ROOT = path.join(__dirname, 'packs', 'languages');
 const characterPack = loadCharacterPack(path.join(__dirname, 'packs', 'characters'), CHARACTER_PACK_ID);
-const languagePack = loadLanguagePack(path.join(__dirname, 'packs', 'languages'), LANGUAGE_PACK_ID);
-const phraseEngine = new PhraseEngine(languagePack.phrases);
-const IDLE_CHATTER_MIN_MS = 12 * 60 * 1000;
-const IDLE_CHATTER_MAX_MS = 35 * 60 * 1000;
 const SPEECH_PRIORITY = Object.freeze({
   idle: 10,
   interaction: 30,
@@ -47,14 +48,20 @@ const FLING_STOP_SPEED = 0.5;
 const THROW_POWER = 1.35;
 
 let win;
+let settingsWin;
 let tray;
 let direction = 1;
 let paused = false;
+let manuallyPaused = false;
 let currentY;
 let flingIntervalId = null;
 let speechQueue;
 let idleChatterTimer = null;
 let clickCount = 0;
+let configStore;
+let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+let phraseEngine = null;
+let runtimeWarning = null;
 
 function getDateContext(date = new Date()) {
   return {
@@ -64,28 +71,159 @@ function getDateContext(date = new Date()) {
   };
 }
 
+function listLanguagePacks() {
+  return fs.readdirSync(LANGUAGES_ROOT, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      try {
+        const pack = loadLanguagePack(LANGUAGES_ROOT, entry.name);
+        return {
+          id: pack.manifest.id,
+          displayName: pack.manifest.displayName,
+          locale: pack.manifest.locale,
+          version: pack.manifest.version,
+        };
+      } catch (error) {
+        console.error(`Ignoring invalid language pack ${entry.name}: ${error.message}`);
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+function loadConfiguredLanguage(packId) {
+  try {
+    const pack = loadLanguagePack(LANGUAGES_ROOT, packId);
+    phraseEngine = new PhraseEngine(pack.phrases);
+    runtimeWarning = null;
+    return packId;
+  } catch (error) {
+    runtimeWarning = `语言包 ${packId} 无法加载，已临时改用默认语言包：${error.message}`;
+    console.error(runtimeWarning);
+    const fallback = loadLanguagePack(LANGUAGES_ROOT, DEFAULT_LANGUAGE_PACK_ID);
+    phraseEngine = new PhraseEngine(fallback.phrases);
+    return DEFAULT_LANGUAGE_PACK_ID;
+  }
+}
+
+function getEventCategory(event) {
+  if (event.startsWith('schedule.')) return 'schedule';
+  if (event.startsWith('system.')) return 'system';
+  if (event.startsWith('calendar.')) return 'calendar';
+  if (event.startsWith('agent.')) return 'agents';
+  return null;
+}
+
+function isMovementPaused() {
+  return paused || manuallyPaused;
+}
+
 function speak(event, context = {}, options = {}) {
-  if (!speechQueue) return false;
+  if (!speechQueue || !phraseEngine) return false;
+  const category = getEventCategory(event);
+  if (category && !config.language.categories[category]) return false;
+  const priority = options.priority ?? SPEECH_PRIORITY.idle;
+  if (!options.allowDuringQuiet && priority < SPEECH_PRIORITY.urgent && isInQuietHours(new Date(), config.quietHours)) {
+    return false;
+  }
   const phrase = phraseEngine.select(event, { ...getDateContext(), ...context });
   if (!phrase) return false;
   return speechQueue.enqueue({
     event,
     phraseId: phrase.id,
     text: phrase.text,
-    priority: options.priority ?? SPEECH_PRIORITY.idle,
+    priority,
     durationMs: options.durationMs ?? 4000,
     replaceKey: options.replaceKey,
     action: options.action,
   });
 }
 
+function rebuildTrayMenu() {
+  if (!tray) return;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '设置…', click: () => createSettingsWindow() },
+    {
+      label: '暂停游动',
+      type: 'checkbox',
+      checked: manuallyPaused,
+      click: (item) => {
+        manuallyPaused = item.checked;
+        rebuildTrayMenu();
+      },
+    },
+    { type: 'separator' },
+    { label: '结束水滴鱼', click: () => app.quit() },
+  ]));
+}
+
 function createTray() {
   tray = new Tray(nativeImage.createEmpty());
   tray.setTitle('🐟');
   tray.setToolTip('水滴魚桌寵');
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '結束水滴魚', click: () => app.quit() },
+  rebuildTrayMenu();
+}
+
+function createApplicationMenu() {
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {
+      label: app.name,
+      submenu: [
+        { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => createSettingsWindow() },
+        { type: 'separator' },
+        { role: 'quit', label: '结束水滴鱼' },
+      ],
+    },
+    { role: 'editMenu' },
+    { role: 'windowMenu' },
   ]));
+}
+
+function createSettingsWindow() {
+  if (settingsWin && !settingsWin.isDestroyed()) {
+    settingsWin.show();
+    settingsWin.focus();
+    return;
+  }
+
+  settingsWin = new BrowserWindow({
+    width: 620,
+    height: 760,
+    minWidth: 520,
+    minHeight: 620,
+    title: '水滴鱼设置',
+    backgroundColor: '#f2f0ec',
+    webPreferences: {
+      preload: path.join(__dirname, 'settings-preload.js'),
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+  settingsWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  settingsWin.on('closed', () => { settingsWin = null; });
+  settingsWin.loadFile(path.join(__dirname, 'settings.html'));
+}
+
+function assertSettingsSender(event) {
+  if (!settingsWin || settingsWin.isDestroyed() || event.sender.id !== settingsWin.webContents.id) {
+    throw new Error('Settings request came from an untrusted window');
+  }
+}
+
+function getSettingsPayload() {
+  return {
+    config: JSON.parse(JSON.stringify(config)),
+    languages: listLanguagePacks(),
+    warning: runtimeWarning || configStore.loadWarning,
+  };
+}
+
+function applyConfig(nextConfig) {
+  const languageChanged = !phraseEngine || nextConfig.language.packId !== config.language.packId;
+  config = nextConfig;
+  if (languageChanged) loadConfiguredLanguage(config.language.packId);
+  scheduleIdleChatter();
 }
 
 // Hard backstop: no real screen coordinate is ever remotely close to this,
@@ -218,13 +356,15 @@ function createWindow() {
       priority: SPEECH_PRIORITY.interaction,
       durationMs: 800,
       replaceKey: 'interaction.click',
+      allowDuringQuiet: true,
     });
 
-    if (clickCount >= 10 && Math.random() < 0.12) {
+    if (config.language.rareEnabled && clickCount >= 10 && Math.random() < 0.12) {
       speak('rare.tooManyClicks', { clickCount }, {
         priority: SPEECH_PRIORITY.interaction,
         durationMs: 4200,
         replaceKey: 'rare.tooManyClicks',
+        allowDuringQuiet: true,
       });
     }
   });
@@ -270,7 +410,7 @@ function createWindow() {
   });
 
   setInterval(() => {
-    if (paused || flingIntervalId || !win) return;
+    if (isMovementPaused() || flingIntervalId || !win) return;
     const [wx, wy] = win.getPosition();
     let nearestBounds = screen.getDisplayNearestPoint({
       x: wx + WINDOW_WIDTH / 2,
@@ -281,7 +421,7 @@ function createWindow() {
     }
     const { x: areaX, width: areaWidth } = nearestBounds;
 
-    let newX = wx + direction * SPEED;
+    let newX = wx + direction * config.pet.speed;
     const minWinX = areaX - PET_OFFSET_X;
     const maxWinX = areaX + areaWidth - PET_OFFSET_X - PET_WIDTH;
 
@@ -384,34 +524,10 @@ function startFling(vx, vy) {
   }, TICK_MS);
 }
 
-function getReminder(date) {
-  const hour = date.getHours();
-  const minute = date.getMinutes();
-  const day = date.getDay();
-
-  if (hour === 12 && minute === 55) {
-    return { event: 'schedule.lunchSoon' };
-  }
-
-  if (hour === 18 && minute === 55) {
-    return { event: 'schedule.offWorkSoon', context: { farewell: day === 5 ? '下週見' : '明天見' } };
-  }
-
-  if (hour === 18 && minute === 30) {
-    return { event: 'schedule.offWorkHalfHour' };
-  }
-
-  if (minute === 0 || minute === 30) {
-    return { event: 'schedule.halfHour' };
-  }
-
-  return null;
-}
-
 function scheduleReminders() {
   function tick() {
     const now = new Date();
-    const reminder = getReminder(now);
+    const reminder = getScheduleReminder(now, config.schedule);
     if (reminder) {
       speak(reminder.event, reminder.context, {
         priority: SPEECH_PRIORITY.schedule,
@@ -431,15 +547,18 @@ function scheduleReminders() {
 
 function scheduleIdleChatter() {
   clearTimeout(idleChatterTimer);
-  const delay = IDLE_CHATTER_MIN_MS + Math.random() * (IDLE_CHATTER_MAX_MS - IDLE_CHATTER_MIN_MS);
+  if (!config.language.idleEnabled) return;
+  const minMs = config.language.idleMinMinutes * 60 * 1000;
+  const maxMs = config.language.idleMaxMinutes * 60 * 1000;
+  const delay = minMs + Math.random() * (maxMs - minMs);
   idleChatterTimer = setTimeout(() => {
-    if (paused || flingIntervalId) {
+    if (isMovementPaused() || flingIntervalId) {
       scheduleIdleChatter();
       return;
     }
     const dateContext = getDateContext();
     let usedRareLine = false;
-    if (Math.random() < 0.08) {
+    if (config.language.rareEnabled && Math.random() < 0.08) {
       const rareEvent = dateContext.hour <= 4 ? 'rare.lateNight' : 'rare.friday';
       usedRareLine = speak(rareEvent, dateContext, {
         priority: SPEECH_PRIORITY.idle,
@@ -458,9 +577,38 @@ function scheduleIdleChatter() {
 }
 
 app.whenReady().then(() => {
+  configStore = new ConfigStore(app.getPath('userData'));
+  config = configStore.load();
+  const activeLanguageId = loadConfiguredLanguage(config.language.packId);
+  if (activeLanguageId !== config.language.packId) {
+    config = { ...config, language: { ...config.language, packId: activeLanguageId } };
+  }
+
   ipcMain.handle('character-pack:get', () => characterPack);
+  ipcMain.handle('settings:get', (event) => {
+    assertSettingsSender(event);
+    return getSettingsPayload();
+  });
+  ipcMain.handle('settings:save', (event, nextConfig) => {
+    assertSettingsSender(event);
+    const availableIds = new Set(listLanguagePacks().map((language) => language.id));
+    if (!nextConfig || !availableIds.has(nextConfig.language?.packId)) {
+      throw new Error('Selected language pack is not installed or is invalid');
+    }
+    const saved = configStore.save(nextConfig);
+    applyConfig(saved);
+    return getSettingsPayload();
+  });
+  ipcMain.handle('settings:reset', (event) => {
+    assertSettingsSender(event);
+    const reset = configStore.reset();
+    applyConfig(reset);
+    return getSettingsPayload();
+  });
+  createApplicationMenu();
   createTray();
   createWindow();
+  if (process.argv.includes('--settings')) createSettingsWindow();
 });
 
 app.on('window-all-closed', () => {
