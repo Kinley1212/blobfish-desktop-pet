@@ -4,6 +4,7 @@ const path = require('path');
 const { AgentBridge } = require('./core/agent-bridge');
 const { BatteryThresholdTracker, readMacBattery } = require('./core/battery-monitor');
 const { CalendarService } = require('./core/calendar-service');
+const { ConnectionHealthTracker } = require('./core/connection-health');
 const { ConfigStore, DEFAULT_CONFIG, validateConfig } = require('./core/config-store');
 const { IntegrationManager, PLUGIN_NAME } = require('./core/integration-manager');
 const { loadCharacterPack } = require('./core/pack-loader');
@@ -103,6 +104,7 @@ let quitRequested = false;
 let allowImmediateQuit = false;
 let currentAgentSnapshot = Object.freeze({ activeCount: 0, waitingCount: 0, runningCount: 0 });
 let runtimeErrorNotifier;
+const connectionHealth = new ConnectionHealthTracker();
 const longRunningNotified = new Set();
 
 function getDateContext(date = new Date()) {
@@ -165,6 +167,15 @@ function isProviderEnabled(provider) {
   if (provider === 'codex') return config.integrations.codex;
   if (provider === 'claude-code') return config.integrations.claudeCode;
   return false;
+}
+
+function getConnectionProvider(provider) {
+  return provider === 'claude-code' ? 'claude' : provider;
+}
+
+function emitConnectionHealth(provider) {
+  if (!settingsWin || settingsWin.isDestroyed()) return;
+  settingsWin.webContents.send('agent-connection-health', connectionHealth.snapshot(provider));
 }
 
 function speak(event, context = {}, options = {}) {
@@ -955,6 +966,9 @@ function setupAgentBridge() {
   updateAgentState(taskTracker.snapshot());
   agentBridge = new AgentBridge(path.join(app.getPath('userData'), 'agent-events.sock'), {
     onEvent: (event) => {
+      const connectionProvider = getConnectionProvider(event.provider);
+      connectionHealth.noteEvent(connectionProvider);
+      emitConnectionHealth(connectionProvider);
       if (isProviderEnabled(event.provider)) taskTracker.handle(event);
     },
     onError: (error) => reportRuntimeError('Agent bridge', error),
@@ -1026,6 +1040,21 @@ async function connectAgentIntegration(provider) {
   }
 }
 
+async function inspectAgentIntegration(provider) {
+  const result = await integrationManager.inspect(provider);
+  if (result.state === 'error') reportRuntimeError(`${provider} connection check`, result.error || 'unknown error');
+  return connectionHealth.decorate(provider, result);
+}
+
+async function testAgentIntegration(provider) {
+  const status = await integrationManager.inspect(provider);
+  if (status.state !== 'connected') throw new Error('请先安装并启用状态插件');
+  return connectionHealth.decorate(provider, {
+    ...status,
+    ...connectionHealth.startTest(provider),
+  });
+}
+
 if (hasSingleInstanceLock) app.on('second-instance', revealExistingInstance);
 
 if (hasSingleInstanceLock) app.whenReady().then(() => {
@@ -1088,9 +1117,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('agent-integrations:inspect', async (event, provider) => {
     assertSettingsSender(event);
     try {
-      const result = await integrationManager.inspect(provider);
-      if (result.state === 'error') reportRuntimeError(`${provider} connection check`, result.error || 'unknown error');
-      return result;
+      return await inspectAgentIntegration(provider);
     } catch (error) {
       reportRuntimeError(`${provider} connection check`, error);
       throw error;
@@ -1099,6 +1126,15 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('agent-integrations:install', async (event, provider) => {
     assertSettingsSender(event);
     return connectAgentIntegration(provider);
+  });
+  ipcMain.handle('agent-integrations:test', async (event, provider) => {
+    assertSettingsSender(event);
+    try {
+      return await testAgentIntegration(provider);
+    } catch (error) {
+      reportRuntimeError(`${provider} connection test`, error);
+      throw error;
+    }
   });
   createApplicationMenu();
   createTray();
