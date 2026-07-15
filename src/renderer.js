@@ -23,6 +23,19 @@ let dragDistance = 0;
 let moveHistory = []; // recent { t, dx, dy } samples, used to estimate release velocity
 let blinkTimer = null;
 let speechActionTimer = null;
+let characterManifest = null;
+let petScale = 1;
+
+function applyPetConfig(config = {}) {
+  const nextScale = Number(config.scale);
+  petScale = Number.isFinite(nextScale) ? Math.min(1.5, Math.max(0.65, nextScale)) : 1;
+  if (!characterManifest) return;
+  const width = characterManifest.size.width * petScale;
+  const height = characterManifest.size.height * petScale;
+  pet.style.width = `${width}px`;
+  pet.style.height = `${height}px`;
+  document.documentElement.style.setProperty('--pet-height', `${height}px`);
+}
 
 function sanitizeSvg(svgText) {
   const parser = new DOMParser();
@@ -49,9 +62,9 @@ function sanitizeSvg(svgText) {
 
 async function installCharacterPack() {
   const pack = await window.petAPI.getCharacterPack();
+  characterManifest = pack.manifest;
   pet.innerHTML = sanitizeSvg(pack.svg);
-  pet.style.width = `${pack.manifest.size.width}px`;
-  pet.style.height = `${pack.manifest.size.height}px`;
+  applyPetConfig({ scale: petScale });
 
   for (const style of pack.styles) {
     const styleElement = document.createElement('style');
@@ -148,8 +161,10 @@ window.petAPI.onSpeech((message) => {
   triggerSpeechAction(message.action);
 });
 window.petAPI.onAgentState((state) => applyAgentState(state));
+window.petAPI.onPetConfig((config) => applyPetConfig(config));
 window.petAPI.onBump(() => triggerBump());
 window.petAPI.getAgentState().then((state) => applyAgentState(state));
+window.petAPI.getPetConfig().then((config) => applyPetConfig(config));
 installCharacterPack()
   .then(() => {
     scheduleBlink();

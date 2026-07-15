@@ -34,11 +34,18 @@ const SPEECH_PRIORITY = Object.freeze({
 // (much larger) transparent window, which also has room for the speech
 // bubble. Boundary checks are done against the fish's own box, not the
 // window's, so dragging/walking can reach the true screen edges.
-const PET_WIDTH = characterPack.manifest.size.width;
-const PET_HEIGHT = characterPack.manifest.size.height;
 const PET_BOTTOM_MARGIN = 10;
-const PET_OFFSET_X = (WINDOW_WIDTH - PET_WIDTH) / 2;
-const PET_TOP_MARGIN = WINDOW_HEIGHT - PET_BOTTOM_MARGIN - PET_HEIGHT;
+
+function getPetMetrics() {
+  const width = characterPack.manifest.size.width * config.pet.scale;
+  const height = characterPack.manifest.size.height * config.pet.scale;
+  return {
+    width,
+    height,
+    offsetX: (WINDOW_WIDTH - width) / 2,
+    topMargin: WINDOW_HEIGHT - PET_BOTTOM_MARGIN - height,
+  };
+}
 
 // Release velocity (px/tick, after THROW_POWER amplification) needed before
 // a drag-release counts as a fling instead of just a normal place-down.
@@ -255,6 +262,10 @@ function applyConfig(nextConfig) {
     if (!config.integrations.claudeCode) taskTracker.removeProvider('claude-code');
     updateAgentState(taskTracker.snapshot());
   }
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('pet-config', { scale: config.pet.scale });
+    syncHoverState();
+  }
   scheduleIdleChatter();
 }
 
@@ -409,13 +420,14 @@ function createWindow() {
     if (!win) return;
     const [x, y] = win.getPosition();
     const { minX, minY, maxX, maxY } = getCombinedBounds();
+    const petMetrics = getPetMetrics();
 
     // The window's own top edge (not the fish's) is what macOS floors at
     // the menu bar, so the lower Y bound is minY itself - the PET_TOP_MARGIN
     // inset only helps at the bottom/left/right, where nothing stops the
     // window from extending past the fish into empty transparent space.
-    const newX = Math.min(Math.max(x + dx, minX - PET_OFFSET_X), maxX - PET_OFFSET_X - PET_WIDTH);
-    const newY = Math.min(Math.max(y + dy, minY), maxY - PET_TOP_MARGIN - PET_HEIGHT);
+    const newX = Math.min(Math.max(x + dx, minX - petMetrics.offsetX), maxX - petMetrics.offsetX - petMetrics.width);
+    const newY = Math.min(Math.max(y + dy, minY), maxY - petMetrics.topMargin - petMetrics.height);
     safeSetPosition(newX, newY);
   });
 
@@ -452,10 +464,11 @@ function createWindow() {
       nearestBounds = screen.getPrimaryDisplay().workArea;
     }
     const { x: areaX, width: areaWidth } = nearestBounds;
+    const petMetrics = getPetMetrics();
 
     let newX = wx + direction * config.pet.speed;
-    const minWinX = areaX - PET_OFFSET_X;
-    const maxWinX = areaX + areaWidth - PET_OFFSET_X - PET_WIDTH;
+    const minWinX = areaX - petMetrics.offsetX;
+    const maxWinX = areaX + areaWidth - petMetrics.offsetX - petMetrics.width;
 
     if (newX <= minWinX) {
       newX = minWinX;
@@ -498,14 +511,15 @@ function startFling(vx, vy) {
     let bounced = false;
 
     const { minX, minY, maxX, maxY } = getCombinedBounds();
-    const minWinX = minX - PET_OFFSET_X;
-    const maxWinX = maxX - PET_OFFSET_X - PET_WIDTH;
+    const petMetrics = getPetMetrics();
+    const minWinX = minX - petMetrics.offsetX;
+    const maxWinX = maxX - petMetrics.offsetX - petMetrics.width;
     // Top uses minY directly (see drag-move above) - the window itself is
     // floored there by macOS, not just the fish inside it. The other three
     // edges keep the fish-relative inset since nothing stops the window
     // from extending past the fish into empty transparent space there.
     const minWinY = minY;
-    const maxWinY = maxY - PET_TOP_MARGIN - PET_HEIGHT;
+    const maxWinY = maxY - petMetrics.topMargin - petMetrics.height;
 
     if (newX <= minWinX) {
       newX = minWinX;
@@ -712,11 +726,8 @@ function setupCalendarService() {
 
 function updateAgentState(snapshot) {
   currentAgentSnapshot = snapshot;
-  const anyIntegrationEnabled = config.integrations.codex || config.integrations.claudeCode;
   const allWaiting = snapshot.activeCount > 0 && snapshot.waitingCount === snapshot.activeCount;
-  agentPaused = config.pet.stopWhenAllTasksComplete && anyIntegrationEnabled && (
-    snapshot.activeCount === 0 || allWaiting
-  );
+  agentPaused = allWaiting || (snapshot.activeCount === 0 && !config.pet.roamWhenNoTasks);
   const motion = snapshot.activeCount > 0
     ? (allWaiting ? 'waiting' : 'working')
     : (agentPaused ? 'idle' : 'roam');
@@ -822,6 +833,7 @@ app.whenReady().then(() => {
   updateAgentState(currentAgentSnapshot);
 
   ipcMain.handle('character-pack:get', () => characterPack);
+  ipcMain.handle('pet-config:get', () => ({ scale: config.pet.scale }));
   ipcMain.handle('agent-state:get', () => ({
     ...currentAgentSnapshot,
     motion: currentAgentSnapshot.activeCount > 0

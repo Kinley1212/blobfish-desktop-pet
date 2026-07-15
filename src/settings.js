@@ -4,6 +4,8 @@ const saveButton = form.querySelector('button[type="submit"]');
 const resetButton = document.getElementById('reset-button');
 const speedInput = document.getElementById('pet-speed');
 const speedOutput = document.getElementById('speed-output');
+const scaleInput = document.getElementById('pet-scale');
+const scaleOutput = document.getElementById('scale-output');
 
 function byId(id) { return document.getElementById(id); }
 function setChecked(id, value) { byId(id).checked = value; }
@@ -78,7 +80,9 @@ function renderConfig(config, languages) {
   setChecked('category-agents', config.language.categories.agents);
   setValue('pet-speed', config.pet.speed);
   speedOutput.value = `${config.pet.speed.toFixed(2)}×`;
-  setChecked('stop-all-complete', config.pet.stopWhenAllTasksComplete);
+  setValue('pet-scale', config.pet.scale);
+  scaleOutput.value = `${Math.round(config.pet.scale * 100)}%`;
+  setChecked('roam-without-tasks', config.pet.roamWhenNoTasks);
   setChecked('integration-codex', config.integrations.codex);
   setChecked('integration-claude', config.integrations.claudeCode);
   setChecked('integration-calendar', config.integrations.calendar);
@@ -117,7 +121,8 @@ function readConfig() {
     },
     pet: {
       speed: Number(speedInput.value),
-      stopWhenAllTasksComplete: byId('stop-all-complete').checked,
+      scale: Number(scaleInput.value),
+      roamWhenNoTasks: byId('roam-without-tasks').checked,
     },
     integrations: {
       codex: byId('integration-codex').checked,
@@ -133,6 +138,10 @@ function readConfig() {
 
 speedInput.addEventListener('input', () => {
   speedOutput.value = `${Number(speedInput.value).toFixed(2)}×`;
+});
+
+scaleInput.addEventListener('input', () => {
+  scaleOutput.value = `${Math.round(Number(scaleInput.value) * 100)}%`;
 });
 
 form.addEventListener('submit', async (event) => {

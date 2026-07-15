@@ -21,7 +21,7 @@ const DEFAULT_CONFIG = Object.freeze({
     idleMaxMinutes: 35,
     categories: Object.freeze({ schedule: true, system: true, calendar: true, agents: true }),
   }),
-  pet: Object.freeze({ speed: 1.5, stopWhenAllTasksComplete: true }),
+  pet: Object.freeze({ speed: 1.5, scale: 1, roamWhenNoTasks: false }),
   integrations: Object.freeze({ calendar: false, codex: true, claudeCode: true }),
   privacy: Object.freeze({ includeTaskTitles: false, includeCalendarTitles: true }),
 });
@@ -107,7 +107,12 @@ function validateConfig(input) {
     },
     pet: {
       speed: requireNumber(input.pet.speed, 'pet.speed', 0.25, 4),
-      stopWhenAllTasksComplete: requireBoolean(input.pet.stopWhenAllTasksComplete, 'pet.stopWhenAllTasksComplete'),
+      scale: input.pet.scale === undefined
+        ? DEFAULT_CONFIG.pet.scale
+        : requireNumber(input.pet.scale, 'pet.scale', 0.65, 1.5),
+      roamWhenNoTasks: input.pet.roamWhenNoTasks === undefined
+        ? !requireBoolean(input.pet.stopWhenAllTasksComplete, 'pet.stopWhenAllTasksComplete')
+        : requireBoolean(input.pet.roamWhenNoTasks, 'pet.roamWhenNoTasks'),
     },
     integrations: {
       calendar: requireBoolean(input.integrations.calendar, 'integrations.calendar'),

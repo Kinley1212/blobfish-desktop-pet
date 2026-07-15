@@ -11,7 +11,7 @@ body {
 
 #bubble {
   position: absolute;
-  bottom: 112px;
+  bottom: calc(22px + var(--pet-height, 90px));
   left: 50%;
   z-index: 2;
   max-width: 260px;
