@@ -1,0 +1,21 @@
+{
+  "id": "grass-buddy-zh-CN",
+  "displayName": "小草团简体中文",
+  "locale": "zh-CN",
+  "version": 1,
+  "style": "style.json",
+  "files": {
+    "original": [
+      "core/click.json",
+      "core/idle.json",
+      "core/schedule.json"
+    ],
+    "additions": [
+      "additions/interactions.json",
+      "additions/system.json",
+      "additions/calendar.json",
+      "additions/agents.json",
+      "additions/rare.json"
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "category": "schedule",
+  "phrases": [
+    { "id": "grass-schedule-half-01", "event": "schedule.halfHour", "text": "又过半小时了。肩膀动一下。", "weight": 5 },
+    { "id": "grass-schedule-half-02", "event": "schedule.halfHour", "text": "半小时长过去了。起来走两步。", "weight": 4 },
+    { "id": "grass-schedule-half-03", "event": "schedule.halfHour", "text": "到整点了。眼睛也该换个焦点。", "weight": 3 },
+    { "id": "grass-schedule-lunch-01", "event": "schedule.lunchSoon", "text": "五分钟后吃饭。别把自己种在椅子上。", "weight": 5 },
+    { "id": "grass-schedule-lunch-02", "event": "schedule.lunchSoon", "text": "快到饭点了。先把这一小段收住。", "weight": 4 },
+    { "id": "grass-schedule-lunch-03", "event": "schedule.lunchSoon", "text": "该吃饭了。光合作用不适合你。", "weight": 3 },
+    { "id": "grass-schedule-off-half-01", "event": "schedule.offWorkHalfHour", "text": "还有半小时下班。别再开新坑。", "weight": 5 },
+    { "id": "grass-schedule-off-half-02", "event": "schedule.offWorkHalfHour", "text": "离收工还有半小时。开始收叶子。", "weight": 4 },
+    { "id": "grass-schedule-off-half-03", "event": "schedule.offWorkHalfHour", "text": "半小时后可以停。先记好做到哪了。", "weight": 3 },
+    { "id": "grass-schedule-off-01", "event": "schedule.offWorkSoon", "text": "五分钟后下班。能关的先关。{farewell}。", "weight": 5 },
+    { "id": "grass-schedule-off-02", "event": "schedule.offWorkSoon", "text": "快收工了。别让最后五分钟长出新任务。", "weight": 4 },
+    { "id": "grass-schedule-off-03", "event": "schedule.offWorkSoon", "text": "今天到这里。保存，检查，然后走。", "weight": 3 }
+  ]
+}

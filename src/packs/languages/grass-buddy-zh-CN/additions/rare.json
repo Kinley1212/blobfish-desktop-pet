@@ -1,0 +1,13 @@
+{
+  "category": "rare",
+  "phrases": [
+    { "id": "grass-rare-night-01", "event": "rare.lateNight", "text": "这个时间，草通常不加班。", "weight": 1, "rarity": "rare", "conditions": { "hourMin": 0, "hourMax": 4 } },
+    { "id": "grass-rare-night-02", "event": "rare.lateNight", "text": "夜很深。根更深。你该睡了。", "weight": 1, "rarity": "rare", "conditions": { "hourMin": 0, "hourMax": 4 } },
+    { "id": "grass-rare-friday-01", "event": "rare.friday", "text": "星期五。空气松了一点。", "weight": 1, "rarity": "rare", "conditions": { "weekdays": [5] } },
+    { "id": "grass-rare-friday-02", "event": "rare.friday", "text": "周五到了。别再种周一的事。", "weight": 1, "rarity": "rare", "conditions": { "weekdays": [5] } },
+    { "id": "grass-rare-unlock-01", "event": "rare.returnAfterLongLock", "text": "你离开很久。我长得不明显。", "weight": 1, "rarity": "rare", "conditions": { "lockedMinSeconds": 7200 } },
+    { "id": "grass-rare-clicks-01", "event": "rare.tooManyClicks", "text": "点了十次。没有一朵花。", "weight": 1, "rarity": "rare", "conditions": { "clickCountMin": 10 } },
+    { "id": "grass-rare-clicks-02", "event": "rare.tooManyClicks", "text": "你继续点。我继续记年轮。", "weight": 1, "rarity": "rare", "conditions": { "clickCountMin": 10 } },
+    { "id": "grass-rare-many-01", "event": "rare.manyTasks", "text": "任务太多了。像杂草，但不全是我。", "weight": 1, "rarity": "rare", "conditions": { "activeCountMin": 5 } }
+  ]
+}

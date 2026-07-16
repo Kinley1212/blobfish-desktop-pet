@@ -79,3 +79,52 @@ test('hook stop phrases are additive and do not claim successful completion', ()
     assert.ok(phrases.every((phrase) => !phrase.text.includes('完成') && !phrase.text.includes('成功')));
   }
 });
+
+test('grass buddy language pack covers every runtime event with its own restrained voice', () => {
+  const pack = loadLanguagePack(languagesRoot, 'grass-buddy-zh-CN');
+  const events = new Set(pack.phrases.map((phrase) => phrase.event));
+  const runtimeEvents = [
+    'interaction.click',
+    'interaction.menuOpen',
+    'interaction.paused',
+    'interaction.resumed',
+    'interaction.goodbye',
+    'idle.chatter',
+    'schedule.halfHour',
+    'schedule.lunchSoon',
+    'schedule.offWorkHalfHour',
+    'schedule.offWorkSoon',
+    'system.integrationReady',
+    'system.unlocked',
+    'system.battery',
+    'system.error',
+    'calendar.upcoming',
+    'calendar.starting',
+    'calendar.busyDay',
+    'agent.started',
+    'agent.needsInput',
+    'agent.completed',
+    'agent.allCompleted',
+    'agent.failed',
+    'agent.longRunning',
+    'agent.ended',
+    'agent.allEnded',
+    'rare.lateNight',
+    'rare.friday',
+    'rare.returnAfterLongLock',
+    'rare.tooManyClicks',
+  ];
+
+  assert.equal(pack.manifest.locale, 'zh-CN');
+  assert.ok(pack.phrases.length >= 150);
+  for (const eventName of runtimeEvents) assert.ok(events.has(eventName), `missing ${eventName}`);
+  assert.ok(pack.phrases.every((phrase) => phrase.text.length <= 40));
+  assert.ok(pack.phrases.every((phrase) => !/[主人宝宝宝贝]/u.test(phrase.text)));
+});
+
+test('grass buddy warns separately at 3% and 2% battery', () => {
+  const pack = loadLanguagePack(languagesRoot, 'grass-buddy-zh-CN');
+  const batteryPhrases = pack.phrases.filter((phrase) => phrase.event === 'system.battery');
+  assert.equal(batteryPhrases.filter((phrase) => phrase.conditions.batteryEquals === 3).length, 2);
+  assert.equal(batteryPhrases.filter((phrase) => phrase.conditions.batteryEquals === 2).length, 2);
+});
