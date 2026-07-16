@@ -25,6 +25,7 @@ if (!hasSingleInstanceLock) app.quit();
 const WINDOW_WIDTH = 340;
 const WINDOW_HEIGHT = 210;
 const TICK_MS = 30;
+const EXIT_ANIMATION_MS = 1700;
 const CHARACTER_PACK_ID = 'blobfish';
 const DEFAULT_LANGUAGE_PACK_ID = 'blobfish-zh-TW';
 const LANGUAGES_ROOT = path.join(__dirname, 'packs', 'languages');
@@ -222,6 +223,9 @@ function requestQuit() {
   quitRequested = true;
   manuallyPaused = true;
   rebuildTrayMenu();
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('pet-action', { action: 'exit', durationMs: EXIT_ANIMATION_MS });
+  }
   const spoken = speak('interaction.goodbye', {}, {
     priority: SPEECH_PRIORITY.urgent,
     durationMs: 1800,
@@ -231,7 +235,7 @@ function requestQuit() {
   quitTimer = setTimeout(() => {
     allowImmediateQuit = true;
     app.quit();
-  }, spoken ? 1900 : 0);
+  }, Math.max(EXIT_ANIMATION_MS + 150, spoken ? 1900 : 0));
 }
 
 function toggleManualPause(checked) {

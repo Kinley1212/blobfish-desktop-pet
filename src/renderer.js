@@ -132,6 +132,22 @@ function triggerSpeechAction(action) {
   }, action === 'success' ? 750 : 950);
 }
 
+function triggerPetAction(message = {}) {
+  if (message.action !== 'exit') return;
+  const requestedDuration = Number(message.durationMs);
+  const durationMs = Number.isFinite(requestedDuration)
+    ? Math.min(5000, Math.max(200, requestedDuration))
+    : 1700;
+  clearTimeout(blinkTimer);
+  clearTimeout(hitTimer);
+  clearTimeout(bumpTimer);
+  clearTimeout(speechActionTimer);
+  pet.classList.remove('hit', 'bump', 'dragging', 'is-success', 'is-failed', 'is-exiting');
+  pet.style.setProperty('--exit-duration', `${durationMs}ms`);
+  void pet.offsetWidth;
+  pet.classList.add('is-exiting');
+}
+
 function triggerBump() {
   pet.classList.remove('bump');
   void pet.offsetWidth;
@@ -163,6 +179,7 @@ window.petAPI.onSpeech((message) => {
 window.petAPI.onAgentState((state) => applyAgentState(state));
 window.petAPI.onPetConfig((config) => applyPetConfig(config));
 window.petAPI.onBump(() => triggerBump());
+window.petAPI.onPetAction((action) => triggerPetAction(action));
 window.petAPI.getAgentState().then((state) => applyAgentState(state));
 window.petAPI.getPetConfig().then((config) => applyPetConfig(config));
 installCharacterPack()

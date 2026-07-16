@@ -21,7 +21,8 @@
     "animations/failed.css",
     "animations/hit.css",
     "animations/bump.css",
-    "animations/dragging.css"
+    "animations/dragging.css",
+    "animations/exit.css"
   ],
   "actions": {
     "idle": "idle",
@@ -33,7 +34,8 @@
     "failed": "failed",
     "hit": "hit",
     "bump": "bump",
-    "dragging": "dragging"
+    "dragging": "dragging",
+    "exit": "exit"
   },
   "fallbacks": {
     "working": "roam",

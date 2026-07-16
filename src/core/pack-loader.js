@@ -4,7 +4,7 @@ const path = require('path');
 const PACK_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_SVG_BYTES = 512 * 1024;
 const MAX_CSS_BYTES = 128 * 1024;
-const REQUIRED_ACTIONS = ['idle', 'blink', 'roam', 'working', 'waiting', 'success', 'failed', 'hit', 'bump', 'dragging'];
+const REQUIRED_ACTIONS = ['idle', 'blink', 'roam', 'working', 'waiting', 'success', 'failed', 'hit', 'bump', 'dragging', 'exit'];
 
 function assertInside(root, relativePath) {
   if (typeof relativePath !== 'string' || relativePath.length === 0) {

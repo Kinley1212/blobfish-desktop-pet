@@ -13,6 +13,8 @@ test('loads the bundled blobfish character pack', () => {
   assert.equal(pack.manifest.size.width, 105);
   assert.match(pack.svg, /class="eye eye-left"/);
   assert.equal(pack.styles.length, pack.manifest.styles.length);
+  assert.equal(pack.manifest.actions.exit, 'exit');
+  assert.ok(pack.manifest.styles.includes('animations/exit.css'));
   for (const action of REQUIRED_ACTIONS) {
     assert.equal(typeof pack.manifest.actions[action], 'string');
   }

@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('petAPI', {
   onAgentState: (callback) => ipcRenderer.on('agent-state', (_event, state) => callback(state)),
   onPetConfig: (callback) => ipcRenderer.on('pet-config', (_event, config) => callback(config)),
   onBump: (callback) => ipcRenderer.on('bump', () => callback()),
+  onPetAction: (callback) => ipcRenderer.on('pet-action', (_event, action) => callback(action)),
   onCheckHover: (callback) => ipcRenderer.on('check-hover', (_event, x, y) => callback(x, y)),
   setPaused: (value) => ipcRenderer.send('pause', value),
   petClicked: () => ipcRenderer.send('pet-clicked'),
