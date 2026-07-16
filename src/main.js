@@ -152,6 +152,7 @@ function listCharacterPacks() {
           version: pack.manifest.version,
           preview: pack.manifest.preview,
           defaultLanguagePack: pack.manifest.defaultLanguagePack,
+          settingsCopy: pack.settingsCopy,
         };
       } catch (error) {
         console.error(`Ignoring invalid character pack ${entry.name}: ${error.message}`);
@@ -368,7 +369,7 @@ function createSettingsWindow() {
     height: 760,
     minWidth: 520,
     minHeight: 620,
-    title: '水滴鱼2.0设置',
+    title: '水滴鱼设置',
     backgroundColor: '#f2f0ec',
     webPreferences: {
       preload: path.join(__dirname, 'settings-preload.js'),

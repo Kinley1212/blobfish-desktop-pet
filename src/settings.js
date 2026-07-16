@@ -15,10 +15,32 @@ const integrationControls = Object.fromEntries(agentProviders.map((provider) => 
 }]));
 const integrationResults = {};
 const connectionTestTimers = {};
+let charactersById = new Map();
+let activeSettingsCopy = null;
 
 function byId(id) { return document.getElementById(id); }
 function setChecked(id, value) { byId(id).checked = value; }
 function setValue(id, value) { byId(id).value = value; }
+
+function applyCharacterCopy(characterId) {
+  const copy = charactersById.get(characterId)?.settingsCopy;
+  if (!copy) return;
+  activeSettingsCopy = copy;
+  document.title = copy.windowTitle;
+  byId('settings-title').textContent = copy.pageTitle;
+  byId('settings-subtitle').textContent = copy.subtitle;
+  byId('schedule-title').textContent = copy.scheduleTitle;
+  byId('schedule-hint').textContent = copy.scheduleHint;
+  byId('quiet-title').textContent = copy.quietTitle;
+  byId('quiet-hint').textContent = copy.quietHint;
+  byId('personality-title').textContent = copy.personalityTitle;
+  byId('personality-hint').textContent = copy.personalityHint;
+  byId('motion-title').textContent = copy.motionTitle;
+  byId('motion-hint').textContent = copy.motionHint;
+  byId('speed-label').textContent = copy.speedLabel;
+  byId('roam-without-tasks-label').textContent = copy.roamWithoutTasksLabel;
+  byId('entry-hint').textContent = copy.entryHint;
+}
 
 function showStatus(message, isError = false) {
   status.textContent = message;
@@ -44,6 +66,7 @@ function renderLanguages(languages, selectedId) {
 
 function renderCharacters(characters, selectedId) {
   const select = byId('character-pack');
+  charactersById = new Map(characters.map((character) => [character.id, character]));
   select.replaceChildren();
   for (const character of characters) {
     const option = document.createElement('option');
@@ -53,6 +76,7 @@ function renderCharacters(characters, selectedId) {
     option.selected = character.id === selectedId;
     select.appendChild(option);
   }
+  applyCharacterCopy(select.value);
 }
 
 function renderIntegrationStatus(integrationStatus = {}) {
@@ -378,6 +402,7 @@ byId('character-pack').addEventListener('change', (event) => {
   if (languagePackId && [...byId('language-pack').options].some((option) => option.value === languagePackId)) {
     setValue('language-pack', languagePackId);
   }
+  applyCharacterCopy(event.target.value);
 });
 
 for (const provider of agentProviders) {
@@ -395,7 +420,7 @@ form.addEventListener('submit', async (event) => {
     renderConfig(result.config, result.characters, result.languages);
     renderIntegrationStatus(result.integrationStatus);
     refreshAgentIntegrations();
-    showStatus('已保存。鱼知道了。');
+    showStatus(activeSettingsCopy?.savedStatus || '已保存。');
   } catch (error) {
     showStatus(`保存失败：${error.message}`, true);
   } finally {
@@ -410,7 +435,7 @@ resetButton.addEventListener('click', async () => {
     const result = await window.settingsAPI.reset();
     renderConfig(result.config, result.characters, result.languages);
     renderIntegrationStatus(result.integrationStatus);
-    showStatus('已经恢复默认。');
+    showStatus(activeSettingsCopy?.resetStatus || '已经恢复默认。');
   } catch (error) {
     showStatus(`恢复失败：${error.message}`, true);
   } finally {

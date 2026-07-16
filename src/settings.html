@@ -5,20 +5,20 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="styles/settings.css" />
-  <title>水滴鱼2.0设置</title>
+  <title>水滴鱼设置</title>
 </head>
 <body>
   <header>
     <p class="eyebrow">BLOBFISH DESKTOP PET</p>
-    <h1>水滴鱼2.0设置</h1>
-    <p class="subtitle">别排太满。鱼也要喘气。</p>
+    <h1 id="settings-title">水滴鱼</h1>
+    <p id="settings-subtitle" class="subtitle">别排太满。鱼也要喘气。</p>
   </header>
 
   <form id="settings-form">
     <section>
       <div class="section-heading">
-        <h2>作息提醒</h2>
-        <p>仅在选中的工作日触发。</p>
+        <h2 id="schedule-title">作息提醒</h2>
+        <p id="schedule-hint">到点了，它会小声提醒你。</p>
       </div>
       <fieldset class="weekdays">
         <legend>工作日</legend>
@@ -43,8 +43,8 @@
 
     <section>
       <div class="section-heading">
-        <h2>安静时段</h2>
-        <p>紧急低电量和等待确认仍会说话。</p>
+        <h2 id="quiet-title">安静时段</h2>
+        <p id="quiet-hint">紧急低电量和等待确认时，鱼还是会说话。</p>
       </div>
       <label class="switch-line"><input id="quiet-enabled" type="checkbox" /> 启用安静时段</label>
       <div class="grid two">
@@ -55,8 +55,8 @@
 
     <section>
       <div class="section-heading">
-        <h2>形象、语言与性格</h2>
-        <p>切换形象会推荐对应语言；保存后立即生效。</p>
+        <h2 id="personality-title">形象、语言与性格</h2>
+        <p id="personality-hint">换一条鱼，也会换一种说话和活动的感觉。</p>
       </div>
       <label class="field">形象包<select id="character-pack"></select></label>
       <label class="field">语言包<select id="language-pack"></select></label>
@@ -76,20 +76,20 @@
 
     <section>
       <div class="section-heading">
-        <h2>动作</h2>
-        <p>任务运行时会游动；全部结束后可以停下。</p>
+        <h2 id="motion-title">动作</h2>
+        <p id="motion-hint">任务运行时会游动；全部结束后可以停下。</p>
       </div>
       <label class="field range-field">
-        <span>游动速度 <output id="speed-output" for="pet-speed"></output></span>
+        <span><span id="speed-label">游动速度</span> <output id="speed-output" for="pet-speed"></output></span>
         <input id="pet-speed" type="range" min="0.25" max="4" step="0.25" />
       </label>
       <label class="field range-field">
         <span>角色大小 <output id="scale-output" for="pet-scale"></output></span>
         <input id="pet-scale" type="range" min="0.65" max="1.5" step="0.05" />
       </label>
-      <label class="switch-line"><input id="roam-without-tasks" type="checkbox" /> 没有任务时也继续游动</label>
+      <label class="switch-line"><input id="roam-without-tasks" type="checkbox" /> <span id="roam-without-tasks-label">没有任务时也继续游动</span></label>
       <label class="switch-line"><input id="launch-at-login" type="checkbox" /> 登录后自动打开（仍不占用程序坞）</label>
-      <p class="entry-hint">设置入口：右键鱼本体，或点击 macOS 菜单栏里的 🐟。退出后可从“应用程序”再次启动。</p>
+      <p id="entry-hint" class="entry-hint">设置入口：右键鱼本体，或点击 macOS 菜单栏里的 🐟。退出后可从“应用程序”再次启动。</p>
     </section>
 
     <section>

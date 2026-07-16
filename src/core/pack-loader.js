@@ -4,7 +4,26 @@ const path = require('path');
 const PACK_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_SVG_BYTES = 512 * 1024;
 const MAX_CSS_BYTES = 128 * 1024;
+const MAX_SETTINGS_COPY_BYTES = 32 * 1024;
 const REQUIRED_ACTIONS = ['idle', 'blink', 'roam', 'working', 'waiting', 'success', 'failed', 'hit', 'bump', 'dragging', 'exit'];
+const SETTINGS_COPY_KEYS = [
+  'windowTitle',
+  'pageTitle',
+  'subtitle',
+  'scheduleTitle',
+  'scheduleHint',
+  'quietTitle',
+  'quietHint',
+  'personalityTitle',
+  'personalityHint',
+  'motionTitle',
+  'motionHint',
+  'speedLabel',
+  'roamWithoutTasksLabel',
+  'entryHint',
+  'savedStatus',
+  'resetStatus',
+];
 
 function assertInside(root, relativePath) {
   if (typeof relativePath !== 'string' || relativePath.length === 0) {
@@ -69,6 +88,27 @@ function validateManifest(manifest, expectedId) {
       throw new Error(`Character manifest is missing action: ${action}`);
     }
   }
+  if (manifest.settingsCopy !== undefined && (
+    typeof manifest.settingsCopy !== 'string' || !manifest.settingsCopy.endsWith('.json')
+  )) {
+    throw new Error('Character settingsCopy must be a .json file');
+  }
+}
+
+function validateSettingsCopy(copy) {
+  if (!copy || typeof copy !== 'object' || Array.isArray(copy)) {
+    throw new Error('Character settings copy must be an object');
+  }
+  for (const key of SETTINGS_COPY_KEYS) {
+    if (typeof copy[key] !== 'string' || copy[key].trim().length === 0 || copy[key].length > 240) {
+      throw new Error(`Character settings copy requires a short string: ${key}`);
+    }
+  }
+  for (const key of Object.keys(copy)) {
+    if (!SETTINGS_COPY_KEYS.includes(key)) {
+      throw new Error(`Unsupported character settings copy key: ${key}`);
+    }
+  }
 }
 
 function loadCharacterPack(charactersRoot, id) {
@@ -86,11 +126,16 @@ function loadCharacterPack(charactersRoot, id) {
     path: relativePath,
     css: readTextFile(packRoot, relativePath, MAX_CSS_BYTES),
   }));
+  const settingsCopy = manifest.settingsCopy
+    ? JSON.parse(readTextFile(packRoot, manifest.settingsCopy, MAX_SETTINGS_COPY_BYTES))
+    : null;
+  if (settingsCopy) validateSettingsCopy(settingsCopy);
 
   return {
     manifest,
     svg,
     styles,
+    settingsCopy,
   };
 }
 
@@ -99,4 +144,5 @@ module.exports = {
   assertInside,
   loadCharacterPack,
   validateManifest,
+  validateSettingsCopy,
 };

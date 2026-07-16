@@ -5,6 +5,7 @@
   "renderer": "svg",
   "art": "art/character.svg",
   "preview": "art/character.svg",
+  "settingsCopy": "ui/settings.zh-CN.json",
   "size": {
     "width": 118,
     "height": 98
