@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('settingsAPI', {
   repairAgentIntegration: (provider) => ipcRenderer.invoke('agent-integrations:repair', provider),
   disconnectAgentIntegration: (provider) => ipcRenderer.invoke('agent-integrations:disconnect', provider),
   testAgentIntegration: (provider) => ipcRenderer.invoke('agent-integrations:test', provider),
+  setAgentIntegrationReceiving: (provider, enabled) => ipcRenderer.invoke('agent-integrations:set-receiving', provider, enabled),
   onIntegrationStatus: (callback) => ipcRenderer.on('integration-status', (_event, status) => callback(status)),
   onAgentConnectionHealth: (callback) => ipcRenderer.on('agent-connection-health', (_event, health) => callback(health)),
 });

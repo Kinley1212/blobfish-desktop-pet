@@ -10,48 +10,15 @@ function describeAgentIntegration(provider, result = {}, options = {}) {
   const version = result.version ? ` v${result.version}` : '';
   const lastEventLabel = options.lastEventLabel || '刚刚';
 
-  if (result.updateAvailable) {
-    const targetVersion = result.bundledVersion ? ` v${result.bundledVersion}` : '';
+  if (result.operationBusy) {
     return {
-      verdict: '需要更新',
-      verdictState: 'disconnected',
-      summary: `连接插件${version}可更新至${targetVersion || '最新版'}`,
-      instruction: '点击下面的按钮即可一键更新；完成后新开的任务会显示任务标题。',
-      primary: { action: 'update', label: '一键更新连接', disabled: false },
-    };
-  }
-
-  if (health === 'active') {
-    return {
-      verdict: '已连接',
-      verdictState: 'connected',
-      summary: `连接正常 · 最近状态 ${lastEventLabel}`,
-      instruction: '水滴鱼已经收到真实任务状态，现在不需要做任何操作。',
-      primary: { action: 'none', label: '已连接，无需操作', disabled: true },
-    };
-  }
-
-  if (health === 'awaiting-event') {
-    return {
-      verdict: '等待验证',
+      verdict: result.operation === 'disconnect' ? '正在断开' : '连接中',
       verdictState: 'waiting',
-      summary: '插件已经就绪，正在等待一条真实任务状态',
-      instruction: provider === 'codex'
-        ? '请新建或继续一个 Codex 任务；首次使用时在 /hooks 中允许水滴鱼。收到状态后这里会自动变成“已连接”。'
-        : '请重新打开 Claude Code 会话并提交一条任务。收到状态后这里会自动变成“已连接”。',
-      primary: { action: 'none', label: '等待任务状态…', disabled: true },
-    };
-  }
-
-  if (health === 'test-timeout') {
-    return {
-      verdict: '未验证',
-      verdictState: 'disconnected',
-      summary: '60 秒内没有收到任务状态',
-      instruction: provider === 'codex'
-        ? '点击“重新验证”，然后在 Codex 任务中确认 /hooks 已允许水滴鱼并继续一次任务。'
-        : '点击“重新验证”，然后重新打开 Claude Code 会话并提交一条任务。',
-      primary: { action: 'verify', label: '重新验证', disabled: false },
+      summary: provider === 'claude'
+        ? '正在通过 Terminal 完成操作'
+        : `正在处理 ${name} 连接`,
+      instruction: '操作完成前不需要重复点击，这里会自动更新结果。',
+      primary: { action: 'none', label: '正在处理…', disabled: true },
     };
   }
 
@@ -64,6 +31,22 @@ function describeAgentIntegration(provider, result = {}, options = {}) {
         instruction: '现在不需要操作，检测完成后这里会告诉你下一步。',
         primary: { action: 'none', label: '正在检测…', disabled: true },
       };
+    case 'conflict':
+      return {
+        verdict: '需要处理',
+        verdictState: 'disconnected',
+        summary: '发现无法确认来源的同名插件',
+        instruction: '为了安全，水滴鱼不会自动删除它。点击下面的按钮查看准确的处理步骤。',
+        primary: { action: 'details', label: '查看处理方法', disabled: false },
+      };
+    case 'error':
+      return {
+        verdict: '检测失败',
+        verdictState: 'disconnected',
+        summary: '连接状态检测失败',
+        instruction: '点击“重新检测”；如果仍然失败，可在“连接详情”里查看具体原因。',
+        primary: { action: 'refresh', label: '重新检测', disabled: false },
+      };
     case 'legacy':
       return {
         verdict: '需要升级',
@@ -73,13 +56,7 @@ function describeAgentIntegration(provider, result = {}, options = {}) {
         primary: { action: 'manage', label: '升级并连接', disabled: false },
       };
     case 'connected':
-      return {
-        verdict: '等待验证',
-        verdictState: 'waiting',
-        summary: `插件已安装${version}，还没有收到真实任务状态`,
-        instruction: '点击“开始验证”，然后按这里出现的提示发起一条任务。',
-        primary: { action: 'verify', label: '开始验证', disabled: false },
-      };
+      break;
     case 'disabled':
       return {
         verdict: '未连接',
@@ -97,6 +74,7 @@ function describeAgentIntegration(provider, result = {}, options = {}) {
         primary: { action: 'manage', label: '自动安装并连接', disabled: false },
       };
     case 'cli-missing':
+      if (health === 'active') break;
       return provider === 'codex'
         ? {
           verdict: '未连接',
@@ -132,35 +110,96 @@ function describeAgentIntegration(provider, result = {}, options = {}) {
       return {
         verdict: result.operation === 'disconnect' ? '正在断开' : '连接中',
         verdictState: 'waiting',
-        summary: result.operation === 'disconnect' ? 'Terminal 正在断开连接' : 'Terminal 正在自动完成连接',
+        summary: provider === 'claude'
+          ? (result.operation === 'disconnect' ? 'Terminal 正在断开连接' : 'Terminal 正在自动完成连接')
+          : `正在处理 ${name} 连接`,
         instruction: '现在不需要操作，完成后这里会自动更新。',
         primary: { action: 'none', label: '正在处理…', disabled: true },
       };
-    case 'conflict':
-      return {
-        verdict: '需要处理',
-        verdictState: 'disconnected',
-        summary: '发现无法确认来源的同名插件',
-        instruction: '为了安全，水滴鱼不会自动删除它。点击下面的按钮查看插件名称和处理原因。',
-        primary: { action: 'details', label: '查看处理方法', disabled: false },
-      };
-    case 'error':
-      return {
-        verdict: '检测失败',
-        verdictState: 'disconnected',
-        summary: '连接状态检测失败',
-        instruction: '点击“重新检测”；如果仍然失败，可在“连接详情”里查看具体原因。',
-        primary: { action: 'refresh', label: '重新检测', disabled: false },
-      };
     default:
-      return {
-        verdict: '状态未知',
-        verdictState: 'disconnected',
-        summary: '暂时无法判断连接状态',
-        instruction: '点击“重新检测”，水滴鱼会再检查一次。',
-        primary: { action: 'refresh', label: '重新检测', disabled: false },
+      break;
+  }
+
+  if (result.updateAvailable) {
+    const targetVersion = result.bundledVersion ? ` v${result.bundledVersion}` : '';
+    return {
+      verdict: '需要更新',
+      verdictState: 'disconnected',
+      summary: `连接插件${version}可更新至${targetVersion || '最新版'}`,
+      instruction: '点击下面的按钮即可一键更新；开启任务标题后，新任务可以显示标题。',
+      primary: { action: 'update', label: '一键更新连接', disabled: false },
+    };
+  }
+
+  if (result.receiveEnabled === false) {
+    return {
+      verdict: '已暂停',
+      verdictState: 'waiting',
+      summary: '插件仍在，但水滴鱼当前不会接收任务状态',
+      instruction: '点击下面的按钮恢复接收；不需要重新安装插件。',
+      primary: { action: 'enable', label: '恢复接收任务状态', disabled: false },
+    };
+  }
+
+  if (health === 'active') {
+    return {
+      verdict: '已验证',
+      verdictState: 'connected',
+      summary: `已收到真实任务状态 · 最近一次 ${lastEventLabel}`,
+      instruction: '连接已经通过真实事件验证，现在不需要操作。',
+      primary: { action: 'none', label: '已验证，无需操作', disabled: true },
+    };
+  }
+
+  if (health === 'awaiting-event') {
+    return {
+      verdict: '等待验证',
+      verdictState: 'waiting',
+      summary: '正在等待一条真实任务状态',
+      instruction: provider === 'codex'
+        ? '回到 Codex，新建或继续一个任务；若出现 Hook 提示，请允许水滴鱼。'
+        : '重新打开 Claude Code 会话并提交一条任务。',
+      primary: { action: 'none', label: '等待任务状态…', disabled: true },
+    };
+  }
+
+  if (health === 'test-timeout') {
+    return {
+      verdict: '未验证',
+      verdictState: 'disconnected',
+      summary: '60 秒内没有收到任务状态',
+      instruction: provider === 'codex'
+        ? '先在 Codex 的 /hooks 中允许水滴鱼，再点击“重新验证”并继续一次任务。'
+        : '重新打开 Claude Code 会话后，点击“重新验证”并提交一条任务。',
+      primary: { action: 'verify', label: '重新验证', disabled: false },
+    };
+  }
+
+  if (result.state === 'connected') {
+    return provider === 'codex'
+      ? {
+        verdict: '等待授权',
+        verdictState: 'waiting',
+        summary: `插件已安装${version}，还需要授权并验证 Hook`,
+        instruction: '在 Codex 任务中输入 /hooks，允许水滴鱼；完成后点击下面的按钮。',
+        primary: { action: 'verify', label: '我已授权，开始验证', disabled: false },
+      }
+      : {
+        verdict: '等待验证',
+        verdictState: 'waiting',
+        summary: `插件已安装${version}，还没有收到真实任务状态`,
+        instruction: '重新打开 Claude Code 会话，然后点击下面的按钮并提交一条任务。',
+        primary: { action: 'verify', label: '开始验证', disabled: false },
       };
   }
+
+  return {
+    verdict: '状态未知',
+    verdictState: 'disconnected',
+    summary: '暂时无法判断连接状态',
+    instruction: '点击“重新检测”，水滴鱼会再检查一次。',
+    primary: { action: 'refresh', label: '重新检测', disabled: false },
+  };
 }
 
 if (typeof window !== 'undefined') {

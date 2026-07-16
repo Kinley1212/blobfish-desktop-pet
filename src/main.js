@@ -211,8 +211,20 @@ function isMovementPaused() {
 
 function isProviderEnabled(provider) {
   if (provider === 'codex') return config.integrations.codex;
-  if (provider === 'claude-code') return config.integrations.claudeCode;
+  if (provider === 'claude' || provider === 'claude-code') return config.integrations.claudeCode;
   return false;
+}
+
+function setAgentIntegrationReceiving(provider, enabled) {
+  if (provider !== 'codex' && provider !== 'claude') throw new Error('不支持的代理连接类型');
+  const key = provider === 'codex' ? 'codex' : 'claudeCode';
+  if (config.integrations[key] === enabled) return enabled;
+  const saved = persistConfig({
+    ...config,
+    integrations: { ...config.integrations, [key]: enabled },
+  });
+  applyConfig(saved);
+  return enabled;
 }
 
 function getConnectionProvider(provider) {
@@ -419,6 +431,8 @@ function getIntegrationResourcesRoot() {
 }
 
 function applyConfig(nextConfig) {
+  const codexWasEnabled = config.integrations.codex;
+  const claudeWasEnabled = config.integrations.claudeCode;
   const characterChanged = nextConfig.pet.characterPackId !== config.pet.characterPackId;
   const sizeChanged = characterChanged || nextConfig.pet.scale !== config.pet.scale;
   const languageChanged = !phraseEngine || nextConfig.language.packId !== config.language.packId;
@@ -432,6 +446,14 @@ function applyConfig(nextConfig) {
     };
   }
   config = nextConfig;
+  if (codexWasEnabled && !config.integrations.codex) {
+    connectionHealth.clear('codex');
+    emitConnectionHealth('codex');
+  }
+  if (claudeWasEnabled && !config.integrations.claudeCode) {
+    connectionHealth.clear('claude');
+    emitConnectionHealth('claude');
+  }
   if (characterChanged) loadConfiguredCharacter(config.pet.characterPackId);
   if (languageChanged) loadConfiguredLanguage(config.language.packId);
   if (calendarService) calendarService.setEnabled(config.integrations.calendar);
@@ -1106,10 +1128,11 @@ function setupAgentBridge() {
   emitTaskStatus();
   agentBridge = new AgentBridge(path.join(app.getPath('userData'), 'agent-events.sock'), {
     onEvent: (event) => {
+      if (!isProviderEnabled(event.provider)) return;
       const connectionProvider = getConnectionProvider(event.provider);
       connectionHealth.noteEvent(connectionProvider);
       emitConnectionHealth(connectionProvider);
-      if (isProviderEnabled(event.provider)) taskTracker.handle(event);
+      taskTracker.handle(event);
     },
     onError: (error) => reportRuntimeError('Agent bridge', error),
   });
@@ -1124,6 +1147,9 @@ function setupAgentBridge() {
     .catch((error) => {
       agentBridgeStatus = 'error';
       reportRuntimeError('Agent bridge', error);
+      if (settingsWin && !settingsWin.isDestroyed()) {
+        settingsWin.webContents.send('integration-status', { calendar: calendarStatus, agentBridge: agentBridgeStatus });
+      }
     });
   taskMaintenanceTimer = setInterval(runTaskMaintenance, 5 * 60 * 1000);
 }
@@ -1137,6 +1163,7 @@ async function connectAgentIntegration(provider, force = false) {
         const prepared = integrationManager.prepare('codex');
         const installUrl = `codex://plugins/${PLUGIN_NAME}?marketplacePath=${encodeURIComponent(prepared.marketplacePath)}`;
         await shell.openExternal(installUrl);
+        setAgentIntegrationReceiving(provider, true);
         return {
           provider,
           state: 'opened',
@@ -1147,16 +1174,21 @@ async function connectAgentIntegration(provider, force = false) {
           restartRequired: true,
           trustRequired: true,
           operation: force ? 'repair' : 'install',
+          receiveEnabled: true,
         };
       }
     }
     if (provider === 'claude') {
       status = await integrationManager.inspect('claude');
-      if (status.state === 'connected' && !force) return { ...status, changed: false, restartRequired: false };
+      if (status.state === 'connected' && !force) {
+        setAgentIntegrationReceiving(provider, true);
+        return { ...status, changed: false, restartRequired: false, receiveEnabled: true };
+      }
       const operation = status.state === 'legacy' ? 'migrate' : force ? 'repair' : 'install';
       const prepared = integrationManager.prepareClaudeTerminalAction(process.execPath, operation);
       const openError = await shell.openPath(prepared.commandPath);
       if (openError) throw new Error(`无法打开 Terminal 安装窗口：${openError}`);
+      setAgentIntegrationReceiving(provider, true);
       if (operation === 'migrate') {
         connectionHealth.clear(provider);
         emitConnectionHealth(provider);
@@ -1170,6 +1202,7 @@ async function connectAgentIntegration(provider, force = false) {
         changed: false,
         restartRequired: true,
         operation,
+        receiveEnabled: true,
       };
     }
     const migrating = status?.state === 'legacy';
@@ -1190,7 +1223,8 @@ async function connectAgentIntegration(provider, force = false) {
         allowDuringQuiet: true,
       });
     }
-    return result;
+    setAgentIntegrationReceiving(provider, true);
+    return { ...result, receiveEnabled: true };
   } catch (error) {
     reportRuntimeError(`${provider} connection`, error);
     throw error;
@@ -1203,6 +1237,7 @@ async function disconnectAgentIntegration(provider) {
       const prepared = integrationManager.prepareClaudeTerminalAction(process.execPath, 'disconnect');
       const openError = await shell.openPath(prepared.commandPath);
       if (openError) throw new Error(`无法打开 Terminal 断开窗口：${openError}`);
+      setAgentIntegrationReceiving(provider, false);
       connectionHealth.clear(provider);
       emitConnectionHealth(provider);
       return {
@@ -1214,6 +1249,7 @@ async function disconnectAgentIntegration(provider) {
         changed: false,
         restartRequired: true,
         operation: 'disconnect',
+        receiveEnabled: false,
       };
     }
 
@@ -1222,18 +1258,21 @@ async function disconnectAgentIntegration(provider) {
       const prepared = integrationManager.prepare('codex');
       const installUrl = `codex://plugins/${PLUGIN_NAME}?marketplacePath=${encodeURIComponent(prepared.marketplacePath)}`;
       await shell.openExternal(installUrl);
+      setAgentIntegrationReceiving(provider, false);
       return {
         ...status,
         state: 'opened-disconnect',
         operation: 'disconnect',
         changed: false,
+        receiveEnabled: false,
       };
     }
 
     const result = await integrationManager.uninstall(provider);
+    setAgentIntegrationReceiving(provider, false);
     connectionHealth.clear(provider);
     emitConnectionHealth(provider);
-    return { ...result, operation: 'disconnect' };
+    return { ...result, operation: 'disconnect', receiveEnabled: false };
   } catch (error) {
     reportRuntimeError(`${provider} disconnect`, error);
     throw error;
@@ -1246,10 +1285,16 @@ async function inspectAgentIntegration(provider) {
   const bundledVersion = integrationManager.getBundledVersion(provider);
   const updateAvailable = result.state === 'connected'
     && comparePluginVersions(result.version, bundledVersion) < 0;
-  return connectionHealth.decorate(provider, { ...result, bundledVersion, updateAvailable });
+  return connectionHealth.decorate(provider, {
+    ...result,
+    bundledVersion,
+    updateAvailable,
+    receiveEnabled: isProviderEnabled(provider),
+  });
 }
 
 async function testAgentIntegration(provider) {
+  if (!isProviderEnabled(provider)) throw new Error('任务状态接收已暂停，请先恢复接收');
   const status = await integrationManager.inspect(provider);
   const health = connectionHealth.snapshot(provider);
   if (status.state !== 'connected' && health.health !== 'active') {
@@ -1258,6 +1303,7 @@ async function testAgentIntegration(provider) {
   return connectionHealth.decorate(provider, {
     ...status,
     ...connectionHealth.startTest(provider),
+    receiveEnabled: true,
   });
 }
 
@@ -1358,6 +1404,16 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       reportRuntimeError(`${provider} connection test`, error);
       throw error;
     }
+  });
+  ipcMain.handle('agent-integrations:set-receiving', (event, provider, enabled) => {
+    assertSettingsSender(event);
+    if (typeof enabled !== 'boolean') throw new Error('接收状态必须是布尔值');
+    setAgentIntegrationReceiving(provider, enabled);
+    if (!enabled) {
+      connectionHealth.clear(provider);
+      emitConnectionHealth(provider);
+    }
+    return inspectAgentIntegration(provider);
   });
   createApplicationMenu();
   createTray();

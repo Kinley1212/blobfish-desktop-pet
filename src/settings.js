@@ -15,6 +15,7 @@ const integrationControls = Object.fromEntries(agentProviders.map((provider) => 
 }]));
 const integrationResults = {};
 const connectionTestTimers = {};
+const integrationOperations = new Map();
 let charactersById = new Map();
 let activeSettingsCopy = null;
 
@@ -96,12 +97,12 @@ function renderIntegrationStatus(integrationStatus = {}) {
   byId('calendar-status').textContent = `日历：${labels[statusName] || labels.unknown}`;
   const bridgeLabels = {
     starting: '正在启动…',
-    listening: '已在本机监听',
+    listening: '本地接收器已就绪（不代表平台已连接）',
     stopped: '未启动',
     error: '启动失败，请查看日志',
   };
   const bridgeStatus = integrationStatus.agentBridge || 'stopped';
-  byId('agent-bridge-status').textContent = `任务桥接：${bridgeLabels[bridgeStatus] || bridgeLabels.error}`;
+  byId('agent-bridge-status').textContent = bridgeLabels[bridgeStatus] || bridgeLabels.error;
 }
 
 function formatLastEvent(timestamp) {
@@ -127,41 +128,73 @@ function renderAgentIntegration(provider, result) {
   const verdictElement = byId(`${provider}-connection-verdict`);
   const technicalDetails = byId(`${provider}-technical-details`);
   const health = result.health || 'unavailable';
-  const live = health === 'active';
-  const busy = ['checking', 'opened', 'opened-disconnect', 'terminal-opened'].includes(result.state);
-  const managedInstalled = result.state === 'connected' || result.state === 'disabled' || live;
-  const presentation = window.integrationUI.describeAgentIntegration(provider, result, {
+  const operation = integrationOperations.get(provider);
+  const blocked = ['conflict', 'error', 'disabled', 'not-installed', 'legacy'].includes(result.state);
+  const live = health === 'active' && !blocked && result.receiveEnabled !== false;
+  const busy = Boolean(operation) || ['checking', 'opened', 'opened-disconnect', 'terminal-opened'].includes(result.state);
+  const managedInstalled = result.state === 'connected'
+    || result.state === 'disabled'
+    || (result.state === 'cli-missing' && live);
+  const presentedResult = operation
+    ? { ...result, operationBusy: true, operation }
+    : result;
+  const presentation = window.integrationUI.describeAgentIntegration(provider, presentedResult, {
     lastEventLabel: formatLastEvent(result.lastEventAt),
   });
+
+  if (typeof result.receiveEnabled === 'boolean') {
+    setChecked(provider === 'codex' ? 'integration-codex' : 'integration-claude', result.receiveEnabled);
+  }
 
   statusElement.textContent = presentation.summary;
   statusElement.classList.toggle('error', ['error', 'conflict'].includes(result.state) || health === 'test-timeout');
   verdictElement.textContent = presentation.verdict;
   verdictElement.dataset.state = presentation.verdictState;
   byId(`${provider}-next-step`).textContent = presentation.instruction;
+  const conflictHelp = result.state === 'conflict'
+    ? (provider === 'codex'
+      ? `处理：在 Codex 插件页面移除“${result.pluginId || '同名插件'}”，然后点“重新检测连接状态”。`
+      : `处理：在 Claude Code 插件管理中移除“${result.pluginId || '同名插件'}”，然后点“重新检测连接状态”。`)
+    : null;
   technicalDetails.textContent = [
     result.pluginId ? `插件：${result.pluginId}` : null,
     result.version ? `版本：${result.version}` : null,
     result.error ? `详情：${result.error}` : null,
+    conflictHelp,
   ].filter(Boolean).join(' · ') || '未检测到插件标识。';
 
   if (result.state === 'checking') setConnectionStep(provider, 'cli', 'pending', '正在检测…');
   else if (result.cliFound) setConnectionStep(provider, 'cli', 'done', '已找到命令行工具');
   else if (result.state === 'opened' || result.state === 'opened-disconnect') setConnectionStep(provider, 'cli', 'active', '已打开 Codex App 插件页');
   else if (live) setConnectionStep(provider, 'cli', 'done', '已由真实任务事件确认');
-  else setConnectionStep(provider, 'cli', 'error', '未找到命令行工具');
+  else if (result.state === 'cli-missing') setConnectionStep(provider, 'cli', 'error', '未找到命令行工具');
+  else if (result.state === 'error') setConnectionStep(provider, 'cli', 'error', '检测未完成');
+  else setConnectionStep(provider, 'cli', 'pending', '尚未确认');
 
-  if (live) setConnectionStep(provider, 'plugin', 'done', '插件正在发送状态');
-  else if (result.state === 'connected') setConnectionStep(provider, 'plugin', 'done', result.version ? `已安装 v${result.version}` : '已安装并启用');
+  if (result.state === 'connected') setConnectionStep(provider, 'plugin', 'done', result.version ? `已安装 v${result.version}` : '已安装并启用');
   else if (result.state === 'legacy') setConnectionStep(provider, 'plugin', 'active', result.version ? `检测到旧版 v${result.version}` : '检测到可升级的旧版');
   else if (result.state === 'disabled') setConnectionStep(provider, 'plugin', 'error', '已安装，但被停用');
   else if (result.state === 'conflict') setConnectionStep(provider, 'plugin', 'error', '同名插件来源冲突');
   else if (result.state === 'error') setConnectionStep(provider, 'plugin', 'error', '检测或操作失败');
   else if (result.state === 'opened' || result.state === 'terminal-opened') setConnectionStep(provider, 'plugin', 'active', '等待安装结果');
   else if (result.state === 'opened-disconnect') setConnectionStep(provider, 'plugin', 'active', '等待手动移除');
+  else if (live) setConnectionStep(provider, 'plugin', 'done', '已由真实任务事件确认工作');
   else setConnectionStep(provider, 'plugin', 'pending', '尚未安装');
 
-  if (live) setConnectionStep(provider, 'live', 'done', `最近收到：${formatLastEvent(result.lastEventAt)}`);
+  if (result.receiveEnabled === false) {
+    setConnectionStep(provider, 'trust', 'pending', '任务状态接收已暂停');
+  } else if (live) {
+    setConnectionStep(provider, 'trust', 'done', provider === 'codex' ? 'Hook 已通过真实事件验证' : '插件已在会话中生效');
+  } else if (health === 'test-timeout') {
+    setConnectionStep(provider, 'trust', 'error', provider === 'codex' ? '请检查 /hooks 是否已允许' : '请重新打开 Claude Code 会话');
+  } else if (result.state === 'connected' || health === 'awaiting-event') {
+    setConnectionStep(provider, 'trust', 'active', provider === 'codex' ? '请在 /hooks 中允许水滴鱼' : '请重新打开 Claude Code 会话');
+  } else {
+    setConnectionStep(provider, 'trust', 'pending', provider === 'codex' ? '安装后需要授权' : '安装后需要新会话');
+  }
+
+  if (result.receiveEnabled === false) setConnectionStep(provider, 'live', 'pending', '接收已暂停');
+  else if (live) setConnectionStep(provider, 'live', 'done', `最近收到：${formatLastEvent(result.lastEventAt)}`);
   else if (health === 'awaiting-event') setConnectionStep(provider, 'live', 'active', '请触发一条真实任务状态');
   else if (health === 'test-timeout') setConnectionStep(provider, 'live', 'error', '60 秒内没有收到状态');
   else setConnectionStep(provider, 'live', 'pending', '尚未验证');
@@ -189,9 +222,11 @@ async function refreshAgentIntegration(provider) {
 
 async function refreshAgentIntegrations() {
   byId('refresh-integrations').disabled = true;
-  for (const provider of agentProviders) renderAgentIntegration(provider, { state: 'checking' });
+  for (const provider of agentProviders) {
+    if (!integrationOperations.has(provider)) renderAgentIntegration(provider, { state: 'checking' });
+  }
   await Promise.allSettled(agentProviders.map(refreshAgentIntegration));
-  byId('refresh-integrations').disabled = false;
+  byId('refresh-integrations').disabled = integrationOperations.size > 0;
 }
 
 async function pollTerminalOperation(provider, operation) {
@@ -215,10 +250,13 @@ async function pollTerminalOperation(provider, operation) {
 }
 
 async function manageAgentIntegration(provider, forceRepair = false) {
+  if (integrationOperations.has(provider)) return;
   const current = integrationResults[provider] || {};
   const repair = forceRepair;
   const operation = current.state === 'legacy' ? 'migrate' : repair ? 'repair' : 'install';
-  renderAgentIntegration(provider, { ...current, state: 'terminal-opened', operation });
+  integrationOperations.set(provider, operation);
+  byId('refresh-integrations').disabled = true;
+  renderAgentIntegration(provider, current);
   try {
     const result = repair
       ? await window.settingsAPI.repairAgentIntegration(provider)
@@ -239,13 +277,21 @@ async function manageAgentIntegration(provider, forceRepair = false) {
   } catch (error) {
     renderAgentIntegration(provider, { ...current, state: 'error', error: error.message });
     showStatus(`连接失败：${error.message}`, true);
+  } finally {
+    integrationOperations.delete(provider);
+    byId('refresh-integrations').disabled = integrationOperations.size > 0;
+    renderAgentIntegration(provider, integrationResults[provider] || current);
   }
 }
 
 async function disconnectAgentIntegration(provider) {
+  if (integrationOperations.has(provider)) return;
   const name = provider === 'codex' ? 'Codex' : 'Claude Code';
   if (!window.confirm(`断开水滴鱼与 ${name} 的状态连接？`)) return;
   const current = integrationResults[provider] || {};
+  integrationOperations.set(provider, 'disconnect');
+  byId('refresh-integrations').disabled = true;
+  renderAgentIntegration(provider, current);
   try {
     const result = await window.settingsAPI.disconnectAgentIntegration(provider);
     renderAgentIntegration(provider, result);
@@ -263,6 +309,10 @@ async function disconnectAgentIntegration(provider) {
   } catch (error) {
     renderAgentIntegration(provider, { ...current, state: 'error', error: error.message });
     showStatus(`断开失败：${error.message}`, true);
+  } finally {
+    integrationOperations.delete(provider);
+    byId('refresh-integrations').disabled = integrationOperations.size > 0;
+    renderAgentIntegration(provider, integrationResults[provider] || current);
   }
 }
 
@@ -298,6 +348,16 @@ async function runPrimaryAgentAction(provider) {
       renderAgentIntegration(provider, { state: 'checking' });
       await refreshAgentIntegration(provider);
       break;
+    case 'enable': {
+      try {
+        const result = await window.settingsAPI.setAgentIntegrationReceiving(provider, true);
+        renderAgentIntegration(provider, result);
+        showStatus('已经恢复接收任务状态。现在可以开始验证连接。');
+      } catch (error) {
+        showStatus(`恢复接收失败：${error.message}`, true);
+      }
+      break;
+    }
     case 'details':
       controls.details.open = true;
       controls.details.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -460,6 +520,10 @@ window.settingsAPI.onIntegrationStatus((integrationStatus) => renderIntegrationS
 window.settingsAPI.onAgentConnectionHealth((health) => {
   const current = integrationResults[health.provider] || { state: 'checking' };
   const testPassed = current.health === 'awaiting-event' && health.health === 'active';
-  renderAgentIntegration(health.provider, { ...current, ...health });
-  if (testPassed) showStatus('连接测试通过。鱼已经收到真实任务状态。');
+  refreshAgentIntegration(health.provider).then((result) => {
+    const usable = result.state === 'connected' || result.state === 'cli-missing';
+    if (testPassed && usable && result.receiveEnabled !== false) {
+      showStatus('连接测试通过。鱼已经收到真实任务状态。');
+    }
+  });
 });
