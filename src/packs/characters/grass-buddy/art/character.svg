@@ -1,22 +1,22 @@
-<svg viewBox="0 0 180 135" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="小草团">
+<svg viewBox="0 0 180 150" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="小草团">
   <g class="grass-character">
     <g class="grass-legs" fill="none" stroke="#5b3a20" stroke-width="7" stroke-linecap="round">
-      <path class="leg leg-left" d="M 72 104 Q 69 117 77 126" />
-      <path class="leg leg-right" d="M 112 104 Q 111 118 122 124" />
+      <path class="leg leg-left" d="M 72 117 Q 69 132 78 142" />
+      <path class="leg leg-right" d="M 112 117 Q 112 132 123 140" />
     </g>
     <g class="grass-body">
-      <path class="grass-body-shape" d="M 17 104 L 5 85 Q 1 78 9 75 L 26 74 L 24 59 Q 23 52 31 54 L 45 56 L 42 40 Q 40 32 48 36 L 62 47 L 64 27 Q 64 18 72 24 L 85 39 L 92 13 Q 95 4 101 13 L 113 36 L 125 22 Q 131 15 135 25 L 142 45 L 155 35 Q 162 30 162 40 L 159 61 L 173 60 Q 181 60 176 68 L 161 84 L 168 101 Q 171 109 161 110 L 25 110 Q 20 110 17 104 Z" fill="#ced98c" stroke="#5b3a20" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+      <path class="grass-body-shape" d="M 17 116 L 7 89 Q 4 82 11 78 L 26 77 L 24 61 Q 23 54 31 56 L 45 58 L 42 41 Q 40 33 48 37 L 62 48 L 64 28 Q 64 19 72 25 L 85 40 L 92 13 Q 95 4 101 13 L 113 37 L 125 22 Q 131 15 135 25 L 142 46 L 155 35 Q 162 30 162 40 L 159 63 L 170 62 Q 176 62 172 70 L 159 88 L 166 113 Q 169 122 159 123 L 25 123 Q 20 123 17 116 Z" fill="#ced98c" stroke="#5b3a20" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
       <path class="grass-highlight" d="M 50 48 Q 79 20 112 38" fill="none" stroke="#e1e8aa" stroke-width="5" stroke-linecap="round" opacity="0.55" />
       <g class="grass-arms" fill="none" stroke="#5b3a20" stroke-width="7" stroke-linecap="round">
-        <path class="arm arm-left" d="M 48 79 Q 51 96 62 96 Q 72 96 74 80" />
-        <path class="arm arm-right" d="M 112 79 Q 112 96 124 96 Q 136 96 138 79" />
+        <path class="arm arm-left" d="M 49 92 Q 52 110 63 110 Q 74 110 76 92" />
+        <path class="arm arm-right" d="M 110 92 Q 111 110 123 110 Q 136 110 138 91" />
       </g>
       <g class="grass-face" stroke="#5b3a20" stroke-linecap="round">
-        <path class="eye eye-left" d="M 69 63 L 69 64" stroke-width="9" />
-        <path class="eye eye-right" d="M 117 63 L 117 64" stroke-width="9" />
-        <path class="mouth mouth-smile" d="M 80 76 Q 94 86 108 76" fill="none" stroke-width="6" />
-        <path class="mouth mouth-neutral" d="M 82 79 Q 94 81 106 79" fill="none" stroke-width="6" opacity="0" />
-        <path class="mouth mouth-frown" d="M 82 84 Q 94 74 106 84" fill="none" stroke-width="6" opacity="0" />
+        <path class="eye eye-left" d="M 69 62 L 69 63" stroke-width="9" />
+        <path class="eye eye-right" d="M 117 62 L 117 63" stroke-width="9" />
+        <path class="mouth mouth-smile" d="M 80 73 Q 94 81 108 73" fill="none" stroke-width="6" />
+        <path class="mouth mouth-neutral" d="M 82 76 Q 94 78 106 76" fill="none" stroke-width="6" opacity="0" />
+        <path class="mouth mouth-frown" d="M 82 80 Q 94 70 106 80" fill="none" stroke-width="6" opacity="0" />
       </g>
     </g>
   </g>

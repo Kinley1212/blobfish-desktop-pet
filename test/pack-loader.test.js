@@ -25,6 +25,7 @@ test('loads the grass buddy pack with compositor-friendly standard actions', () 
 
   assert.equal(pack.manifest.displayName, '小草团');
   assert.equal(pack.manifest.defaultLanguagePack, 'grass-buddy-zh-CN');
+  assert.equal(pack.manifest.size.height, 98);
   assert.match(pack.svg, /class="grass-body-shape"/);
   assert.match(pack.svg, /class="eye eye-left"/);
   assert.equal(pack.styles.length, pack.manifest.styles.length);
@@ -37,6 +38,11 @@ test('loads the grass buddy pack with compositor-friendly standard actions', () 
   assert.match(animationCss, /grass-buddy-walk/);
   assert.match(animationCss, /grass-buddy-working/);
   assert.match(animationCss, /grass-buddy-exit/);
+
+  const mouthY = Number(pack.svg.match(/class="mouth mouth-smile" d="M \d+ (\d+)/)?.[1]);
+  const leftArmY = Number(pack.svg.match(/class="arm arm-left" d="M \d+ (\d+)/)?.[1]);
+  assert.ok(Number.isFinite(mouthY) && Number.isFinite(leftArmY));
+  assert.ok(leftArmY - mouthY >= 15, 'mouth and arms need clear vertical spacing');
 });
 
 test('rejects invalid ids and paths outside the pack root', () => {
