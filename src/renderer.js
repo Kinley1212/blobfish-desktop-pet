@@ -25,10 +25,23 @@ let blinkTimer = null;
 let speechActionTimer = null;
 let characterManifest = null;
 let petScale = 1;
+let petTopOffset = null;
+
+function applyPetLayout(layout = {}) {
+  const nextTopOffset = Number(layout.topOffset);
+  if (Number.isFinite(nextTopOffset)) petTopOffset = Math.max(0, nextTopOffset);
+  if (Number.isFinite(petTopOffset)) {
+    document.documentElement.style.setProperty('--pet-top', `${petTopOffset}px`);
+  }
+  if (layout.bubblePlacement === 'below' || layout.bubblePlacement === 'above') {
+    bubble.dataset.placement = layout.bubblePlacement;
+  }
+}
 
 function applyPetConfig(config = {}) {
   const nextScale = Number(config.scale);
   petScale = Number.isFinite(nextScale) ? Math.min(1.5, Math.max(0.65, nextScale)) : 1;
+  applyPetLayout(config);
   if (!characterManifest) return;
   const width = characterManifest.size.width * petScale;
   const height = characterManifest.size.height * petScale;
@@ -185,6 +198,7 @@ window.petAPI.onSpeech((message) => {
 });
 window.petAPI.onAgentState((state) => applyAgentState(state));
 window.petAPI.onCharacterPack((pack) => applyCharacterPack(pack));
+window.petAPI.onPetLayout((layout) => applyPetLayout(layout));
 window.petAPI.onPetConfig((config) => applyPetConfig(config));
 window.petAPI.onBump(() => triggerBump());
 window.petAPI.onPetAction((action) => triggerPetAction(action));

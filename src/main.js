@@ -9,6 +9,7 @@ const { ConfigStore, DEFAULT_CONFIG, validateConfig } = require('./core/config-s
 const { IntegrationManager, PLUGIN_NAME } = require('./core/integration-manager');
 const { loadCharacterPack } = require('./core/pack-loader');
 const { loadLanguagePack } = require('./core/language-pack-loader');
+const { calculateVerticalPlacement } = require('./core/pet-boundary');
 const { PhraseEngine } = require('./core/phrase-engine');
 const { getScheduleReminder, isInQuietHours } = require('./core/reminder-scheduler');
 const { RuntimeErrorNotifier } = require('./core/runtime-error-notifier');
@@ -78,6 +79,7 @@ let contextMenuPaused = false;
 let systemPaused = false;
 let agentPaused = false;
 let currentY;
+let petTopOffset = null;
 let flingIntervalId = null;
 let speechQueue;
 let idleChatterTimer = null;
@@ -410,7 +412,17 @@ function getIntegrationResourcesRoot() {
 
 function applyConfig(nextConfig) {
   const characterChanged = nextConfig.pet.characterPackId !== config.pet.characterPackId;
+  const sizeChanged = characterChanged || nextConfig.pet.scale !== config.pet.scale;
   const languageChanged = !phraseEngine || nextConfig.language.packId !== config.language.packId;
+  let previousPetPosition = null;
+  if (sizeChanged && win && !win.isDestroyed()) {
+    const [x, y] = win.getPosition();
+    const oldMetrics = getPetMetrics();
+    previousPetPosition = {
+      x,
+      top: y + (Number.isFinite(petTopOffset) ? petTopOffset : oldMetrics.topMargin),
+    };
+  }
   config = nextConfig;
   if (characterChanged) loadConfiguredCharacter(config.pet.characterPackId);
   if (languageChanged) loadConfiguredLanguage(config.language.packId);
@@ -421,8 +433,14 @@ function applyConfig(nextConfig) {
     updateAgentState(taskTracker.snapshot());
   }
   if (win && !win.isDestroyed()) {
+    if (previousPetPosition) {
+      const placement = calculateVerticalPlacement(previousPetPosition.top, getCombinedBounds(), getPetMetrics());
+      petTopOffset = placement.topOffset;
+      currentY = placement.windowY;
+      safeSetPosition(previousPetPosition.x, placement.windowY);
+    }
     if (characterChanged) win.webContents.send('character-pack', characterPack);
-    win.webContents.send('pet-config', { scale: config.pet.scale });
+    win.webContents.send('pet-config', { scale: config.pet.scale, ...getPetLayoutPayload() });
     syncHoverState();
   }
   scheduleIdleChatter();
@@ -484,6 +502,34 @@ function safeSetPosition(x, y) {
   // rejects negative zero outright ("conversion failure") - `|| 0` folds it
   // back to plain 0 without touching any other value.
   win.setPosition(Math.round(x) || 0, Math.round(y) || 0);
+}
+
+function getPetLayoutPayload() {
+  const metrics = getPetMetrics();
+  const rawTopOffset = Number.isFinite(petTopOffset) ? petTopOffset : metrics.topMargin;
+  const topOffset = Math.min(metrics.topMargin, Math.max(0, rawTopOffset));
+  return {
+    topOffset,
+    bubblePlacement: topOffset < Math.min(64, metrics.topMargin * 0.62) ? 'below' : 'above',
+  };
+}
+
+function syncPetLayout(force = false) {
+  if (!win || win.isDestroyed()) return;
+  const payload = getPetLayoutPayload();
+  if (!force && payload.topOffset === syncPetLayout.lastTopOffset
+    && payload.bubblePlacement === syncPetLayout.lastBubblePlacement) return;
+  syncPetLayout.lastTopOffset = payload.topOffset;
+  syncPetLayout.lastBubblePlacement = payload.bubblePlacement;
+  win.webContents.send('pet-layout', payload);
+}
+
+function positionPetAt(x, desiredPetTop, bounds = getCombinedBounds()) {
+  const placement = calculateVerticalPlacement(desiredPetTop, bounds, getPetMetrics());
+  petTopOffset = placement.topOffset;
+  safeSetPosition(x, placement.windowY);
+  syncPetLayout();
+  return placement;
 }
 
 // The renderer normally toggles click-through by watching its own mousemove
@@ -554,6 +600,7 @@ function getCombinedBounds() {
 function createWindow() {
   const { x: dispX, y: dispY, width: dispWidth, height: dispHeight } = screen.getPrimaryDisplay().workArea;
   currentY = Math.round(dispY + dispHeight - WINDOW_HEIGHT);
+  petTopOffset = getPetMetrics().topMargin;
 
   win = new BrowserWindow({
     width: WINDOW_WIDTH,
@@ -625,13 +672,9 @@ function createWindow() {
     const { minX, minY, maxX, maxY } = getCombinedBounds();
     const petMetrics = getPetMetrics();
 
-    // The window's own top edge (not the fish's) is what macOS floors at
-    // the menu bar, so the lower Y bound is minY itself - the PET_TOP_MARGIN
-    // inset only helps at the bottom/left/right, where nothing stops the
-    // window from extending past the fish into empty transparent space.
     const newX = Math.min(Math.max(x + dx, minX - petMetrics.offsetX), maxX - petMetrics.offsetX - petMetrics.width);
-    const newY = Math.min(Math.max(y + dy, minY), maxY - petMetrics.topMargin - petMetrics.height);
-    safeSetPosition(newX, newY);
+    const currentPetTop = y + (Number.isFinite(petTopOffset) ? petTopOffset : petMetrics.topMargin);
+    positionPetAt(newX, currentPetTop + dy, { minY, maxY });
   });
 
   ipcMain.on('drag-end', (_event, vxPerMs, vyPerMs) => {
@@ -711,19 +754,14 @@ function startFling(vx, vy) {
 
     const [x, y] = win.getPosition();
     let newX = x + flingVX;
-    let newY = y + flingVY;
+    const currentPetTop = y + (Number.isFinite(petTopOffset) ? petTopOffset : getPetMetrics().topMargin);
+    let newPetTop = currentPetTop + flingVY;
     let bounced = false;
 
     const { minX, minY, maxX, maxY } = getCombinedBounds();
     const petMetrics = getPetMetrics();
     const minWinX = minX - petMetrics.offsetX;
     const maxWinX = maxX - petMetrics.offsetX - petMetrics.width;
-    // Top uses minY directly (see drag-move above) - the window itself is
-    // floored there by macOS, not just the fish inside it. The other three
-    // edges keep the fish-relative inset since nothing stops the window
-    // from extending past the fish into empty transparent space there.
-    const minWinY = minY;
-    const maxWinY = maxY - petMetrics.topMargin - petMetrics.height;
 
     if (newX <= minWinX) {
       newX = minWinX;
@@ -735,17 +773,18 @@ function startFling(vx, vy) {
       bounced = true;
     }
 
-    if (newY <= minWinY) {
-      newY = minWinY;
+    const verticalPlacement = calculateVerticalPlacement(newPetTop, { minY, maxY }, petMetrics);
+    if (verticalPlacement.hitTop) {
+      newPetTop = verticalPlacement.petTop;
       flingVY = -flingVY * FLING_BOUNCE_DAMPING;
       bounced = true;
-    } else if (newY >= maxWinY) {
-      newY = maxWinY;
+    } else if (verticalPlacement.hitBottom) {
+      newPetTop = verticalPlacement.petTop;
       flingVY = -flingVY * FLING_BOUNCE_DAMPING;
       bounced = true;
     }
 
-    safeSetPosition(newX, newY);
+    const positioned = positionPetAt(newX, newPetTop, { minY, maxY });
 
     const newDirection = flingVX >= 0 ? 1 : -1;
     if (newDirection !== direction) {
@@ -764,7 +803,7 @@ function startFling(vx, vy) {
     if (!Number.isFinite(remainingSpeed) || remainingSpeed < FLING_STOP_SPEED) {
       clearInterval(flingIntervalId);
       flingIntervalId = null;
-      currentY = Number.isFinite(newY) ? Math.round(newY) : win.getPosition()[1];
+      currentY = Number.isFinite(positioned.windowY) ? Math.round(positioned.windowY) : win.getPosition()[1];
       paused = false;
       // Only re-check hover once, right as it comes to rest - calling this
       // on every single tick churned setIgnoreMouseEvents 30+ times a
@@ -1195,7 +1234,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   updateAgentState(currentAgentSnapshot);
 
   ipcMain.handle('character-pack:get', () => characterPack);
-  ipcMain.handle('pet-config:get', () => ({ scale: config.pet.scale }));
+  ipcMain.handle('pet-config:get', () => ({ scale: config.pet.scale, ...getPetLayoutPayload() }));
   ipcMain.handle('agent-state:get', () => ({
     ...currentAgentSnapshot,
     motion: currentAgentSnapshot.activeCount > 0
