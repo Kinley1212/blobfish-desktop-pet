@@ -16,6 +16,7 @@ const { RuntimeErrorNotifier } = require('./core/runtime-error-notifier');
 const { SpeechQueue } = require('./core/speech-queue');
 const { SPEECH_DURATION_MS } = require('./core/speech-timing');
 const { formatProviderTaskSummary } = require('./core/task-menu-summary');
+const { advanceFractionalCoordinate, roundWindowCoordinate } = require('./core/fractional-position');
 const { getCurrentTaskStatus, getTerminalTaskStatus } = require('./core/task-status-presenter');
 const { TaskTracker } = require('./core/task-tracker');
 const { version: appVersion } = require('../package.json');
@@ -83,6 +84,7 @@ let manuallyPaused = false;
 let contextMenuPaused = false;
 let systemPaused = false;
 let agentPaused = false;
+let currentX;
 let currentY;
 let petTopOffset = null;
 let flingIntervalId = null;
@@ -508,7 +510,7 @@ function safeSetPosition(x, y) {
   // Math.round(-0.5) is -0 in JS, and Electron's native setPosition binding
   // rejects negative zero outright ("conversion failure") - `|| 0` folds it
   // back to plain 0 without touching any other value.
-  win.setPosition(Math.round(x) || 0, Math.round(y) || 0);
+  win.setPosition(roundWindowCoordinate(x), roundWindowCoordinate(y));
 }
 
 function getPetLayoutPayload() {
@@ -553,6 +555,13 @@ function syncHoverState() {
   const cursor = screen.getCursorScreenPoint();
   const [wx, wy] = win.getPosition();
   win.webContents.send('check-hover', cursor.x - wx, cursor.y - wy);
+}
+
+let lastAutomaticHoverSyncAt = 0;
+function syncAutomaticHoverState(now = Date.now()) {
+  if (now - lastAutomaticHoverSyncAt < 120) return;
+  lastAutomaticHoverSyncAt = now;
+  syncHoverState();
 }
 
 function isSaneRect(rect) {
@@ -606,13 +615,14 @@ function getCombinedBounds() {
 
 function createWindow() {
   const { x: dispX, y: dispY, width: dispWidth, height: dispHeight } = screen.getPrimaryDisplay().workArea;
+  currentX = Math.floor(dispX + dispWidth / 2);
   currentY = Math.round(dispY + dispHeight - WINDOW_HEIGHT);
   petTopOffset = getPetMetrics().topMargin;
 
   win = new BrowserWindow({
     width: WINDOW_WIDTH,
     height: WINDOW_HEIGHT,
-    x: Math.floor(dispX + dispWidth / 2),
+    x: currentX,
     y: currentY,
     frame: false,
     transparent: true,
@@ -671,6 +681,7 @@ function createWindow() {
 
   ipcMain.on('drag-start', () => {
     paused = true;
+    currentX = win ? win.getPosition()[0] : currentX;
   });
 
   ipcMain.on('drag-move', (_event, dx, dy) => {
@@ -680,6 +691,7 @@ function createWindow() {
     const petMetrics = getPetMetrics();
 
     const newX = Math.min(Math.max(x + dx, minX - petMetrics.offsetX), maxX - petMetrics.offsetX - petMetrics.width);
+    currentX = newX;
     const currentPetTop = y + (Number.isFinite(petTopOffset) ? petTopOffset : petMetrics.topMargin);
     positionPetAt(newX, currentPetTop + dy, { minY, maxY });
   });
@@ -692,7 +704,7 @@ function createWindow() {
     const speed = Math.hypot(vx, vy);
 
     if (!Number.isFinite(speed) || speed < FLING_MIN_SPEED) {
-      currentY = win.getPosition()[1];
+      [currentX, currentY] = win.getPosition();
       paused = false;
       return;
     }
@@ -719,7 +731,7 @@ function createWindow() {
     const { x: areaX, width: areaWidth } = nearestBounds;
     const petMetrics = getPetMetrics();
 
-    let newX = wx + direction * config.pet.speed;
+    let newX = advanceFractionalCoordinate(currentX, wx, direction * config.pet.speed);
     const minWinX = areaX - petMetrics.offsetX;
     const maxWinX = areaX + areaWidth - petMetrics.offsetX - petMetrics.width;
 
@@ -733,7 +745,9 @@ function createWindow() {
       win.webContents.send('direction', direction);
     }
 
+    currentX = newX;
     safeSetPosition(newX, currentY);
+    syncAutomaticHoverState();
   }, TICK_MS);
 
   win.webContents.once('did-finish-load', () => {
@@ -792,6 +806,7 @@ function startFling(vx, vy) {
     }
 
     const positioned = positionPetAt(newX, newPetTop, { minY, maxY });
+    syncAutomaticHoverState();
 
     const newDirection = flingVX >= 0 ? 1 : -1;
     if (newDirection !== direction) {
@@ -810,7 +825,8 @@ function startFling(vx, vy) {
     if (!Number.isFinite(remainingSpeed) || remainingSpeed < FLING_STOP_SPEED) {
       clearInterval(flingIntervalId);
       flingIntervalId = null;
-      currentY = Number.isFinite(positioned.windowY) ? Math.round(positioned.windowY) : win.getPosition()[1];
+      [currentX, currentY] = win.getPosition();
+      if (Number.isFinite(positioned.windowY)) currentY = roundWindowCoordinate(positioned.windowY);
       paused = false;
       // Only re-check hover once, right as it comes to rest - calling this
       // on every single tick churned setIgnoreMouseEvents 30+ times a

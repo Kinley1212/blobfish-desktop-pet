@@ -325,6 +325,9 @@ document.addEventListener('mousemove', (event) => {
           return;
         }
         movedDuringDrag = true;
+        clearTimeout(hitTimer);
+        pet.classList.remove('hit');
+        window.petAPI.setPaused(false);
         pet.classList.add('dragging');
         window.petAPI.dragStart();
       }
