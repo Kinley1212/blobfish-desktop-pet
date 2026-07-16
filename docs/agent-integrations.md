@@ -27,6 +27,11 @@ discard `prompt`, `transcript_path`, tool input/output, model name, working
 directory and code. Task titles are included only when the user enables that
 privacy option in Settings.
 
+Hook commands call a small architecture-specific native sender bundled with
+the app and copied into the managed plugin. Recipients do not need to install
+Node.js. The sender is silent when the pet is not running and never opens a
+network connection.
+
 ## Pet behavior
 
 | Task state | Pet behavior |
@@ -57,6 +62,10 @@ to the pet's private application-data directory, runs `codex plugin marketplace
 add` and `codex plugin add`, then reports the verified CLI status. This is local
 only and does not need an API key. A new Codex task and one `/hooks` review are
 still required by Codex's hook trust boundary.
+
+Settings presents these separately: Codex found, plugin installed, Hook trusted,
+and a real task event received. A past event is shown as a verification time,
+not as a permanent live-connection claim.
 
 If the Codex desktop app is present but its CLI is not discoverable, the same
 button prepares the local marketplace and opens the plugin's `codex://` install

@@ -16,6 +16,10 @@ The settings window controls:
 - calendar, Codex and Claude Code integrations;
 - detected Codex/Claude plugin state and local one-click installation (Claude's
   first install opens a visible Terminal task and then updates Settings automatically);
+- separate progress for finding the tool, installing the plugin, authorizing or
+  loading its Hook, and receiving a real task event;
+- an independent receive switch: pausing reception does not pretend to uninstall
+  the plugin, and restoring reception does not require another installation;
 - whether task and calendar titles may be included in local status messages.
 
 Settings are schema-validated before writing. The app writes an atomic JSON
