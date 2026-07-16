@@ -27,6 +27,7 @@ test('loads the grass buddy pack with compositor-friendly standard actions', () 
   assert.equal(pack.manifest.defaultLanguagePack, 'grass-buddy-zh-CN');
   assert.equal(pack.manifest.size.height, 98);
   assert.match(pack.svg, /class="grass-body-shape"/);
+  assert.doesNotMatch(pack.svg, /grass-highlight/);
   assert.match(pack.svg, /class="eye eye-left"/);
   assert.equal(pack.styles.length, pack.manifest.styles.length);
 

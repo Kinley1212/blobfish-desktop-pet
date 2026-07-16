@@ -5,8 +5,7 @@
       <path class="leg leg-right" d="M 112 117 Q 112 132 123 140" />
     </g>
     <g class="grass-body">
-      <path class="grass-body-shape" d="M 17 116 L 7 89 Q 4 82 11 78 L 26 77 L 24 61 Q 23 54 31 56 L 45 58 L 42 41 Q 40 33 48 37 L 62 48 L 64 28 Q 64 19 72 25 L 85 40 L 92 13 Q 95 4 101 13 L 113 37 L 125 22 Q 131 15 135 25 L 142 46 L 155 35 Q 162 30 162 40 L 159 63 L 170 62 Q 176 62 172 70 L 159 88 L 166 113 Q 169 122 159 123 L 25 123 Q 20 123 17 116 Z" fill="#ced98c" stroke="#5b3a20" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
-      <path class="grass-highlight" d="M 50 48 Q 79 20 112 38" fill="none" stroke="#e1e8aa" stroke-width="5" stroke-linecap="round" opacity="0.55" />
+      <path class="grass-body-shape" d="M 22 120 L 8 92 Q 5 84 13 81 L 28 80 L 26 63 Q 25 56 33 58 L 47 60 L 44 42 Q 42 34 50 38 L 64 49 L 66 29 Q 66 20 74 26 L 86 41 L 93 13 Q 96 4 102 13 L 114 38 L 126 23 Q 132 16 136 26 L 143 47 L 156 36 Q 163 31 163 41 L 159 63 L 152 80 L 167 81 Q 175 84 172 92 L 158 120 Q 156 126 148 126 L 32 126 Q 24 126 22 120 Z" fill="#ced98c" stroke="#5b3a20" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
       <g class="grass-arms" fill="none" stroke="#5b3a20" stroke-width="7" stroke-linecap="round">
         <path class="arm arm-left" d="M 49 92 Q 52 110 63 110 Q 74 110 76 92" />
         <path class="arm arm-right" d="M 110 92 Q 111 110 123 110 Q 136 110 138 91" />
