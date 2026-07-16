@@ -26,7 +26,7 @@ for (const provider of ['codex', 'claude']) {
       assert.ok(result.summary, `${state} requires a summary`);
       assert.ok(result.instruction, `${state} requires an instruction`);
       assert.ok(result.primary.label, `${state} requires one primary label`);
-      assert.ok(['none', 'manage', 'verify', 'refresh', 'details'].includes(result.primary.action));
+      assert.ok(['none', 'manage', 'update', 'verify', 'refresh', 'details'].includes(result.primary.action));
       assert.equal(typeof result.primary.disabled, 'boolean');
     }
   });
@@ -44,6 +44,19 @@ test('a managed plugin asks for verification instead of repair', () => {
   const result = describeAgentIntegration('claude', { state: 'connected', version: '0.2.0' });
   assert.equal(result.verdict, '等待验证');
   assert.deepEqual(result.primary, { action: 'verify', label: '开始验证', disabled: false });
+});
+
+test('an outdated live plugin asks for one-click update before claiming no action is needed', () => {
+  const result = describeAgentIntegration('codex', {
+    state: 'connected',
+    health: 'active',
+    version: '0.2.0',
+    bundledVersion: '0.2.1',
+    updateAvailable: true,
+  });
+  assert.equal(result.verdict, '需要更新');
+  assert.deepEqual(result.primary, { action: 'update', label: '一键更新连接', disabled: false });
+  assert.match(result.instruction, /新开的任务会显示任务标题/);
 });
 
 test('live and waiting health override lower-level plugin states', () => {

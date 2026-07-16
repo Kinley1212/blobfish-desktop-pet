@@ -3,7 +3,20 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { IntegrationManager, findExecutable, runCommand, shellQuote } = require('../src/core/integration-manager');
+const {
+  comparePluginVersions,
+  IntegrationManager,
+  findExecutable,
+  runCommand,
+  shellQuote,
+} = require('../src/core/integration-manager');
+
+test('compares connector versions without treating build metadata as a newer release', () => {
+  assert.ok(comparePluginVersions('0.2.0', '0.2.1') < 0);
+  assert.equal(comparePluginVersions('0.2.1+codex.1', '0.2.1+codex.2'), 0);
+  assert.ok(comparePluginVersions('1.0.0', '0.2.1') > 0);
+  assert.equal(comparePluginVersions('unknown', '0.2.1'), null);
+});
 
 function createResources(root, providerDirectory) {
   const source = path.join(root, providerDirectory);

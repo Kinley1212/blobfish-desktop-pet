@@ -10,6 +10,17 @@ function describeAgentIntegration(provider, result = {}, options = {}) {
   const version = result.version ? ` v${result.version}` : '';
   const lastEventLabel = options.lastEventLabel || '刚刚';
 
+  if (result.updateAvailable) {
+    const targetVersion = result.bundledVersion ? ` v${result.bundledVersion}` : '';
+    return {
+      verdict: '需要更新',
+      verdictState: 'disconnected',
+      summary: `连接插件${version}可更新至${targetVersion || '最新版'}`,
+      instruction: '点击下面的按钮即可一键更新；完成后新开的任务会显示任务标题。',
+      primary: { action: 'update', label: '一键更新连接', disabled: false },
+    };
+  }
+
   if (health === 'active') {
     return {
       verdict: '已连接',

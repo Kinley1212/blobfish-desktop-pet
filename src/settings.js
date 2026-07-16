@@ -288,6 +288,9 @@ async function runPrimaryAgentAction(provider) {
     case 'manage':
       await manageAgentIntegration(provider);
       break;
+    case 'update':
+      await manageAgentIntegration(provider, true);
+      break;
     case 'verify':
       await testAgentIntegration(provider);
       break;

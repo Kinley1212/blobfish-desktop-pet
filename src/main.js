@@ -6,7 +6,7 @@ const { BatteryThresholdTracker, readMacBattery } = require('./core/battery-moni
 const { CalendarService } = require('./core/calendar-service');
 const { ConnectionHealthTracker } = require('./core/connection-health');
 const { ConfigStore, DEFAULT_CONFIG, validateConfig } = require('./core/config-store');
-const { IntegrationManager, PLUGIN_NAME } = require('./core/integration-manager');
+const { comparePluginVersions, IntegrationManager, PLUGIN_NAME } = require('./core/integration-manager');
 const { loadCharacterPack } = require('./core/pack-loader');
 const { loadLanguagePack } = require('./core/language-pack-loader');
 const { calculateVerticalPlacement } = require('./core/pet-boundary');
@@ -1223,7 +1223,10 @@ async function disconnectAgentIntegration(provider) {
 async function inspectAgentIntegration(provider) {
   const result = await integrationManager.inspect(provider);
   if (result.state === 'error') reportRuntimeError(`${provider} connection check`, result.error || 'unknown error');
-  return connectionHealth.decorate(provider, result);
+  const bundledVersion = integrationManager.getBundledVersion(provider);
+  const updateAvailable = result.state === 'connected'
+    && comparePluginVersions(result.version, bundledVersion) < 0;
+  return connectionHealth.decorate(provider, { ...result, bundledVersion, updateAvailable });
 }
 
 async function testAgentIntegration(provider) {

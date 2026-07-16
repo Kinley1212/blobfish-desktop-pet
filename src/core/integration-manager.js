@@ -15,16 +15,32 @@ const PROVIDERS = Object.freeze({
   codex: Object.freeze({
     cliName: 'codex',
     resourceDirectory: 'codex',
+    manifestPath: ['plugins', PLUGIN_NAME, '.codex-plugin', 'plugin.json'],
     listPluginsArgs: ['plugin', 'list', '--json'],
     listMarketplacesArgs: ['plugin', 'marketplace', 'list', '--json'],
   }),
   claude: Object.freeze({
     cliName: 'claude',
     resourceDirectory: 'claude-code',
+    manifestPath: [PLUGIN_NAME, '.claude-plugin', 'plugin.json'],
     listPluginsArgs: ['plugin', 'list', '--json'],
     listMarketplacesArgs: ['plugin', 'marketplace', 'list', '--json'],
   }),
 });
+
+function comparePluginVersions(left, right) {
+  const parse = (value) => {
+    const match = String(value || '').match(/^(\d+)\.(\d+)\.(\d+)/);
+    return match ? match.slice(1).map(Number) : null;
+  };
+  const leftParts = parse(left);
+  const rightParts = parse(right);
+  if (!leftParts || !rightParts) return null;
+  for (let index = 0; index < 3; index += 1) {
+    if (leftParts[index] !== rightParts[index]) return leftParts[index] - rightParts[index];
+  }
+  return 0;
+}
 
 function assertProvider(provider) {
   if (!Object.prototype.hasOwnProperty.call(PROVIDERS, provider)) {
@@ -164,6 +180,16 @@ class IntegrationManager {
       environment: this.environment,
       ...commandOptions,
     }));
+  }
+
+  getBundledVersion(provider) {
+    const definition = assertProvider(provider);
+    const manifest = readOptionalJson(
+      path.join(this.resourcesRoot, definition.resourceDirectory, ...definition.manifestPath),
+      `${definition.cliName} 内置插件清单`,
+    );
+    if (!manifest?.version) throw new Error(`${definition.cliName} 内置插件缺少版本号`);
+    return String(manifest.version);
   }
 
   async readPlugins(provider, cliPath) {
@@ -539,6 +565,7 @@ class IntegrationManager {
 }
 
 module.exports = {
+  comparePluginVersions,
   IntegrationManager,
   LEGACY_PLUGIN_SELECTORS,
   MARKETPLACE_NAME,
