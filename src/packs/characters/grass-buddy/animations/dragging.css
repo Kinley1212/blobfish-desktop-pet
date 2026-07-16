@@ -1,0 +1,31 @@
+#pet.dragging {
+  cursor: grabbing;
+  animation: none;
+}
+
+#pet.dragging .grass-body {
+  animation: grass-buddy-drag-body 1.6s infinite ease-in-out;
+}
+
+#pet.dragging .leg-left {
+  animation: grass-buddy-dangle-left 0.9s infinite ease-in-out;
+}
+
+#pet.dragging .leg-right {
+  animation: grass-buddy-dangle-right 0.9s infinite ease-in-out;
+}
+
+@keyframes grass-buddy-drag-body {
+  0%, 100% { transform: rotate(-1.5deg); }
+  50% { transform: rotate(1.5deg); }
+}
+
+@keyframes grass-buddy-dangle-left {
+  0%, 100% { transform: rotate(-5deg); }
+  50% { transform: rotate(8deg); }
+}
+
+@keyframes grass-buddy-dangle-right {
+  0%, 100% { transform: rotate(6deg); }
+  50% { transform: rotate(-7deg); }
+}

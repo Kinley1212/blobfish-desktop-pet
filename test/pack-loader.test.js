@@ -20,6 +20,25 @@ test('loads the bundled blobfish character pack', () => {
   }
 });
 
+test('loads the grass buddy pack with compositor-friendly standard actions', () => {
+  const pack = loadCharacterPack(charactersRoot, 'grass-buddy');
+
+  assert.equal(pack.manifest.displayName, '小草团');
+  assert.equal(pack.manifest.defaultLanguagePack, 'grass-buddy-zh-CN');
+  assert.match(pack.svg, /class="grass-body-shape"/);
+  assert.match(pack.svg, /class="eye eye-left"/);
+  assert.equal(pack.styles.length, pack.manifest.styles.length);
+
+  const animationCss = pack.styles.map((style) => style.css).join('\n');
+  for (const action of REQUIRED_ACTIONS) {
+    assert.equal(pack.manifest.actions[action], action);
+  }
+  assert.doesNotMatch(animationCss, /(?:^|[;{]\s*)(?:margin|top|right|bottom|left|width|height)\s*:/m);
+  assert.match(animationCss, /grass-buddy-walk/);
+  assert.match(animationCss, /grass-buddy-working/);
+  assert.match(animationCss, /grass-buddy-exit/);
+});
+
 test('rejects invalid ids and paths outside the pack root', () => {
   assert.throws(() => loadCharacterPack(charactersRoot, '../blobfish'), /Invalid character pack id/);
   assert.throws(() => assertInside(charactersRoot, '../outside'), /escapes its root/);

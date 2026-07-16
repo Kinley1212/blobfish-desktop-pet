@@ -1,0 +1,28 @@
+#pet.is-success {
+  animation: grass-buddy-success 0.72s cubic-bezier(0.2, 0.75, 0.3, 1);
+}
+
+#pet.is-success .arm-left {
+  animation: grass-buddy-success-left 0.72s ease-in-out;
+}
+
+#pet.is-success .arm-right {
+  animation: grass-buddy-success-right 0.72s ease-in-out;
+}
+
+@keyframes grass-buddy-success {
+  0%, 100% { transform: translateX(-50%) scaleX(var(--dir)) translateY(0) scaleY(1); }
+  20% { transform: translateX(-50%) scaleX(var(--dir)) translateY(2px) scaleY(0.94); }
+  52% { transform: translateX(-50%) scaleX(var(--dir)) translateY(-14px) scaleY(1.04); }
+  76% { transform: translateX(-50%) scaleX(var(--dir)) translateY(1px) scaleY(0.98); }
+}
+
+@keyframes grass-buddy-success-left {
+  0%, 100% { transform: rotate(0deg); }
+  35%, 70% { transform: rotate(-18deg) translateY(-5px); }
+}
+
+@keyframes grass-buddy-success-right {
+  0%, 100% { transform: rotate(0deg); }
+  35%, 70% { transform: rotate(18deg) translateY(-5px); }
+}
