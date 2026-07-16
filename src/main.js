@@ -14,6 +14,7 @@ const { PhraseEngine } = require('./core/phrase-engine');
 const { getScheduleReminder, isInQuietHours } = require('./core/reminder-scheduler');
 const { RuntimeErrorNotifier } = require('./core/runtime-error-notifier');
 const { SpeechQueue } = require('./core/speech-queue');
+const { SPEECH_DURATION_MS } = require('./core/speech-timing');
 const { formatProviderTaskSummary } = require('./core/task-menu-summary');
 const { getCurrentTaskStatus, getTerminalTaskStatus } = require('./core/task-status-presenter');
 const { TaskTracker } = require('./core/task-tracker');
@@ -857,13 +858,13 @@ function scheduleIdleChatter() {
       const rareEvent = dateContext.hour <= 4 ? 'rare.lateNight' : 'rare.friday';
       usedRareLine = speak(rareEvent, dateContext, {
         priority: SPEECH_PRIORITY.idle,
-        durationMs: 4500,
+        durationMs: SPEECH_DURATION_MS.idleChatter,
       });
     }
     if (!usedRareLine) {
       speak('idle.chatter', dateContext, {
         priority: SPEECH_PRIORITY.idle,
-        durationMs: 4000,
+        durationMs: SPEECH_DURATION_MS.idleChatter,
         replaceKey: 'idle.chatter',
       });
     }
@@ -1021,7 +1022,7 @@ function handleTaskTransition(transition) {
   };
   const speechOptions = {
     priority: SPEECH_PRIORITY.agent,
-    durationMs: 4800,
+    durationMs: SPEECH_DURATION_MS.agentLifecycle,
   };
 
   if (transition.type === 'started') {
@@ -1029,7 +1030,7 @@ function handleTaskTransition(transition) {
   } else if (transition.type === 'needsInput') {
     speak('agent.needsInput', context, {
       priority: SPEECH_PRIORITY.urgent,
-      durationMs: 7000,
+      durationMs: SPEECH_DURATION_MS.agentLifecycle,
       replaceKey: 'agent.needsInput',
       allowDuringQuiet: true,
       action: 'waiting',
@@ -1039,7 +1040,6 @@ function handleTaskTransition(transition) {
   } else if (transition.type === 'allCompleted') {
     speak('agent.allCompleted', context, {
       ...speechOptions,
-      durationMs: 6000,
       replaceKey: 'agent.allCompleted',
       action: 'success',
     });
@@ -1048,13 +1048,12 @@ function handleTaskTransition(transition) {
   } else if (transition.type === 'allEnded') {
     speak('agent.allEnded', context, {
       ...speechOptions,
-      durationMs: 6000,
       replaceKey: 'agent.allEnded',
     });
   } else if (transition.type === 'failed') {
     speak('agent.failed', context, {
       priority: SPEECH_PRIORITY.urgent,
-      durationMs: 7000,
+      durationMs: SPEECH_DURATION_MS.agentLifecycle,
       replaceKey: 'agent.failed',
       allowDuringQuiet: true,
       action: 'failed',
