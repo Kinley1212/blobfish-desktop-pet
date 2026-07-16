@@ -1,15 +1,13 @@
 const pet = document.getElementById('pet');
 const bubble = document.getElementById('bubble');
 const taskBubble = document.getElementById('task-bubble');
-const taskStatusIcon = document.getElementById('task-status-icon');
-const taskTitle = document.getElementById('task-title');
-const taskCount = document.getElementById('task-count');
 
 const VELOCITY_WINDOW_MS = 300;
 const BLINK_MIN_MS = 3500;
 const BLINK_MAX_MS = 9000;
 const BLINK_DURATION_MS = 180;
 const DOUBLE_BLINK_CHANCE = 0.12;
+const TASK_ROTATION_MS = 2200;
 // Minimum cumulative pointer movement (px) before a press-and-move counts as
 // a drag. Below this it's treated as a click even if the hand wasn't
 // perfectly still between mousedown and mouseup.
@@ -20,8 +18,13 @@ const STILL_THRESHOLD_MS = 60;
 
 let bubbleTimer = null;
 let taskStatusTimer = null;
+let taskRotationTimer = null;
 let terminalTaskStatusUntil = 0;
 let pendingTaskStatus;
+let taskCarouselItems = [];
+let currentTaskKey = null;
+let lastTaskStatusSignature = null;
+const taskCardNodes = new Map();
 let hitTimer = null;
 let bumpTimer = null;
 let dragging = false;
@@ -149,49 +152,174 @@ function applyAgentState(state) {
   pet.dataset.motion = allowedMotions.has(state.motion) ? state.motion : 'idle';
 }
 
+function isTerminalTaskState(state) {
+  return state === 'completed' || state === 'ended' || state === 'failed';
+}
+
+function taskItemKey(item, index) {
+  if (typeof item?.taskKey === 'string' && item.taskKey) return item.taskKey;
+  return `${item?.provider || 'task'}:${item?.title || 'untitled'}:${index}`;
+}
+
+function normalizeTaskItems(status) {
+  if (!status) return [];
+  const source = Array.isArray(status.items) && status.items.length ? status.items : [status];
+  const seen = new Set();
+  return source.flatMap((item, index) => {
+    if (!item || typeof item.title !== 'string') return [];
+    const state = ['running', 'waiting', 'ended', 'completed', 'failed'].includes(item.state)
+      ? item.state
+      : 'running';
+    const taskKey = taskItemKey(item, index);
+    if (seen.has(taskKey)) return [];
+    seen.add(taskKey);
+    return [{
+      taskKey,
+      state,
+      title: item.title.trim().slice(0, 120),
+      provider: item.provider,
+    }];
+  }).filter((item) => item.title);
+}
+
+function taskStatusSignature(status, items) {
+  if (!status) return 'none';
+  return JSON.stringify({
+    taskKey: taskItemKey(status, 0),
+    state: status.state,
+    title: status.title,
+    items: items.map(({ taskKey, state, title }) => [taskKey, state, title]),
+  });
+}
+
+function createTaskCard(taskKey) {
+  const card = document.createElement('div');
+  card.className = 'task-card';
+  card.dataset.depth = 'hidden';
+  card.dataset.taskKey = taskKey;
+
+  const icon = document.createElement('span');
+  icon.className = 'task-status-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  const title = document.createElement('span');
+  title.className = 'task-title';
+  const count = document.createElement('span');
+  count.className = 'task-count';
+  count.hidden = true;
+  card.append(icon, title, count);
+  taskBubble.append(card);
+  taskCardNodes.set(taskKey, card);
+  return card;
+}
+
+function updateTaskCard(card, item, depth, hiddenCount) {
+  card.dataset.state = item.state;
+  card.dataset.depth = depth > 2 ? 'hidden' : String(depth);
+  card.setAttribute('aria-hidden', depth === 0 ? 'false' : 'true');
+  card.querySelector('.task-title').textContent = item.title;
+  card.querySelector('.task-status-icon').textContent = item.state === 'completed'
+    ? '✓'
+    : item.state === 'ended'
+      ? '•'
+      : item.state === 'failed'
+        ? '!'
+        : item.state === 'waiting'
+          ? '…'
+          : '';
+  const count = card.querySelector('.task-count');
+  count.hidden = depth !== 0 || hiddenCount === 0;
+  count.textContent = depth === 0 && hiddenCount ? `+${hiddenCount}` : '';
+}
+
+function renderTaskCarousel() {
+  clearTimeout(taskRotationTimer);
+  if (taskCarouselItems.length === 0) {
+    taskBubble.dataset.visible = 'false';
+    taskBubble.removeAttribute('aria-label');
+    document.body.classList.remove('has-task-bubble');
+    for (const card of taskCardNodes.values()) card.remove();
+    taskCardNodes.clear();
+    currentTaskKey = null;
+    return;
+  }
+
+  let frontIndex = taskCarouselItems.findIndex((item) => item.taskKey === currentTaskKey);
+  if (frontIndex < 0) frontIndex = 0;
+  currentTaskKey = taskCarouselItems[frontIndex].taskKey;
+  const activeKeys = new Set(taskCarouselItems.map((item) => item.taskKey));
+  for (const [taskKey, card] of taskCardNodes) {
+    if (!activeKeys.has(taskKey)) {
+      card.remove();
+      taskCardNodes.delete(taskKey);
+    }
+  }
+
+  const hiddenCount = Math.max(0, taskCarouselItems.length - 3);
+  taskCarouselItems.forEach((item, index) => {
+    const depth = (index - frontIndex + taskCarouselItems.length) % taskCarouselItems.length;
+    const card = taskCardNodes.get(item.taskKey) || createTaskCard(item.taskKey);
+    updateTaskCard(card, item, depth, hiddenCount);
+  });
+
+  const front = taskCarouselItems[frontIndex];
+  const stateLabel = front.state === 'running'
+    ? '进行中'
+    : front.state === 'waiting'
+      ? '等待确认'
+      : front.state === 'completed'
+        ? '已完成'
+        : front.state === 'ended'
+          ? '已结束'
+          : '失败';
+  taskBubble.dataset.visible = 'true';
+  taskBubble.setAttribute('aria-label', `${front.title}：${stateLabel}`);
+  document.body.classList.add('has-task-bubble');
+
+  const hasWaitingTask = taskCarouselItems.some((item) => item.state === 'waiting');
+  if (taskCarouselItems.length > 1 && !hasWaitingTask && !isTerminalTaskState(front.state)) {
+    taskRotationTimer = setTimeout(() => {
+      const currentIndex = taskCarouselItems.findIndex((item) => item.taskKey === currentTaskKey);
+      currentTaskKey = taskCarouselItems[(currentIndex + 1) % taskCarouselItems.length].taskKey;
+      renderTaskCarousel();
+    }, TASK_ROTATION_MS);
+  }
+}
+
 function renderTaskStatus(status, options = {}) {
-  const terminalIncoming = status?.state === 'completed' || status?.state === 'ended' || status?.state === 'failed';
-  if (!options.force && !terminalIncoming && Date.now() < terminalTaskStatusUntil) {
+  const items = normalizeTaskItems(status);
+  const signature = taskStatusSignature(status, items);
+  const requestedTaskKey = items.find((item) => item.taskKey === status?.taskKey)?.taskKey
+    || items[0]?.taskKey
+    || null;
+  if (!options.force && signature === lastTaskStatusSignature && requestedTaskKey === currentTaskKey) return;
+
+  const terminalIncoming = isTerminalTaskState(status?.state);
+  const current = taskCarouselItems.find((item) => item.taskKey === currentTaskKey);
+  const failedStatusIsProtected = current?.state === 'failed' && Date.now() < terminalTaskStatusUntil;
+  if (!options.force && failedStatusIsProtected && !terminalIncoming && status?.state !== 'waiting') {
     pendingTaskStatus = status;
     return;
   }
+
   clearTimeout(taskStatusTimer);
-  const allowedStates = new Set(['running', 'waiting', 'ended', 'completed', 'failed']);
-  if (!status || !allowedStates.has(status.state) || typeof status.title !== 'string') {
-    taskBubble.dataset.visible = 'false';
-    document.body.classList.remove('has-task-bubble');
-    return;
-  }
+  clearTimeout(taskRotationTimer);
+  terminalTaskStatusUntil = 0;
+  pendingTaskStatus = undefined;
+  lastTaskStatusSignature = signature;
+  taskCarouselItems = items;
 
-  const title = status.title.trim().slice(0, 120);
-  if (!title) {
-    taskBubble.dataset.visible = 'false';
-    document.body.classList.remove('has-task-bubble');
-    return;
-  }
+  const waitingItem = items.find((item) => item.state === 'waiting');
+  const currentWaitingItem = current?.state === 'waiting'
+    ? items.find((item) => item.taskKey === current.taskKey && item.state === 'waiting')
+    : null;
+  currentTaskKey = status?.state === 'waiting' || status?.state === 'failed'
+    ? requestedTaskKey
+    : currentWaitingItem?.taskKey || waitingItem?.taskKey || requestedTaskKey;
+  renderTaskCarousel();
 
-  taskBubble.dataset.state = status.state;
-  taskBubble.dataset.visible = 'true';
-  taskTitle.textContent = title;
-  taskStatusIcon.textContent = status.state === 'completed'
-    ? '✓'
-    : status.state === 'ended'
-      ? '•'
-    : status.state === 'failed'
-      ? '!'
-      : status.state === 'waiting'
-        ? '…'
-        : '';
-  const additionalCount = Math.max(0, Math.floor(Number(status.additionalCount) || 0));
-  taskCount.hidden = additionalCount === 0;
-  taskCount.textContent = additionalCount ? `+${additionalCount}` : '';
-  taskBubble.setAttribute('aria-label', `${title}：${status.state === 'running' ? '进行中' : status.state === 'waiting' ? '等待确认' : status.state === 'completed' ? '已完成' : status.state === 'ended' ? '已结束' : '失败'}`);
-  document.body.classList.add('has-task-bubble');
-
-  if (status.state === 'completed' || status.state === 'ended' || status.state === 'failed') {
+  if (terminalIncoming) {
     const durationMs = status.state === 'failed' ? 3600 : 2800;
     terminalTaskStatusUntil = Date.now() + durationMs;
-    pendingTaskStatus = undefined;
     taskStatusTimer = setTimeout(() => {
       terminalTaskStatusUntil = 0;
       const nextStatus = pendingTaskStatus !== undefined ? pendingTaskStatus : (status.next || null);
@@ -223,6 +351,7 @@ function triggerPetAction(message = {}) {
   clearTimeout(bumpTimer);
   clearTimeout(speechActionTimer);
   clearTimeout(taskStatusTimer);
+  clearTimeout(taskRotationTimer);
   terminalTaskStatusUntil = 0;
   pendingTaskStatus = undefined;
   renderTaskStatus(null, { force: true });

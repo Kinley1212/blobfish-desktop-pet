@@ -9,6 +9,7 @@ function presentTask(task, state, activeCount, includeTaskTitles) {
     ? task.title.trim()
     : PROVIDER_LABELS[task.provider] || '正在处理任务';
   return {
+    taskKey: task.key,
     state,
     title,
     provider: task.provider,
@@ -18,20 +19,30 @@ function presentTask(task, state, activeCount, includeTaskTitles) {
 
 function getCurrentTaskStatus(tasks, includeTaskTitles) {
   if (!Array.isArray(tasks) || tasks.length === 0) return null;
-  const latest = [...tasks].sort((left, right) => (
+  const ordered = [...tasks].sort((left, right) => (
     (Number(right.updatedAt) || 0) - (Number(left.updatedAt) || 0)
-  ))[0];
-  const state = latest.state === 'waiting' ? 'waiting' : 'running';
-  return presentTask(latest, state, tasks.length, includeTaskTitles);
+  ));
+  const items = ordered.map((task) => presentTask(
+    task,
+    task.state === 'waiting' ? 'waiting' : 'running',
+    ordered.length,
+    includeTaskTitles,
+  ));
+  return {
+    ...items[0],
+    items,
+  };
 }
 
 function getTerminalTaskStatus(task, state, remainingTasks, includeTaskTitles) {
   const tasks = Array.isArray(remainingTasks) ? remainingTasks : [];
   const terminal = presentTask(task, state, tasks.length + 1, includeTaskTitles);
   if (!terminal) return getCurrentTaskStatus(tasks, includeTaskTitles);
+  const next = getCurrentTaskStatus(tasks, includeTaskTitles);
   return {
     ...terminal,
-    next: getCurrentTaskStatus(tasks, includeTaskTitles),
+    items: [terminal, ...(next?.items || [])],
+    next,
   };
 }
 
