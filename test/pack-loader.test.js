@@ -17,6 +17,21 @@ test('loads the bundled blobfish character pack', () => {
   assert.ok(pack.manifest.styles.includes('animations/exit.css'));
   assert.equal(pack.settingsCopy.pageTitle, '水滴鱼');
   assert.equal(pack.settingsCopy.windowTitle, '水滴鱼设置');
+  const animationCss = pack.styles.map((style) => style.css).join('\n');
+  assert.match(animationCss, /@keyframes blobfish-swim[\s\S]*translate: 0 -5px/);
+  assert.doesNotMatch(
+    animationCss,
+    /@keyframes blobfish-swim[\s\S]*margin-bottom/,
+    'top-positioned pets need a real vertical translation instead of the legacy bottom margin',
+  );
+  for (const motion of ['idle', 'roam', 'working']) {
+    assert.match(
+      animationCss,
+      new RegExp(`#pet\\[data-motion="${motion}"\\][\\s\\S]*?animation: blobfish-swim 0\\.9s`),
+      `${motion} should preserve the original 1.0 swim bob`,
+    );
+  }
+  assert.match(animationCss, /blobfish-swim 0\.9s infinite ease-in-out,[\s\S]*blobfish-waiting-sway/);
   for (const action of REQUIRED_ACTIONS) {
     assert.equal(typeof pack.manifest.actions[action], 'string');
   }

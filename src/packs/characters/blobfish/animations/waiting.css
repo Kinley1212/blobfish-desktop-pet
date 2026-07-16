@@ -1,8 +1,10 @@
 #pet[data-motion="waiting"] {
-  animation: blobfish-waiting 2.2s infinite ease-in-out;
+  animation:
+    blobfish-swim 0.9s infinite ease-in-out,
+    blobfish-waiting-sway 2.2s infinite ease-in-out;
 }
 
-@keyframes blobfish-waiting {
-  0%, 100% { margin-bottom: 0; }
-  50% { margin-bottom: 1px; transform: translateX(-50%) scaleX(var(--dir)) rotate(-2deg); }
+@keyframes blobfish-waiting-sway {
+  0%, 100% { transform: translateX(-50%) scaleX(var(--dir)) rotate(0); }
+  50% { transform: translateX(-50%) scaleX(var(--dir)) rotate(-2deg); }
 }
