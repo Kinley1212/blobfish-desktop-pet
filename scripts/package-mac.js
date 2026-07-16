@@ -2,8 +2,11 @@ const { execFileSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { Arch, Platform, build } = require('electron-builder');
+const packageManifest = require('../package.json');
 
 const root = path.join(__dirname, '..');
+const releaseVersion = packageManifest.version.split('.').slice(0, 2).join('.');
+const productName = `水滴鱼${releaseVersion}`;
 const architecture = process.argv[2];
 if (process.platform !== 'darwin') {
   throw new Error('macOS packages must be built on macOS');
@@ -16,7 +19,7 @@ const archValue = architecture === 'arm64' ? Arch.arm64 : Arch.x64;
 const outputDirectory = path.join(root, 'release', architecture);
 const helperPath = path.join(root, 'native', 'build', architecture, 'blobfish-calendar-helper');
 const iconPath = path.join(root, 'src', 'packs', 'characters', 'blobfish', 'art', 'character.svg');
-const zipPath = path.join(root, 'release', `水滴鱼2.0-macOS-${architecture}.zip`);
+const zipPath = path.join(root, 'release', `${productName}-macOS-${architecture}.zip`);
 const legacyZipPath = path.join(root, 'release', `BlobfishDesktopPet-macOS-${architecture}.zip`);
 
 function findAppBundle(directory) {
@@ -57,7 +60,7 @@ async function main() {
     targets: Platform.MAC.createTarget('dir', archValue),
     config: {
       appId: 'com.blobfish.desktop-pet',
-      productName: '水滴鱼2.0',
+      productName,
       electronVersion: '43.1.1',
       asar: true,
       npmRebuild: false,

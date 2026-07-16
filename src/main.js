@@ -17,9 +17,12 @@ const { SpeechQueue } = require('./core/speech-queue');
 const { formatProviderTaskSummary } = require('./core/task-menu-summary');
 const { getCurrentTaskStatus, getTerminalTaskStatus } = require('./core/task-status-presenter');
 const { TaskTracker } = require('./core/task-tracker');
+const { version: appVersion } = require('../package.json');
 
 const userDataRoot = app.getPath('appData');
-app.setName('水滴鱼2.0');
+const appRelease = appVersion.split('.').slice(0, 2).join('.');
+const appDisplayName = `水滴鱼${appRelease}`;
+app.setName(appDisplayName);
 app.setPath('userData', path.join(userDataRoot, 'BlobfishDesktopPet'));
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
@@ -327,7 +330,7 @@ function buildPetMenuTemplate() {
       },
     },
     { type: 'separator' },
-    { label: '退出水滴鱼2.0', click: () => requestQuit() },
+    { label: `退出${appDisplayName}`, click: () => requestQuit() },
   ];
 }
 
@@ -339,7 +342,7 @@ function rebuildTrayMenu() {
 function createTray() {
   tray = new Tray(nativeImage.createEmpty());
   tray.setTitle('🐟');
-  tray.setToolTip('水滴鱼2.0');
+  tray.setToolTip(appDisplayName);
   rebuildTrayMenu();
 }
 
@@ -350,7 +353,7 @@ function createApplicationMenu() {
       submenu: [
         { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => createSettingsWindow() },
         { type: 'separator' },
-        { label: '退出水滴鱼2.0', accelerator: 'CmdOrCtrl+Q', click: () => requestQuit() },
+        { label: `退出${appDisplayName}`, accelerator: 'CmdOrCtrl+Q', click: () => requestQuit() },
       ],
     },
     { role: 'editMenu' },
