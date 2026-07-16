@@ -45,11 +45,12 @@ test('loads the grass buddy pack with compositor-friendly standard actions', () 
   assert.ok(Number.isFinite(mouthY) && Number.isFinite(leftArmY));
   assert.ok(leftArmY - mouthY >= 15, 'mouth and arms need clear vertical spacing');
 
-  assert.match(pack.svg, /M 85 13 Q 93 14 100 18/, 'top silhouette should follow the supplied reference');
-  assert.match(pack.svg, /L 150 78 L 172 75 Q 176 75 172 82 L 160 90/, 'right side tuft should follow the supplied reference');
-  assert.match(pack.svg, /L 28 95 L 8 74 Q 4 72 8 72 L 31 73 L 33 46/, 'left side tuft should follow the supplied reference');
-  assert.match(pack.svg, /L 42 125 Q 38 125 36 120/, 'body should keep the reference image\'s broad, nearly flat base');
-  assert.match(pack.svg, /stroke-width="5\.5"/, 'body outline should retain the reference image\'s lighter line weight');
+  assert.match(pack.svg, /class="grass-outline"/, 'body should preserve the reference image\'s irregular outer line weight');
+  assert.match(pack.svg, /class="grass-fill"/, 'body should preserve the reference image\'s inner fill contour');
+  assert.match(pack.svg, /M 82\.8 8 L 94\.5 9\.5 L 104\.3 15\.7/, 'top silhouette should follow the supplied reference');
+  assert.match(pack.svg, /L 162\.1 70\.4 L 171\.1 70\.4 L 175 73\.1/, 'right side tuft should follow the supplied reference');
+  assert.match(pack.svg, /L 5\.4 75\.8 L 5 70\.7 L 10\.9 66\.9 L 28\.4 67\.6/, 'left side tuft should follow the supplied reference');
+  assert.doesNotMatch(pack.svg, /stroke-width="5\.5"/, 'body should not flatten the hand-drawn outline into one fixed stroke width');
 });
 
 test('rejects invalid ids and paths outside the pack root', () => {
