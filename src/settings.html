@@ -97,8 +97,8 @@
         <p>默认只接收状态元数据，不读取提示词、对话或代码内容。</p>
       </div>
       <div class="checks">
-        <label><input id="integration-codex" type="checkbox" /> Codex 任务状态</label>
-        <label><input id="integration-claude" type="checkbox" /> Claude Code 任务状态</label>
+        <label><input id="integration-codex" type="checkbox" /> 连接后接收 Codex 状态</label>
+        <label><input id="integration-claude" type="checkbox" /> 连接后接收 Claude Code 状态</label>
         <label><input id="integration-calendar" type="checkbox" /> macOS 日历提醒</label>
         <label><input id="privacy-task-titles" type="checkbox" /> 允许显示任务标题</label>
         <label><input id="privacy-calendar-titles" type="checkbox" /> 允许显示日历标题</label>
@@ -114,19 +114,22 @@
             </div>
             <p id="codex-install-status">正在检测插件…</p>
           </div>
-          <ol class="connection-steps" aria-label="Codex 连接进度">
-            <li id="codex-stage-cli" data-state="pending"><span>1</span><div><strong>找到 Codex</strong><small>正在检测…</small></div></li>
-            <li id="codex-stage-plugin" data-state="pending"><span>2</span><div><strong>状态插件</strong><small>正在检测…</small></div></li>
-            <li id="codex-stage-live" data-state="pending"><span>3</span><div><strong>真实任务事件</strong><small>尚未验证</small></div></li>
-          </ol>
-          <div class="connection-actions">
-            <button id="connect-codex" class="secondary compact" type="button">检测中…</button>
-            <button id="test-codex" class="secondary compact" type="button" disabled>测试连接</button>
-            <button id="disconnect-codex" class="text-button danger" type="button" disabled>断开</button>
+          <div class="connection-guidance">
+            <strong>下一步</strong>
+            <p id="codex-next-step">检测完成后，这里会告诉你怎么做。</p>
           </div>
-          <p class="connection-note">安装后新开一个 Codex 任务，并在 <code>/hooks</code> 中审查一次。</p>
-          <details class="connection-details">
-            <summary>技术详情</summary>
+          <button id="connect-codex" class="connection-primary" type="button" disabled>正在检测…</button>
+          <details id="codex-connection-details" class="connection-details">
+            <summary>连接详情与其他操作</summary>
+            <ol class="connection-steps" aria-label="Codex 连接进度">
+              <li id="codex-stage-cli" data-state="pending"><span>1</span><div><strong>找到 Codex</strong><small>正在检测…</small></div></li>
+              <li id="codex-stage-plugin" data-state="pending"><span>2</span><div><strong>状态插件</strong><small>正在检测…</small></div></li>
+              <li id="codex-stage-live" data-state="pending"><span>3</span><div><strong>真实任务事件</strong><small>尚未验证</small></div></li>
+            </ol>
+            <div class="connection-actions">
+              <button id="repair-codex" class="secondary compact" type="button" disabled>修复 / 更新</button>
+              <button id="disconnect-codex" class="text-button danger" type="button" disabled>断开连接</button>
+            </div>
             <p id="codex-technical-details">尚无</p>
           </details>
         </article>
@@ -138,19 +141,22 @@
             </div>
             <p id="claude-install-status">正在检测插件…</p>
           </div>
-          <ol class="connection-steps" aria-label="Claude Code 连接进度">
-            <li id="claude-stage-cli" data-state="pending"><span>1</span><div><strong>找到 Claude Code</strong><small>正在检测…</small></div></li>
-            <li id="claude-stage-plugin" data-state="pending"><span>2</span><div><strong>状态插件</strong><small>正在检测…</small></div></li>
-            <li id="claude-stage-live" data-state="pending"><span>3</span><div><strong>真实任务事件</strong><small>尚未验证</small></div></li>
-          </ol>
-          <div class="connection-actions">
-            <button id="connect-claude" class="secondary compact" type="button">检测中…</button>
-            <button id="test-claude" class="secondary compact" type="button" disabled>测试连接</button>
-            <button id="disconnect-claude" class="text-button danger" type="button" disabled>断开</button>
+          <div class="connection-guidance">
+            <strong>下一步</strong>
+            <p id="claude-next-step">检测完成后，这里会告诉你怎么做。</p>
           </div>
-          <p class="connection-note">安装后重新打开 Claude Code 会话即可。</p>
-          <details class="connection-details">
-            <summary>技术详情</summary>
+          <button id="connect-claude" class="connection-primary" type="button" disabled>正在检测…</button>
+          <details id="claude-connection-details" class="connection-details">
+            <summary>连接详情与其他操作</summary>
+            <ol class="connection-steps" aria-label="Claude Code 连接进度">
+              <li id="claude-stage-cli" data-state="pending"><span>1</span><div><strong>找到 Claude Code</strong><small>正在检测…</small></div></li>
+              <li id="claude-stage-plugin" data-state="pending"><span>2</span><div><strong>状态插件</strong><small>正在检测…</small></div></li>
+              <li id="claude-stage-live" data-state="pending"><span>3</span><div><strong>真实任务事件</strong><small>尚未验证</small></div></li>
+            </ol>
+            <div class="connection-actions">
+              <button id="repair-claude" class="secondary compact" type="button" disabled>修复 / 更新</button>
+              <button id="disconnect-claude" class="text-button danger" type="button" disabled>断开连接</button>
+            </div>
             <p id="claude-technical-details">尚无</p>
           </details>
         </article>
@@ -164,6 +170,7 @@
     </div>
     <p id="status" role="status" aria-live="polite"></p>
   </form>
+  <script src="core/integration-ui-model.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

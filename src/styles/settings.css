@@ -142,10 +142,8 @@ input[type="range"] { width: 100%; accent-color: #6f9295; }
 .connection-card h3 { margin: 0; font-size: 12px; }
 .connection-card p { margin: 4px 0 0; color: #77716d; font-size: 10px; line-height: 1.45; }
 .connection-card p.error { color: #a04444; }
-.connection-card .connection-note { margin: 10px 0 0; }
-.connection-card code { font-size: 10px; }
 
-.connection-heading { min-height: 58px; }
+.connection-heading { min-height: 54px; }
 
 .connection-title-row {
   display: flex;
@@ -183,8 +181,45 @@ input[type="range"] { width: 100%; accent-color: #6f9295; }
   color: #914b4b;
 }
 
+.connection-guidance {
+  min-height: 74px;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(203, 197, 192, 0.72);
+}
+
+.connection-guidance > strong {
+  color: #4f4a47;
+  font-size: 10px;
+}
+
+.connection-guidance p { margin-top: 5px; color: #575250; }
+
+button.connection-primary {
+  width: 100%;
+  margin-top: 10px;
+}
+
+button.connection-primary[data-state="connected"]:disabled {
+  border-color: #6f9295;
+  background: #e2eeee;
+  color: #446d70;
+  cursor: default;
+  opacity: 1;
+}
+
+button.connection-primary[data-state="waiting"]:disabled {
+  border-color: #b69a74;
+  background: #f4e9d9;
+  color: #795f40;
+  cursor: default;
+  opacity: 1;
+}
+
 .connection-details {
-  margin-top: 8px;
+  margin-top: 10px;
   color: #77716d;
   font-size: 9px;
 }
