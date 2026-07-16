@@ -92,6 +92,56 @@ test('Claude local inspection reports a same-name plugin from another source as 
   }
 });
 
+test('Claude local inspection recognizes the verified 0.1 plugin as a legacy waterdrop-fish install', async () => {
+  const homeDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-claude-legacy-'));
+  const pluginId = 'blobfish-agent-bridge@blobfish-local';
+  const pluginRoot = path.join(homeDirectory, '.claude', 'plugins', 'cache', 'blobfish-local', 'blobfish-agent-bridge', '0.1.0');
+  fs.mkdirSync(path.join(pluginRoot, '.claude-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(homeDirectory, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { [pluginId]: true } }));
+  fs.writeFileSync(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({
+    name: 'blobfish-agent-bridge',
+    version: '0.1.0',
+    author: { name: 'Blobfish Desktop Pet' },
+  }));
+  const manager = new IntegrationManager({
+    resourcesRoot: '/unused',
+    dataRoot: '/unused',
+    homeDirectory,
+    locateCli: () => '/fake/claude',
+  });
+  try {
+    const result = await manager.inspect('claude');
+    assert.equal(result.state, 'legacy');
+    assert.equal(result.pluginId, pluginId);
+    assert.equal(result.version, '0.1.0');
+  } finally {
+    fs.rmSync(homeDirectory, { recursive: true, force: true });
+  }
+});
+
+test('Claude legacy selector without ownership metadata remains a conflict', async () => {
+  const homeDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-claude-unverified-'));
+  const pluginId = 'blobfish-agent-bridge@blobfish-local';
+  const pluginRoot = path.join(homeDirectory, '.claude', 'plugins', 'cache', 'blobfish-local', 'blobfish-agent-bridge', '0.1.0');
+  fs.mkdirSync(path.join(pluginRoot, '.claude-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(homeDirectory, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { [pluginId]: true } }));
+  fs.writeFileSync(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({
+    name: 'blobfish-agent-bridge',
+    version: '0.1.0',
+  }));
+  const manager = new IntegrationManager({
+    resourcesRoot: '/unused',
+    dataRoot: '/unused',
+    homeDirectory,
+    locateCli: () => '/fake/claude',
+  });
+  try {
+    assert.equal((await manager.inspect('claude')).state, 'conflict');
+  } finally {
+    fs.rmSync(homeDirectory, { recursive: true, force: true });
+  }
+});
+
 test('Claude disconnect result is read without launching its CLI from the GUI app', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-claude-disconnected-'));
   const dataRoot = path.join(directory, 'data');
@@ -268,6 +318,58 @@ test('prepare returns the copied Codex marketplace path for the app install page
       'marketplace.json',
     ));
     assert.equal(fs.existsSync(prepared.marketplacePath), true);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('Codex migration replaces only the verified legacy selector and leaves its marketplace intact', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-codex-migrate-'));
+  const resourcesRoot = path.join(directory, 'resources');
+  const dataRoot = path.join(directory, 'data');
+  const legacyRoot = path.join(directory, 'legacy-plugin');
+  createResources(resourcesRoot, 'codex');
+  fs.mkdirSync(path.join(legacyRoot, '.codex-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(legacyRoot, '.codex-plugin', 'plugin.json'), JSON.stringify({
+    name: 'blobfish-agent-bridge',
+    version: '0.1.0',
+    author: { name: 'Blobfish Desktop Pet' },
+  }));
+  const calls = [];
+  let pluginId = 'blobfish-agent-bridge@personal';
+  const manager = new IntegrationManager({
+    resourcesRoot,
+    dataRoot,
+    homeDirectory: directory,
+    locateCli: () => '/fake/codex',
+    run: async (_command, args) => {
+      calls.push(args);
+      if (args.join(' ') === 'plugin list --json') {
+        const installed = pluginId ? [{
+          pluginId,
+          name: 'blobfish-agent-bridge',
+          version: pluginId.endsWith('@personal') ? '0.1.0' : '0.2.0',
+          enabled: true,
+          source: pluginId.endsWith('@personal') ? { path: legacyRoot } : undefined,
+        }] : [];
+        return { stdout: JSON.stringify({ installed }) };
+      }
+      if (args.join(' ') === 'plugin marketplace list --json') {
+        return { stdout: JSON.stringify({ marketplaces: [] }) };
+      }
+      if (args.join(' ') === 'plugin remove blobfish-agent-bridge@personal --json') pluginId = null;
+      if (args.join(' ') === 'plugin add blobfish-agent-bridge@blobfish-pet --json') pluginId = 'blobfish-agent-bridge@blobfish-pet';
+      return { stdout: '{}' };
+    },
+  });
+
+  try {
+    const result = await manager.migrateLegacy('codex');
+    assert.equal(result.state, 'connected');
+    assert.equal(result.migratedFrom, 'blobfish-agent-bridge@personal');
+    assert.ok(calls.some((args) => args.join(' ') === 'plugin remove blobfish-agent-bridge@personal --json'));
+    assert.ok(calls.some((args) => args.join(' ') === 'plugin add blobfish-agent-bridge@blobfish-pet --json'));
+    assert.equal(calls.some((args) => args.includes('marketplace') && args.includes('remove')), false);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

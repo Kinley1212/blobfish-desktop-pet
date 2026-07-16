@@ -998,8 +998,9 @@ function setupAgentBridge() {
 
 async function connectAgentIntegration(provider, force = false) {
   try {
+    let status = null;
     if (provider === 'codex') {
-      const status = await integrationManager.inspect('codex');
+      status = await integrationManager.inspect('codex');
       if (status.state === 'cli-missing') {
         const prepared = integrationManager.prepare('codex');
         const installUrl = `codex://plugins/${PLUGIN_NAME}?marketplacePath=${encodeURIComponent(prepared.marketplacePath)}`;
@@ -1018,26 +1019,37 @@ async function connectAgentIntegration(provider, force = false) {
       }
     }
     if (provider === 'claude') {
-      const status = await integrationManager.inspect('claude');
+      status = await integrationManager.inspect('claude');
       if (status.state === 'connected' && !force) return { ...status, changed: false, restartRequired: false };
-      const operation = force ? 'repair' : 'install';
+      const operation = status.state === 'legacy' ? 'migrate' : force ? 'repair' : 'install';
       const prepared = integrationManager.prepareClaudeTerminalAction(process.execPath, operation);
       const openError = await shell.openPath(prepared.commandPath);
       if (openError) throw new Error(`无法打开 Terminal 安装窗口：${openError}`);
+      if (operation === 'migrate') {
+        connectionHealth.clear(provider);
+        emitConnectionHealth(provider);
+      }
       return {
         provider,
         state: 'terminal-opened',
         cliFound: true,
-        installed: false,
-        enabled: false,
+        installed: status.installed,
+        enabled: status.enabled,
         changed: false,
         restartRequired: true,
         operation,
       };
     }
-    const result = force
-      ? await integrationManager.repair(provider)
-      : await integrationManager.install(provider);
+    const migrating = status?.state === 'legacy';
+    if (migrating) {
+      connectionHealth.clear(provider);
+      emitConnectionHealth(provider);
+    }
+    const result = migrating
+      ? await integrationManager.migrateLegacy(provider)
+      : force
+        ? await integrationManager.repair(provider)
+        : await integrationManager.install(provider);
     if (result.changed) {
       speak('system.integrationReady', { provider }, {
         priority: SPEECH_PRIORITY.agent,

@@ -6,6 +6,11 @@ const path = require('path');
 const PLUGIN_NAME = 'blobfish-agent-bridge';
 const MARKETPLACE_NAME = 'blobfish-pet';
 const PLUGIN_SELECTOR = `${PLUGIN_NAME}@${MARKETPLACE_NAME}`;
+const LEGACY_PLUGIN_SELECTORS = Object.freeze({
+  codex: `${PLUGIN_NAME}@personal`,
+  claude: `${PLUGIN_NAME}@blobfish-local`,
+});
+const PLUGIN_AUTHOR = 'Blobfish Desktop Pet';
 const PROVIDERS = Object.freeze({
   codex: Object.freeze({
     cliName: 'codex',
@@ -129,6 +134,22 @@ function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
+function isOwnedLegacyPlugin(provider, pluginId, manifest) {
+  return pluginId === LEGACY_PLUGIN_SELECTORS[provider]
+    && manifest?.name === PLUGIN_NAME
+    && manifest?.author?.name === PLUGIN_AUTHOR
+    && /^0\.1(?:\.|$)/.test(String(manifest?.version || ''));
+}
+
+function readPluginManifest(provider, plugin) {
+  const pluginRoot = plugin?.source?.path || plugin?.installPath;
+  if (!pluginRoot || !path.isAbsolute(pluginRoot)) return null;
+  const manifestPath = provider === 'codex'
+    ? path.join(pluginRoot, '.codex-plugin', 'plugin.json')
+    : path.join(pluginRoot, '.claude-plugin', 'plugin.json');
+  return readOptionalJson(manifestPath, `${PROVIDERS[provider].cliName} 插件清单`);
+}
+
 class IntegrationManager {
   constructor(options) {
     this.resourcesRoot = options.resourcesRoot;
@@ -170,6 +191,7 @@ class IntegrationManager {
     const marketplace = pluginId.slice(PLUGIN_NAME.length + 1);
     if (!/^[A-Za-z0-9._-]+$/.test(marketplace)) throw new Error('Claude Code 插件来源名称无效');
     const versionRoot = path.join(pluginsRoot, 'cache', marketplace, PLUGIN_NAME);
+    let manifest = null;
     let version = null;
     let installed = false;
     try {
@@ -182,7 +204,7 @@ class IntegrationManager {
         .sort((left, right) => right.modifiedAt - left.modifiedAt);
       if (candidates.length > 0) {
         installed = true;
-        const manifest = readOptionalJson(
+        manifest = readOptionalJson(
           path.join(candidates[0].directory, '.claude-plugin', 'plugin.json'),
           'Claude Code 插件清单',
         );
@@ -194,6 +216,17 @@ class IntegrationManager {
 
     if (!installed) throw new Error('Claude Code 已记录这个插件，但本地插件缓存不存在');
     const enabled = setting === true;
+    if (isOwnedLegacyPlugin('claude', pluginId, manifest)) {
+      return {
+        provider: 'claude',
+        state: 'legacy',
+        cliFound: Boolean(cliPath),
+        installed: true,
+        enabled,
+        pluginId,
+        version,
+      };
+    }
     if (pluginId !== PLUGIN_SELECTOR) {
       return {
         provider: 'claude',
@@ -273,6 +306,18 @@ class IntegrationManager {
       }
       const enabled = plugin.enabled !== false;
       const pluginId = plugin.pluginId || plugin.id || null;
+      const manifest = readPluginManifest(provider, plugin);
+      if (isOwnedLegacyPlugin(provider, pluginId, manifest)) {
+        return {
+          provider,
+          state: 'legacy',
+          cliFound: true,
+          installed: true,
+          enabled,
+          pluginId,
+          version: plugin.version || manifest.version,
+        };
+      }
       if (pluginId && pluginId !== PLUGIN_SELECTOR) {
         return {
           provider,
@@ -328,7 +373,7 @@ class IntegrationManager {
   }
 
   prepareClaudeTerminalAction(appExecutable, action) {
-    if (!['install', 'repair', 'disconnect'].includes(action)) throw new Error('不支持的 Claude Code 连接操作');
+    if (!['install', 'repair', 'migrate', 'disconnect'].includes(action)) throw new Error('不支持的 Claude Code 连接操作');
     const cliPath = this.locateCli(PROVIDERS.claude.cliName);
     if (!cliPath) throw new Error('没有找到 claude CLI，请先安装或更新它');
     if (!path.isAbsolute(appExecutable)) throw new Error('水滴鱼运行程序路径无效');
@@ -428,6 +473,51 @@ class IntegrationManager {
     return this.install(provider, { force: true });
   }
 
+  async migrateLegacy(provider) {
+    const definition = assertProvider(provider);
+    const cliPath = this.locateCli(definition.cliName);
+    if (!cliPath) throw new Error(`没有找到 ${definition.cliName} CLI，无法升级旧版连接`);
+    const existing = await this.inspect(provider);
+    if (existing.state !== 'legacy' || existing.pluginId !== LEGACY_PLUGIN_SELECTORS[provider]) {
+      throw new Error('没有找到可安全升级的水滴鱼旧版插件');
+    }
+
+    const { target } = this.prepare(provider);
+    await this.ensureMarketplace(provider, cliPath, target);
+    const removeArgs = provider === 'codex'
+      ? ['plugin', 'remove', existing.pluginId, '--json']
+      : ['plugin', 'uninstall', existing.pluginId, '--scope', 'user'];
+    const installArgs = provider === 'codex'
+      ? ['plugin', 'add', PLUGIN_SELECTOR, '--json']
+      : ['plugin', 'install', PLUGIN_SELECTOR, '--scope', 'user'];
+    const restoreArgs = provider === 'codex'
+      ? ['plugin', 'add', existing.pluginId, '--json']
+      : ['plugin', 'install', existing.pluginId, '--scope', 'user'];
+
+    await this.run(cliPath, removeArgs);
+    try {
+      await this.run(cliPath, installArgs);
+      const installed = await this.inspect(provider);
+      if (installed.state !== 'connected' || installed.pluginId !== PLUGIN_SELECTOR) {
+        throw new Error(`${definition.cliName} 新版插件安装后仍未启用`);
+      }
+      return {
+        ...installed,
+        changed: true,
+        migratedFrom: existing.pluginId,
+        restartRequired: true,
+        trustRequired: provider === 'codex',
+      };
+    } catch (error) {
+      try {
+        await this.run(cliPath, restoreArgs);
+      } catch (restoreError) {
+        throw new Error(`${error.message}；恢复旧版也失败：${restoreError.message}`);
+      }
+      throw new Error(`${error.message}；已恢复旧版连接`);
+    }
+  }
+
   async uninstall(provider) {
     const definition = assertProvider(provider);
     const cliPath = this.locateCli(definition.cliName);
@@ -450,10 +540,12 @@ class IntegrationManager {
 
 module.exports = {
   IntegrationManager,
+  LEGACY_PLUGIN_SELECTORS,
   MARKETPLACE_NAME,
   PLUGIN_NAME,
   PLUGIN_SELECTOR,
   findExecutable,
+  isOwnedLegacyPlugin,
   parseJson,
   replaceDirectory,
   runCommand,
