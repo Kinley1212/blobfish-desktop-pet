@@ -45,14 +45,11 @@ test('loads the grass buddy pack with compositor-friendly standard actions', () 
   assert.ok(Number.isFinite(mouthY) && Number.isFinite(leftArmY));
   assert.ok(leftArmY - mouthY >= 15, 'mouth and arms need clear vertical spacing');
 
-  const lowerBase = pack.svg.match(/Q \d+ 125 (\d+) 125 Q \d+ 130 (\d+) 125/);
-  assert.ok(lowerBase, 'lower body needs a measurable curved base');
-  assert.ok(Number(lowerBase[1]) - Number(lowerBase[2]) <= 100, 'lower body should stay visibly tapered');
-  assert.doesNotMatch(pack.svg, /140 125 L 40 125/, 'lower body should not expose a long horizontal stroke');
-  assert.doesNotMatch(pack.svg, /L 28 80|L 152 80/, 'head and body should connect without horizontal ledges');
-  assert.match(pack.svg, /L 8 92 L 26 63/);
-  assert.match(pack.svg, /L 159 63 L 172 92/);
-  assert.doesNotMatch(pack.svg, /L 26 63 Q 25 56/, 'left transition must not backtrack into a horizontal hook');
+  assert.match(pack.svg, /M 85 13 Q 93 14 100 18/, 'top silhouette should follow the supplied reference');
+  assert.match(pack.svg, /L 150 78 L 172 75 Q 176 75 172 82 L 160 90/, 'right side tuft should follow the supplied reference');
+  assert.match(pack.svg, /L 28 95 L 8 74 Q 4 72 8 72 L 31 73 L 33 46/, 'left side tuft should follow the supplied reference');
+  assert.match(pack.svg, /L 42 125 Q 38 125 36 120/, 'body should keep the reference image\'s broad, nearly flat base');
+  assert.match(pack.svg, /stroke-width="5\.5"/, 'body outline should retain the reference image\'s lighter line weight');
 });
 
 test('rejects invalid ids and paths outside the pack root', () => {
