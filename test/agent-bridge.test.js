@@ -4,13 +4,22 @@ const fs = require('fs');
 const net = require('net');
 const os = require('os');
 const path = require('path');
-const { spawn } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 const { AgentBridge } = require('../src/core/agent-bridge');
 
-function runSender(senderPath, socketPath, input) {
+const senderPath = path.join(__dirname, '..', 'native', 'build', process.arch, 'blobfish-agent-event-sender');
+if (process.platform === 'darwin' && !fs.existsSync(senderPath)) {
+  execFileSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'build-agent-sender.js'), process.arch]);
+}
+
+function runSender(socketPath, input) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [senderPath, '--provider', 'codex'], {
-      env: { ...process.env, BLOBFISH_SOCKET: socketPath },
+    const child = spawn(senderPath, ['--provider', 'codex'], {
+      env: {
+        HOME: os.homedir(),
+        PATH: '/usr/bin:/bin',
+        BLOBFISH_SOCKET: socketPath,
+      },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     child.stdin.end(JSON.stringify(input));
@@ -74,7 +83,7 @@ test('rejects unsupported providers and oversized identifiers', async () => {
   }
 });
 
-test('Codex hook sender forwards only whitelisted lifecycle metadata', async () => {
+test('native Codex hook sender forwards only whitelisted lifecycle metadata without Node', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-hook-'));
   const socketPath = path.join(directory, 'events.sock');
   const received = [];
@@ -83,24 +92,14 @@ test('Codex hook sender forwards only whitelisted lifecycle metadata', async () 
   const bridge = new AgentBridge(socketPath, { onEvent: (event) => received.push(event) });
   try {
     await bridge.start();
-    const senderPath = path.join(
-      __dirname,
-      '..',
-      'integrations',
-      'codex',
-      'plugins',
-      'blobfish-agent-bridge',
-      'scripts',
-      'send-event.js',
-    );
-    await runSender(senderPath, socketPath, {
+    await runSender(socketPath, {
       hook_event_name: 'UserPromptSubmit',
       session_id: 'session-hook',
       turn_id: 'turn-hook',
       prompt: '整理发布说明',
       transcript_path: '/private/transcript.jsonl',
     });
-    await runSender(senderPath, socketPath, {
+    await runSender(socketPath, {
       hook_event_name: 'Stop',
       session_id: 'session-hook',
       turn_id: 'turn-hook',
@@ -124,15 +123,14 @@ test('Codex hook sender forwards only whitelisted lifecycle metadata', async () 
   }
 });
 
-test('Codex hook sender does not forward or derive a title unless the user opts in', async () => {
+test('native Codex hook sender keeps titles private unless the user opts in', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-hook-private-'));
   const socketPath = path.join(directory, 'events.sock');
   const received = [];
   const bridge = new AgentBridge(socketPath, { onEvent: (event) => received.push(event) });
   try {
     await bridge.start();
-    const senderPath = path.join(__dirname, '..', 'integrations', 'codex', 'plugins', 'blobfish-agent-bridge', 'scripts', 'send-event.js');
-    await runSender(senderPath, socketPath, {
+    await runSender(socketPath, {
       hook_event_name: 'UserPromptSubmit',
       session_id: 'private-session',
       prompt: 'keep this private',

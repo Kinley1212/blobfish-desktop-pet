@@ -336,6 +336,47 @@ test('prepare returns the copied Codex marketplace path for the app install page
   }
 });
 
+test('prepare injects the bundled native sender into a plugin that requires it', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-native-sender-'));
+  const resourcesRoot = path.join(directory, 'resources');
+  const pluginRoot = path.join(resourcesRoot, 'codex', 'plugins', 'blobfish-agent-bridge');
+  const sender = path.join(directory, 'blobfish-agent-event-sender');
+  createResources(resourcesRoot, 'codex');
+  fs.mkdirSync(path.join(pluginRoot, 'hooks'), { recursive: true });
+  fs.writeFileSync(path.join(pluginRoot, 'hooks', 'hooks.json'), JSON.stringify({ command: 'blobfish-agent-event-sender' }));
+  fs.writeFileSync(sender, 'native sender');
+  fs.chmodSync(sender, 0o700);
+  try {
+    const manager = new IntegrationManager({
+      resourcesRoot,
+      dataRoot: path.join(directory, 'data'),
+      eventSenderPath: sender,
+      locateCli: () => null,
+    });
+    manager.prepare('codex');
+    const installedSender = path.join(directory, 'data', 'codex', 'plugins', 'blobfish-agent-bridge', 'bin', 'blobfish-agent-event-sender');
+    assert.equal(fs.readFileSync(installedSender, 'utf8'), 'native sender');
+    assert.equal(fs.statSync(installedSender).mode & 0o777, 0o700);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('prepare refuses an incomplete package when native sender hooks are present', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-missing-sender-'));
+  const resourcesRoot = path.join(directory, 'resources');
+  const pluginRoot = path.join(resourcesRoot, 'codex', 'plugins', 'blobfish-agent-bridge');
+  createResources(resourcesRoot, 'codex');
+  fs.mkdirSync(path.join(pluginRoot, 'hooks'), { recursive: true });
+  fs.writeFileSync(path.join(pluginRoot, 'hooks', 'hooks.json'), JSON.stringify({ command: 'blobfish-agent-event-sender' }));
+  try {
+    const manager = new IntegrationManager({ resourcesRoot, dataRoot: path.join(directory, 'data') });
+    assert.throws(() => manager.prepare('codex'), /发送器路径缺失/);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('Codex migration replaces only the verified legacy selector and leaves its marketplace intact', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-codex-migrate-'));
   const resourcesRoot = path.join(directory, 'resources');

@@ -8,7 +8,7 @@
   },
   "main": "src/main.js",
   "scripts": {
-    "build:native": "node scripts/build-calendar-helper.js",
+    "build:native": "node scripts/build-calendar-helper.js && node scripts/build-agent-sender.js",
     "package:mac": "npm run package:mac:arm64 && npm run package:mac:x64",
     "package:mac:arm64": "node scripts/package-mac.js arm64",
     "package:mac:x64": "node scripts/package-mac.js x64",

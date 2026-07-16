@@ -18,6 +18,7 @@ if (!['arm64', 'x64'].includes(architecture)) {
 const archValue = architecture === 'arm64' ? Arch.arm64 : Arch.x64;
 const outputDirectory = path.join(root, 'release', architecture);
 const helperPath = path.join(root, 'native', 'build', architecture, 'blobfish-calendar-helper');
+const agentSenderPath = path.join(root, 'native', 'build', architecture, 'blobfish-agent-event-sender');
 const iconPath = path.join(root, 'src', 'packs', 'characters', 'blobfish', 'art', 'character.svg');
 const zipPath = path.join(root, 'release', `${productName}-macOS-${architecture}.zip`);
 const legacyZipPath = path.join(root, 'release', `BlobfishDesktopPet-macOS-${architecture}.zip`);
@@ -55,6 +56,7 @@ async function main() {
   fs.rmSync(legacyZipPath, { force: true });
 
   run(process.execPath, [path.join(__dirname, 'build-calendar-helper.js'), architecture]);
+  run(process.execPath, [path.join(__dirname, 'build-agent-sender.js'), architecture]);
 
   await build({
     targets: Platform.MAC.createTarget('dir', archValue),
@@ -75,6 +77,9 @@ async function main() {
         from: helperPath,
         to: 'native/blobfish-calendar-helper',
       }, {
+        from: agentSenderPath,
+        to: 'native/blobfish-agent-event-sender',
+      }, {
         from: path.join(root, 'integrations'),
         to: 'integrations',
       }],
@@ -89,6 +94,7 @@ async function main() {
 
   const appPath = findAppBundle(outputDirectory);
   const bundledHelperPath = path.join(appPath, 'Contents', 'Resources', 'native', 'blobfish-calendar-helper');
+  const bundledAgentSenderPath = path.join(appPath, 'Contents', 'Resources', 'native', 'blobfish-agent-event-sender');
   const infoPlistPath = path.join(appPath, 'Contents', 'Info.plist');
   for (const key of [
     'NSAppTransportSecurity',
@@ -108,11 +114,12 @@ async function main() {
   const executablePath = path.join(appPath, 'Contents', 'MacOS', executableName);
 
   run('/usr/bin/codesign', ['--force', '--sign', '-', bundledHelperPath]);
+  run('/usr/bin/codesign', ['--force', '--sign', '-', bundledAgentSenderPath]);
   run('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', appPath]);
   run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath]);
 
   const expectedMachine = architecture === 'arm64' ? 'arm64' : 'x86_64';
-  for (const binaryPath of [executablePath, bundledHelperPath]) {
+  for (const binaryPath of [executablePath, bundledHelperPath, bundledAgentSenderPath]) {
     const architectures = execFileSync('/usr/bin/lipo', ['-archs', binaryPath], { encoding: 'utf8' }).trim().split(/\s+/);
     if (architectures.length !== 1 || architectures[0] !== expectedMachine) {
       throw new Error(`Unexpected architecture for ${binaryPath}: ${architectures.join(' ')}`);

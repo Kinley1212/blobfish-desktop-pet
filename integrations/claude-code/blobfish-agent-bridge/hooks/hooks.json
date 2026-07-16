@@ -5,8 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/send-event.js", "--provider", "claude-code"],
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/blobfish-agent-event-sender",
+            "args": ["--provider", "claude-code"],
             "timeout": 2
           }
         ]
@@ -18,8 +18,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/send-event.js", "--provider", "claude-code"],
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/blobfish-agent-event-sender",
+            "args": ["--provider", "claude-code"],
             "timeout": 2
           }
         ]
@@ -31,8 +31,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/send-event.js", "--provider", "claude-code"],
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/blobfish-agent-event-sender",
+            "args": ["--provider", "claude-code"],
             "timeout": 2
           }
         ]
@@ -44,8 +44,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/send-event.js", "--provider", "claude-code"],
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/blobfish-agent-event-sender",
+            "args": ["--provider", "claude-code"],
             "timeout": 2
           }
         ]
@@ -56,8 +56,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/send-event.js", "--provider", "claude-code"],
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/blobfish-agent-event-sender",
+            "args": ["--provider", "claude-code"],
             "timeout": 2
           }
         ]
@@ -68,8 +68,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/send-event.js", "--provider", "claude-code"],
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/blobfish-agent-event-sender",
+            "args": ["--provider", "claude-code"],
             "timeout": 2
           }
         ]

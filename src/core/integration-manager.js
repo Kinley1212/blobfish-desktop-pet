@@ -170,6 +170,7 @@ class IntegrationManager {
   constructor(options) {
     this.resourcesRoot = options.resourcesRoot;
     this.dataRoot = options.dataRoot;
+    this.eventSenderPath = options.eventSenderPath || null;
     this.homeDirectory = options.homeDirectory || os.homedir();
     this.environment = options.environment || process.env;
     this.locateCli = options.locateCli || ((name) => findExecutable(name, {
@@ -387,6 +388,19 @@ class IntegrationManager {
     const source = path.join(this.resourcesRoot, definition.resourceDirectory);
     const target = path.join(this.dataRoot, definition.resourceDirectory);
     replaceDirectory(source, target);
+    const pluginRoot = provider === 'codex'
+      ? path.join(target, 'plugins', PLUGIN_NAME)
+      : path.join(target, PLUGIN_NAME);
+    const hooksPath = path.join(pluginRoot, 'hooks', 'hooks.json');
+    const hooks = fs.existsSync(hooksPath) ? fs.readFileSync(hooksPath, 'utf8') : '';
+    if (hooks.includes('blobfish-agent-event-sender')) {
+      if (!this.eventSenderPath) throw new Error('内置任务状态发送器路径缺失');
+      fs.accessSync(this.eventSenderPath, fs.constants.R_OK | fs.constants.X_OK);
+      const senderTarget = path.join(pluginRoot, 'bin', 'blobfish-agent-event-sender');
+      fs.mkdirSync(path.dirname(senderTarget), { recursive: true, mode: 0o700 });
+      fs.copyFileSync(this.eventSenderPath, senderTarget);
+      fs.chmodSync(senderTarget, 0o700);
+    }
     const marketplacePath = provider === 'codex'
       ? path.join(target, '.agents', 'plugins', 'marketplace.json')
       : path.join(target, '.claude-plugin', 'marketplace.json');

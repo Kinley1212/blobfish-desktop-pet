@@ -430,6 +430,11 @@ function getIntegrationResourcesRoot() {
   return path.join(__dirname, '..', 'integrations');
 }
 
+function getAgentEventSenderPath() {
+  if (app.isPackaged) return path.join(process.resourcesPath, 'native', 'blobfish-agent-event-sender');
+  return path.join(__dirname, '..', 'native', 'build', process.arch, 'blobfish-agent-event-sender');
+}
+
 function applyConfig(nextConfig) {
   const codexWasEnabled = config.integrations.codex;
   const claudeWasEnabled = config.integrations.claudeCode;
@@ -1423,6 +1428,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   integrationManager = new IntegrationManager({
     resourcesRoot: getIntegrationResourcesRoot(),
     dataRoot: path.join(app.getPath('userData'), 'managed-integrations'),
+    eventSenderPath: getAgentEventSenderPath(),
   });
   setupAgentBridge();
   if (process.argv.includes('--settings')) createSettingsWindow();
