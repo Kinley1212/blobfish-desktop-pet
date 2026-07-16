@@ -108,7 +108,10 @@
       <div class="connection-grid">
         <article class="connection-card">
           <div class="connection-heading">
-            <h3>Codex</h3>
+            <div class="connection-title-row">
+              <h3>Codex</h3>
+              <strong id="codex-connection-verdict" class="connection-verdict" data-state="checking">检测中</strong>
+            </div>
             <p id="codex-install-status">正在检测插件…</p>
           </div>
           <ol class="connection-steps" aria-label="Codex 连接进度">
@@ -122,10 +125,17 @@
             <button id="disconnect-codex" class="text-button danger" type="button" disabled>断开</button>
           </div>
           <p class="connection-note">安装后新开一个 Codex 任务，并在 <code>/hooks</code> 中审查一次。</p>
+          <details class="connection-details">
+            <summary>技术详情</summary>
+            <p id="codex-technical-details">尚无</p>
+          </details>
         </article>
         <article class="connection-card">
           <div class="connection-heading">
-            <h3>Claude Code</h3>
+            <div class="connection-title-row">
+              <h3>Claude Code</h3>
+              <strong id="claude-connection-verdict" class="connection-verdict" data-state="checking">检测中</strong>
+            </div>
             <p id="claude-install-status">正在检测插件…</p>
           </div>
           <ol class="connection-steps" aria-label="Claude Code 连接进度">
@@ -139,6 +149,10 @@
             <button id="disconnect-claude" class="text-button danger" type="button" disabled>断开</button>
           </div>
           <p class="connection-note">安装后重新打开 Claude Code 会话即可。</p>
+          <details class="connection-details">
+            <summary>技术详情</summary>
+            <p id="claude-technical-details">尚无</p>
+          </details>
         </article>
       </div>
       <button id="refresh-integrations" class="text-button" type="button">重新检测连接状态</button>

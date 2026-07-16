@@ -145,7 +145,52 @@ input[type="range"] { width: 100%; accent-color: #6f9295; }
 .connection-card .connection-note { margin: 10px 0 0; }
 .connection-card code { font-size: 10px; }
 
-.connection-heading { min-height: 40px; }
+.connection-heading { min-height: 58px; }
+
+.connection-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.connection-verdict {
+  padding: 4px 8px;
+  border: 1px solid #c9c3bd;
+  border-radius: 999px;
+  background: #efede9;
+  color: #6f6965;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.connection-verdict[data-state="connected"] {
+  border-color: #6f9295;
+  background: #e2eeee;
+  color: #446d70;
+}
+
+.connection-verdict[data-state="waiting"] {
+  border-color: #b69a74;
+  background: #f4e9d9;
+  color: #795f40;
+}
+
+.connection-verdict[data-state="disconnected"] {
+  border-color: #c18a8a;
+  background: #f6e4e4;
+  color: #914b4b;
+}
+
+.connection-details {
+  margin-top: 8px;
+  color: #77716d;
+  font-size: 9px;
+}
+
+.connection-details summary { cursor: pointer; }
+.connection-details p { overflow-wrap: anywhere; }
 
 .connection-steps {
   display: grid;
