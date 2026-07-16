@@ -32,3 +32,9 @@ test('completion retains the finished title before falling back to the remaining
     additionalCount: 0,
   });
 });
+
+test('a hook stop remains a neutral ended state', () => {
+  const status = getTerminalTaskStatus(tasks[1], 'ended', [tasks[0]], true);
+  assert.equal(status.state, 'ended');
+  assert.equal(status.title, '等待确认的任务');
+});

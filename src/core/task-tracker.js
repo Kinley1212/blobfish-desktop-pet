@@ -2,6 +2,7 @@ class TaskTracker {
   constructor(onTransition = () => {}) {
     this.onTransition = onTransition;
     this.tasks = new Map();
+    this.terminalEvents = new Map();
   }
 
   taskKey(event) {
@@ -10,8 +11,18 @@ class TaskTracker {
 
   handle(event) {
     const key = this.taskKey(event);
-    const existing = this.tasks.get(key);
-    const now = event.timestamp || Date.now();
+    let existing = this.tasks.get(key);
+    const now = Number.isFinite(event.timestamp) ? event.timestamp : Date.now();
+    const terminalEvent = event.event === 'ended' || event.event === 'completed' || event.event === 'failed';
+    const terminalRecord = this.terminalEvents.get(key);
+
+    if (!terminalEvent && terminalRecord) {
+      if (event.event !== 'started' || now <= terminalRecord.eventAt) return this.snapshot();
+      this.terminalEvents.delete(key);
+      existing = this.tasks.get(key);
+    }
+
+    if (existing && now < existing.updatedAt) return this.snapshot();
     let transition = null;
     let transitionTask = null;
 
@@ -47,10 +58,16 @@ class TaskTracker {
       updateTask(task, 'waiting');
       this.tasks.set(key, task);
       transitionTask = task;
-    } else if (event.event === 'ended' || event.event === 'completed' || event.event === 'failed') {
-      if (!existing) return this.snapshot();
+    } else if (terminalEvent) {
+      if (!existing) {
+        if (!terminalRecord || now > terminalRecord.eventAt) {
+          this.terminalEvents.set(key, { eventAt: now, recordedAt: Date.now(), provider: event.provider });
+        }
+        return this.snapshot();
+      }
       transitionTask = updateTask(existing, event.event);
       this.tasks.delete(key);
+      this.terminalEvents.set(key, { eventAt: now, recordedAt: Date.now(), provider: event.provider });
       const remaining = this.tasks.size;
       if (event.event === 'failed') transition = 'failed';
       else if (event.event === 'ended') transition = remaining === 0 ? 'allEnded' : 'ended';
@@ -72,6 +89,9 @@ class TaskTracker {
         changed = true;
       }
     }
+    for (const [key, terminal] of this.terminalEvents) {
+      if (terminal.provider === provider) this.terminalEvents.delete(key);
+    }
     if (changed) this.onTransition({ type: 'state', event: null, snapshot: this.snapshot() });
   }
 
@@ -82,6 +102,9 @@ class TaskTracker {
         this.tasks.delete(key);
         removed += 1;
       }
+    }
+    for (const [key, terminal] of this.terminalEvents) {
+      if (now - terminal.recordedAt > maxAgeMs) this.terminalEvents.delete(key);
     }
     if (removed) this.onTransition({ type: 'state', event: null, snapshot: this.snapshot() });
     return removed;

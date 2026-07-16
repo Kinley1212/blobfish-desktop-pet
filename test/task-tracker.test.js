@@ -63,3 +63,36 @@ test('accepts a title that first arrives on a later running event', () => {
   tracker.handle({ ...event('running', 'later', 2000), title: '后来才有标题' });
   assert.equal(tracker.getTasks()[0].title, '后来才有标题');
 });
+
+test('does not resurrect a terminal task from stale or unstarted lifecycle events', () => {
+  const transitions = [];
+  const tracker = new TaskTracker((transition) => transitions.push(transition.type));
+  tracker.handle(event('started', 'ordered', 1000));
+  tracker.handle(event('ended', 'ordered', 3000));
+  tracker.handle(event('running', 'ordered', 2000));
+  tracker.handle(event('running', 'ordered', 4000));
+
+  assert.deepEqual(transitions, ['started', 'allEnded']);
+  assert.equal(tracker.snapshot().activeCount, 0);
+
+  tracker.handle(event('started', 'ordered', 5000));
+  assert.equal(tracker.snapshot().activeCount, 1);
+});
+
+test('records an out-of-order terminal event before a task start arrives', () => {
+  const tracker = new TaskTracker();
+  tracker.handle(event('ended', 'late-start', 3000));
+  tracker.handle(event('started', 'late-start', 2000));
+  assert.equal(tracker.snapshot().activeCount, 0);
+
+  tracker.handle(event('started', 'late-start', 4000));
+  assert.equal(tracker.snapshot().activeCount, 1);
+});
+
+test('older lifecycle events cannot regress a waiting task back to running', () => {
+  const tracker = new TaskTracker();
+  tracker.handle(event('started', 'waiting', 1000));
+  tracker.handle(event('needs_input', 'waiting', 3000));
+  tracker.handle(event('running', 'waiting', 2000));
+  assert.equal(tracker.getTasks()[0].state, 'waiting');
+});

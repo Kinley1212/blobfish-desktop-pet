@@ -22,10 +22,10 @@ TCP listener and no network service. Each newline-delimited message is capped at
 ```
 
 Allowed providers are `codex` and `claude-code`. Allowed events are `started`,
-`running`, `needs_input`, `completed` and `failed`. Hook senders intentionally
+`running`, `needs_input`, `ended`, `completed` and `failed`. Hook senders intentionally
 discard `prompt`, `transcript_path`, tool input/output, model name, working
-directory and code. Task titles are absent unless a future trusted sender adds
-one explicitly.
+directory and code. Task titles are included only when the user enables that
+privacy option in Settings.
 
 ## Pet behavior
 
@@ -35,6 +35,7 @@ one explicitly.
 | Every active task waiting for approval | stops and uses `waiting` |
 | One of several tasks completes | speaks once and keeps moving |
 | Last task completes | uses `success`, speaks, then stops |
+| A hook reports only that a turn ended | shows a neutral ended state without claiming success |
 | Task fails | uses `failed`, speaks, and stops if nothing else remains |
 
 Duplicate waiting events do not repeat the message. Tasks older than 12 hours

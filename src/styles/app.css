@@ -119,6 +119,10 @@ body.has-task-bubble #bubble[data-placement="below"] {
   background: #659a72;
 }
 
+#task-bubble[data-state="ended"] .task-status-icon {
+  background: #879193;
+}
+
 #task-bubble[data-state="failed"] .task-status-icon {
   background: #b9635f;
 }

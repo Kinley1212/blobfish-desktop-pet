@@ -1018,8 +1018,10 @@ function handleTaskTransition(transition) {
   updateAgentState(transition.snapshot);
   const terminalState = transition.type === 'failed'
     ? 'failed'
-    : ['completed', 'allCompleted', 'ended', 'allEnded'].includes(transition.type)
+    : ['completed', 'allCompleted'].includes(transition.type)
       ? 'completed'
+      : ['ended', 'allEnded'].includes(transition.type)
+        ? 'ended'
       : null;
   if (terminalState) {
     emitTaskStatus(getTerminalTaskStatus(

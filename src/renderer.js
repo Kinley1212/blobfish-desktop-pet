@@ -150,13 +150,13 @@ function applyAgentState(state) {
 }
 
 function renderTaskStatus(status, options = {}) {
-  const terminalIncoming = status?.state === 'completed' || status?.state === 'failed';
+  const terminalIncoming = status?.state === 'completed' || status?.state === 'ended' || status?.state === 'failed';
   if (!options.force && !terminalIncoming && Date.now() < terminalTaskStatusUntil) {
     pendingTaskStatus = status;
     return;
   }
   clearTimeout(taskStatusTimer);
-  const allowedStates = new Set(['running', 'waiting', 'completed', 'failed']);
+  const allowedStates = new Set(['running', 'waiting', 'ended', 'completed', 'failed']);
   if (!status || !allowedStates.has(status.state) || typeof status.title !== 'string') {
     taskBubble.dataset.visible = 'false';
     document.body.classList.remove('has-task-bubble');
@@ -175,6 +175,8 @@ function renderTaskStatus(status, options = {}) {
   taskTitle.textContent = title;
   taskStatusIcon.textContent = status.state === 'completed'
     ? '✓'
+    : status.state === 'ended'
+      ? '•'
     : status.state === 'failed'
       ? '!'
       : status.state === 'waiting'
@@ -183,11 +185,11 @@ function renderTaskStatus(status, options = {}) {
   const additionalCount = Math.max(0, Math.floor(Number(status.additionalCount) || 0));
   taskCount.hidden = additionalCount === 0;
   taskCount.textContent = additionalCount ? `+${additionalCount}` : '';
-  taskBubble.setAttribute('aria-label', `${title}：${status.state === 'running' ? '进行中' : status.state === 'waiting' ? '等待确认' : status.state === 'completed' ? '已完成' : '失败'}`);
+  taskBubble.setAttribute('aria-label', `${title}：${status.state === 'running' ? '进行中' : status.state === 'waiting' ? '等待确认' : status.state === 'completed' ? '已完成' : status.state === 'ended' ? '已结束' : '失败'}`);
   document.body.classList.add('has-task-bubble');
 
-  if (status.state === 'completed' || status.state === 'failed') {
-    const durationMs = status.state === 'completed' ? 2800 : 3600;
+  if (status.state === 'completed' || status.state === 'ended' || status.state === 'failed') {
+    const durationMs = status.state === 'failed' ? 3600 : 2800;
     terminalTaskStatusUntil = Date.now() + durationMs;
     pendingTaskStatus = undefined;
     taskStatusTimer = setTimeout(() => {
