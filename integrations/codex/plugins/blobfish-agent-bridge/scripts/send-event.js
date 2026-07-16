@@ -1,4 +1,5 @@
 const net = require('net');
+const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
@@ -12,6 +13,25 @@ const socketPath = process.env.BLOBFISH_SOCKET || path.join(
   'BlobfishDesktopPet',
   'agent-events.sock',
 );
+const settingsPath = process.env.BLOBFISH_SETTINGS || path.join(path.dirname(socketPath), 'settings.json');
+
+function taskTitlesEnabled() {
+  try {
+    const stat = fs.statSync(settingsPath);
+    if (!stat.isFile() || stat.size > 256 * 1024) return false;
+    return JSON.parse(fs.readFileSync(settingsPath, 'utf8'))?.privacy?.includeTaskTitles === true;
+  } catch {
+    return false;
+  }
+}
+
+function getTaskTitle(input) {
+  if (!taskTitlesEnabled()) return null;
+  const source = [input.title, input.task_title, input.prompt].find((value) => typeof value === 'string' && value.trim());
+  if (!source) return null;
+  const normalized = source.replace(/\s+/g, ' ').trim();
+  return normalized.length > 72 ? `${normalized.slice(0, 71)}…` : normalized;
+}
 
 function finish() {
   process.exitCode = 0;
@@ -40,6 +60,8 @@ function send(input) {
     timestamp: Date.now(),
   };
   if (typeof input.turn_id === 'string') payload.turnId = input.turn_id;
+  const title = getTaskTitle(input);
+  if (title) payload.title = title;
 
   const socket = net.createConnection(socketPath);
   const timeout = setTimeout(() => socket.destroy(), 300);

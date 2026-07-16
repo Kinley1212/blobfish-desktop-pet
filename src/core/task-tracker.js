@@ -13,32 +13,43 @@ class TaskTracker {
     const existing = this.tasks.get(key);
     const now = event.timestamp || Date.now();
     let transition = null;
+    let transitionTask = null;
+
+    const updateTask = (task, state) => {
+      task.state = state;
+      task.updatedAt = now;
+      if (event.title) task.title = event.title;
+      return task;
+    };
 
     if (event.event === 'started') {
       if (!existing) {
-        this.tasks.set(key, { ...event, key, state: 'running', startedAt: now, updatedAt: now });
+        const task = { ...event, key, state: 'running', startedAt: now, updatedAt: now };
+        this.tasks.set(key, task);
+        transitionTask = task;
         transition = 'started';
       } else {
-        existing.state = 'running';
-        existing.updatedAt = now;
+        transitionTask = updateTask(existing, 'running');
       }
     } else if (event.event === 'running') {
       if (existing) {
-        existing.state = 'running';
-        existing.updatedAt = now;
+        transitionTask = updateTask(existing, 'running');
       } else {
-        this.tasks.set(key, { ...event, key, state: 'running', startedAt: now, updatedAt: now });
+        const task = { ...event, key, state: 'running', startedAt: now, updatedAt: now };
+        this.tasks.set(key, task);
+        transitionTask = task;
         transition = 'started';
       }
     } else if (event.event === 'needs_input') {
       if (existing && existing.state !== 'waiting') transition = 'needsInput';
       if (!existing) transition = 'needsInput';
       const task = existing || { ...event, key, startedAt: now };
-      task.state = 'waiting';
-      task.updatedAt = now;
+      updateTask(task, 'waiting');
       this.tasks.set(key, task);
+      transitionTask = task;
     } else if (event.event === 'ended' || event.event === 'completed' || event.event === 'failed') {
       if (!existing) return this.snapshot();
+      transitionTask = updateTask(existing, event.event);
       this.tasks.delete(key);
       const remaining = this.tasks.size;
       if (event.event === 'failed') transition = 'failed';
@@ -47,8 +58,9 @@ class TaskTracker {
     }
 
     const snapshot = this.snapshot();
-    if (transition) this.onTransition({ type: transition, event, snapshot });
-    else this.onTransition({ type: 'state', event, snapshot });
+    const task = transitionTask ? { ...transitionTask } : null;
+    if (transition) this.onTransition({ type: transition, event, task, snapshot });
+    else this.onTransition({ type: 'state', event, task, snapshot });
     return snapshot;
   }
 

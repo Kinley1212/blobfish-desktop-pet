@@ -15,6 +15,7 @@ const { getScheduleReminder, isInQuietHours } = require('./core/reminder-schedul
 const { RuntimeErrorNotifier } = require('./core/runtime-error-notifier');
 const { SpeechQueue } = require('./core/speech-queue');
 const { formatProviderTaskSummary } = require('./core/task-menu-summary');
+const { getCurrentTaskStatus, getTerminalTaskStatus } = require('./core/task-status-presenter');
 const { TaskTracker } = require('./core/task-tracker');
 
 const userDataRoot = app.getPath('appData');
@@ -432,6 +433,7 @@ function applyConfig(nextConfig) {
     if (!config.integrations.codex) taskTracker.removeProvider('codex');
     if (!config.integrations.claudeCode) taskTracker.removeProvider('claude-code');
     updateAgentState(taskTracker.snapshot());
+    emitTaskStatus();
   }
   if (win && !win.isDestroyed()) {
     if (previousPetPosition) {
@@ -981,8 +983,34 @@ function updateAgentState(snapshot) {
   }
 }
 
+function getVisibleTaskStatus() {
+  return getCurrentTaskStatus(
+    taskTracker ? taskTracker.getTasks() : [],
+    config.privacy.includeTaskTitles,
+  );
+}
+
+function emitTaskStatus(status = getVisibleTaskStatus()) {
+  if (win && !win.isDestroyed()) win.webContents.send('task-status', status);
+}
+
 function handleTaskTransition(transition) {
   updateAgentState(transition.snapshot);
+  const terminalState = transition.type === 'failed'
+    ? 'failed'
+    : ['completed', 'allCompleted', 'ended', 'allEnded'].includes(transition.type)
+      ? 'completed'
+      : null;
+  if (terminalState) {
+    emitTaskStatus(getTerminalTaskStatus(
+      transition.task,
+      terminalState,
+      taskTracker.getTasks(),
+      config.privacy.includeTaskTitles,
+    ));
+  } else {
+    emitTaskStatus();
+  }
   const context = {
     activeCount: transition.snapshot.activeCount,
     remaining: transition.snapshot.activeCount,
@@ -1055,6 +1083,7 @@ function runTaskMaintenance() {
 function setupAgentBridge() {
   taskTracker = new TaskTracker(handleTaskTransition);
   updateAgentState(taskTracker.snapshot());
+  emitTaskStatus();
   agentBridge = new AgentBridge(path.join(app.getPath('userData'), 'agent-events.sock'), {
     onEvent: (event) => {
       const connectionProvider = getConnectionProvider(event.provider);
@@ -1242,6 +1271,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       ? (currentAgentSnapshot.waitingCount === currentAgentSnapshot.activeCount ? 'waiting' : 'working')
       : (agentPaused ? 'idle' : 'roam'),
   }));
+  ipcMain.handle('task-status:get', () => getVisibleTaskStatus());
   ipcMain.handle('settings:get', (event) => {
     assertSettingsSender(event);
     return getSettingsPayload();

@@ -39,6 +39,7 @@ function applyCharacterCopy(characterId) {
   byId('motion-hint').textContent = copy.motionHint;
   byId('speed-label').textContent = copy.speedLabel;
   byId('roam-without-tasks-label').textContent = copy.roamWithoutTasksLabel;
+  byId('roam-without-tasks').setAttribute('aria-label', copy.roamWithoutTasksLabel);
   byId('entry-hint').textContent = copy.entryHint;
 }
 

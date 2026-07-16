@@ -78,6 +78,8 @@ test('Codex hook sender forwards only whitelisted lifecycle metadata', async () 
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-hook-'));
   const socketPath = path.join(directory, 'events.sock');
   const received = [];
+  const settingsPath = path.join(directory, 'settings.json');
+  fs.writeFileSync(settingsPath, JSON.stringify({ privacy: { includeTaskTitles: true } }));
   const bridge = new AgentBridge(socketPath, { onEvent: (event) => received.push(event) });
   try {
     await bridge.start();
@@ -95,7 +97,7 @@ test('Codex hook sender forwards only whitelisted lifecycle metadata', async () 
       hook_event_name: 'UserPromptSubmit',
       session_id: 'session-hook',
       turn_id: 'turn-hook',
-      prompt: 'this must never cross the bridge',
+      prompt: '整理发布说明',
       transcript_path: '/private/transcript.jsonl',
     });
     await runSender(senderPath, socketPath, {
@@ -114,6 +116,30 @@ test('Codex hook sender forwards only whitelisted lifecycle metadata', async () 
       );
     }
     assert.deepEqual(received.map((event) => event.event), ['started', 'ended']);
+    assert.equal(received[0].title, '整理发布说明');
+    assert.equal(received[1].title, null);
+  } finally {
+    await bridge.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('Codex hook sender does not forward or derive a title unless the user opts in', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-hook-private-'));
+  const socketPath = path.join(directory, 'events.sock');
+  const received = [];
+  const bridge = new AgentBridge(socketPath, { onEvent: (event) => received.push(event) });
+  try {
+    await bridge.start();
+    const senderPath = path.join(__dirname, '..', 'integrations', 'codex', 'plugins', 'blobfish-agent-bridge', 'scripts', 'send-event.js');
+    await runSender(senderPath, socketPath, {
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'private-session',
+      prompt: 'keep this private',
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(received.length, 1);
+    assert.equal(received[0].title, null);
   } finally {
     await bridge.stop();
     fs.rmSync(directory, { recursive: true, force: true });

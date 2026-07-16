@@ -1,5 +1,9 @@
 const pet = document.getElementById('pet');
 const bubble = document.getElementById('bubble');
+const taskBubble = document.getElementById('task-bubble');
+const taskStatusIcon = document.getElementById('task-status-icon');
+const taskTitle = document.getElementById('task-title');
+const taskCount = document.getElementById('task-count');
 
 const VELOCITY_WINDOW_MS = 300;
 const BLINK_MIN_MS = 3500;
@@ -15,6 +19,9 @@ const DRAG_THRESHOLD_PX = 4;
 const STILL_THRESHOLD_MS = 60;
 
 let bubbleTimer = null;
+let taskStatusTimer = null;
+let terminalTaskStatusUntil = 0;
+let pendingTaskStatus;
 let hitTimer = null;
 let bumpTimer = null;
 let dragging = false;
@@ -35,6 +42,7 @@ function applyPetLayout(layout = {}) {
   }
   if (layout.bubblePlacement === 'below' || layout.bubblePlacement === 'above') {
     bubble.dataset.placement = layout.bubblePlacement;
+    taskBubble.dataset.placement = layout.bubblePlacement;
   }
 }
 
@@ -141,6 +149,56 @@ function applyAgentState(state) {
   pet.dataset.motion = allowedMotions.has(state.motion) ? state.motion : 'idle';
 }
 
+function renderTaskStatus(status, options = {}) {
+  const terminalIncoming = status?.state === 'completed' || status?.state === 'failed';
+  if (!options.force && !terminalIncoming && Date.now() < terminalTaskStatusUntil) {
+    pendingTaskStatus = status;
+    return;
+  }
+  clearTimeout(taskStatusTimer);
+  const allowedStates = new Set(['running', 'waiting', 'completed', 'failed']);
+  if (!status || !allowedStates.has(status.state) || typeof status.title !== 'string') {
+    taskBubble.dataset.visible = 'false';
+    document.body.classList.remove('has-task-bubble');
+    return;
+  }
+
+  const title = status.title.trim().slice(0, 120);
+  if (!title) {
+    taskBubble.dataset.visible = 'false';
+    document.body.classList.remove('has-task-bubble');
+    return;
+  }
+
+  taskBubble.dataset.state = status.state;
+  taskBubble.dataset.visible = 'true';
+  taskTitle.textContent = title;
+  taskStatusIcon.textContent = status.state === 'completed'
+    ? '✓'
+    : status.state === 'failed'
+      ? '!'
+      : status.state === 'waiting'
+        ? '…'
+        : '';
+  const additionalCount = Math.max(0, Math.floor(Number(status.additionalCount) || 0));
+  taskCount.hidden = additionalCount === 0;
+  taskCount.textContent = additionalCount ? `+${additionalCount}` : '';
+  taskBubble.setAttribute('aria-label', `${title}：${status.state === 'running' ? '进行中' : status.state === 'waiting' ? '等待确认' : status.state === 'completed' ? '已完成' : '失败'}`);
+  document.body.classList.add('has-task-bubble');
+
+  if (status.state === 'completed' || status.state === 'failed') {
+    const durationMs = status.state === 'completed' ? 2800 : 3600;
+    terminalTaskStatusUntil = Date.now() + durationMs;
+    pendingTaskStatus = undefined;
+    taskStatusTimer = setTimeout(() => {
+      terminalTaskStatusUntil = 0;
+      const nextStatus = pendingTaskStatus !== undefined ? pendingTaskStatus : (status.next || null);
+      pendingTaskStatus = undefined;
+      renderTaskStatus(nextStatus, { force: true });
+    }, durationMs);
+  }
+}
+
 function triggerSpeechAction(action) {
   clearTimeout(speechActionTimer);
   pet.classList.remove('is-success', 'is-failed');
@@ -162,6 +220,10 @@ function triggerPetAction(message = {}) {
   clearTimeout(hitTimer);
   clearTimeout(bumpTimer);
   clearTimeout(speechActionTimer);
+  clearTimeout(taskStatusTimer);
+  terminalTaskStatusUntil = 0;
+  pendingTaskStatus = undefined;
+  renderTaskStatus(null, { force: true });
   pet.classList.remove('hit', 'bump', 'dragging', 'is-success', 'is-failed', 'is-exiting');
   pet.style.setProperty('--exit-duration', `${durationMs}ms`);
   void pet.offsetWidth;
@@ -197,12 +259,14 @@ window.petAPI.onSpeech((message) => {
   triggerSpeechAction(message.action);
 });
 window.petAPI.onAgentState((state) => applyAgentState(state));
+window.petAPI.onTaskStatus((state) => renderTaskStatus(state));
 window.petAPI.onCharacterPack((pack) => applyCharacterPack(pack));
 window.petAPI.onPetLayout((layout) => applyPetLayout(layout));
 window.petAPI.onPetConfig((config) => applyPetConfig(config));
 window.petAPI.onBump(() => triggerBump());
 window.petAPI.onPetAction((action) => triggerPetAction(action));
 window.petAPI.getAgentState().then((state) => applyAgentState(state));
+window.petAPI.getTaskStatus().then((state) => renderTaskStatus(state));
 window.petAPI.getPetConfig().then((config) => applyPetConfig(config));
 installCharacterPack()
   .catch((error) => {

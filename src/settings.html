@@ -95,13 +95,13 @@
     <section>
       <div class="section-heading">
         <h2>连接与隐私</h2>
-        <p>默认只接收状态元数据，不读取提示词、对话或代码内容。</p>
+        <p>默认只接收状态元数据；开启任务标题后，仅在本机截取任务开头生成短标题。</p>
       </div>
       <div class="checks">
         <label><input id="integration-codex" type="checkbox" /> 连接后接收 Codex 状态</label>
         <label><input id="integration-claude" type="checkbox" /> 连接后接收 Claude Code 状态</label>
         <label><input id="integration-calendar" type="checkbox" /> macOS 日历提醒</label>
-        <label><input id="privacy-task-titles" type="checkbox" /> 允许显示任务标题</label>
+        <label><input id="privacy-task-titles" type="checkbox" /> 允许从任务开头生成标题（仅本机）</label>
         <label><input id="privacy-calendar-titles" type="checkbox" /> 允许显示日历标题</label>
       </div>
       <p id="calendar-status" class="integration-status">日历：未启用</p>
