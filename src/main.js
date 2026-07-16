@@ -13,6 +13,7 @@ const { calculateVerticalPlacement } = require('./core/pet-boundary');
 const { PhraseEngine } = require('./core/phrase-engine');
 const { getScheduleReminder, isInQuietHours } = require('./core/reminder-scheduler');
 const { RuntimeErrorNotifier } = require('./core/runtime-error-notifier');
+const { RuntimeWarningStore } = require('./core/runtime-warning-store');
 const { SpeechQueue } = require('./core/speech-queue');
 const { SPEECH_DURATION_MS } = require('./core/speech-timing');
 const { formatProviderTaskSummary } = require('./core/task-menu-summary');
@@ -94,7 +95,7 @@ let clickCount = 0;
 let configStore;
 let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 let phraseEngine = null;
-let runtimeWarning = null;
+const runtimeWarnings = new RuntimeWarningStore();
 let batteryTracker;
 let batteryPollTimer = null;
 let batteryReadErrorLogged = false;
@@ -173,9 +174,10 @@ function listCharacterPacks() {
 function loadConfiguredCharacter(packId) {
   try {
     characterPack = loadCharacterPack(CHARACTERS_ROOT, packId);
+    runtimeWarnings.clear('character');
     return packId;
   } catch (error) {
-    runtimeWarning = `形象包 ${packId} 无法加载，已临时改用默认形象：${error.message}`;
+    runtimeWarnings.set('character', `形象包 ${packId} 无法加载，已临时改用默认形象：${error.message}`);
     reportRuntimeError('Character pack', error);
     characterPack = loadCharacterPack(CHARACTERS_ROOT, DEFAULT_CHARACTER_PACK_ID);
     return DEFAULT_CHARACTER_PACK_ID;
@@ -186,10 +188,10 @@ function loadConfiguredLanguage(packId) {
   try {
     const pack = loadLanguagePack(LANGUAGES_ROOT, packId);
     phraseEngine = new PhraseEngine(pack.phrases);
-    runtimeWarning = null;
+    runtimeWarnings.clear('language');
     return packId;
   } catch (error) {
-    runtimeWarning = `语言包 ${packId} 无法加载，已临时改用默认语言包：${error.message}`;
+    runtimeWarnings.set('language', `语言包 ${packId} 无法加载，已临时改用默认语言包：${error.message}`);
     reportRuntimeError('Language pack', error);
     const fallback = loadLanguagePack(LANGUAGES_ROOT, DEFAULT_LANGUAGE_PACK_ID);
     phraseEngine = new PhraseEngine(fallback.phrases);
@@ -273,6 +275,7 @@ function syncLaunchAtLogin(enabled) {
   app.setLoginItemSettings({ openAtLogin: enabled });
   const actual = app.getLoginItemSettings().openAtLogin;
   if (actual !== enabled) throw new Error('macOS 未能更新登录时自动启动设置');
+  runtimeWarnings.clear('startup');
 }
 
 function requestQuit() {
@@ -420,7 +423,7 @@ function getSettingsPayload() {
     config: JSON.parse(JSON.stringify(config)),
     characters: listCharacterPacks(),
     languages: listLanguagePacks(),
-    warning: runtimeWarning || configStore.loadWarning,
+    warning: runtimeWarnings.getMessage(configStore.loadWarning),
     integrationStatus: { calendar: calendarStatus, agentBridge: agentBridgeStatus },
   };
 }
@@ -1331,7 +1334,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     try {
       syncLaunchAtLogin(true);
     } catch (error) {
-      runtimeWarning = `无法同步登录启动设置：${error.message}`;
+      runtimeWarnings.set('startup', `无法同步登录启动设置：${error.message}`);
       reportRuntimeError('Launch at login', error);
     }
   }
