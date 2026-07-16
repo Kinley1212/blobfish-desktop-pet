@@ -44,6 +44,10 @@ test('loads the grass buddy pack with compositor-friendly standard actions', () 
   const leftArmY = Number(pack.svg.match(/class="arm arm-left" d="M \d+ (\d+)/)?.[1]);
   assert.ok(Number.isFinite(mouthY) && Number.isFinite(leftArmY));
   assert.ok(leftArmY - mouthY >= 15, 'mouth and arms need clear vertical spacing');
+
+  const lowerBase = pack.svg.match(/Q \d+ 125 (\d+) 125 L (\d+) 125/);
+  assert.ok(lowerBase, 'lower body needs a measurable flat base');
+  assert.ok(Number(lowerBase[1]) - Number(lowerBase[2]) <= 100, 'lower body should stay visibly tapered');
 });
 
 test('rejects invalid ids and paths outside the pack root', () => {
