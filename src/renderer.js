@@ -60,18 +60,25 @@ function sanitizeSvg(svgText) {
   return documentNode.documentElement.outerHTML;
 }
 
-async function installCharacterPack() {
-  const pack = await window.petAPI.getCharacterPack();
-  characterManifest = pack.manifest;
-  pet.innerHTML = sanitizeSvg(pack.svg);
-  applyPetConfig({ scale: petScale });
+function applyCharacterPack(pack) {
+  clearTimeout(blinkTimer);
+  const svg = sanitizeSvg(pack.svg);
+  document.querySelectorAll('style[data-character-style]').forEach((element) => element.remove());
 
+  characterManifest = pack.manifest;
   for (const style of pack.styles) {
     const styleElement = document.createElement('style');
     styleElement.dataset.characterStyle = style.path;
     styleElement.textContent = style.css;
     document.head.appendChild(styleElement);
   }
+  pet.innerHTML = svg;
+  applyPetConfig({ scale: petScale });
+  scheduleBlink(300);
+}
+
+async function installCharacterPack() {
+  applyCharacterPack(await window.petAPI.getCharacterPack());
 }
 
 function scheduleBlink(delayOverride) {
@@ -177,15 +184,13 @@ window.petAPI.onSpeech((message) => {
   triggerSpeechAction(message.action);
 });
 window.petAPI.onAgentState((state) => applyAgentState(state));
+window.petAPI.onCharacterPack((pack) => applyCharacterPack(pack));
 window.petAPI.onPetConfig((config) => applyPetConfig(config));
 window.petAPI.onBump(() => triggerBump());
 window.petAPI.onPetAction((action) => triggerPetAction(action));
 window.petAPI.getAgentState().then((state) => applyAgentState(state));
 window.petAPI.getPetConfig().then((config) => applyPetConfig(config));
 installCharacterPack()
-  .then(() => {
-    scheduleBlink();
-  })
   .catch((error) => {
     console.error('Failed to install character pack', error);
     showBubble('形象包壞掉了……', 6000);

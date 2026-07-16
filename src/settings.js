@@ -42,6 +42,19 @@ function renderLanguages(languages, selectedId) {
   }
 }
 
+function renderCharacters(characters, selectedId) {
+  const select = byId('character-pack');
+  select.replaceChildren();
+  for (const character of characters) {
+    const option = document.createElement('option');
+    option.value = character.id;
+    option.textContent = character.displayName;
+    option.dataset.defaultLanguagePack = character.defaultLanguagePack || '';
+    option.selected = character.id === selectedId;
+    select.appendChild(option);
+  }
+}
+
 function renderIntegrationStatus(integrationStatus = {}) {
   const labels = {
     disabled: '未启用',
@@ -267,7 +280,7 @@ async function runPrimaryAgentAction(provider) {
   }
 }
 
-function renderConfig(config, languages) {
+function renderConfig(config, characters, languages) {
   document.querySelectorAll('input[name="workday"]').forEach((input) => {
     input.checked = config.schedule.workdays.includes(Number(input.value));
   });
@@ -279,6 +292,7 @@ function renderConfig(config, languages) {
   setChecked('quiet-enabled', config.quietHours.enabled);
   setValue('quiet-start', config.quietHours.start);
   setValue('quiet-end', config.quietHours.end);
+  renderCharacters(characters, config.pet.characterPackId);
   renderLanguages(languages, config.language.packId);
   setValue('idle-min', config.language.idleMinMinutes);
   setValue('idle-max', config.language.idleMaxMinutes);
@@ -331,6 +345,7 @@ function readConfig() {
       },
     },
     pet: {
+      characterPackId: byId('character-pack').value,
       speed: Number(speedInput.value),
       scale: Number(scaleInput.value),
       roamWhenNoTasks: byId('roam-without-tasks').checked,
@@ -358,6 +373,13 @@ scaleInput.addEventListener('input', () => {
   scaleOutput.value = `${Math.round(Number(scaleInput.value) * 100)}%`;
 });
 
+byId('character-pack').addEventListener('change', (event) => {
+  const languagePackId = event.target.selectedOptions[0]?.dataset.defaultLanguagePack;
+  if (languagePackId && [...byId('language-pack').options].some((option) => option.value === languagePackId)) {
+    setValue('language-pack', languagePackId);
+  }
+});
+
 for (const provider of agentProviders) {
   integrationControls[provider].primary.addEventListener('click', () => runPrimaryAgentAction(provider));
   integrationControls[provider].repair.addEventListener('click', () => manageAgentIntegration(provider, true));
@@ -370,7 +392,7 @@ form.addEventListener('submit', async (event) => {
   setBusy(true);
   try {
     const result = await window.settingsAPI.save(readConfig());
-    renderConfig(result.config, result.languages);
+    renderConfig(result.config, result.characters, result.languages);
     renderIntegrationStatus(result.integrationStatus);
     refreshAgentIntegrations();
     showStatus('已保存。鱼知道了。');
@@ -386,7 +408,7 @@ resetButton.addEventListener('click', async () => {
   setBusy(true);
   try {
     const result = await window.settingsAPI.reset();
-    renderConfig(result.config, result.languages);
+    renderConfig(result.config, result.characters, result.languages);
     renderIntegrationStatus(result.integrationStatus);
     showStatus('已经恢复默认。');
   } catch (error) {
@@ -398,7 +420,7 @@ resetButton.addEventListener('click', async () => {
 
 window.settingsAPI.load()
   .then((result) => {
-    renderConfig(result.config, result.languages);
+    renderConfig(result.config, result.characters, result.languages);
     renderIntegrationStatus(result.integrationStatus);
     refreshAgentIntegrations();
     if (result.warning) showStatus(result.warning, true);

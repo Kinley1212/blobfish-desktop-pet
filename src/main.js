@@ -26,10 +26,11 @@ const WINDOW_WIDTH = 340;
 const WINDOW_HEIGHT = 210;
 const TICK_MS = 30;
 const EXIT_ANIMATION_MS = 1700;
-const CHARACTER_PACK_ID = 'blobfish';
+const DEFAULT_CHARACTER_PACK_ID = 'blobfish';
 const DEFAULT_LANGUAGE_PACK_ID = 'blobfish-zh-TW';
+const CHARACTERS_ROOT = path.join(__dirname, 'packs', 'characters');
 const LANGUAGES_ROOT = path.join(__dirname, 'packs', 'languages');
-const characterPack = loadCharacterPack(path.join(__dirname, 'packs', 'characters'), CHARACTER_PACK_ID);
+let characterPack = loadCharacterPack(CHARACTERS_ROOT, DEFAULT_CHARACTER_PACK_ID);
 const SPEECH_PRIORITY = Object.freeze({
   idle: 10,
   interaction: 30,
@@ -135,6 +136,40 @@ function listLanguagePacks() {
     })
     .filter(Boolean)
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+function listCharacterPacks() {
+  return fs.readdirSync(CHARACTERS_ROOT, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      try {
+        const pack = loadCharacterPack(CHARACTERS_ROOT, entry.name);
+        return {
+          id: pack.manifest.id,
+          displayName: pack.manifest.displayName,
+          version: pack.manifest.version,
+          preview: pack.manifest.preview,
+          defaultLanguagePack: pack.manifest.defaultLanguagePack,
+        };
+      } catch (error) {
+        console.error(`Ignoring invalid character pack ${entry.name}: ${error.message}`);
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+function loadConfiguredCharacter(packId) {
+  try {
+    characterPack = loadCharacterPack(CHARACTERS_ROOT, packId);
+    return packId;
+  } catch (error) {
+    runtimeWarning = `形象包 ${packId} 无法加载，已临时改用默认形象：${error.message}`;
+    reportRuntimeError('Character pack', error);
+    characterPack = loadCharacterPack(CHARACTERS_ROOT, DEFAULT_CHARACTER_PACK_ID);
+    return DEFAULT_CHARACTER_PACK_ID;
+  }
 }
 
 function loadConfiguredLanguage(packId) {
@@ -361,6 +396,7 @@ function assertSettingsSender(event) {
 function getSettingsPayload() {
   return {
     config: JSON.parse(JSON.stringify(config)),
+    characters: listCharacterPacks(),
     languages: listLanguagePacks(),
     warning: runtimeWarning || configStore.loadWarning,
     integrationStatus: { calendar: calendarStatus, agentBridge: agentBridgeStatus },
@@ -373,8 +409,10 @@ function getIntegrationResourcesRoot() {
 }
 
 function applyConfig(nextConfig) {
+  const characterChanged = nextConfig.pet.characterPackId !== config.pet.characterPackId;
   const languageChanged = !phraseEngine || nextConfig.language.packId !== config.language.packId;
   config = nextConfig;
+  if (characterChanged) loadConfiguredCharacter(config.pet.characterPackId);
   if (languageChanged) loadConfiguredLanguage(config.language.packId);
   if (calendarService) calendarService.setEnabled(config.integrations.calendar);
   if (taskTracker) {
@@ -383,6 +421,7 @@ function applyConfig(nextConfig) {
     updateAgentState(taskTracker.snapshot());
   }
   if (win && !win.isDestroyed()) {
+    if (characterChanged) win.webContents.send('character-pack', characterPack);
     win.webContents.send('pet-config', { scale: config.pet.scale });
     syncHoverState();
   }
@@ -1137,6 +1176,10 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   configStore = new ConfigStore(app.getPath('userData'));
   config = configStore.load();
   if (configStore.loadWarning) reportRuntimeError('Settings', configStore.loadWarning);
+  const activeCharacterId = loadConfiguredCharacter(config.pet.characterPackId);
+  if (activeCharacterId !== config.pet.characterPackId) {
+    config = { ...config, pet: { ...config.pet, characterPackId: activeCharacterId } };
+  }
   const activeLanguageId = loadConfiguredLanguage(config.language.packId);
   if (activeLanguageId !== config.language.packId) {
     config = { ...config, language: { ...config.language, packId: activeLanguageId } };
@@ -1169,6 +1212,10 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       const availableIds = new Set(listLanguagePacks().map((language) => language.id));
       if (!nextConfig || !availableIds.has(nextConfig.language?.packId)) {
         throw new Error('Selected language pack is not installed or is invalid');
+      }
+      const availableCharacterIds = new Set(listCharacterPacks().map((character) => character.id));
+      if (!availableCharacterIds.has(nextConfig.pet?.characterPackId)) {
+        throw new Error('Selected character pack is not installed or is invalid');
       }
       const saved = persistConfig(nextConfig);
       applyConfig(saved);

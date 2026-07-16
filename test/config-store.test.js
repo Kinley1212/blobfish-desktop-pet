@@ -15,6 +15,7 @@ test('config store writes validated settings atomically and reloads them', () =>
     next.language.idleMinMinutes = 20;
     next.language.idleMaxMinutes = 45;
     next.pet.scale = 1.25;
+    next.pet.characterPackId = 'grass-buddy';
     next.pet.roamWhenNoTasks = true;
     next.startup.launchAtLogin = true;
     store.save(next);
@@ -23,6 +24,7 @@ test('config store writes validated settings atomically and reloads them', () =>
     assert.equal(reloaded.load().schedule.lunchTime, '12:30');
     assert.deepEqual(reloaded.get().schedule.workdays, [1, 3, 5]);
     assert.equal(reloaded.get().pet.scale, 1.25);
+    assert.equal(reloaded.get().pet.characterPackId, 'grass-buddy');
     assert.equal(reloaded.get().pet.roamWhenNoTasks, true);
     assert.equal(reloaded.get().startup.launchAtLogin, true);
     assert.equal(fs.statSync(reloaded.filePath).mode & 0o777, 0o600);
@@ -34,10 +36,12 @@ test('config store writes validated settings atomically and reloads them', () =>
 test('legacy stop-after-task setting migrates without losing user intent', () => {
   const legacy = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   delete legacy.pet.scale;
+  delete legacy.pet.characterPackId;
   delete legacy.pet.roamWhenNoTasks;
   legacy.pet.stopWhenAllTasksComplete = true;
   delete legacy.startup;
   assert.deepEqual(validateConfig(legacy).pet, {
+    characterPackId: 'blobfish',
     speed: 1.5,
     scale: 1,
     roamWhenNoTasks: false,

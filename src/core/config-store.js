@@ -21,7 +21,7 @@ const DEFAULT_CONFIG = Object.freeze({
     idleMaxMinutes: 35,
     categories: Object.freeze({ schedule: true, system: true, calendar: true, agents: true }),
   }),
-  pet: Object.freeze({ speed: 1.5, scale: 1, roamWhenNoTasks: false }),
+  pet: Object.freeze({ characterPackId: 'blobfish', speed: 1.5, scale: 1, roamWhenNoTasks: false }),
   startup: Object.freeze({ launchAtLogin: false }),
   integrations: Object.freeze({ calendar: false, codex: true, claudeCode: true }),
   privacy: Object.freeze({ includeTaskTitles: false, includeCalendarTitles: true }),
@@ -52,9 +52,9 @@ function requireNumber(value, label, min, max) {
   return value;
 }
 
-function requirePackId(value) {
+function requirePackId(value, label = 'language.packId') {
   if (typeof value !== 'string' || !/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(value)) {
-    throw new Error('language.packId is invalid');
+    throw new Error(`${label} is invalid`);
   }
   return value;
 }
@@ -109,6 +109,9 @@ function validateConfig(input) {
       },
     },
     pet: {
+      characterPackId: input.pet.characterPackId === undefined
+        ? DEFAULT_CONFIG.pet.characterPackId
+        : requirePackId(input.pet.characterPackId, 'pet.characterPackId'),
       speed: requireNumber(input.pet.speed, 'pet.speed', 0.25, 4),
       scale: input.pet.scale === undefined
         ? DEFAULT_CONFIG.pet.scale

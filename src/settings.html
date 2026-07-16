@@ -55,9 +55,10 @@
 
     <section>
       <div class="section-heading">
-        <h2>语言与性格</h2>
-        <p>原版台词锁在 original，扩展包只会增加。</p>
+        <h2>形象、语言与性格</h2>
+        <p>切换形象会推荐对应语言；保存后立即生效。</p>
       </div>
+      <label class="field">形象包<select id="character-pack"></select></label>
       <label class="field">语言包<select id="language-pack"></select></label>
       <div class="grid two">
         <label class="field">最短闲聊间隔（分钟）<input id="idle-min" type="number" min="1" max="180" required /></label>
@@ -83,7 +84,7 @@
         <input id="pet-speed" type="range" min="0.25" max="4" step="0.25" />
       </label>
       <label class="field range-field">
-        <span>鱼的大小 <output id="scale-output" for="pet-scale"></output></span>
+        <span>角色大小 <output id="scale-output" for="pet-scale"></output></span>
         <input id="pet-scale" type="range" min="0.65" max="1.5" step="0.05" />
       </label>
       <label class="switch-line"><input id="roam-without-tasks" type="checkbox" /> 没有任务时也继续游动</label>
