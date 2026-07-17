@@ -51,6 +51,17 @@ test('language additions include multiple farewell lines for graceful quit', () 
   assert.ok(farewellPhrases.every((phrase) => phrase.sourcePath.startsWith('additions/')));
 });
 
+test('both characters have additive workday and day-off startup greetings', () => {
+  for (const packId of ['blobfish-zh-TW', 'grass-buddy-zh-CN']) {
+    const pack = loadLanguagePack(languagesRoot, packId);
+    for (const eventName of ['startup.workdayMorning', 'startup.dayOff']) {
+      const phrases = pack.phrases.filter((phrase) => phrase.event === eventName);
+      assert.ok(phrases.length >= 8, `${packId} needs more ${eventName} phrases`);
+      assert.ok(phrases.every((phrase) => phrase.sourcePath === 'additions/greetings.json'));
+    }
+  }
+});
+
 test('right-click, pause and resume phrases are additive interactions', () => {
   const pack = loadLanguagePack(languagesRoot, 'blobfish-zh-TW');
   for (const eventName of ['interaction.menuOpen', 'interaction.paused', 'interaction.resumed']) {
@@ -94,6 +105,8 @@ test('grass buddy language pack covers every runtime event with its own restrain
     'schedule.lunchSoon',
     'schedule.offWorkHalfHour',
     'schedule.offWorkSoon',
+    'startup.workdayMorning',
+    'startup.dayOff',
     'system.integrationReady',
     'system.unlocked',
     'system.battery',

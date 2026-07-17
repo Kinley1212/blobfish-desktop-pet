@@ -12,6 +12,7 @@
     ],
     "additions": [
       "additions/interactions.json",
+      "additions/greetings.json",
       "additions/system.json",
       "additions/calendar.json",
       "additions/agents.json",

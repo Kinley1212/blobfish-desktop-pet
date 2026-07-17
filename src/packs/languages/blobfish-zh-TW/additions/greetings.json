@@ -1,0 +1,22 @@
+{
+  "category": "system",
+  "phrases": [
+    { "id": "workday-morning-01", "event": "startup.workdayMorning", "text": "早。你又比我先醒了……", "weight": 5 },
+    { "id": "workday-morning-02", "event": "startup.workdayMorning", "text": "早上好。今天也要开始了吗。", "weight": 4 },
+    { "id": "workday-morning-03", "event": "startup.workdayMorning", "text": "你来了。我还没游热。", "weight": 4 },
+    { "id": "workday-morning-04", "event": "startup.workdayMorning", "text": "早。先别急，事情不会自己跑掉。", "weight": 3 },
+    { "id": "workday-morning-05", "event": "startup.workdayMorning", "text": "今天也见到了。算是好事。", "weight": 3 },
+    { "id": "workday-morning-06", "event": "startup.workdayMorning", "text": "早……我在。你慢慢来。", "weight": 4 },
+    { "id": "workday-morning-07", "event": "startup.workdayMorning", "text": "这么早。屏幕比海面亮多了。", "weight": 2 },
+    { "id": "workday-morning-08", "event": "startup.workdayMorning", "text": "第一件事别太重。我游得动就行。", "weight": 2 },
+
+    { "id": "day-off-01", "event": "startup.dayOff", "text": "今天不用赶吧……那就慢一点。", "weight": 5 },
+    { "id": "day-off-02", "event": "startup.dayOff", "text": "休息日也来了。你是来看看我的？", "weight": 4 },
+    { "id": "day-off-03", "event": "startup.dayOff", "text": "今天没排工作。很好，鱼也赞成。", "weight": 4 },
+    { "id": "day-off-04", "event": "startup.dayOff", "text": "早。既然休息，就别把自己排满。", "weight": 3 },
+    { "id": "day-off-05", "event": "startup.dayOff", "text": "你还是打开了。好吧，我陪你待会儿。", "weight": 4 },
+    { "id": "day-off-06", "event": "startup.dayOff", "text": "休息日的屏幕，也这么亮。", "weight": 3 },
+    { "id": "day-off-07", "event": "startup.dayOff", "text": "今天可以不做事。我先示范一下。", "weight": 2 },
+    { "id": "day-off-08", "event": "startup.dayOff", "text": "没有任务也没关系。我本来就在这里。", "weight": 2 }
+  ]
+}

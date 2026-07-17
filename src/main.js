@@ -16,6 +16,7 @@ const { RuntimeErrorNotifier } = require('./core/runtime-error-notifier');
 const { RuntimeWarningStore } = require('./core/runtime-warning-store');
 const { SpeechQueue } = require('./core/speech-queue');
 const { SPEECH_DURATION_MS } = require('./core/speech-timing');
+const { StartupGreetingStore, getStartupGreeting } = require('./core/startup-greeting');
 const { formatProviderTaskSummary } = require('./core/task-menu-summary');
 const { advanceFractionalCoordinate, roundWindowCoordinate } = require('./core/fractional-position');
 const { getCurrentTaskStatus, getTerminalTaskStatus } = require('./core/task-status-presenter');
@@ -93,6 +94,7 @@ let speechQueue;
 let idleChatterTimer = null;
 let clickCount = 0;
 let configStore;
+let startupGreetingStore;
 let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 let phraseEngine = null;
 const runtimeWarnings = new RuntimeWarningStore();
@@ -201,10 +203,38 @@ function loadConfiguredLanguage(packId) {
 
 function getEventCategory(event) {
   if (event.startsWith('schedule.')) return 'schedule';
+  if (event.startsWith('startup.')) return 'system';
   if (event.startsWith('system.')) return 'system';
   if (event.startsWith('calendar.')) return 'calendar';
   if (event.startsWith('agent.')) return 'agents';
   return null;
+}
+
+function maybeSpeakStartupGreeting(date = new Date()) {
+  if (!startupGreetingStore) return false;
+  const greeting = getStartupGreeting(
+    date,
+    config.schedule,
+    config.greetings,
+    startupGreetingStore.get(),
+  );
+  if (!greeting) return false;
+
+  const spoken = speak(greeting.event, greeting.context, {
+    priority: SPEECH_PRIORITY.schedule,
+    durationMs: SPEECH_DURATION_MS.idleChatter,
+    replaceKey: 'startup.greeting',
+  });
+  if (!spoken) return false;
+
+  try {
+    startupGreetingStore.mark(greeting.dateKey);
+    runtimeWarnings.clear('startupGreeting');
+  } catch (error) {
+    runtimeWarnings.set('startupGreeting', `无法记录今天的首次问候，下次启动可能会重复：${error.message}`);
+    reportRuntimeError('Startup greeting state', error);
+  }
+  return true;
 }
 
 function isMovementPaused() {
@@ -782,6 +812,7 @@ function createWindow() {
 
   win.webContents.once('did-finish-load', () => {
     runtimeErrorNotifier.setReady();
+    maybeSpeakStartupGreeting();
     scheduleReminders();
     scheduleIdleChatter();
   });
@@ -1322,6 +1353,12 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   configStore = new ConfigStore(app.getPath('userData'));
   config = configStore.load();
   if (configStore.loadWarning) reportRuntimeError('Settings', configStore.loadWarning);
+  startupGreetingStore = new StartupGreetingStore(app.getPath('userData'));
+  startupGreetingStore.load();
+  if (startupGreetingStore.loadWarning) {
+    runtimeWarnings.set('startupGreeting', startupGreetingStore.loadWarning);
+    reportRuntimeError('Startup greeting state', startupGreetingStore.loadWarning);
+  }
   const activeCharacterId = loadConfiguredCharacter(config.pet.characterPackId);
   if (activeCharacterId !== config.pet.characterPackId) {
     config = { ...config, pet: { ...config.pet, characterPackId: activeCharacterId } };
