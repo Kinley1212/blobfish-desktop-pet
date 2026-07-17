@@ -27,7 +27,7 @@ function setValue(id, value) { byId(id).value = value; }
 
 function renderAppVersion(version) {
   if (typeof version !== 'string') return;
-  byId('version-badge').textContent = version.split('.').slice(0, 2).join('.');
+  byId('version-badge').textContent = `Pro${version.split('.').slice(0, 2).join('.')}`;
 }
 
 function activatePanel(panelId, options = {}) {

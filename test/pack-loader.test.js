@@ -79,7 +79,7 @@ test('rejects invalid ids and paths outside the pack root', () => {
   assert.throws(() => assertInside(charactersRoot, '../outside'), /escapes its root/);
 });
 
-test('legacy character settings copy remains valid without 2.3 greeting labels', () => {
+test('legacy character settings copy remains valid without greeting labels', () => {
   const copy = { ...loadCharacterPack(charactersRoot, 'blobfish').settingsCopy };
   delete copy.greetingTitle;
   delete copy.greetingHint;

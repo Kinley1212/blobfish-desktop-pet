@@ -25,7 +25,7 @@ const { version: appVersion } = require('../package.json');
 
 const userDataRoot = app.getPath('appData');
 const appRelease = appVersion.split('.').slice(0, 2).join('.');
-const appDisplayName = `水滴鱼${appRelease}`;
+const appDisplayName = `水滴鱼Pro${appRelease}`;
 app.setName(appDisplayName);
 app.setPath('userData', path.join(userDataRoot, 'BlobfishDesktopPet'));
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
