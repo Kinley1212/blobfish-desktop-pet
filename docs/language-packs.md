@@ -13,6 +13,7 @@ blobfish-zh-TW/
 └── additions/      # new phrases; never replaces files under original/
     ├── agents.json
     ├── calendar.json
+    ├── greetings.json
     ├── rare.json
     └── system.json
 ```
@@ -37,6 +38,10 @@ The phrase engine applies conditions, weighted rarity, per-line cooldowns and a
 20-line recent history. The speech queue lets urgent battery, failure or approval
 messages interrupt idle chatter without allowing rapid clicks to build an
 unbounded backlog.
+
+Both bundled characters provide their own additive `startup.workdayMorning`
+and `startup.dayOff` phrase sets. These files stay under `additions/`, so the
+original click, idle and schedule lines remain byte-for-byte unchanged.
 
 `test/language-pack-loader.test.js` deliberately contains the original 8 click,
 34 idle and 4 schedule strings. Any accidental edit to those originals fails the

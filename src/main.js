@@ -450,6 +450,7 @@ function assertSettingsSender(event) {
 
 function getSettingsPayload() {
   return {
+    appVersion,
     config: JSON.parse(JSON.stringify(config)),
     characters: listCharacterPacks(),
     languages: listLanguagePacks(),

@@ -19,6 +19,12 @@ function isWithinRange(date, range) {
   return current >= timeToMinutes(range.start) && current < timeToMinutes(range.end);
 }
 
+function isValidDateKey(value) {
+  if (typeof value !== 'string' || !DATE_KEY_PATTERN.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 function getStartupGreeting(date, schedule, greetings, state) {
   const dateKey = getLocalDateKey(date);
   if (state.lastGreetingDate === dateKey) return null;
@@ -37,9 +43,7 @@ function getStartupGreeting(date, schedule, greetings, state) {
 function validateState(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('state must be an object');
   if (value.version !== STATE_VERSION) throw new Error('unsupported state version');
-  if (value.lastGreetingDate !== null && (
-    typeof value.lastGreetingDate !== 'string' || !DATE_KEY_PATTERN.test(value.lastGreetingDate)
-  )) {
+  if (value.lastGreetingDate !== null && !isValidDateKey(value.lastGreetingDate)) {
     throw new Error('lastGreetingDate must use YYYY-MM-DD');
   }
   return { version: STATE_VERSION, lastGreetingDate: value.lastGreetingDate };
@@ -88,6 +92,7 @@ module.exports = {
   StartupGreetingStore,
   getLocalDateKey,
   getStartupGreeting,
+  isValidDateKey,
   isWithinRange,
   validateState,
 };

@@ -25,6 +25,11 @@ function byId(id) { return document.getElementById(id); }
 function setChecked(id, value) { byId(id).checked = value; }
 function setValue(id, value) { byId(id).value = value; }
 
+function renderAppVersion(version) {
+  if (typeof version !== 'string') return;
+  byId('version-badge').textContent = version.split('.').slice(0, 2).join('.');
+}
+
 function activatePanel(panelId, options = {}) {
   const activeTab = panelTabs.find((tab) => tab.dataset.panel === panelId) || panelTabs[0];
   for (const tab of panelTabs) {
@@ -46,9 +51,39 @@ function syncDependentControls() {
   ];
   for (const [toggleId, groupId] of dependencies) {
     const enabled = byId(toggleId).checked;
+    if (!enabled) {
+      if (groupId === 'workday-greeting-times') normalizeTimeRange(groupId, '07:00', '11:00');
+      if (groupId === 'dayoff-greeting-times') normalizeTimeRange(groupId, '07:00', '18:00');
+      if (groupId === 'quiet-times') normalizeTimeRange(groupId, '22:30', '08:30', false);
+      if (groupId === 'idle-time-fields') normalizeIdleRange();
+    }
     byId(groupId).dataset.disabled = String(!enabled);
     byId(groupId).setAttribute('aria-disabled', String(!enabled));
     byId(groupId).querySelectorAll('input').forEach((input) => { input.disabled = !enabled; });
+  }
+  updateFormValidity();
+}
+
+function normalizeTimeRange(groupId, defaultStart, defaultEnd, requireForward = true) {
+  const inputs = [...byId(groupId).querySelectorAll('input[type="time"]')];
+  const invalid = inputs.length !== 2
+    || !inputs[0].value
+    || !inputs[1].value
+    || (requireForward && inputs[0].value >= inputs[1].value);
+  if (invalid && inputs.length === 2) {
+    inputs[0].value = defaultStart;
+    inputs[1].value = defaultEnd;
+  }
+}
+
+function normalizeIdleRange() {
+  const minInput = byId('idle-min');
+  const maxInput = byId('idle-max');
+  const min = Number(minInput.value);
+  const max = Number(maxInput.value);
+  if (!Number.isFinite(min) || min < 1 || min > 180 || !Number.isFinite(max) || max < 1 || max > 240 || min > max) {
+    minInput.value = '12';
+    maxInput.value = '35';
   }
 }
 
@@ -90,8 +125,8 @@ function applyCharacterCopy(characterId) {
   byId('settings-subtitle').textContent = copy.subtitle;
   byId('schedule-title').textContent = copy.scheduleTitle;
   byId('schedule-hint').textContent = copy.scheduleHint;
-  byId('greeting-title').textContent = copy.greetingTitle;
-  byId('greeting-hint').textContent = copy.greetingHint;
+  byId('greeting-title').textContent = copy.greetingTitle || '每天第一次见面';
+  byId('greeting-hint').textContent = copy.greetingHint || '在设定时段内当天第一次打开，角色会说一句早安。';
   byId('quiet-title').textContent = copy.quietTitle;
   byId('quiet-hint').textContent = copy.quietHint;
   byId('personality-title').textContent = copy.personalityTitle;
@@ -595,6 +630,7 @@ form.addEventListener('submit', async (event) => {
   setBusy(true);
   try {
     const result = await window.settingsAPI.save(readConfig());
+    renderAppVersion(result.appVersion);
     renderConfig(result.config, result.characters, result.languages);
     renderIntegrationStatus(result.integrationStatus);
     refreshAgentIntegrations();
@@ -611,6 +647,7 @@ resetButton.addEventListener('click', async () => {
   setBusy(true);
   try {
     const result = await window.settingsAPI.reset();
+    renderAppVersion(result.appVersion);
     renderConfig(result.config, result.characters, result.languages);
     renderIntegrationStatus(result.integrationStatus);
     showStatus(activeSettingsCopy?.resetStatus || '已经恢复默认。');
@@ -623,6 +660,7 @@ resetButton.addEventListener('click', async () => {
 
 window.settingsAPI.load()
   .then((result) => {
+    renderAppVersion(result.appVersion);
     renderConfig(result.config, result.characters, result.languages);
     renderIntegrationStatus(result.integrationStatus);
     refreshAgentIntegrations();

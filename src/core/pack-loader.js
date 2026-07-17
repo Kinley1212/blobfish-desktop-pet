@@ -6,14 +6,12 @@ const MAX_SVG_BYTES = 512 * 1024;
 const MAX_CSS_BYTES = 128 * 1024;
 const MAX_SETTINGS_COPY_BYTES = 32 * 1024;
 const REQUIRED_ACTIONS = ['idle', 'blink', 'roam', 'working', 'waiting', 'success', 'failed', 'hit', 'bump', 'dragging', 'exit'];
-const SETTINGS_COPY_KEYS = [
+const REQUIRED_SETTINGS_COPY_KEYS = [
   'windowTitle',
   'pageTitle',
   'subtitle',
   'scheduleTitle',
   'scheduleHint',
-  'greetingTitle',
-  'greetingHint',
   'quietTitle',
   'quietHint',
   'personalityTitle',
@@ -26,6 +24,8 @@ const SETTINGS_COPY_KEYS = [
   'savedStatus',
   'resetStatus',
 ];
+const OPTIONAL_SETTINGS_COPY_KEYS = ['greetingTitle', 'greetingHint'];
+const SETTINGS_COPY_KEYS = [...REQUIRED_SETTINGS_COPY_KEYS, ...OPTIONAL_SETTINGS_COPY_KEYS];
 
 function assertInside(root, relativePath) {
   if (typeof relativePath !== 'string' || relativePath.length === 0) {
@@ -101,9 +101,16 @@ function validateSettingsCopy(copy) {
   if (!copy || typeof copy !== 'object' || Array.isArray(copy)) {
     throw new Error('Character settings copy must be an object');
   }
-  for (const key of SETTINGS_COPY_KEYS) {
+  for (const key of REQUIRED_SETTINGS_COPY_KEYS) {
     if (typeof copy[key] !== 'string' || copy[key].trim().length === 0 || copy[key].length > 240) {
       throw new Error(`Character settings copy requires a short string: ${key}`);
+    }
+  }
+  for (const key of OPTIONAL_SETTINGS_COPY_KEYS) {
+    if (copy[key] !== undefined && (
+      typeof copy[key] !== 'string' || copy[key].trim().length === 0 || copy[key].length > 240
+    )) {
+      throw new Error(`Character settings copy requires a short string when provided: ${key}`);
     }
   }
   for (const key of Object.keys(copy)) {

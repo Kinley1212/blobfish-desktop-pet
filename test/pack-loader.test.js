@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const test = require('node:test');
 
-const { REQUIRED_ACTIONS, assertInside, loadCharacterPack } = require('../src/core/pack-loader');
+const { REQUIRED_ACTIONS, assertInside, loadCharacterPack, validateSettingsCopy } = require('../src/core/pack-loader');
 
 const charactersRoot = path.join(__dirname, '..', 'src', 'packs', 'characters');
 
@@ -77,4 +77,11 @@ test('loads the grass buddy pack with compositor-friendly standard actions', () 
 test('rejects invalid ids and paths outside the pack root', () => {
   assert.throws(() => loadCharacterPack(charactersRoot, '../blobfish'), /Invalid character pack id/);
   assert.throws(() => assertInside(charactersRoot, '../outside'), /escapes its root/);
+});
+
+test('legacy character settings copy remains valid without 2.3 greeting labels', () => {
+  const copy = { ...loadCharacterPack(charactersRoot, 'blobfish').settingsCopy };
+  delete copy.greetingTitle;
+  delete copy.greetingHint;
+  assert.doesNotThrow(() => validateSettingsCopy(copy));
 });

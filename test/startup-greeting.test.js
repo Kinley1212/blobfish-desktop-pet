@@ -7,6 +7,7 @@ const {
   StartupGreetingStore,
   getLocalDateKey,
   getStartupGreeting,
+  validateState,
 } = require('../src/core/startup-greeting');
 
 const schedule = { workdays: [1, 2, 3, 4, 5] };
@@ -33,6 +34,13 @@ test('disabled or out-of-range greetings remain silent', () => {
   const disabled = { ...greetings, workday: { ...greetings.workday, enabled: false } };
   assert.equal(getStartupGreeting(new Date(2026, 6, 20, 8, 0), schedule, disabled, { lastGreetingDate: null }), null);
   assert.equal(getStartupGreeting(new Date(2026, 6, 19, 6, 59), schedule, greetings, { lastGreetingDate: null }), null);
+});
+
+test('state validation rejects impossible calendar dates', () => {
+  assert.throws(
+    () => validateState({ version: 1, lastGreetingDate: '2026-02-30' }),
+    /YYYY-MM-DD/,
+  );
 });
 
 test('startup greeting store persists a private local-date marker and recovers from corrupt data', () => {

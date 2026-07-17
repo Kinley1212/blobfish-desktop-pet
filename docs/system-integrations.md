@@ -1,5 +1,14 @@
 # macOS system integrations
 
+## First launch of the day
+
+After the pet renderer is ready, the main process checks the local date, the
+configured workdays and the two greeting windows. A workday morning or day-off
+daytime line is eligible only on the first launch inside its range. The end of
+each range is exclusive, ranges cannot run backwards, and quiet hours or a
+disabled system-voice category suppress the line without consuming the day.
+The app does not make a network request for holiday data.
+
 ## Lock and wake
 
 The Electron main process listens to macOS lock, unlock, suspend and resume
