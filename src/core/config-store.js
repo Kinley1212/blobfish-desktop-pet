@@ -12,6 +12,10 @@ const DEFAULT_CONFIG = Object.freeze({
     lunchReminder: true,
     offWorkReminder: true,
   }),
+  greetings: Object.freeze({
+    workday: Object.freeze({ enabled: true, start: '07:00', end: '11:00' }),
+    dayOff: Object.freeze({ enabled: true, start: '07:00', end: '18:00' }),
+  }),
   quietHours: Object.freeze({ enabled: false, start: '22:30', end: '08:30' }),
   language: Object.freeze({
     packId: 'blobfish-zh-TW',
@@ -45,6 +49,17 @@ function requireTime(value, label) {
   return value;
 }
 
+function timeToMinutes(value) {
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+function requireForwardTimeRange(start, end, label) {
+  if (timeToMinutes(start) >= timeToMinutes(end)) {
+    throw new Error(`${label}.start must be earlier than ${label}.end`);
+  }
+}
+
 function requireNumber(value, label, min, max) {
   if (!Number.isFinite(value) || value < min || value > max) {
     throw new Error(`${label} must be between ${min} and ${max}`);
@@ -62,6 +77,10 @@ function requirePackId(value, label = 'language.packId') {
 function validateConfig(input) {
   assertObject(input, 'config');
   assertObject(input.schedule, 'schedule');
+  const greetings = input.greetings === undefined ? DEFAULT_CONFIG.greetings : input.greetings;
+  assertObject(greetings, 'greetings');
+  assertObject(greetings.workday, 'greetings.workday');
+  assertObject(greetings.dayOff, 'greetings.dayOff');
   assertObject(input.quietHours, 'quietHours');
   assertObject(input.language, 'language');
   assertObject(input.language.categories, 'language.categories');
@@ -89,6 +108,18 @@ function validateConfig(input) {
       halfHourReminders: requireBoolean(input.schedule.halfHourReminders, 'schedule.halfHourReminders'),
       lunchReminder: requireBoolean(input.schedule.lunchReminder, 'schedule.lunchReminder'),
       offWorkReminder: requireBoolean(input.schedule.offWorkReminder, 'schedule.offWorkReminder'),
+    },
+    greetings: {
+      workday: {
+        enabled: requireBoolean(greetings.workday.enabled, 'greetings.workday.enabled'),
+        start: requireTime(greetings.workday.start, 'greetings.workday.start'),
+        end: requireTime(greetings.workday.end, 'greetings.workday.end'),
+      },
+      dayOff: {
+        enabled: requireBoolean(greetings.dayOff.enabled, 'greetings.dayOff.enabled'),
+        start: requireTime(greetings.dayOff.start, 'greetings.dayOff.start'),
+        end: requireTime(greetings.dayOff.end, 'greetings.dayOff.end'),
+      },
     },
     quietHours: {
       enabled: requireBoolean(input.quietHours.enabled, 'quietHours.enabled'),
@@ -137,6 +168,8 @@ function validateConfig(input) {
   if (config.language.idleMinMinutes > config.language.idleMaxMinutes) {
     throw new Error('language.idleMinMinutes cannot exceed idleMaxMinutes');
   }
+  requireForwardTimeRange(config.greetings.workday.start, config.greetings.workday.end, 'greetings.workday');
+  requireForwardTimeRange(config.greetings.dayOff.start, config.greetings.dayOff.end, 'greetings.dayOff');
   return config;
 }
 

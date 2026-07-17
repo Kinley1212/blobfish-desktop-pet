@@ -12,6 +12,8 @@ test('config store writes validated settings atomically and reloads them', () =>
     const next = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
     next.schedule.lunchTime = '12:30';
     next.schedule.workdays = [5, 1, 1, 3];
+    next.greetings.workday.start = '06:45';
+    next.greetings.workday.end = '10:30';
     next.language.idleMinMinutes = 20;
     next.language.idleMaxMinutes = 45;
     next.pet.scale = 1.25;
@@ -23,6 +25,7 @@ test('config store writes validated settings atomically and reloads them', () =>
     const reloaded = new ConfigStore(directory);
     assert.equal(reloaded.load().schedule.lunchTime, '12:30');
     assert.deepEqual(reloaded.get().schedule.workdays, [1, 3, 5]);
+    assert.deepEqual(reloaded.get().greetings.workday, { enabled: true, start: '06:45', end: '10:30' });
     assert.equal(reloaded.get().pet.scale, 1.25);
     assert.equal(reloaded.get().pet.characterPackId, 'grass-buddy');
     assert.equal(reloaded.get().pet.roamWhenNoTasks, true);
@@ -40,6 +43,7 @@ test('legacy stop-after-task setting migrates without losing user intent', () =>
   delete legacy.pet.roamWhenNoTasks;
   legacy.pet.stopWhenAllTasksComplete = true;
   delete legacy.startup;
+  delete legacy.greetings;
   assert.deepEqual(validateConfig(legacy).pet, {
     characterPackId: 'blobfish',
     speed: 1.5,
@@ -47,6 +51,7 @@ test('legacy stop-after-task setting migrates without losing user intent', () =>
     roamWhenNoTasks: false,
   });
   assert.deepEqual(validateConfig(legacy).startup, { launchAtLogin: false });
+  assert.deepEqual(validateConfig(legacy).greetings, DEFAULT_CONFIG.greetings);
 });
 
 test('invalid config is rejected without weakening validation', () => {
@@ -58,4 +63,9 @@ test('invalid config is rejected without weakening validation', () => {
   invalid.language.idleMinMinutes = 50;
   invalid.language.idleMaxMinutes = 10;
   assert.throws(() => validateConfig(invalid), /cannot exceed/);
+
+  invalid.language.idleMinMinutes = 10;
+  invalid.greetings.workday.start = '11:00';
+  invalid.greetings.workday.end = '07:00';
+  assert.throws(() => validateConfig(invalid), /must be earlier/);
 });
