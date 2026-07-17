@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    width: 300px;
+    height: 170px;
+    user-select: none;
+  }
+
+  #bubble {
+    position: absolute;
+    bottom: 86px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 200px;
+    background: white;
+    border-radius: 8px;
+    padding: 2px 6px;
+    font-size: 12px;
+    font-family: -apple-system, sans-serif;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    white-space: normal;
+    text-align: center;
+    word-break: break-word;
+    pointer-events: none;
+  }
+
+  #pet {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    width: 82px;
+    height: 70px;
+    transform: translateX(-50%) scaleX(1);
+    cursor: grab;
+    animation: swim 0.9s infinite ease-in-out;
+  }
+
+  #pet.dragging {
+    cursor: grabbing;
+    animation: none;
+  }
+
+  #pet svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    filter: drop-shadow(0 3px 3px rgba(0,0,0,0.15));
+  }
+
+  #pet.hit {
+    animation: punch 0.5s ease;
+  }
+
+  #pet.bump {
+    animation: bump 0.32s ease;
+  }
+
+  @keyframes swim {
+    0%, 100% { margin-bottom: 0px; }
+    50% { margin-bottom: 5px; }
+  }
+
+  @keyframes bump {
+    0% { transform: translateX(-50%) scaleX(var(--dir, 1)) scaleY(1); }
+    30% { transform: translateX(-50%) scaleX(calc(var(--dir, 1) * 1.38)) scaleY(0.6); }
+    55% { transform: translateX(-50%) scaleX(calc(var(--dir, 1) * 0.85)) scaleY(1.18); }
+    75% { transform: translateX(-50%) scaleX(calc(var(--dir, 1) * 1.08)) scaleY(0.94); }
+    100% { transform: translateX(-50%) scaleX(var(--dir, 1)) scaleY(1); }
+  }
+
+  @keyframes punch {
+    0% { transform: translateX(-50%) scaleX(var(--dir, 1)) scaleY(1) translateY(0); }
+    20% { transform: translateX(-50%) scaleX(calc(var(--dir, 1) * 1.3)) scaleY(0.65) translateY(10px); }
+    50% { transform: translateX(-50%) scaleX(calc(var(--dir, 1) * 0.85)) scaleY(1.15) translateY(-6px); }
+    75% { transform: translateX(-50%) scaleX(calc(var(--dir, 1) * 1.05)) scaleY(0.95) translateY(2px); }
+    100% { transform: translateX(-50%) scaleX(var(--dir, 1)) scaleY(1) translateY(0); }
+  }
+
+  .tear {
+    opacity: 0;
+    transform-origin: center;
+  }
+
+  #pet.hit .tear {
+    animation: tearfall 0.6s ease forwards;
+  }
+
+  @keyframes tearfall {
+    0% { opacity: 0; transform: translateY(0); }
+    25% { opacity: 1; transform: translateY(2px); }
+    100% { opacity: 0; transform: translateY(20px); }
+  }
+</style>
+</head>
+<body>
+  <div id="bubble">痛痛痛!!</div>
+  <div id="pet">
+    <svg viewBox="0 0 140 120" xmlns="http://www.w3.org/2000/svg">
+      <!-- side fins, drawn first so the body sits in front of them -->
+      <path d="M 28 55 Q -8 46 4 72 Q -10 84 20 80 Z" fill="#eeaebb" />
+      <path d="M 112 55 Q 148 46 136 72 Q 150 84 120 80 Z" fill="#eeaebb" />
+      <!-- main head/body blob -->
+      <ellipse cx="70" cy="60" rx="58" ry="48" fill="#f7dde2" />
+      <!-- soft lower shading -->
+      <ellipse cx="70" cy="86" rx="44" ry="26" fill="#f1cdd6" opacity="0.55" />
+      <!-- eyes -->
+      <circle cx="45" cy="50" r="5.5" fill="#2e2a2c" />
+      <circle cx="95" cy="50" r="5.5" fill="#2e2a2c" />
+      <!-- tears, hidden until the pet gets hit -->
+      <path class="tear" d="M 45 56 C 48 62 48 68 45 70 C 42 68 42 62 45 56 Z" fill="#6fb3e0" />
+      <path class="tear" d="M 95 56 C 98 62 98 68 95 70 C 92 68 92 62 95 56 Z" fill="#6fb3e0" />
+      <!-- sausage-shaped downturned lip, same color as the side fins -->
+      <path d="M 38 90 Q 70 74 102 90" stroke="#eeaebb" stroke-width="24" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M 43 85 Q 70 71 97 85" stroke="#f6cdd9" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.6" />
+      <!-- teardrop-shaped nose drooping over the mouth -->
+      <path d="M 70 54
+               C 83 68 90 78 90 87
+               C 90 98 81 105 70 105
+               C 59 105 50 98 50 87
+               C 50 78 57 68 70 54 Z"
+            fill="#fbeaef" />
+      <ellipse cx="63" cy="75" rx="3.5" ry="2.8" fill="white" opacity="0.9" />
+    </svg>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>
