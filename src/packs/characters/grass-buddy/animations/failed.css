@@ -1,0 +1,36 @@
+#pet.is-failed {
+  animation: grass-buddy-failed 0.92s ease-in-out;
+}
+
+#pet.is-failed .grass-body {
+  animation: grass-buddy-failed-body 0.92s ease-in-out;
+}
+
+#pet.is-failed .arm-left,
+#pet.is-failed .arm-right {
+  animation: grass-buddy-failed-arm 0.92s ease-in-out;
+}
+
+#pet.is-failed .mouth-smile,
+#pet.is-failed .mouth-neutral {
+  opacity: 0;
+}
+
+#pet.is-failed .mouth-frown {
+  opacity: 1;
+}
+
+@keyframes grass-buddy-failed {
+  0%, 100% { transform: translateX(-50%) scaleX(var(--dir)) translateY(0); }
+  55% { transform: translateX(-50%) scaleX(var(--dir)) translateY(7px); }
+}
+
+@keyframes grass-buddy-failed-body {
+  0%, 100% { transform: rotate(0deg) scaleY(1); }
+  55% { transform: rotate(-3deg) scaleY(0.88); }
+}
+
+@keyframes grass-buddy-failed-arm {
+  0%, 100% { transform: rotate(0deg); }
+  55% { transform: rotate(10deg) translateY(3px); }
+}

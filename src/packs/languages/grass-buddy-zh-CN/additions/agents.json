@@ -1,0 +1,61 @@
+{
+  "category": "agents",
+  "phrases": [
+    { "id": "grass-agent-start-01", "event": "agent.started", "text": "开始长这一段。", "weight": 5 },
+    { "id": "grass-agent-start-02", "event": "agent.started", "text": "任务动了。我也走几步。", "weight": 5 },
+    { "id": "grass-agent-start-03", "event": "agent.started", "text": "又有一件事开始。", "weight": 4 },
+    { "id": "grass-agent-start-04", "event": "agent.started", "text": "收到状态。现在往前长。", "weight": 4 },
+    { "id": "grass-agent-start-05", "event": "agent.started", "text": "现在有 {activeCount} 个任务在动。", "weight": 4, "conditions": { "activeCountMin": 2 } },
+    { "id": "grass-agent-start-06", "event": "agent.started", "text": "Codex 开始了。我看着。", "weight": 3, "conditions": { "provider": "codex" } },
+    { "id": "grass-agent-start-07", "event": "agent.started", "text": "Claude Code 开始了。我站近一点。", "weight": 3, "conditions": { "provider": "claude-code" } },
+
+    { "id": "grass-agent-wait-01", "event": "agent.needsInput", "text": "这里要你确认。", "weight": 5 },
+    { "id": "grass-agent-wait-02", "event": "agent.needsInput", "text": "它在等你点头。", "weight": 5 },
+    { "id": "grass-agent-wait-03", "event": "agent.needsInput", "text": "这里卡住了。你看一下。", "weight": 5 },
+    { "id": "grass-agent-wait-04", "event": "agent.needsInput", "text": "下一步不能替你决定。", "weight": 4 },
+    { "id": "grass-agent-wait-05", "event": "agent.needsInput", "text": "它停在门口。钥匙在你手里。", "weight": 3 },
+    { "id": "grass-agent-wait-06", "event": "agent.needsInput", "text": "需要确认。我先站住。", "weight": 4 },
+    { "id": "grass-agent-wait-07", "event": "agent.needsInput", "text": "你不回来，这一枝不会往前长。", "weight": 2, "rarity": "uncommon" },
+
+    { "id": "grass-agent-complete-01", "event": "agent.completed", "text": "长完一点。", "weight": 5 },
+    { "id": "grass-agent-complete-02", "event": "agent.completed", "text": "这一件做好了。", "weight": 5 },
+    { "id": "grass-agent-complete-03", "event": "agent.completed", "text": "完成一个。还有 {remaining} 个。", "weight": 5, "conditions": { "remainingMin": 1 } },
+    { "id": "grass-agent-complete-04", "event": "agent.completed", "text": "这一段收住了。", "weight": 4 },
+    { "id": "grass-agent-complete-05", "event": "agent.completed", "text": "少一件。其他的还在长。", "weight": 4, "conditions": { "remainingMin": 1 } },
+    { "id": "grass-agent-complete-06", "event": "agent.completed", "text": "结果到了。先看一眼再放心。", "weight": 3 },
+    { "id": "grass-agent-complete-07", "event": "agent.completed", "text": "这片叶子展开了。比预想安静。", "weight": 2, "rarity": "uncommon" },
+
+    { "id": "grass-agent-all-complete-01", "event": "agent.allCompleted", "text": "都长完了。我停下来。", "weight": 5 },
+    { "id": "grass-agent-all-complete-02", "event": "agent.allCompleted", "text": "所有任务都完成了。现在没风。", "weight": 5 },
+    { "id": "grass-agent-all-complete-03", "event": "agent.allCompleted", "text": "这一轮做好了。先别急着种下一轮。", "weight": 4 },
+    { "id": "grass-agent-all-complete-04", "event": "agent.allCompleted", "text": "全部结束。桌面安静了。", "weight": 4 },
+    { "id": "grass-agent-all-complete-05", "event": "agent.allCompleted", "text": "没有运行中的任务了。我站着。", "weight": 3 },
+    { "id": "grass-agent-all-complete-06", "event": "agent.allCompleted", "text": "长齐了。检查一下，别只看我跳。", "weight": 2, "rarity": "uncommon" },
+
+    { "id": "grass-agent-fail-01", "event": "agent.failed", "text": "这次没长好。", "weight": 5 },
+    { "id": "grass-agent-fail-02", "event": "agent.failed", "text": "任务失败了。你看一下。", "weight": 5 },
+    { "id": "grass-agent-fail-03", "event": "agent.failed", "text": "这一枝折了。原因还在里面。", "weight": 4 },
+    { "id": "grass-agent-fail-04", "event": "agent.failed", "text": "它停得不对。需要处理。", "weight": 4 },
+    { "id": "grass-agent-fail-05", "event": "agent.failed", "text": "没做成。先别往上叠任务。", "weight": 3 },
+    { "id": "grass-agent-fail-06", "event": "agent.failed", "text": "这里枯了一小块。还可以重来。", "weight": 3 },
+    { "id": "grass-agent-fail-07", "event": "agent.failed", "text": "我看见它倒下了。不是风。", "weight": 2, "rarity": "uncommon" },
+
+    { "id": "grass-agent-long-01", "event": "agent.longRunning", "text": "还在长。这一段根有点深。", "weight": 5, "conditions": { "durationMinSeconds": 1200 } },
+    { "id": "grass-agent-long-02", "event": "agent.longRunning", "text": "任务还没结束。比看起来费土。", "weight": 4, "conditions": { "durationMinSeconds": 1200 } },
+    { "id": "grass-agent-long-03", "event": "agent.longRunning", "text": "它跑很久了。状态还在动。", "weight": 4, "conditions": { "durationMinSeconds": 1200 } },
+    { "id": "grass-agent-long-04", "event": "agent.longRunning", "text": "四十分钟了。别只盯着叶尖。", "weight": 3, "conditions": { "durationMinSeconds": 2400 } },
+    { "id": "grass-agent-long-05", "event": "agent.longRunning", "text": "这一件长成了藤。还没停。", "weight": 2, "conditions": { "durationMinSeconds": 3600 }, "rarity": "uncommon" },
+
+    { "id": "grass-agent-ended-01", "event": "agent.ended", "text": "这一轮停了。", "weight": 5 },
+    { "id": "grass-agent-ended-02", "event": "agent.ended", "text": "它先停在这里。", "weight": 4 },
+    { "id": "grass-agent-ended-03", "event": "agent.ended", "text": "这件收住了。还有 {remaining} 个在动。", "weight": 5, "conditions": { "remainingMin": 1 } },
+    { "id": "grass-agent-ended-04", "event": "agent.ended", "text": "状态结束了。结果自己看一眼。", "weight": 3 },
+    { "id": "grass-agent-ended-05", "event": "agent.ended", "text": "这枝不再动了。其他的还在。", "weight": 3, "conditions": { "remainingMin": 1 } },
+
+    { "id": "grass-agent-all-ended-01", "event": "agent.allEnded", "text": "都停下来了。先看结果。", "weight": 5 },
+    { "id": "grass-agent-all-ended-02", "event": "agent.allEnded", "text": "现在没有任务在动。我也停。", "weight": 5 },
+    { "id": "grass-agent-all-ended-03", "event": "agent.allEnded", "text": "这一轮结束了。成没成要你判断。", "weight": 4 },
+    { "id": "grass-agent-all-ended-04", "event": "agent.allEnded", "text": "它们都安静了。桌面也该安静。", "weight": 3 },
+    { "id": "grass-agent-all-ended-05", "event": "agent.allEnded", "text": "风停了。先不宣布丰收。", "weight": 2, "rarity": "uncommon" }
+  ]
+}

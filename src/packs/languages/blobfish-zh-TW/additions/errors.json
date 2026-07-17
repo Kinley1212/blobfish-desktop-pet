@@ -1,0 +1,10 @@
+{
+  "category": "system",
+  "phrases": [
+    { "id": "system-error-01", "event": "system.error", "text": "這邊沒接上。", "weight": 5 },
+    { "id": "system-error-02", "event": "system.error", "text": "剛才那一下沒弄好。", "weight": 4 },
+    { "id": "system-error-03", "event": "system.error", "text": "好像出錯了……你看一下。", "weight": 4 },
+    { "id": "system-error-04", "event": "system.error", "text": "它沒有照計畫走。", "weight": 3 },
+    { "id": "system-error-05", "event": "system.error", "text": "不是我故意裝死的。", "weight": 2, "rarity": "uncommon" }
+  ]
+}

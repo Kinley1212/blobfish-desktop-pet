@@ -1,0 +1,28 @@
+{
+  "category": "system",
+  "phrases": [
+    { "id": "goodbye-01", "event": "interaction.goodbye", "text": "好吧，我先沉下去了。", "weight": 5 },
+    { "id": "goodbye-02", "event": "interaction.goodbye", "text": "终于可以不游了……", "weight": 4 },
+    { "id": "goodbye-03", "event": "interaction.goodbye", "text": "那我关了。你别找不到我。", "weight": 4 },
+    { "id": "goodbye-04", "event": "interaction.goodbye", "text": "我走了。菜单栏里不会再有鱼了。", "weight": 3 },
+    { "id": "integration-ready-01", "event": "system.integrationReady", "text": "接上了。下一个任务我会看着。", "weight": 4 },
+    { "id": "integration-ready-02", "event": "system.integrationReady", "text": "线接好了……应该不会漏掉你。", "weight": 3 },
+    { "id": "integration-ready-03", "event": "system.integrationReady", "text": "好了。它忙的时候，我也得游。", "weight": 3 },
+    { "id": "unlock-01", "event": "system.unlocked", "text": "你回來了……", "weight": 5, "cooldownMs": 1800000 },
+    { "id": "unlock-02", "event": "system.unlocked", "text": "我還以為今天到這裡了。", "weight": 4, "cooldownMs": 1800000 },
+    { "id": "unlock-03", "event": "system.unlocked", "text": "剛剛很安靜。其實也不錯。", "weight": 3, "cooldownMs": 1800000 },
+    { "id": "unlock-04", "event": "system.unlocked", "text": "又要開始了嗎……", "weight": 4, "cooldownMs": 1800000 },
+    { "id": "unlock-05", "event": "system.unlocked", "text": "你不在的時候，我沒有亂動。", "weight": 2, "cooldownMs": 1800000 },
+    { "id": "unlock-06", "event": "system.unlocked", "text": "回來就好。這裡還有事。", "weight": 2, "cooldownMs": 1800000 },
+    { "id": "battery-20-01", "event": "system.battery", "text": "剩下 20% 了。記得找一下電源。", "weight": 1, "conditions": { "batteryEquals": 20 } },
+    { "id": "battery-20-02", "event": "system.battery", "text": "電不多了……還有 20%。", "weight": 1, "conditions": { "batteryEquals": 20 } },
+    { "id": "battery-10-01", "event": "system.battery", "text": "只剩 10% 了。先插電吧。", "weight": 1, "conditions": { "batteryEquals": 10 } },
+    { "id": "battery-10-02", "event": "system.battery", "text": "10%……我開始有點不安了。", "weight": 1, "conditions": { "batteryEquals": 10 } },
+    { "id": "battery-5-01", "event": "system.battery", "text": "5% 了。這次真的不能拖。", "weight": 1, "conditions": { "batteryEquals": 5 } },
+    { "id": "battery-5-02", "event": "system.battery", "text": "快沒電了……只剩 5%。", "weight": 1, "conditions": { "batteryEquals": 5 } },
+    { "id": "battery-3-01", "event": "system.battery", "text": "只剩 3% 了……真的要插電了。", "weight": 1, "conditions": { "batteryEquals": 3 } },
+    { "id": "battery-3-02", "event": "system.battery", "text": "3%……我不想陪你一起黑掉。", "weight": 1, "conditions": { "batteryEquals": 3 } },
+    { "id": "battery-2-01", "event": "system.battery", "text": "2%……我快陪你一起停了。", "weight": 1, "conditions": { "batteryEquals": 2 } },
+    { "id": "battery-2-02", "event": "system.battery", "text": "真的只剩 2% 了。現在就插電。", "weight": 1, "conditions": { "batteryEquals": 2 } }
+  ]
+}

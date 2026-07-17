@@ -1,0 +1,9 @@
+{
+  "category": "original-schedule",
+  "phrases": [
+    { "id": "original-schedule-half-hour", "event": "schedule.halfHour", "text": "主人您辛苦了，您又工作了半小時。", "weight": 1 },
+    { "id": "original-schedule-lunch", "event": "schedule.lunchSoon", "text": "主人還有五分鐘就可以去吃飯啦，您辛苦啦。", "weight": 1 },
+    { "id": "original-schedule-off-work-half-hour", "event": "schedule.offWorkHalfHour", "text": "主人還有半個鐘就下班啦，主人今天太棒啦！", "weight": 1 },
+    { "id": "original-schedule-off-work", "event": "schedule.offWorkSoon", "text": "主人還有五分鐘就下班啦，可以開始關閉軟件啦，記得先關梯子再關Claude喲。主人{farewell}～", "weight": 1 }
+  ]
+}

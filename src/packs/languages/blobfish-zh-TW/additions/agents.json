@@ -1,0 +1,44 @@
+{
+  "category": "agents",
+  "phrases": [
+    { "id": "agent-started-01", "event": "agent.started", "text": "又開始了……我去游。", "weight": 5 },
+    { "id": "agent-started-02", "event": "agent.started", "text": "有事做了。我知道。", "weight": 4 },
+    { "id": "agent-started-03", "event": "agent.started", "text": "好吧，不能停了。", "weight": 4 },
+    { "id": "agent-started-04", "event": "agent.started", "text": "它開始跑了……我也是。", "weight": 3 },
+    { "id": "agent-started-05", "event": "agent.started", "text": "又多一件。現在有 {activeCount} 個。", "weight": 3, "conditions": { "activeCountMin": 2 } },
+    { "id": "agent-started-06", "event": "agent.started", "text": "我看到了。這就去。", "weight": 2 },
+
+    { "id": "agent-waiting-01", "event": "agent.needsInput", "text": "這裡要你決定。", "weight": 5 },
+    { "id": "agent-waiting-02", "event": "agent.needsInput", "text": "我不敢按。你來。", "weight": 5 },
+    { "id": "agent-waiting-03", "event": "agent.needsInput", "text": "它在等你。不是等我。", "weight": 4 },
+    { "id": "agent-waiting-04", "event": "agent.needsInput", "text": "卡在這裡了……", "weight": 4 },
+    { "id": "agent-waiting-05", "event": "agent.needsInput", "text": "這一步要你點頭。", "weight": 3 },
+    { "id": "agent-waiting-06", "event": "agent.needsInput", "text": "你不回來，它就不動。", "weight": 2, "rarity": "uncommon" },
+
+    { "id": "agent-completed-01", "event": "agent.completed", "text": "這個好了。", "weight": 5 },
+    { "id": "agent-completed-02", "event": "agent.completed", "text": "少一個了。", "weight": 4 },
+    { "id": "agent-completed-03", "event": "agent.completed", "text": "做完一個……還有 {remaining} 個。", "weight": 5, "conditions": { "remainingMin": 1 } },
+    { "id": "agent-completed-04", "event": "agent.completed", "text": "這個總算結束了。", "weight": 4 },
+    { "id": "agent-completed-05", "event": "agent.completed", "text": "它停了。其他的還在跑。", "weight": 3, "conditions": { "remainingMin": 1 } },
+    { "id": "agent-completed-06", "event": "agent.completed", "text": "完成一件。先別急著再加。", "weight": 2, "rarity": "uncommon" },
+
+    { "id": "agent-all-completed-01", "event": "agent.allCompleted", "text": "都結束了……終於。", "weight": 5 },
+    { "id": "agent-all-completed-02", "event": "agent.allCompleted", "text": "沒有了吧？那我停了。", "weight": 5 },
+    { "id": "agent-all-completed-03", "event": "agent.allCompleted", "text": "做完了。可以安靜一會兒了。", "weight": 4 },
+    { "id": "agent-all-completed-04", "event": "agent.allCompleted", "text": "這次真的沒有了吧……", "weight": 3 },
+    { "id": "agent-all-completed-05", "event": "agent.allCompleted", "text": "全部停下來了。我也一樣。", "weight": 3 },
+    { "id": "agent-all-completed-06", "event": "agent.allCompleted", "text": "好了。今天的水差不多游完了。", "weight": 2, "rarity": "uncommon" },
+
+    { "id": "agent-failed-01", "event": "agent.failed", "text": "這個沒弄成。", "weight": 5 },
+    { "id": "agent-failed-02", "event": "agent.failed", "text": "它失敗了……我有看著。", "weight": 4 },
+    { "id": "agent-failed-03", "event": "agent.failed", "text": "壞掉了。不是我碰的。", "weight": 4 },
+    { "id": "agent-failed-04", "event": "agent.failed", "text": "這個不行。可能要你看看。", "weight": 4 },
+    { "id": "agent-failed-05", "event": "agent.failed", "text": "它停得不太對……", "weight": 3 },
+    { "id": "agent-failed-06", "event": "agent.failed", "text": "我已經很小心了。還是壞了。", "weight": 2, "rarity": "uncommon" },
+
+    { "id": "agent-long-01", "event": "agent.longRunning", "text": "還在跑……我也不知道要多久。", "weight": 5, "conditions": { "durationMinSeconds": 1200 } },
+    { "id": "agent-long-02", "event": "agent.longRunning", "text": "還沒好。這個比看起來麻煩。", "weight": 4, "conditions": { "durationMinSeconds": 1200 } },
+    { "id": "agent-long-03", "event": "agent.longRunning", "text": "別一直盯著。我有在游。", "weight": 3, "conditions": { "durationMinSeconds": 2400 } },
+    { "id": "agent-long-04", "event": "agent.longRunning", "text": "這件事拖得有點深……", "weight": 2, "conditions": { "durationMinSeconds": 3600 }, "rarity": "uncommon" }
+  ]
+}

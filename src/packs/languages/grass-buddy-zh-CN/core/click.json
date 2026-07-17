@@ -1,0 +1,17 @@
+{
+  "category": "interaction",
+  "phrases": [
+    { "id": "grass-click-01", "event": "interaction.click", "text": "你碰到叶尖了。", "weight": 5 },
+    { "id": "grass-click-02", "event": "interaction.click", "text": "别按。我会矮一点。", "weight": 5 },
+    { "id": "grass-click-03", "event": "interaction.click", "text": "我不是按钮。", "weight": 5 },
+    { "id": "grass-click-04", "event": "interaction.click", "text": "这块没有功能。", "weight": 4 },
+    { "id": "grass-click-05", "event": "interaction.click", "text": "手收一下。谢谢。", "weight": 4 },
+    { "id": "grass-click-06", "event": "interaction.click", "text": "又碰。", "weight": 4 },
+    { "id": "grass-click-07", "event": "interaction.click", "text": "我记得这一下。", "weight": 3 },
+    { "id": "grass-click-08", "event": "interaction.click", "text": "叶子也有触觉。大概。", "weight": 3 },
+    { "id": "grass-click-09", "event": "interaction.click", "text": "这里不能刷新。", "weight": 2 },
+    { "id": "grass-click-10", "event": "interaction.click", "text": "再按也不会开花。", "weight": 2 },
+    { "id": "grass-click-11", "event": "interaction.click", "text": "我刚站稳。", "weight": 3 },
+    { "id": "grass-click-12", "event": "interaction.click", "text": "这一下算风。", "weight": 2, "rarity": "uncommon" }
+  ]
+}

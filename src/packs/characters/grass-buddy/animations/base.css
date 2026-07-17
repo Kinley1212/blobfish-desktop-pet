@@ -1,0 +1,28 @@
+#pet .grass-character,
+#pet .grass-body,
+#pet .grass-body-shape,
+#pet .arm,
+#pet .leg,
+#pet .eye,
+#pet .mouth {
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+#pet .grass-body {
+  transform-origin: center bottom;
+}
+
+#pet .arm {
+  transform-origin: center top;
+}
+
+#pet .leg {
+  transform-origin: center top;
+}
+
+#pet .mouth-neutral,
+#pet .mouth-frown {
+  opacity: 0;
+}

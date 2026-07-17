@@ -1,0 +1,18 @@
+#pet.is-failed {
+  animation: blobfish-failed 0.9s ease-in-out;
+}
+
+#pet.is-failed .tear {
+  animation: blobfish-failed-tear 0.9s ease forwards;
+}
+
+@keyframes blobfish-failed {
+  0%, 100% { transform: translateX(-50%) scaleX(var(--dir)) scaleY(1); }
+  55% { transform: translateX(-50%) scaleX(var(--dir)) scaleY(0.88) translateY(6px); }
+}
+
+@keyframes blobfish-failed-tear {
+  0% { opacity: 0; transform: translateY(0); }
+  35% { opacity: 1; transform: translateY(2px); }
+  100% { opacity: 0; transform: translateY(18px); }
+}

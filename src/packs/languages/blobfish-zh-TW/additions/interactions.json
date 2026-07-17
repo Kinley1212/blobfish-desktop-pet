@@ -1,0 +1,15 @@
+{
+  "category": "interaction",
+  "phrases": [
+    { "id": "menu-open-01", "event": "interaction.menuOpen", "text": "你要改什么……", "weight": 5 },
+    { "id": "menu-open-02", "event": "interaction.menuOpen", "text": "选吧，我等着。", "weight": 4 },
+    { "id": "menu-open-03", "event": "interaction.menuOpen", "text": "我先停一下。", "weight": 3 },
+    { "id": "menu-open-rare-01", "event": "interaction.menuOpen", "text": "设置里应该没有海水。", "weight": 1, "rarity": "rare" },
+    { "id": "paused-01", "event": "interaction.paused", "text": "那我不动了。", "weight": 5 },
+    { "id": "paused-02", "event": "interaction.paused", "text": "好吧。停在这里。", "weight": 3 },
+    { "id": "paused-03", "event": "interaction.paused", "text": "反正也游不远。", "weight": 2 },
+    { "id": "resumed-01", "event": "interaction.resumed", "text": "好吧，继续游。", "weight": 5 },
+    { "id": "resumed-02", "event": "interaction.resumed", "text": "又要动了……", "weight": 4 },
+    { "id": "resumed-03", "event": "interaction.resumed", "text": "我还以为能歇久一点。", "weight": 2 }
+  ]
+}

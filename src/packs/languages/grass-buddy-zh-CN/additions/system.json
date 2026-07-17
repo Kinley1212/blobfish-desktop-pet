@@ -1,0 +1,39 @@
+{
+  "category": "system",
+  "phrases": [
+    { "id": "grass-goodbye-01", "event": "interaction.goodbye", "text": "那我收起来了。", "weight": 5 },
+    { "id": "grass-goodbye-02", "event": "interaction.goodbye", "text": "今天先不长了。", "weight": 4 },
+    { "id": "grass-goodbye-03", "event": "interaction.goodbye", "text": "我回土里待会儿。想象中的土。", "weight": 3 },
+    { "id": "grass-goodbye-04", "event": "interaction.goodbye", "text": "先走了。叶子关好。", "weight": 3 },
+    { "id": "grass-goodbye-05", "event": "interaction.goodbye", "text": "窗口关了。我也下沉。", "weight": 2 },
+
+    { "id": "grass-integration-01", "event": "system.integrationReady", "text": "接上了。它一动我就知道。", "weight": 5 },
+    { "id": "grass-integration-02", "event": "system.integrationReady", "text": "任务线接好了。我看着。", "weight": 4 },
+    { "id": "grass-integration-03", "event": "system.integrationReady", "text": "连通了。下一件事会有风声。", "weight": 3 },
+    { "id": "grass-integration-04", "event": "system.integrationReady", "text": "状态能过来了。没有对话内容。", "weight": 2 },
+
+    { "id": "grass-unlock-01", "event": "system.unlocked", "text": "你回来了。我还在原地。", "weight": 5, "cooldownMs": 1800000 },
+    { "id": "grass-unlock-02", "event": "system.unlocked", "text": "屏幕亮了。天不一定亮。", "weight": 4, "cooldownMs": 1800000 },
+    { "id": "grass-unlock-03", "event": "system.unlocked", "text": "刚才很安静。现在也行。", "weight": 4, "cooldownMs": 1800000 },
+    { "id": "grass-unlock-04", "event": "system.unlocked", "text": "又见面了。任务可能也是。", "weight": 3, "cooldownMs": 1800000 },
+    { "id": "grass-unlock-05", "event": "system.unlocked", "text": "你不在的时候，我只长了两像素。", "weight": 2, "cooldownMs": 1800000 },
+    { "id": "grass-unlock-06", "event": "system.unlocked", "text": "锁开了。先看看有没有东西在等。", "weight": 3, "cooldownMs": 1800000 },
+
+    { "id": "grass-battery-20-01", "event": "system.battery", "text": "还剩 20%。电源可以开始找了。", "weight": 1, "conditions": { "batteryEquals": 20 } },
+    { "id": "grass-battery-20-02", "event": "system.battery", "text": "20%。暂时能走，别走远。", "weight": 1, "conditions": { "batteryEquals": 20 } },
+    { "id": "grass-battery-10-01", "event": "system.battery", "text": "只剩 10%。插电比较稳。", "weight": 1, "conditions": { "batteryEquals": 10 } },
+    { "id": "grass-battery-10-02", "event": "system.battery", "text": "10%。叶子也开始看电源了。", "weight": 1, "conditions": { "batteryEquals": 10 } },
+    { "id": "grass-battery-5-01", "event": "system.battery", "text": "5%。现在别靠运气。", "weight": 1, "conditions": { "batteryEquals": 5 } },
+    { "id": "grass-battery-5-02", "event": "system.battery", "text": "只剩 5%。先插电，再继续。", "weight": 1, "conditions": { "batteryEquals": 5 } },
+    { "id": "grass-battery-3-01", "event": "system.battery", "text": "只剩 3%。插电，土不导电。", "weight": 1, "conditions": { "batteryEquals": 3 } },
+    { "id": "grass-battery-3-02", "event": "system.battery", "text": "3%。现在找电源。别等下一片叶子。", "weight": 1, "conditions": { "batteryEquals": 3 } },
+    { "id": "grass-battery-2-01", "event": "system.battery", "text": "2%。现在插电。来不及长新电池。", "weight": 1, "conditions": { "batteryEquals": 2 } },
+    { "id": "grass-battery-2-02", "event": "system.battery", "text": "只剩 2%。先救电脑。", "weight": 1, "conditions": { "batteryEquals": 2 } },
+
+    { "id": "grass-error-01", "event": "system.error", "text": "这边没长起来。", "weight": 5 },
+    { "id": "grass-error-02", "event": "system.error", "text": "刚才那一步折了。", "weight": 4 },
+    { "id": "grass-error-03", "event": "system.error", "text": "这里出错了。你看一下。", "weight": 4 },
+    { "id": "grass-error-04", "event": "system.error", "text": "不是沉默。是没接上。", "weight": 3 },
+    { "id": "grass-error-05", "event": "system.error", "text": "风向不对。再看一次。", "weight": 2 }
+  ]
+}
