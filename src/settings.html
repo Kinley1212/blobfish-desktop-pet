@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="styles/settings.css" />
+  <title>水滴鱼设置</title>
+</head>
+<body>
+  <form id="settings-form" class="settings-shell" novalidate>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><span></span><span></span></div>
+        <div>
+          <p class="eyebrow">DESKTOP PET</p>
+          <h1 id="settings-title">水滴鱼</h1>
+        </div>
+      </div>
+      <p id="settings-subtitle" class="subtitle">别排太满。鱼也要喘气。</p>
+
+      <nav class="settings-nav" aria-label="设置分类" role="tablist" aria-orientation="vertical">
+        <button class="nav-item" type="button" role="tab" aria-selected="true" aria-controls="panel-general" id="tab-general" data-panel="general">
+          <span class="nav-icon" aria-hidden="true">◌</span><span><strong>角色与动作</strong><small>形象、大小、移动</small></span>
+        </button>
+        <button class="nav-item" type="button" role="tab" aria-selected="false" aria-controls="panel-schedule" id="tab-schedule" data-panel="schedule" tabindex="-1">
+          <span class="nav-icon" aria-hidden="true">◷</span><span><strong>问候与作息</strong><small>首次见面、吃饭、下班</small></span>
+        </button>
+        <button class="nav-item" type="button" role="tab" aria-selected="false" aria-controls="panel-voice" id="tab-voice" data-panel="voice" tabindex="-1">
+          <span class="nav-icon quote-icon" aria-hidden="true">“</span><span><strong>台词</strong><small>语言、闲聊、提示类型</small></span>
+        </button>
+        <button class="nav-item" type="button" role="tab" aria-selected="false" aria-controls="panel-connections" id="tab-connections" data-panel="connections" tabindex="-1">
+          <span class="nav-icon" aria-hidden="true">↗</span><span><strong>连接与隐私</strong><small>Codex、Claude、日历</small></span>
+        </button>
+      </nav>
+
+      <div class="sidebar-note">
+        <span id="version-badge" class="version-badge">Pro1.0</span>
+        <p id="entry-hint">右键角色，或点击菜单栏里的 🐟，可以随时回到这里。</p>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <div class="content-scroll">
+        <section id="panel-general" class="settings-panel" role="tabpanel" aria-labelledby="tab-general" data-panel-name="角色与动作">
+          <header class="panel-header">
+            <p class="panel-kicker">外观与活动方式</p>
+            <h2 id="personality-title">形象与活动</h2>
+            <p id="personality-hint">换一个角色，会一起切换说话和活动的感觉。</p>
+          </header>
+
+          <div class="card featured-card">
+            <div class="card-heading">
+              <div><h3>选择角色</h3><p>切换后会自动选择最适合这个角色的语言包。</p></div>
+              <span class="soft-badge">内置 2 个</span>
+            </div>
+            <label class="field">形象包<select id="character-pack"></select></label>
+          </div>
+
+          <div class="card">
+            <div class="card-heading">
+              <div><h3 id="motion-title">动作</h3><p id="motion-hint">任务运行时会游动；全部结束后可以停下。</p></div>
+            </div>
+            <div class="range-stack">
+              <label class="field range-field">
+                <span><span id="speed-label">游动速度</span><output id="speed-output" for="pet-speed"></output></span>
+                <input id="pet-speed" type="range" min="0.25" max="4" step="0.25" />
+              </label>
+              <label class="field range-field">
+                <span><span>角色大小</span><output id="scale-output" for="pet-scale"></output></span>
+                <input id="pet-scale" type="range" min="0.65" max="1.5" step="0.05" />
+              </label>
+            </div>
+            <label class="toggle-row">
+              <span><strong id="roam-without-tasks-label">没有任务时也继续游动</strong><small>关闭后，所有任务结束时角色会停下来。</small></span>
+              <input id="roam-without-tasks" type="checkbox" />
+            </label>
+          </div>
+
+          <div class="card compact-card">
+            <label class="toggle-row">
+              <span><strong>登录后自动打开</strong><small>在后台启动，仍然不会占用程序坞。</small></span>
+              <input id="launch-at-login" type="checkbox" />
+            </label>
+          </div>
+        </section>
+
+        <section id="panel-schedule" class="settings-panel" role="tabpanel" aria-labelledby="tab-schedule" data-panel-name="问候与作息" hidden>
+          <header class="panel-header">
+            <p class="panel-kicker">按你的时间生活</p>
+            <h2 id="schedule-title">作息提醒</h2>
+            <p id="schedule-hint">到点了，它会小声提醒你。</p>
+          </header>
+
+          <div class="card greeting-card">
+            <div class="card-heading">
+              <div><h3 id="greeting-title">每天第一次见面</h3><p id="greeting-hint">在设定时段内当天第一次打开，角色会说一句早安。</p></div>
+              <span class="new-badge">NEW</span>
+            </div>
+
+            <div class="schedule-row">
+              <label class="toggle-copy" for="workday-greeting-enabled"><strong>工作日早晨</strong><small>按下方勾选的工作日判断</small></label>
+              <input id="workday-greeting-enabled" type="checkbox" />
+              <div class="time-pair" id="workday-greeting-times">
+                <label class="field"><span>从</span><input id="workday-greeting-start" type="time" required /></label>
+                <span class="time-separator" aria-hidden="true">至</span>
+                <label class="field"><span>到</span><input id="workday-greeting-end" type="time" required /></label>
+              </div>
+            </div>
+
+            <div class="schedule-row">
+              <label class="toggle-copy" for="dayoff-greeting-enabled"><strong>休息日白天</strong><small>未勾选为工作日的星期；默认 07:00 后</small></label>
+              <input id="dayoff-greeting-enabled" type="checkbox" />
+              <div class="time-pair" id="dayoff-greeting-times">
+                <label class="field"><span>从</span><input id="dayoff-greeting-start" type="time" required /></label>
+                <span class="time-separator" aria-hidden="true">至</span>
+                <label class="field"><span>到</span><input id="dayoff-greeting-end" type="time" required /></label>
+              </div>
+            </div>
+            <p class="inline-note">每个自然日最多问候一次；安静时段内不会打招呼，也不会记作今天已经说过。</p>
+          </div>
+
+          <div class="card">
+            <div class="card-heading"><div><h3>工作日与时间</h3><p>这里同时决定工作提醒和“工作日早晨”的判断。</p></div></div>
+            <fieldset class="weekdays">
+              <legend>每周工作日</legend>
+              <label><input type="checkbox" name="workday" value="1" /><span>一</span></label>
+              <label><input type="checkbox" name="workday" value="2" /><span>二</span></label>
+              <label><input type="checkbox" name="workday" value="3" /><span>三</span></label>
+              <label><input type="checkbox" name="workday" value="4" /><span>四</span></label>
+              <label><input type="checkbox" name="workday" value="5" /><span>五</span></label>
+              <label><input type="checkbox" name="workday" value="6" /><span>六</span></label>
+              <label><input type="checkbox" name="workday" value="0" /><span>日</span></label>
+            </fieldset>
+            <div class="grid two">
+              <label class="field">吃饭时间<input id="lunch-time" type="time" required /></label>
+              <label class="field">下班时间<input id="off-work-time" type="time" required /></label>
+            </div>
+            <div class="option-list">
+              <label><input id="lunch-reminder" type="checkbox" /><span><strong>吃饭提醒</strong><small>提前 5 分钟说一句</small></span></label>
+              <label><input id="off-work-reminder" type="checkbox" /><span><strong>下班提醒</strong><small>提前 30 分钟和 5 分钟</small></span></label>
+              <label><input id="half-hour-reminders" type="checkbox" /><span><strong>半小时提醒</strong><small>工作日每半小时一次</small></span></label>
+            </div>
+          </div>
+
+          <div class="card compact-card">
+            <div class="card-heading"><div><h3 id="quiet-title">安静时段</h3><p id="quiet-hint">紧急低电量和等待确认时，鱼还是会说话。</p></div></div>
+            <div class="quiet-layout">
+              <label class="toggle-row quiet-toggle">
+                <span><strong>启用安静时段</strong><small>普通闲聊、问候和作息提醒会暂停。</small></span>
+                <input id="quiet-enabled" type="checkbox" />
+              </label>
+              <div class="time-pair" id="quiet-times">
+                <label class="field"><span>开始</span><input id="quiet-start" type="time" required /></label>
+                <span class="time-separator" aria-hidden="true">至</span>
+                <label class="field"><span>结束</span><input id="quiet-end" type="time" required /></label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="panel-voice" class="settings-panel" role="tabpanel" aria-labelledby="tab-voice" data-panel-name="台词" hidden>
+          <header class="panel-header">
+            <p class="panel-kicker">控制它什么时候开口</p>
+            <h2>台词与惊喜</h2>
+            <p>选择语言，调整主动闲聊的频率，也可以单独关闭某一类提示。</p>
+          </header>
+
+          <div class="card featured-card">
+            <div class="card-heading"><div><h3>语言包</h3><p>选择角色时会自动匹配；你也可以在这里单独更换。</p></div></div>
+            <label class="field">当前语言<select id="language-pack"></select></label>
+          </div>
+
+          <div class="card">
+            <div class="card-heading"><div><h3>偶尔主动说话</h3><p>在没有更重要提示时，随机挑一个时间闲聊。</p></div></div>
+            <label class="toggle-row">
+              <span><strong>主动闲聊</strong><small>关闭后仍会保留任务、系统和作息提示。</small></span>
+              <input id="idle-enabled" type="checkbox" />
+            </label>
+            <div class="grid two idle-range" id="idle-time-fields">
+              <label class="field">最短间隔（分钟）<input id="idle-min" type="number" min="1" max="180" required /></label>
+              <label class="field">最长间隔（分钟）<input id="idle-max" type="number" min="1" max="240" required /></label>
+            </div>
+            <label class="toggle-row separated-toggle">
+              <span><strong>稀有彩蛋台词</strong><small>低频出现，保留一点意外感。</small></span>
+              <input id="rare-enabled" type="checkbox" />
+            </label>
+          </div>
+
+          <div class="card">
+            <div class="card-heading"><div><h3>提示类型</h3><p>关闭一类，只影响对应台词，不影响功能本身。</p></div></div>
+            <div class="category-grid">
+              <label><span class="category-icon">◷</span><span><strong>作息台词</strong><small>吃饭、下班与半小时提醒</small></span><input id="category-schedule" type="checkbox" /></label>
+              <label><span class="category-icon">●</span><span><strong>系统状态台词</strong><small>首次问候、解锁、电量与错误</small></span><input id="category-system" type="checkbox" /></label>
+              <label><span class="category-icon">□</span><span><strong>日历台词</strong><small>即将开始和忙碌日程</small></span><input id="category-calendar" type="checkbox" /></label>
+              <label><span class="category-icon">↗</span><span><strong>任务台词</strong><small>Codex / Claude Code 状态</small></span><input id="category-agents" type="checkbox" /></label>
+            </div>
+          </div>
+        </section>
+
+        <section id="panel-connections" class="settings-panel connections-panel" role="tabpanel" aria-labelledby="tab-connections" data-panel-name="连接与隐私" hidden>
+          <header class="panel-header">
+            <p class="panel-kicker">让角色看见任务状态</p>
+            <h2>连接与隐私</h2>
+            <p>每张卡片都会直接说明当前状态、下一步和可执行操作。</p>
+          </header>
+
+          <div class="connection-summary-bar">
+            <div><span class="status-dot"></span><p id="agent-bridge-status" class="integration-status">本地接收器正在启动…</p></div>
+            <button id="refresh-integrations" class="text-button" type="button">重新检测</button>
+          </div>
+
+          <div class="connection-grid">
+            <article class="connection-card">
+              <div class="connection-heading">
+                <div class="connection-title-row"><h3>Codex</h3><strong id="codex-connection-verdict" class="connection-verdict" data-state="checking">检测中</strong></div>
+                <p id="codex-install-status">正在检测插件…</p>
+              </div>
+              <div class="connection-guidance"><strong>你现在要做</strong><p id="codex-next-step">检测完成后，这里会告诉你怎么做。</p></div>
+              <button id="connect-codex" class="connection-primary" type="button" disabled>正在检测…</button>
+              <details id="codex-connection-details" class="connection-details">
+                <summary>查看连接过程与其他操作</summary>
+                <ol class="connection-steps" aria-label="Codex 连接进度">
+                  <li id="codex-stage-cli" data-state="pending"><span>1</span><div><strong>找到 Codex</strong><small>正在检测…</small></div></li>
+                  <li id="codex-stage-plugin" data-state="pending"><span>2</span><div><strong>状态插件</strong><small>正在检测…</small></div></li>
+                  <li id="codex-stage-trust" data-state="pending"><span>3</span><div><strong>授权 Hook</strong><small>安装后需要在 Codex 中确认</small></div></li>
+                  <li id="codex-stage-live" data-state="pending"><span>4</span><div><strong>真实任务事件</strong><small>尚未验证</small></div></li>
+                </ol>
+                <div class="connection-actions"><button id="repair-codex" class="secondary compact" type="button" disabled>修复 / 更新</button><button id="disconnect-codex" class="text-button danger" type="button" disabled>断开连接</button></div>
+                <p id="codex-technical-details">尚无</p>
+              </details>
+            </article>
+
+            <article class="connection-card">
+              <div class="connection-heading">
+                <div class="connection-title-row"><h3>Claude Code</h3><strong id="claude-connection-verdict" class="connection-verdict" data-state="checking">检测中</strong></div>
+                <p id="claude-install-status">正在检测插件…</p>
+              </div>
+              <div class="connection-guidance"><strong>你现在要做</strong><p id="claude-next-step">检测完成后，这里会告诉你怎么做。</p></div>
+              <button id="connect-claude" class="connection-primary" type="button" disabled>正在检测…</button>
+              <details id="claude-connection-details" class="connection-details">
+                <summary>查看连接过程与其他操作</summary>
+                <ol class="connection-steps" aria-label="Claude Code 连接进度">
+                  <li id="claude-stage-cli" data-state="pending"><span>1</span><div><strong>找到 Claude Code</strong><small>正在检测…</small></div></li>
+                  <li id="claude-stage-plugin" data-state="pending"><span>2</span><div><strong>状态插件</strong><small>正在检测…</small></div></li>
+                  <li id="claude-stage-trust" data-state="pending"><span>3</span><div><strong>新会话加载插件</strong><small>安装后需要重新打开会话</small></div></li>
+                  <li id="claude-stage-live" data-state="pending"><span>4</span><div><strong>真实任务事件</strong><small>尚未验证</small></div></li>
+                </ol>
+                <div class="connection-actions"><button id="repair-claude" class="secondary compact" type="button" disabled>修复 / 更新</button><button id="disconnect-claude" class="text-button danger" type="button" disabled>断开连接</button></div>
+                <p id="claude-technical-details">尚无</p>
+              </details>
+            </article>
+          </div>
+
+          <div class="card compact-card receive-card">
+            <div class="card-heading"><div><h3>接收开关</h3><p>暂停接收不会卸载插件，之后可以直接恢复。</p></div></div>
+            <div class="option-list two-columns">
+              <label><input id="integration-codex" type="checkbox" /><span><strong>接收 Codex 状态</strong><small>开始、完成、失败、等待确认</small></span></label>
+              <label><input id="integration-claude" type="checkbox" /><span><strong>接收 Claude Code 状态</strong><small>开始、完成、失败、等待确认</small></span></label>
+            </div>
+          </div>
+
+          <div class="card compact-card privacy-card">
+            <div class="card-heading"><div><h3>日历与隐私</h3><p>状态在本机处理；任务对话内容不会发送给角色。</p></div></div>
+            <div class="option-list privacy-options">
+              <label><input id="integration-calendar" type="checkbox" /><span><strong>macOS 日历提醒</strong><small id="calendar-status">日历：未启用</small></span></label>
+              <label><input id="privacy-task-titles" type="checkbox" /><span><strong>显示任务短标题</strong><small>仅在本机截取任务开头生成</small></span></label>
+              <label><input id="privacy-calendar-titles" type="checkbox" /><span><strong>显示日历标题</strong><small>关闭后只提示“有日程”</small></span></label>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="form-footer">
+        <button id="reset-button" class="secondary" type="button">恢复默认</button>
+        <p id="status" role="status" aria-live="polite"></p>
+        <button type="submit">保存更改</button>
+      </footer>
+    </main>
+  </form>
+  <script src="core/integration-ui-model.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>

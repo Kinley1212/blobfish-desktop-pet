@@ -1,0 +1,20 @@
+#pet.hit {
+  animation: grass-buddy-hit 0.5s ease;
+}
+
+#pet.hit .grass-body {
+  animation: grass-buddy-hit-body 0.5s ease;
+}
+
+@keyframes grass-buddy-hit {
+  0%, 100% { transform: translateX(-50%) scaleX(var(--dir)) scaleY(1) translateY(0); }
+  22% { transform: translateX(-50%) scaleX(calc(var(--dir) * 1.18)) scaleY(0.78) translateY(7px); }
+  52% { transform: translateX(-50%) scaleX(calc(var(--dir) * 0.92)) scaleY(1.1) translateY(-5px); }
+  76% { transform: translateX(-50%) scaleX(calc(var(--dir) * 1.04)) scaleY(0.97) translateY(1px); }
+}
+
+@keyframes grass-buddy-hit-body {
+  0%, 100% { transform: rotate(0deg); }
+  35% { transform: rotate(-4deg); }
+  68% { transform: rotate(3deg); }
+}

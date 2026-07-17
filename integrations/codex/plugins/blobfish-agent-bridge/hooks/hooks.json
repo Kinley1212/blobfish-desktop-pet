@@ -1,0 +1,50 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$PLUGIN_ROOT/bin/blobfish-agent-event-sender\" --provider codex",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$PLUGIN_ROOT/bin/blobfish-agent-event-sender\" --provider codex",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$PLUGIN_ROOT/bin/blobfish-agent-event-sender\" --provider codex",
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$PLUGIN_ROOT/bin/blobfish-agent-event-sender\" --provider codex",
+            "timeout": 2
+          }
+        ]
+      }
+    ]
+  }
+}

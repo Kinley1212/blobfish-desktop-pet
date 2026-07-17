@@ -1,0 +1,22 @@
+{
+  "category": "system",
+  "phrases": [
+    { "id": "grass-workday-morning-01", "event": "startup.workdayMorning", "text": "早。今天的风刚开始。", "weight": 5 },
+    { "id": "grass-workday-morning-02", "event": "startup.workdayMorning", "text": "你来了。我也站起来。", "weight": 4 },
+    { "id": "grass-workday-morning-03", "event": "startup.workdayMorning", "text": "早上好。先长一点，再忙。", "weight": 4 },
+    { "id": "grass-workday-morning-04", "event": "startup.workdayMorning", "text": "新的一天。叶子已就位。", "weight": 3 },
+    { "id": "grass-workday-morning-05", "event": "startup.workdayMorning", "text": "早。桌面还很安静。", "weight": 4 },
+    { "id": "grass-workday-morning-06", "event": "startup.workdayMorning", "text": "先从第一件事开始。别一次浇太多。", "weight": 3 },
+    { "id": "grass-workday-morning-07", "event": "startup.workdayMorning", "text": "光来了。事情也会慢慢长出来。", "weight": 2 },
+    { "id": "grass-workday-morning-08", "event": "startup.workdayMorning", "text": "早。今天先把根站稳。", "weight": 2 },
+
+    { "id": "grass-day-off-01", "event": "startup.dayOff", "text": "休息日。今天可以慢慢长。", "weight": 5 },
+    { "id": "grass-day-off-02", "event": "startup.dayOff", "text": "早。没有班也可以来看看。", "weight": 4 },
+    { "id": "grass-day-off-03", "event": "startup.dayOff", "text": "今天风小。适合不着急。", "weight": 4 },
+    { "id": "grass-day-off-04", "event": "startup.dayOff", "text": "休息日也亮屏了。随便坐。", "weight": 3 },
+    { "id": "grass-day-off-05", "event": "startup.dayOff", "text": "七点以后了。叶子算是起床。", "weight": 3 },
+    { "id": "grass-day-off-06", "event": "startup.dayOff", "text": "今天不用追着时间跑。", "weight": 4 },
+    { "id": "grass-day-off-07", "event": "startup.dayOff", "text": "不安排也算一种安排。", "weight": 2 },
+    { "id": "grass-day-off-08", "event": "startup.dayOff", "text": "今天只负责晒一会儿光。", "weight": 2 }
+  ]
+}

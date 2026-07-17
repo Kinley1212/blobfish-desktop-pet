@@ -1,32 +1,22 @@
 {
-  "name": "desktop-pet",
+  "name": "blobfish-desktop-pet",
   "version": "1.0.0",
-  "description": "A tiny desktop pet that walks along the bottom of your screen",
-  "main": "main.js",
-  "scripts": {
-    "start": "electron .",
-    "dist": "electron-builder --mac"
+  "private": true,
+  "description": "A tiny blobfish desktop pet for macOS",
+  "engines": {
+    "node": ">=22.12.0"
   },
-  "build": {
-    "appId": "com.desktoppet.blobfish",
-    "productName": "水滴魚",
-    "files": [
-      "main.js",
-      "preload.js",
-      "renderer.js",
-      "index.html"
-    ],
-    "mac": {
-      "category": "public.app-category.entertainment",
-      "target": [
-        "dir",
-        "zip"
-      ],
-      "identity": null
-    }
+  "main": "src/main.js",
+  "scripts": {
+    "build:native": "node scripts/build-calendar-helper.js && node scripts/build-agent-sender.js",
+    "package:mac": "npm run package:mac:arm64 && npm run package:mac:x64",
+    "package:mac:arm64": "node scripts/package-mac.js arm64",
+    "package:mac:x64": "node scripts/package-mac.js x64",
+    "start": "electron .",
+    "test": "node --test"
   },
   "devDependencies": {
-    "electron": "^31.0.0",
-    "electron-builder": "^24.13.3"
+    "electron": "43.1.1",
+    "electron-builder": "26.15.3"
   }
 }

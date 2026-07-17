@@ -1,0 +1,8 @@
+#pet .eye.is-blinking {
+  animation: grass-buddy-blink 160ms ease-in-out;
+}
+
+@keyframes grass-buddy-blink {
+  0%, 100% { transform: scaleY(1); }
+  48%, 52% { transform: scaleY(0.06); }
+}

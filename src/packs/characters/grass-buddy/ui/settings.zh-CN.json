@@ -1,0 +1,20 @@
+{
+  "windowTitle": "小草团设置",
+  "pageTitle": "小草团",
+  "subtitle": "不用一直精神。趴一会儿也算长大。",
+  "scheduleTitle": "小草团的作息",
+  "scheduleHint": "到点了，它会从桌面边上提醒你。",
+  "greetingTitle": "醒来长一句",
+  "greetingHint": "当天第一次打开，小草团会按工作日或休息日跟你打招呼。",
+  "quietTitle": "休息时间",
+  "quietHint": "紧急低电量和等待确认时，小草团还是会冒出来。",
+  "personalityTitle": "形象与脾气",
+  "personalityHint": "换一个角色，会一起切换说话和活动的感觉。",
+  "motionTitle": "走走停停",
+  "motionHint": "任务运行时会迈小步；全都结束后可以停下来。",
+  "speedLabel": "走路速度",
+  "roamWithoutTasksLabel": "没有任务时也继续溜达",
+  "entryHint": "设置入口：右键小草团本体，或点击 macOS 菜单栏里的 🐟。退出后可从“应用程序”再次启动。",
+  "savedStatus": "已保存。小草团记住了。",
+  "resetStatus": "已经恢复默认。小草团又回到原样了。"
+}

@@ -1,0 +1,18 @@
+{
+  "category": "calendar",
+  "phrases": [
+    { "id": "grass-calendar-upcoming-01", "event": "calendar.upcoming", "text": "{minutes} 分钟后有安排。", "weight": 5 },
+    { "id": "grass-calendar-upcoming-02", "event": "calendar.upcoming", "text": "还有 {minutes} 分钟。先收一下手上的枝。", "weight": 4 },
+    { "id": "grass-calendar-upcoming-03", "event": "calendar.upcoming", "text": "「{title}」快到了。你应该记得。", "weight": 4, "conditions": { "requires": ["title"] } },
+    { "id": "grass-calendar-upcoming-04", "event": "calendar.upcoming", "text": "下一件事快开始了。", "weight": 3 },
+    { "id": "grass-calendar-upcoming-05", "event": "calendar.upcoming", "text": "日历动了一下。该准备了。", "weight": 3 },
+    { "id": "grass-calendar-start-01", "event": "calendar.starting", "text": "时间到了。", "weight": 5 },
+    { "id": "grass-calendar-start-02", "event": "calendar.starting", "text": "「{title}」开始了。", "weight": 4, "conditions": { "requires": ["title"] } },
+    { "id": "grass-calendar-start-03", "event": "calendar.starting", "text": "该去下一件事了。", "weight": 4 },
+    { "id": "grass-calendar-start-04", "event": "calendar.starting", "text": "现在开始。桌面先留在这里。", "weight": 3 },
+    { "id": "grass-calendar-busy-01", "event": "calendar.busyDay", "text": "今天排得很密。像一排叶尖。", "weight": 4, "cooldownMs": 21600000 },
+    { "id": "grass-calendar-busy-02", "event": "calendar.busyDay", "text": "日历没有留多少空地。", "weight": 4, "cooldownMs": 21600000 },
+    { "id": "grass-calendar-busy-03", "event": "calendar.busyDay", "text": "今天事情多。中间记得留一点风。", "weight": 3, "cooldownMs": 21600000 },
+    { "id": "grass-calendar-busy-04", "event": "calendar.busyDay", "text": "这一天天长得有点挤。", "weight": 2, "cooldownMs": 21600000 }
+  ]
+}

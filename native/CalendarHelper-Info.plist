@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>com.blobfish.desktop-pet.calendar-helper</string>
+  <key>CFBundleName</key>
+  <string>Blobfish Calendar Helper</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.0</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>水滴鱼需要读取近期日历事件，以便在本机提醒即将开始的安排。</string>
+  <key>NSCalendarsUsageDescription</key>
+  <string>水滴鱼需要读取近期日历事件，以便在本机提醒即将开始的安排。</string>
+</dict>
+</plist>

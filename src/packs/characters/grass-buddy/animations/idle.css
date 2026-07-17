@@ -1,0 +1,27 @@
+#pet[data-motion="idle"] {
+  animation: grass-buddy-idle 3.6s infinite ease-in-out;
+}
+
+#pet[data-motion="idle"] .grass-body {
+  animation: grass-buddy-breathe 3.6s infinite ease-in-out;
+}
+
+#pet[data-motion="idle"] .arm-left,
+#pet[data-motion="idle"] .arm-right {
+  animation: grass-buddy-idle-arm 3.6s infinite ease-in-out;
+}
+
+@keyframes grass-buddy-idle {
+  0%, 100% { transform: translateX(-50%) scaleX(var(--dir)) translateY(0); }
+  50% { transform: translateX(-50%) scaleX(var(--dir)) translateY(-2px); }
+}
+
+@keyframes grass-buddy-breathe {
+  0%, 100% { transform: scaleX(1) scaleY(1); }
+  50% { transform: scaleX(1.012) scaleY(0.988); }
+}
+
+@keyframes grass-buddy-idle-arm {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(1.5deg); }
+}

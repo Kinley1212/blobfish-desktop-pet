@@ -1,0 +1,34 @@
+#pet[data-motion="waiting"] {
+  animation: grass-buddy-waiting 2.8s infinite ease-in-out;
+}
+
+#pet[data-motion="waiting"] .grass-body {
+  animation: grass-buddy-waiting-body 2.8s infinite ease-in-out;
+}
+
+#pet[data-motion="waiting"] .arm-right {
+  animation: grass-buddy-waiting-arm 2.8s infinite ease-in-out;
+}
+
+#pet[data-motion="waiting"] .mouth-smile {
+  opacity: 0;
+}
+
+#pet[data-motion="waiting"] .mouth-neutral {
+  opacity: 1;
+}
+
+@keyframes grass-buddy-waiting {
+  0%, 100% { transform: translateX(-50%) scaleX(var(--dir)) translateY(0); }
+  50% { transform: translateX(-50%) scaleX(var(--dir)) translateY(-1px); }
+}
+
+@keyframes grass-buddy-waiting-body {
+  0%, 100% { transform: rotate(-1.5deg); }
+  50% { transform: rotate(1.5deg); }
+}
+
+@keyframes grass-buddy-waiting-arm {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-8deg) translateY(-2px); }
+}

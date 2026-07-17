@@ -1,0 +1,10 @@
+#pet.bump {
+  animation: grass-buddy-bump 0.32s ease;
+}
+
+@keyframes grass-buddy-bump {
+  0%, 100% { transform: translateX(-50%) scaleX(var(--dir)) scaleY(1); }
+  28% { transform: translateX(-50%) scaleX(calc(var(--dir) * 1.24)) scaleY(0.72); }
+  58% { transform: translateX(-50%) scaleX(calc(var(--dir) * 0.91)) scaleY(1.1); }
+  78% { transform: translateX(-50%) scaleX(calc(var(--dir) * 1.04)) scaleY(0.97); }
+}

@@ -1,0 +1,17 @@
+{
+  "category": "interaction",
+  "phrases": [
+    { "id": "grass-menu-01", "event": "interaction.menuOpen", "text": "要改设置。我先不动。", "weight": 5 },
+    { "id": "grass-menu-02", "event": "interaction.menuOpen", "text": "菜单开了。选吧。", "weight": 4 },
+    { "id": "grass-menu-03", "event": "interaction.menuOpen", "text": "这里能改风速。差不多。", "weight": 3 },
+    { "id": "grass-menu-04", "event": "interaction.menuOpen", "text": "形象可以换。根还在。", "weight": 2, "rarity": "uncommon" },
+    { "id": "grass-paused-01", "event": "interaction.paused", "text": "那我站住。", "weight": 5 },
+    { "id": "grass-paused-02", "event": "interaction.paused", "text": "停在这里了。", "weight": 4 },
+    { "id": "grass-paused-03", "event": "interaction.paused", "text": "好。暂时不长腿。", "weight": 3 },
+    { "id": "grass-paused-04", "event": "interaction.paused", "text": "安静模式。对草不难。", "weight": 2 },
+    { "id": "grass-resumed-01", "event": "interaction.resumed", "text": "继续走。", "weight": 5 },
+    { "id": "grass-resumed-02", "event": "interaction.resumed", "text": "又有风了。", "weight": 4 },
+    { "id": "grass-resumed-03", "event": "interaction.resumed", "text": "行。腿还在。", "weight": 3 },
+    { "id": "grass-resumed-04", "event": "interaction.resumed", "text": "刚站稳。还是走吧。", "weight": 2 }
+  ]
+}

@@ -1,0 +1,25 @@
+<svg viewBox="0 0 180 150" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="小草团">
+  <g class="grass-character">
+    <g class="grass-legs" fill="none" stroke="#593b1d" stroke-width="5" stroke-linecap="round">
+      <path class="leg leg-left" d="M 70 121 Q 74 135 88 141" />
+      <path class="leg leg-right" d="M 104 121 Q 108 135 121 140" />
+    </g>
+    <g class="grass-body">
+      <g class="grass-body-shape">
+        <path class="grass-outline" d="M 82.8 8 L 94.5 9.5 L 104.3 15.7 L 105 18.1 L 107.4 18.1 L 118.3 29.3 L 128.5 47.5 L 130.8 46 L 136.3 33.2 L 137.9 31.6 L 141.8 31.6 L 146.9 38.2 L 150.4 47.5 L 153.1 62.6 L 153.1 72.7 L 162.1 70.4 L 171.1 70.4 L 175 73.1 L 174.6 78.5 L 171.1 84.7 L 162.9 93.6 L 146.5 124.6 L 141.8 130 L 42.1 130 L 28.8 104.8 L 24.9 101.7 L 24.9 99 L 5.4 75.8 L 5 70.7 L 10.9 66.9 L 28.4 67.6 L 30 46.3 L 33.5 39.8 L 41.3 42.1 L 46.8 47.1 L 54.6 49.4 L 55.4 42.9 L 50.7 29.3 L 50.7 26.2 L 53.5 23.9 L 60.5 23.9 L 69.5 26.2 L 77.7 31.6 L 83.2 37.8 L 85.1 37.8 L 86.3 36.7 L 85.1 25 L 80.4 13.8 L 80.4 9.2 Z" fill="#593b1d" stroke="#593b1d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+        <path class="grass-fill" d="M 85.5 13 L 92.9 14.6 L 99.6 18.5 L 110.9 29.3 L 118.3 38.6 L 119.5 43.2 L 126.9 55.6 L 132.4 51.8 L 138.3 42.1 L 138.3 39.8 L 140.6 37.8 L 144.1 44.8 L 147.6 59.5 L 148 79.3 L 153.5 78.9 L 163.3 75.4 L 168.7 75.4 L 167.6 79.3 L 159.4 88.6 L 159.4 90.5 L 157.4 91.3 L 141.8 123 L 137.5 126.1 L 131.6 126.5 L 47.6 125.4 L 43.7 121.5 L 38.6 107.9 L 32.7 100.6 L 31.2 95.9 L 11.6 75 L 11.6 72.7 L 33.9 74.2 L 34.3 53.3 L 35.9 46.7 L 40.6 48.7 L 42.1 51 L 51.9 54.5 L 60.5 53.7 L 62.1 44.8 L 60.9 44.4 L 57 28.9 L 62.1 28.9 L 66.4 32.4 L 69.1 32.8 L 84.7 45.2 L 87.9 45.6 L 90.2 43.6 L 91.4 34.3 Z" fill="#cdd490" stroke="#cdd490" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+      </g>
+      <g class="grass-arms" fill="none" stroke="#593b1d" stroke-width="5" stroke-linecap="round">
+        <path class="arm arm-left" d="M 56 95 Q 58 110 66 111 Q 75 111 76 95" />
+        <path class="arm arm-right" d="M 113 95 Q 113 111 122 111 Q 132 111 134 94" />
+      </g>
+      <g class="grass-face" stroke="#593b1d" stroke-linecap="round">
+        <path class="eye eye-left" d="M 70 67 L 70 68" stroke-width="7" />
+        <path class="eye eye-right" d="M 116 67 L 116 68" stroke-width="7" />
+        <path class="mouth mouth-smile" d="M 78 79 Q 94 86 110 79" fill="none" stroke-width="4.5" />
+        <path class="mouth mouth-neutral" d="M 80 82 Q 94 84 108 82" fill="none" stroke-width="4.5" opacity="0" />
+        <path class="mouth mouth-frown" d="M 80 85 Q 94 76 108 85" fill="none" stroke-width="4.5" opacity="0" />
+      </g>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,24 @@
+{
+  "id": "blobfish-zh-TW",
+  "displayName": "水滴魚原版繁體中文",
+  "locale": "zh-TW",
+  "version": 1,
+  "style": "style.json",
+  "files": {
+    "original": [
+      "original/click.json",
+      "original/idle.json",
+      "original/schedule.json"
+    ],
+    "additions": [
+      "additions/system.json",
+      "additions/errors.json",
+      "additions/greetings.json",
+      "additions/interactions.json",
+      "additions/calendar.json",
+      "additions/agents.json",
+      "additions/agent-lifecycle.json",
+      "additions/rare.json"
+    ]
+  }
+}
