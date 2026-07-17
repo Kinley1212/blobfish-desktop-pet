@@ -18,10 +18,68 @@ const connectionTestTimers = {};
 const integrationOperations = new Map();
 let charactersById = new Map();
 let activeSettingsCopy = null;
+const panelTabs = [...document.querySelectorAll('.nav-item[data-panel]')];
+const panels = [...document.querySelectorAll('.settings-panel[data-panel-name]')];
 
 function byId(id) { return document.getElementById(id); }
 function setChecked(id, value) { byId(id).checked = value; }
 function setValue(id, value) { byId(id).value = value; }
+
+function activatePanel(panelId, options = {}) {
+  const activeTab = panelTabs.find((tab) => tab.dataset.panel === panelId) || panelTabs[0];
+  for (const tab of panelTabs) {
+    const selected = tab === activeTab;
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  }
+  for (const panel of panels) panel.hidden = panel.id !== `panel-${activeTab.dataset.panel}`;
+  document.querySelector('.content-scroll').scrollTop = 0;
+  if (options.focus) activeTab.focus();
+}
+
+function syncDependentControls() {
+  const dependencies = [
+    ['workday-greeting-enabled', 'workday-greeting-times'],
+    ['dayoff-greeting-enabled', 'dayoff-greeting-times'],
+    ['quiet-enabled', 'quiet-times'],
+    ['idle-enabled', 'idle-time-fields'],
+  ];
+  for (const [toggleId, groupId] of dependencies) {
+    const enabled = byId(toggleId).checked;
+    byId(groupId).dataset.disabled = String(!enabled);
+    byId(groupId).setAttribute('aria-disabled', String(!enabled));
+    byId(groupId).querySelectorAll('input').forEach((input) => { input.disabled = !enabled; });
+  }
+}
+
+function setRangeValidity(startId, endId, message) {
+  const start = byId(startId);
+  const end = byId(endId);
+  start.setCustomValidity('');
+  end.setCustomValidity('');
+  if (!start.value) start.setCustomValidity('请选择开始时间。');
+  if (!end.value) end.setCustomValidity('请选择结束时间。');
+  if (start.value && end.value && start.value >= end.value) end.setCustomValidity(message);
+}
+
+function updateFormValidity() {
+  setRangeValidity('workday-greeting-start', 'workday-greeting-end', '结束时间必须晚于开始时间。');
+  setRangeValidity('dayoff-greeting-start', 'dayoff-greeting-end', '结束时间必须晚于开始时间。');
+  const idleMin = byId('idle-min');
+  const idleMax = byId('idle-max');
+  idleMax.setCustomValidity(Number(idleMin.value) > Number(idleMax.value) ? '最长间隔不能短于最短间隔。' : '');
+}
+
+function validateVisibleForm() {
+  updateFormValidity();
+  const invalid = form.querySelector('input:invalid, select:invalid');
+  if (!invalid) return true;
+  const panel = invalid.closest('.settings-panel');
+  if (panel) activatePanel(panel.id.replace('panel-', ''));
+  invalid.reportValidity();
+  invalid.focus();
+  return false;
+}
 
 function applyCharacterCopy(characterId) {
   const copy = charactersById.get(characterId)?.settingsCopy;
@@ -32,6 +90,8 @@ function applyCharacterCopy(characterId) {
   byId('settings-subtitle').textContent = copy.subtitle;
   byId('schedule-title').textContent = copy.scheduleTitle;
   byId('schedule-hint').textContent = copy.scheduleHint;
+  byId('greeting-title').textContent = copy.greetingTitle;
+  byId('greeting-hint').textContent = copy.greetingHint;
   byId('quiet-title').textContent = copy.quietTitle;
   byId('quiet-hint').textContent = copy.quietHint;
   byId('personality-title').textContent = copy.personalityTitle;
@@ -377,6 +437,12 @@ function renderConfig(config, characters, languages) {
   setChecked('lunch-reminder', config.schedule.lunchReminder);
   setChecked('off-work-reminder', config.schedule.offWorkReminder);
   setChecked('half-hour-reminders', config.schedule.halfHourReminders);
+  setChecked('workday-greeting-enabled', config.greetings.workday.enabled);
+  setValue('workday-greeting-start', config.greetings.workday.start);
+  setValue('workday-greeting-end', config.greetings.workday.end);
+  setChecked('dayoff-greeting-enabled', config.greetings.dayOff.enabled);
+  setValue('dayoff-greeting-start', config.greetings.dayOff.start);
+  setValue('dayoff-greeting-end', config.greetings.dayOff.end);
   setChecked('quiet-enabled', config.quietHours.enabled);
   setValue('quiet-start', config.quietHours.start);
   setValue('quiet-end', config.quietHours.end);
@@ -401,6 +467,8 @@ function renderConfig(config, characters, languages) {
   setChecked('integration-calendar', config.integrations.calendar);
   setChecked('privacy-task-titles', config.privacy.includeTaskTitles);
   setChecked('privacy-calendar-titles', config.privacy.includeCalendarTitles);
+  syncDependentControls();
+  updateFormValidity();
 }
 
 function readConfig() {
@@ -414,17 +482,29 @@ function readConfig() {
       offWorkReminder: byId('off-work-reminder').checked,
       halfHourReminders: byId('half-hour-reminders').checked,
     },
+    greetings: {
+      workday: {
+        enabled: byId('workday-greeting-enabled').checked,
+        start: byId('workday-greeting-start').value || '07:00',
+        end: byId('workday-greeting-end').value || '11:00',
+      },
+      dayOff: {
+        enabled: byId('dayoff-greeting-enabled').checked,
+        start: byId('dayoff-greeting-start').value || '07:00',
+        end: byId('dayoff-greeting-end').value || '18:00',
+      },
+    },
     quietHours: {
       enabled: byId('quiet-enabled').checked,
-      start: byId('quiet-start').value,
-      end: byId('quiet-end').value,
+      start: byId('quiet-start').value || '22:30',
+      end: byId('quiet-end').value || '08:30',
     },
     language: {
       packId: byId('language-pack').value,
       idleEnabled: byId('idle-enabled').checked,
       rareEnabled: byId('rare-enabled').checked,
-      idleMinMinutes: Number(byId('idle-min').value),
-      idleMaxMinutes: Number(byId('idle-max').value),
+      idleMinMinutes: Number(byId('idle-min').value || 12),
+      idleMaxMinutes: Number(byId('idle-max').value || 35),
       categories: {
         schedule: byId('category-schedule').checked,
         system: byId('category-system').checked,
@@ -461,6 +541,36 @@ scaleInput.addEventListener('input', () => {
   scaleOutput.value = `${Math.round(Number(scaleInput.value) * 100)}%`;
 });
 
+for (const tab of panelTabs) {
+  tab.addEventListener('click', () => activatePanel(tab.dataset.panel));
+  tab.addEventListener('keydown', (event) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const current = panelTabs.indexOf(tab);
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? panelTabs.length - 1
+        : (current + (event.key === 'ArrowDown' ? 1 : -1) + panelTabs.length) % panelTabs.length;
+    activatePanel(panelTabs[nextIndex].dataset.panel, { focus: true });
+  });
+}
+
+for (const toggleId of ['workday-greeting-enabled', 'dayoff-greeting-enabled', 'quiet-enabled', 'idle-enabled']) {
+  byId(toggleId).addEventListener('change', syncDependentControls);
+}
+
+for (const inputId of [
+  'workday-greeting-start',
+  'workday-greeting-end',
+  'dayoff-greeting-start',
+  'dayoff-greeting-end',
+  'idle-min',
+  'idle-max',
+]) {
+  byId(inputId).addEventListener('input', updateFormValidity);
+}
+
 byId('character-pack').addEventListener('change', (event) => {
   const languagePackId = event.target.selectedOptions[0]?.dataset.defaultLanguagePack;
   if (languagePackId && [...byId('language-pack').options].some((option) => option.value === languagePackId)) {
@@ -478,6 +588,10 @@ byId('refresh-integrations').addEventListener('click', refreshAgentIntegrations)
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
+  if (!validateVisibleForm()) {
+    showStatus('有一项时间设置需要修改。', true);
+    return;
+  }
   setBusy(true);
   try {
     const result = await window.settingsAPI.save(readConfig());

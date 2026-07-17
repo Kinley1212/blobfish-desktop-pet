@@ -12,6 +12,8 @@ const SETTINGS_COPY_KEYS = [
   'subtitle',
   'scheduleTitle',
   'scheduleHint',
+  'greetingTitle',
+  'greetingHint',
   'quietTitle',
   'quietHint',
   'personalityTitle',

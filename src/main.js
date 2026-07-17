@@ -417,12 +417,12 @@ function createSettingsWindow() {
   }
 
   settingsWin = new BrowserWindow({
-    width: 620,
-    height: 760,
-    minWidth: 520,
-    minHeight: 620,
+    width: 920,
+    height: 720,
+    minWidth: 720,
+    minHeight: 560,
     title: '水滴鱼设置',
-    backgroundColor: '#f2f0ec',
+    backgroundColor: '#eef1ef',
     webPreferences: {
       preload: path.join(__dirname, 'settings-preload.js'),
       contextIsolation: true,

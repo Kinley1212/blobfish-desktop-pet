@@ -17,6 +17,7 @@ test('loads the bundled blobfish character pack', () => {
   assert.ok(pack.manifest.styles.includes('animations/exit.css'));
   assert.equal(pack.settingsCopy.pageTitle, '水滴鱼');
   assert.equal(pack.settingsCopy.windowTitle, '水滴鱼设置');
+  assert.equal(pack.settingsCopy.greetingTitle, '每天第一次见面');
   const animationCss = pack.styles.map((style) => style.css).join('\n');
   assert.match(animationCss, /@keyframes blobfish-swim[\s\S]*translate: 0 -5px/);
   assert.doesNotMatch(
@@ -45,6 +46,7 @@ test('loads the grass buddy pack with compositor-friendly standard actions', () 
   assert.equal(pack.manifest.size.height, 98);
   assert.equal(pack.settingsCopy.pageTitle, '小草团');
   assert.equal(pack.settingsCopy.speedLabel, '走路速度');
+  assert.equal(pack.settingsCopy.greetingTitle, '醒来长一句');
   assert.match(pack.svg, /class="grass-body-shape"/);
   assert.doesNotMatch(pack.svg, /grass-highlight/);
   assert.match(pack.svg, /class="eye eye-left"/);
