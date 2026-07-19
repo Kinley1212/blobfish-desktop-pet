@@ -85,7 +85,7 @@ body.has-task-bubble #bubble[data-placement="below"] {
   align-items: center;
   gap: 6px;
   width: max-content;
-  min-width: 150px;
+  min-width: 178px;
   max-width: 270px;
   min-height: 26px;
   padding: 4px 8px 4px 6px;
@@ -112,23 +112,23 @@ body.has-task-bubble #bubble[data-placement="below"] {
 
 .task-card[data-depth="1"] {
   z-index: 3;
-  opacity: 0.78;
-  transform: translate(calc(-50% + 10px), 10px) scale(0.96);
-  filter: blur(0.35px);
+  opacity: 0.82;
+  transform: translate(calc(-50% + 16px), 10px) scale(0.96);
+  filter: blur(0.25px);
 }
 
 .task-card[data-depth="2"] {
   z-index: 2;
-  opacity: 0.55;
-  transform: translate(calc(-50% - 9px), 20px) scale(0.92);
-  filter: blur(0.65px);
+  opacity: 0.6;
+  transform: translate(calc(-50% - 15px), 20px) scale(0.92);
+  filter: blur(0.5px);
 }
 
 .task-card[data-depth="3"] {
   z-index: 1;
-  opacity: 0.34;
-  transform: translate(calc(-50% + 6px), 29px) scale(0.88);
-  filter: blur(1px);
+  opacity: 0.4;
+  transform: translate(calc(-50% + 12px), 29px) scale(0.88);
+  filter: blur(0.8px);
 }
 
 .task-card[data-depth="hidden"] {
@@ -181,8 +181,8 @@ body.has-task-bubble #bubble[data-placement="below"] {
   flex: none;
   padding: 2px 4px;
   border-radius: 7px;
-  background: #edf1f1;
-  color: #687476;
+  background: #e3ebea;
+  color: #506568;
   font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
