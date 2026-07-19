@@ -64,7 +64,13 @@ test('both characters have additive workday and day-off startup greetings', () =
 
 test('right-click, pause and resume phrases are additive interactions', () => {
   const pack = loadLanguagePack(languagesRoot, 'blobfish-zh-TW');
-  for (const eventName of ['interaction.menuOpen', 'interaction.paused', 'interaction.resumed']) {
+  for (const eventName of [
+    'interaction.menuOpen',
+    'interaction.paused',
+    'interaction.resumed',
+    'interaction.idleRoamOff',
+    'interaction.idleRoamOn',
+  ]) {
     const phrases = pack.phrases.filter((phrase) => phrase.event === eventName);
     assert.ok(phrases.length >= 3);
     assert.ok(phrases.every((phrase) => phrase.sourceGroup === 'additions'));
@@ -99,6 +105,8 @@ test('grass buddy language pack covers every runtime event with its own restrain
     'interaction.menuOpen',
     'interaction.paused',
     'interaction.resumed',
+    'interaction.idleRoamOff',
+    'interaction.idleRoamOn',
     'interaction.goodbye',
     'idle.chatter',
     'schedule.halfHour',

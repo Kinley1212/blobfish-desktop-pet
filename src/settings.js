@@ -679,3 +679,8 @@ window.settingsAPI.onAgentConnectionHealth((health) => {
     }
   });
 });
+window.settingsAPI.onSettingChanged((setting) => {
+  if (setting?.path === 'pet.roamWhenNoTasks' && typeof setting.value === 'boolean') {
+    setChecked('roam-without-tasks', setting.value);
+  }
+});

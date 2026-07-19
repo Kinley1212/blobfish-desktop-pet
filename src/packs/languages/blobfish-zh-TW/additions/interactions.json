@@ -10,6 +10,12 @@
     { "id": "paused-03", "event": "interaction.paused", "text": "反正也游不远。", "weight": 2 },
     { "id": "resumed-01", "event": "interaction.resumed", "text": "好吧，继续游。", "weight": 5 },
     { "id": "resumed-02", "event": "interaction.resumed", "text": "又要动了……", "weight": 4 },
-    { "id": "resumed-03", "event": "interaction.resumed", "text": "我还以为能歇久一点。", "weight": 2 }
+    { "id": "resumed-03", "event": "interaction.resumed", "text": "我还以为能歇久一点。", "weight": 2 },
+    { "id": "idle-roam-off-01", "event": "interaction.idleRoamOff", "text": "忙完我就停。", "weight": 5 },
+    { "id": "idle-roam-off-02", "event": "interaction.idleRoamOff", "text": "没任务就不游了。", "weight": 4 },
+    { "id": "idle-roam-off-03", "event": "interaction.idleRoamOff", "text": "好吧。空下来就歇着。", "weight": 3 },
+    { "id": "idle-roam-on-01", "event": "interaction.idleRoamOn", "text": "没事也游两下。", "weight": 5 },
+    { "id": "idle-roam-on-02", "event": "interaction.idleRoamOn", "text": "好吧，继续晃悠。", "weight": 4 },
+    { "id": "idle-roam-on-03", "event": "interaction.idleRoamOn", "text": "空着也是空着……", "weight": 3 }
   ]
 }
