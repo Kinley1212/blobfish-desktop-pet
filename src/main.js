@@ -1142,7 +1142,7 @@ function handleTaskTransition(transition) {
 }
 
 function runTaskMaintenance() {
-  taskTracker.pruneStale(12 * 60 * 60 * 1000);
+  taskTracker.pruneStale(2 * 60 * 60 * 1000, Date.now(), 8 * 60 * 60 * 1000);
   const now = Date.now();
   const activeKeys = new Set();
   for (const task of taskTracker.getTasks()) {
