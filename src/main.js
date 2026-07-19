@@ -24,8 +24,7 @@ const { TaskTracker } = require('./core/task-tracker');
 const { version: appVersion } = require('../package.json');
 
 const userDataRoot = app.getPath('appData');
-const appRelease = appVersion.split('.').slice(0, 2).join('.');
-const appDisplayName = `水滴鱼Pro${appRelease}`;
+const appDisplayName = `水滴鱼Pro${appVersion}`;
 app.setName(appDisplayName);
 app.setPath('userData', path.join(userDataRoot, 'BlobfishDesktopPet'));
 const hasSingleInstanceLock = app.requestSingleInstanceLock();

@@ -5,8 +5,7 @@ const { Arch, Platform, build } = require('electron-builder');
 const packageManifest = require('../package.json');
 
 const root = path.join(__dirname, '..');
-const releaseVersion = packageManifest.version.split('.').slice(0, 2).join('.');
-const productName = `水滴鱼Pro${releaseVersion}`;
+const productName = `水滴鱼Pro${packageManifest.version}`;
 const architecture = process.argv[2];
 if (process.platform !== 'darwin') {
   throw new Error('macOS packages must be built on macOS');
