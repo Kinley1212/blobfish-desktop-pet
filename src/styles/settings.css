@@ -128,18 +128,25 @@ h1 {
 }
 
 .nav-item {
+  appearance: none;
   display: grid;
-  grid-template-columns: 30px 1fr;
+  grid-template-columns: 28px minmax(0, 1fr);
   align-items: center;
+  column-gap: 9px;
   width: 100%;
+  height: auto;
+  min-height: 52px;
   min-width: 0;
-  padding: 10px 10px;
+  margin: 0;
+  padding: 8px 10px;
   border: 0;
   border-radius: 12px;
   background: transparent;
   color: #646a67;
+  line-height: normal;
   text-align: left;
   cursor: pointer;
+  overflow: hidden;
   transition: background 150ms ease, color 150ms ease, transform 150ms ease;
 }
 
@@ -152,11 +159,15 @@ h1 {
   box-shadow: 0 6px 22px rgba(41, 63, 58, 0.075), inset 0 0 0 1px var(--line);
 }
 
-.nav-item > span:last-child { min-width: 0; }
+.nav-item > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
 .nav-item strong,
 .nav-item small { display: block; }
-.nav-item strong { font-size: 12px; font-weight: 680; }
-.nav-item small { margin-top: 2px; overflow: hidden; color: var(--soft-muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.nav-item strong { font-size: 12px; font-weight: 680; line-height: 1.25; }
+.nav-item small { overflow: hidden; color: var(--soft-muted); font-size: 9px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
 
 .nav-icon {
   display: grid;
@@ -534,7 +545,7 @@ input[type="range"] {
 .connection-guidance > strong { color: var(--accent-dark); font-size: 9px; }
 .connection-guidance p { margin-top: 5px; color: #515754; }
 
-button {
+button:not(.nav-item) {
   min-width: 92px;
   height: 36px;
   padding: 0 15px;
@@ -547,9 +558,9 @@ button {
   cursor: pointer;
   transition: background 140ms ease, transform 140ms ease, opacity 140ms ease;
 }
-button:hover:not(:disabled) { background: var(--accent-dark); }
-button:active:not(:disabled) { transform: scale(0.98); }
-button:disabled { cursor: wait; opacity: 0.52; }
+button:not(.nav-item):hover:not(:disabled) { background: var(--accent-dark); }
+button:not(.nav-item):active:not(:disabled) { transform: scale(0.98); }
+button:not(.nav-item):disabled { cursor: wait; opacity: 0.52; }
 button.secondary { border-color: var(--line-strong); background: #fff; color: #4f5552; }
 button.secondary:hover:not(:disabled) { background: var(--surface-soft); }
 button.connection-primary { width: 100%; margin-top: 11px; }
