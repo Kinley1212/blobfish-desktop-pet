@@ -63,6 +63,7 @@ async function main() {
       appId: 'com.blobfish.desktop-pet',
       productName,
       electronVersion: '43.1.1',
+      electronDist: process.env.BLOBFISH_ELECTRON_DIST || undefined,
       asar: true,
       npmRebuild: false,
       directories: {
