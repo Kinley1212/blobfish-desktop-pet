@@ -1,13 +1,14 @@
 const pet = document.getElementById('pet');
 const bubble = document.getElementById('bubble');
 const taskBubble = document.getElementById('task-bubble');
+const { buildCarouselLayout, nextTaskKey } = globalThis.taskCarouselModel;
 
 const VELOCITY_WINDOW_MS = 300;
 const BLINK_MIN_MS = 3500;
 const BLINK_MAX_MS = 9000;
 const BLINK_DURATION_MS = 180;
 const DOUBLE_BLINK_CHANCE = 0.12;
-const TASK_ROTATION_MS = 2200;
+const TASK_ROTATION_MS = 1900;
 // Minimum cumulative pointer movement (px) before a press-and-move counts as
 // a drag. Below this it's treated as a click even if the hand wasn't
 // perfectly still between mousedown and mouseup.
@@ -212,9 +213,9 @@ function createTaskCard(taskKey) {
   return card;
 }
 
-function updateTaskCard(card, item, depth, hiddenCount) {
+function updateTaskCard(card, item, depth, position, total, visible) {
   card.dataset.state = item.state;
-  card.dataset.depth = depth > 2 ? 'hidden' : String(depth);
+  card.dataset.depth = visible ? String(depth) : 'hidden';
   card.setAttribute('aria-hidden', depth === 0 ? 'false' : 'true');
   card.querySelector('.task-title').textContent = item.title;
   card.querySelector('.task-status-icon').textContent = item.state === 'completed'
@@ -227,8 +228,8 @@ function updateTaskCard(card, item, depth, hiddenCount) {
           ? '…'
           : '';
   const count = card.querySelector('.task-count');
-  count.hidden = depth !== 0 || hiddenCount === 0;
-  count.textContent = depth === 0 && hiddenCount ? `+${hiddenCount}` : '';
+  count.hidden = depth !== 0 || total <= 1;
+  count.textContent = depth === 0 && total > 1 ? `${position}/${total}` : '';
 }
 
 function renderTaskCarousel() {
@@ -243,9 +244,9 @@ function renderTaskCarousel() {
     return;
   }
 
-  let frontIndex = taskCarouselItems.findIndex((item) => item.taskKey === currentTaskKey);
-  if (frontIndex < 0) frontIndex = 0;
-  currentTaskKey = taskCarouselItems[frontIndex].taskKey;
+  const layout = buildCarouselLayout(taskCarouselItems, currentTaskKey);
+  const frontIndex = layout.frontIndex;
+  currentTaskKey = layout.frontTaskKey;
   const activeKeys = new Set(taskCarouselItems.map((item) => item.taskKey));
   for (const [taskKey, card] of taskCardNodes) {
     if (!activeKeys.has(taskKey)) {
@@ -254,11 +255,9 @@ function renderTaskCarousel() {
     }
   }
 
-  const hiddenCount = Math.max(0, taskCarouselItems.length - 3);
-  taskCarouselItems.forEach((item, index) => {
-    const depth = (index - frontIndex + taskCarouselItems.length) % taskCarouselItems.length;
+  layout.entries.forEach(({ item, depth, visible }) => {
     const card = taskCardNodes.get(item.taskKey) || createTaskCard(item.taskKey);
-    updateTaskCard(card, item, depth, hiddenCount);
+    updateTaskCard(card, item, depth, layout.position, layout.total, visible);
   });
 
   const front = taskCarouselItems[frontIndex];
@@ -272,14 +271,15 @@ function renderTaskCarousel() {
           ? '已结束'
           : '失败';
   taskBubble.dataset.visible = 'true';
-  taskBubble.setAttribute('aria-label', `${front.title}：${stateLabel}`);
+  taskBubble.setAttribute(
+    'aria-label',
+    `${front.title}：${stateLabel}${layout.total > 1 ? `，第 ${layout.position} 个，共 ${layout.total} 个任务` : ''}`,
+  );
   document.body.classList.add('has-task-bubble');
 
-  const hasWaitingTask = taskCarouselItems.some((item) => item.state === 'waiting');
-  if (taskCarouselItems.length > 1 && !hasWaitingTask && !isTerminalTaskState(front.state)) {
+  if (taskCarouselItems.length > 1 && !isTerminalTaskState(front.state)) {
     taskRotationTimer = setTimeout(() => {
-      const currentIndex = taskCarouselItems.findIndex((item) => item.taskKey === currentTaskKey);
-      currentTaskKey = taskCarouselItems[(currentIndex + 1) % taskCarouselItems.length].taskKey;
+      currentTaskKey = nextTaskKey(taskCarouselItems, currentTaskKey);
       renderTaskCarousel();
     }, TASK_ROTATION_MS);
   }
@@ -308,13 +308,7 @@ function renderTaskStatus(status, options = {}) {
   lastTaskStatusSignature = signature;
   taskCarouselItems = items;
 
-  const waitingItem = items.find((item) => item.state === 'waiting');
-  const currentWaitingItem = current?.state === 'waiting'
-    ? items.find((item) => item.taskKey === current.taskKey && item.state === 'waiting')
-    : null;
-  currentTaskKey = status?.state === 'waiting' || status?.state === 'failed'
-    ? requestedTaskKey
-    : currentWaitingItem?.taskKey || waitingItem?.taskKey || requestedTaskKey;
+  currentTaskKey = requestedTaskKey;
   renderTaskCarousel();
 
   if (terminalIncoming) {

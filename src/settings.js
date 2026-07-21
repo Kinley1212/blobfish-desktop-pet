@@ -27,7 +27,7 @@ function setValue(id, value) { byId(id).value = value; }
 
 function renderAppVersion(version) {
   if (typeof version !== 'string') return;
-  byId('version-badge').textContent = `Pro${version.split('.').slice(0, 2).join('.')}`;
+  byId('version-badge').textContent = `Pro${version}`;
 }
 
 function activatePanel(panelId, options = {}) {
@@ -678,4 +678,9 @@ window.settingsAPI.onAgentConnectionHealth((health) => {
       showStatus('连接测试通过。鱼已经收到真实任务状态。');
     }
   });
+});
+window.settingsAPI.onSettingChanged((setting) => {
+  if (setting?.path === 'pet.roamWhenNoTasks' && typeof setting.value === 'boolean') {
+    setChecked('roam-without-tasks', setting.value);
+  }
 });

@@ -74,6 +74,31 @@
           }
         ]
       }
+    ],
+    "Notification": [
+      {
+        "matcher": "idle_prompt|agent_needs_input",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/blobfish-agent-event-sender",
+            "args": ["--provider", "claude-code"],
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/blobfish-agent-event-sender",
+            "args": ["--provider", "claude-code"],
+            "timeout": 2
+          }
+        ]
+      }
     ]
   }
 }

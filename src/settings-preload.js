@@ -12,4 +12,5 @@ contextBridge.exposeInMainWorld('settingsAPI', {
   setAgentIntegrationReceiving: (provider, enabled) => ipcRenderer.invoke('agent-integrations:set-receiving', provider, enabled),
   onIntegrationStatus: (callback) => ipcRenderer.on('integration-status', (_event, status) => callback(status)),
   onAgentConnectionHealth: (callback) => ipcRenderer.on('agent-connection-health', (_event, health) => callback(health)),
+  onSettingChanged: (callback) => ipcRenderer.on('setting-changed', (_event, setting) => callback(setting)),
 });

@@ -6,7 +6,7 @@ class TaskTracker {
   }
 
   taskKey(event) {
-    return `${event.provider}:${event.sessionId}:${event.turnId || 'session'}`;
+    return `${event.provider}:${event.sessionId}`;
   }
 
   handle(event) {
@@ -23,13 +23,23 @@ class TaskTracker {
     }
 
     if (existing && now < existing.updatedAt) return this.snapshot();
+    if (
+      existing
+      && event.event !== 'started'
+      && event.turnId
+      && existing.turnId
+      && event.turnId !== existing.turnId
+    ) {
+      return this.snapshot();
+    }
     let transition = null;
     let transitionTask = null;
 
     const updateTask = (task, state) => {
       task.state = state;
       task.updatedAt = now;
-      if (event.title) task.title = event.title;
+      if (event.turnId) task.turnId = event.turnId;
+      if (shouldReplaceTitle(task.title, event.title, event.provider)) task.title = event.title;
       return task;
     };
 
@@ -40,34 +50,40 @@ class TaskTracker {
         transitionTask = task;
         transition = 'started';
       } else {
+        const startsNewTurn = Boolean(event.turnId && event.turnId !== existing.turnId);
         transitionTask = updateTask(existing, 'running');
+        if (startsNewTurn) {
+          transitionTask.startedAt = now;
+          transition = 'started';
+        }
       }
     } else if (event.event === 'running') {
-      if (existing) {
-        transitionTask = updateTask(existing, 'running');
-      } else {
-        const task = { ...event, key, state: 'running', startedAt: now, updatedAt: now };
-        this.tasks.set(key, task);
-        transitionTask = task;
-        transition = 'started';
-      }
+      if (!existing) return this.snapshot();
+      transitionTask = updateTask(existing, 'running');
     } else if (event.event === 'needs_input') {
-      if (existing && existing.state !== 'waiting') transition = 'needsInput';
-      if (!existing) transition = 'needsInput';
-      const task = existing || { ...event, key, startedAt: now };
-      updateTask(task, 'waiting');
-      this.tasks.set(key, task);
-      transitionTask = task;
+      if (!existing) return this.snapshot();
+      if (existing.state !== 'waiting') transition = 'needsInput';
+      transitionTask = updateTask(existing, 'waiting');
     } else if (terminalEvent) {
       if (!existing) {
         if (!terminalRecord || now > terminalRecord.eventAt) {
-          this.terminalEvents.set(key, { eventAt: now, recordedAt: Date.now(), provider: event.provider });
+          this.terminalEvents.set(key, {
+            eventAt: now,
+            recordedAt: Date.now(),
+            provider: event.provider,
+            turnId: event.turnId || null,
+          });
         }
         return this.snapshot();
       }
       transitionTask = updateTask(existing, event.event);
       this.tasks.delete(key);
-      this.terminalEvents.set(key, { eventAt: now, recordedAt: Date.now(), provider: event.provider });
+      this.terminalEvents.set(key, {
+        eventAt: now,
+        recordedAt: Date.now(),
+        provider: event.provider,
+        turnId: event.turnId || existing.turnId || null,
+      });
       const remaining = this.tasks.size;
       if (event.event === 'failed') transition = 'failed';
       else if (event.event === 'ended') transition = remaining === 0 ? 'allEnded' : 'ended';
@@ -95,10 +111,11 @@ class TaskTracker {
     if (changed) this.onTransition({ type: 'state', event: null, snapshot: this.snapshot() });
   }
 
-  pruneStale(maxAgeMs, now = Date.now()) {
+  pruneStale(maxAgeMs, now = Date.now(), waitingMaxAgeMs = maxAgeMs) {
     let removed = 0;
     for (const [key, task] of this.tasks) {
-      if (now - task.updatedAt > maxAgeMs) {
+      const taskMaxAgeMs = task.state === 'waiting' ? waitingMaxAgeMs : maxAgeMs;
+      if (now - task.updatedAt > taskMaxAgeMs) {
         this.tasks.delete(key);
         removed += 1;
       }
@@ -124,4 +141,26 @@ class TaskTracker {
   }
 }
 
-module.exports = { TaskTracker };
+function isGenericTitle(title, provider) {
+  if (!title) return true;
+  const normalized = title.trim().toLocaleLowerCase();
+  const providerName = provider === 'claude-code' ? 'claude code' : 'codex';
+  return new Set([
+    `${providerName} 任务`,
+    `${providerName} 附件任务`,
+    '继续',
+    '继续吧',
+    '继续执行',
+    '好的',
+    '好',
+    '确认',
+  ]).has(normalized);
+}
+
+function shouldReplaceTitle(currentTitle, incomingTitle, provider) {
+  if (!incomingTitle) return false;
+  if (!currentTitle) return true;
+  return isGenericTitle(currentTitle, provider) && !isGenericTitle(incomingTitle, provider);
+}
+
+module.exports = { TaskTracker, isGenericTitle, shouldReplaceTitle };

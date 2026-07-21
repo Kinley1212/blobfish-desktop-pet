@@ -12,6 +12,12 @@
     { "id": "grass-resumed-01", "event": "interaction.resumed", "text": "继续走。", "weight": 5 },
     { "id": "grass-resumed-02", "event": "interaction.resumed", "text": "又有风了。", "weight": 4 },
     { "id": "grass-resumed-03", "event": "interaction.resumed", "text": "行。腿还在。", "weight": 3 },
-    { "id": "grass-resumed-04", "event": "interaction.resumed", "text": "刚站稳。还是走吧。", "weight": 2 }
+    { "id": "grass-resumed-04", "event": "interaction.resumed", "text": "刚站稳。还是走吧。", "weight": 2 },
+    { "id": "grass-idle-roam-off-01", "event": "interaction.idleRoamOff", "text": "忙完就扎根。", "weight": 5 },
+    { "id": "grass-idle-roam-off-02", "event": "interaction.idleRoamOff", "text": "没任务就不走了。", "weight": 4 },
+    { "id": "grass-idle-roam-off-03", "event": "interaction.idleRoamOff", "text": "行。空下来歇着。", "weight": 3 },
+    { "id": "grass-idle-roam-on-01", "event": "interaction.idleRoamOn", "text": "没事也走两步。", "weight": 5 },
+    { "id": "grass-idle-roam-on-02", "event": "interaction.idleRoamOn", "text": "风又吹起来了。", "weight": 4 },
+    { "id": "grass-idle-roam-on-03", "event": "interaction.idleRoamOn", "text": "好。腿继续用。", "weight": 3 }
   ]
 }

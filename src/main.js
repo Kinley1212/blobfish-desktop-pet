@@ -24,8 +24,7 @@ const { TaskTracker } = require('./core/task-tracker');
 const { version: appVersion } = require('../package.json');
 
 const userDataRoot = app.getPath('appData');
-const appRelease = appVersion.split('.').slice(0, 2).join('.');
-const appDisplayName = `水滴鱼Pro${appRelease}`;
+const appDisplayName = `水滴鱼Pro${appVersion}`;
 app.setName(appDisplayName);
 app.setPath('userData', path.join(userDataRoot, 'BlobfishDesktopPet'));
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -82,7 +81,6 @@ let settingsWin;
 let tray;
 let direction = 1;
 let paused = false;
-let manuallyPaused = false;
 let contextMenuPaused = false;
 let systemPaused = false;
 let agentPaused = false;
@@ -238,7 +236,7 @@ function maybeSpeakStartupGreeting(date = new Date()) {
 }
 
 function isMovementPaused() {
-  return paused || manuallyPaused || contextMenuPaused || systemPaused || agentPaused;
+  return paused || contextMenuPaused || systemPaused || agentPaused;
 }
 
 function isProviderEnabled(provider) {
@@ -311,7 +309,7 @@ function syncLaunchAtLogin(enabled) {
 function requestQuit() {
   if (quitRequested) return;
   quitRequested = true;
-  manuallyPaused = true;
+  paused = true;
   rebuildTrayMenu();
   if (win && !win.isDestroyed()) {
     win.webContents.send('pet-action', { action: 'exit', durationMs: EXIT_ANIMATION_MS });
@@ -328,16 +326,25 @@ function requestQuit() {
   }, Math.max(EXIT_ANIMATION_MS + 150, spoken ? 1900 : 0));
 }
 
-function toggleManualPause(checked) {
-  if (manuallyPaused === checked) return;
-  manuallyPaused = checked;
-  speak(checked ? 'interaction.paused' : 'interaction.resumed', {}, {
+function setRoamWhenNoTasks(enabled) {
+  if (config.pet.roamWhenNoTasks === enabled) return;
+  const saved = persistConfig({
+    ...config,
+    pet: { ...config.pet, roamWhenNoTasks: enabled },
+  });
+  applyConfig(saved);
+  speak(enabled ? 'interaction.idleRoamOn' : 'interaction.idleRoamOff', {}, {
     priority: SPEECH_PRIORITY.interaction,
     durationMs: 2800,
-    replaceKey: 'interaction.movementToggle',
+    replaceKey: 'interaction.idleRoamToggle',
     allowDuringQuiet: true,
   });
-  rebuildTrayMenu();
+  if (settingsWin && !settingsWin.isDestroyed()) {
+    settingsWin.webContents.send('setting-changed', {
+      path: 'pet.roamWhenNoTasks',
+      value: enabled,
+    });
+  }
 }
 
 function buildPetMenuTemplate() {
@@ -355,8 +362,17 @@ function buildPetMenuTemplate() {
     { type: 'separator' },
     { label: '打开设置…', click: () => createSettingsWindow() },
     {
-      label: manuallyPaused ? '继续游动' : '暂停游动',
-      click: () => toggleManualPause(!manuallyPaused),
+      label: characterPack?.settingsCopy?.roamWithoutTasksLabel || '没有任务时也继续游动',
+      type: 'checkbox',
+      checked: config.pet.roamWhenNoTasks,
+      click: (item) => {
+        try {
+          setRoamWhenNoTasks(item.checked);
+        } catch (error) {
+          reportRuntimeError('Idle roaming setting', error);
+          rebuildTrayMenu();
+        }
+      },
     },
     {
       label: '登录后自动启动',
@@ -514,6 +530,7 @@ function applyConfig(nextConfig) {
     syncHoverState();
   }
   scheduleIdleChatter();
+  rebuildTrayMenu();
 }
 
 function persistConfig(nextConfig) {
@@ -1142,7 +1159,7 @@ function handleTaskTransition(transition) {
 }
 
 function runTaskMaintenance() {
-  taskTracker.pruneStale(12 * 60 * 60 * 1000);
+  taskTracker.pruneStale(2 * 60 * 60 * 1000, Date.now(), 8 * 60 * 60 * 1000);
   const now = Date.now();
   const activeKeys = new Set();
   for (const task of taskTracker.getTasks()) {
