@@ -54,6 +54,33 @@ test('legacy stop-after-task setting migrates without losing user intent', () =>
   assert.deepEqual(validateConfig(legacy).greetings, DEFAULT_CONFIG.greetings);
 });
 
+test('task-complete sound setting round-trips and defends against bad input', () => {
+  const { DEFAULT_TASK_COMPLETE_SOUND_ID } = require('../src/core/sound-catalog');
+
+  // A valid custom choice survives validation unchanged.
+  const custom = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  custom.sound = { taskComplete: { enabled: false, soundId: 'Submarine' } };
+  assert.deepEqual(validateConfig(custom).sound.taskComplete, {
+    enabled: false,
+    soundId: 'Submarine',
+  });
+
+  // A config saved before the sound feature existed migrates to defaults
+  // instead of throwing.
+  const legacy = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  delete legacy.sound;
+  assert.deepEqual(validateConfig(legacy).sound.taskComplete, {
+    enabled: true,
+    soundId: DEFAULT_TASK_COMPLETE_SOUND_ID,
+  });
+
+  // An unknown sound id (e.g. removed in a later version) falls back to the
+  // default rather than bricking the whole config load.
+  const unknown = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  unknown.sound = { taskComplete: { enabled: true, soundId: 'NotARealSound' } };
+  assert.equal(validateConfig(unknown).sound.taskComplete.soundId, DEFAULT_TASK_COMPLETE_SOUND_ID);
+});
+
 test('invalid config is rejected without weakening validation', () => {
   const invalid = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   invalid.schedule.offWorkTime = '25:99';

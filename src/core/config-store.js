@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { DEFAULT_TASK_COMPLETE_SOUND_ID, isValidTaskCompleteSoundId } = require('./sound-catalog');
 
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const DEFAULT_CONFIG = Object.freeze({
@@ -29,6 +30,9 @@ const DEFAULT_CONFIG = Object.freeze({
   startup: Object.freeze({ launchAtLogin: false }),
   integrations: Object.freeze({ calendar: false, codex: true, claudeCode: true }),
   privacy: Object.freeze({ includeTaskTitles: false, includeCalendarTitles: true }),
+  sound: Object.freeze({
+    taskComplete: Object.freeze({ enabled: true, soundId: DEFAULT_TASK_COMPLETE_SOUND_ID }),
+  }),
 });
 
 function clone(value) {
@@ -74,6 +78,12 @@ function requirePackId(value, label = 'language.packId') {
   return value;
 }
 
+// An unknown/removed sound id shouldn't brick the whole config load, so an
+// invalid value quietly falls back to the default rather than throwing.
+function normalizeSoundId(value) {
+  return isValidTaskCompleteSoundId(value) ? value : DEFAULT_TASK_COMPLETE_SOUND_ID;
+}
+
 function validateConfig(input) {
   assertObject(input, 'config');
   assertObject(input.schedule, 'schedule');
@@ -89,6 +99,12 @@ function validateConfig(input) {
   assertObject(startup, 'startup');
   assertObject(input.integrations, 'integrations');
   assertObject(input.privacy, 'privacy');
+  const sound = input.sound === undefined ? DEFAULT_CONFIG.sound : input.sound;
+  assertObject(sound, 'sound');
+  const taskCompleteSound = sound.taskComplete === undefined
+    ? DEFAULT_CONFIG.sound.taskComplete
+    : sound.taskComplete;
+  assertObject(taskCompleteSound, 'sound.taskComplete');
 
   if (input.version !== 1) throw new Error('Unsupported config version');
   if (!Array.isArray(input.schedule.workdays) || input.schedule.workdays.length > 7) {
@@ -162,6 +178,12 @@ function validateConfig(input) {
     privacy: {
       includeTaskTitles: requireBoolean(input.privacy.includeTaskTitles, 'privacy.includeTaskTitles'),
       includeCalendarTitles: requireBoolean(input.privacy.includeCalendarTitles, 'privacy.includeCalendarTitles'),
+    },
+    sound: {
+      taskComplete: {
+        enabled: requireBoolean(taskCompleteSound.enabled, 'sound.taskComplete.enabled'),
+        soundId: normalizeSoundId(taskCompleteSound.soundId),
+      },
     },
   };
 

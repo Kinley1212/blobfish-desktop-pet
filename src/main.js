@@ -1,4 +1,5 @@
 const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, powerMonitor, shell } = require('electron');
+const { execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { AgentBridge } = require('./core/agent-bridge');
@@ -12,6 +13,7 @@ const { loadLanguagePack } = require('./core/language-pack-loader');
 const { calculateVerticalPlacement } = require('./core/pet-boundary');
 const { PhraseEngine } = require('./core/phrase-engine');
 const { getScheduleReminder, isInQuietHours } = require('./core/reminder-scheduler');
+const { DEFAULT_TASK_COMPLETE_SOUND_ID, TASK_COMPLETE_SOUNDS, taskCompleteSoundPath } = require('./core/sound-catalog');
 const { RuntimeErrorNotifier } = require('./core/runtime-error-notifier');
 const { RuntimeWarningStore } = require('./core/runtime-warning-store');
 const { SpeechQueue } = require('./core/speech-queue');
@@ -470,6 +472,7 @@ function getSettingsPayload() {
     config: JSON.parse(JSON.stringify(config)),
     characters: listCharacterPacks(),
     languages: listLanguagePacks(),
+    taskCompleteSounds: TASK_COMPLETE_SOUNDS.map((sound) => ({ id: sound.id, label: sound.label })),
     warning: runtimeWarnings.getMessage(configStore.loadWarning),
     integrationStatus: { calendar: calendarStatus, agentBridge: agentBridgeStatus },
   };
@@ -1089,6 +1092,28 @@ function getVisibleTaskStatus() {
   );
 }
 
+const COMPLETION_SOUND_THROTTLE_MS = 300;
+let lastCompletionSoundAt = 0;
+
+// Plays a short macOS system chime when an agent task finishes. Which sound
+// (and whether it plays at all) comes from config.sound.taskComplete, chosen
+// in Settings. Kept out of the speech pipeline on purpose: the bubble is
+// throttled/replaced per event, but the sound is a plain fire-and-forget cue.
+// Respects quiet hours (same as non-urgent speech), throttles bursts when
+// several tasks finish at once, and swallows any playback error so it can
+// never disrupt task handling.
+function playTaskCompleteSound() {
+  const setting = config.sound?.taskComplete;
+  if (!setting || !setting.enabled) return;
+  if (isInQuietHours(new Date(), config.quietHours)) return;
+  const now = Date.now();
+  if (now - lastCompletionSoundAt < COMPLETION_SOUND_THROTTLE_MS) return;
+  const soundPath = taskCompleteSoundPath(setting.soundId) || taskCompleteSoundPath(DEFAULT_TASK_COMPLETE_SOUND_ID);
+  if (!soundPath) return;
+  lastCompletionSoundAt = now;
+  execFile('/usr/bin/afplay', [soundPath], () => {});
+}
+
 function emitTaskStatus(status = getVisibleTaskStatus()) {
   if (win && !win.isDestroyed()) win.webContents.send('task-status', status);
 }
@@ -1133,8 +1158,10 @@ function handleTaskTransition(transition) {
       action: 'waiting',
     });
   } else if (transition.type === 'completed') {
+    playTaskCompleteSound();
     speak('agent.completed', context, { ...speechOptions, replaceKey: 'agent.completed', action: 'success' });
   } else if (transition.type === 'allCompleted') {
+    playTaskCompleteSound();
     speak('agent.allCompleted', context, {
       ...speechOptions,
       replaceKey: 'agent.allCompleted',
@@ -1407,6 +1434,15 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('settings:get', (event) => {
     assertSettingsSender(event);
     return getSettingsPayload();
+  });
+  ipcMain.handle('settings:preview-sound', (event, soundId) => {
+    assertSettingsSender(event);
+    // A manual preview always plays: it deliberately ignores the enabled
+    // toggle and quiet hours, since the user explicitly asked to hear it.
+    const soundPath = taskCompleteSoundPath(soundId);
+    if (!soundPath) return false;
+    execFile('/usr/bin/afplay', [soundPath], () => {});
+    return true;
   });
   ipcMain.handle('settings:save', (event, nextConfig) => {
     assertSettingsSender(event);
