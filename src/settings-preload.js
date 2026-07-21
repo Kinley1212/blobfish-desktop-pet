@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('settingsAPI', {
   load: () => ipcRenderer.invoke('settings:get'),
   save: (config) => ipcRenderer.invoke('settings:save', config),
   reset: () => ipcRenderer.invoke('settings:reset'),
+  previewSound: (soundId) => ipcRenderer.invoke('settings:preview-sound', soundId),
   getAgentIntegration: (provider) => ipcRenderer.invoke('agent-integrations:inspect', provider),
   installAgentIntegration: (provider) => ipcRenderer.invoke('agent-integrations:install', provider),
   repairAgentIntegration: (provider) => ipcRenderer.invoke('agent-integrations:repair', provider),

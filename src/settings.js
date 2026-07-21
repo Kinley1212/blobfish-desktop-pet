@@ -48,6 +48,7 @@ function syncDependentControls() {
     ['dayoff-greeting-enabled', 'dayoff-greeting-times'],
     ['quiet-enabled', 'quiet-times'],
     ['idle-enabled', 'idle-time-fields'],
+    ['sound-task-complete-enabled', 'sound-task-complete-fields'],
   ];
   for (const [toggleId, groupId] of dependencies) {
     const enabled = byId(toggleId).checked;
@@ -59,7 +60,7 @@ function syncDependentControls() {
     }
     byId(groupId).dataset.disabled = String(!enabled);
     byId(groupId).setAttribute('aria-disabled', String(!enabled));
-    byId(groupId).querySelectorAll('input').forEach((input) => { input.disabled = !enabled; });
+    byId(groupId).querySelectorAll('input, select, button').forEach((control) => { control.disabled = !enabled; });
   }
   updateFormValidity();
 }
@@ -157,6 +158,18 @@ function renderLanguages(languages, selectedId) {
     option.value = language.id;
     option.textContent = `${language.displayName} · ${language.locale}`;
     option.selected = language.id === selectedId;
+    select.appendChild(option);
+  }
+}
+
+function renderSounds(sounds, selectedId) {
+  const select = byId('sound-task-complete-id');
+  select.replaceChildren();
+  for (const sound of sounds) {
+    const option = document.createElement('option');
+    option.value = sound.id;
+    option.textContent = sound.label;
+    option.selected = sound.id === selectedId;
     select.appendChild(option);
   }
 }
@@ -463,7 +476,7 @@ async function runPrimaryAgentAction(provider) {
   }
 }
 
-function renderConfig(config, characters, languages) {
+function renderConfig(config, characters, languages, sounds) {
   document.querySelectorAll('input[name="workday"]').forEach((input) => {
     input.checked = config.schedule.workdays.includes(Number(input.value));
   });
@@ -502,6 +515,9 @@ function renderConfig(config, characters, languages) {
   setChecked('integration-calendar', config.integrations.calendar);
   setChecked('privacy-task-titles', config.privacy.includeTaskTitles);
   setChecked('privacy-calendar-titles', config.privacy.includeCalendarTitles);
+  const soundSetting = config.sound?.taskComplete || { enabled: true, soundId: '' };
+  renderSounds(sounds || [], soundSetting.soundId);
+  setChecked('sound-task-complete-enabled', soundSetting.enabled);
   syncDependentControls();
   updateFormValidity();
 }
@@ -565,6 +581,12 @@ function readConfig() {
       includeTaskTitles: byId('privacy-task-titles').checked,
       includeCalendarTitles: byId('privacy-calendar-titles').checked,
     },
+    sound: {
+      taskComplete: {
+        enabled: byId('sound-task-complete-enabled').checked,
+        soundId: byId('sound-task-complete-id').value,
+      },
+    },
   };
 }
 
@@ -591,9 +613,21 @@ for (const tab of panelTabs) {
   });
 }
 
-for (const toggleId of ['workday-greeting-enabled', 'dayoff-greeting-enabled', 'quiet-enabled', 'idle-enabled']) {
+for (const toggleId of ['workday-greeting-enabled', 'dayoff-greeting-enabled', 'quiet-enabled', 'idle-enabled', 'sound-task-complete-enabled']) {
   byId(toggleId).addEventListener('change', syncDependentControls);
 }
+
+byId('sound-preview-button').addEventListener('click', async () => {
+  const soundId = byId('sound-task-complete-id').value;
+  if (!soundId) return;
+  const button = byId('sound-preview-button');
+  button.disabled = true;
+  try {
+    await window.settingsAPI.previewSound(soundId);
+  } finally {
+    setTimeout(() => { button.disabled = false; }, 350);
+  }
+});
 
 for (const inputId of [
   'workday-greeting-start',
@@ -631,7 +665,7 @@ form.addEventListener('submit', async (event) => {
   try {
     const result = await window.settingsAPI.save(readConfig());
     renderAppVersion(result.appVersion);
-    renderConfig(result.config, result.characters, result.languages);
+    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds);
     renderIntegrationStatus(result.integrationStatus);
     refreshAgentIntegrations();
     showStatus(activeSettingsCopy?.savedStatus || '已保存。');
@@ -648,7 +682,7 @@ resetButton.addEventListener('click', async () => {
   try {
     const result = await window.settingsAPI.reset();
     renderAppVersion(result.appVersion);
-    renderConfig(result.config, result.characters, result.languages);
+    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds);
     renderIntegrationStatus(result.integrationStatus);
     showStatus(activeSettingsCopy?.resetStatus || '已经恢复默认。');
   } catch (error) {
@@ -661,7 +695,7 @@ resetButton.addEventListener('click', async () => {
 window.settingsAPI.load()
   .then((result) => {
     renderAppVersion(result.appVersion);
-    renderConfig(result.config, result.characters, result.languages);
+    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds);
     renderIntegrationStatus(result.integrationStatus);
     refreshAgentIntegrations();
     if (result.warning) showStatus(result.warning, true);
