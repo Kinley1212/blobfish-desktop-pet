@@ -18,6 +18,15 @@
     { "id": "grass-idle-roam-off-03", "event": "interaction.idleRoamOff", "text": "行。空下来歇着。", "weight": 3 },
     { "id": "grass-idle-roam-on-01", "event": "interaction.idleRoamOn", "text": "没事也走两步。", "weight": 5 },
     { "id": "grass-idle-roam-on-02", "event": "interaction.idleRoamOn", "text": "风又吹起来了。", "weight": 4 },
-    { "id": "grass-idle-roam-on-03", "event": "interaction.idleRoamOn", "text": "好。腿继续用。", "weight": 3 }
+    { "id": "grass-idle-roam-on-03", "event": "interaction.idleRoamOn", "text": "好。腿继续用。", "weight": 3 },
+    { "id": "grass-petting-01", "event": "interaction.petting", "text": "……嗯，风一样的手法。", "weight": 5 },
+    { "id": "grass-petting-02", "event": "interaction.petting", "text": "唔……顺毛，舒服。", "weight": 5 },
+    { "id": "grass-petting-03", "event": "interaction.petting", "text": "有机养生草，摸摸更健康。", "weight": 4 },
+    { "id": "grass-petting-04", "event": "interaction.petting", "text": "别拔，只是摸摸而已吧？", "weight": 4 },
+    { "id": "grass-petting-05", "event": "interaction.petting", "text": "哼，又不是很舒服……好吧有点。", "weight": 4 },
+    { "id": "grass-petting-06", "event": "interaction.petting", "text": "这一撮，可是精心打理的。", "weight": 3 },
+    { "id": "grass-petting-07", "event": "interaction.petting", "text": "随你揉吧，我扎根很稳。", "weight": 3 },
+    { "id": "grass-petting-08", "event": "interaction.petting", "text": "再揉要变盆栽了。", "weight": 3 },
+    { "id": "grass-petting-rare-01", "event": "interaction.petting", "text": "别以为这样我就冒芽了……（悄悄冒了）", "weight": 1, "rarity": "rare" }
   ]
 }

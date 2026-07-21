@@ -16,6 +16,14 @@ const DRAG_THRESHOLD_PX = 4;
 // If the pointer hasn't moved for at least this long before release, the
 // hand had already come to a stop - treat the release as velocity-free.
 const STILL_THRESHOLD_MS = 60;
+// Petting = stroking back and forth over the pet. We look at horizontal
+// hover motion within a short window and require a few direction reversals
+// plus enough total travel, then cool down so it doesn't fire repeatedly.
+const PETTING_WINDOW_MS = 900;
+const PETTING_MIN_REVERSALS = 3;
+const PETTING_MIN_TRAVEL_PX = 44;
+const PETTING_COOLDOWN_MS = 2600;
+const BLUSH_DURATION_MS = 2600;
 
 let bubbleTimer = null;
 let taskStatusTimer = null;
@@ -32,6 +40,10 @@ let dragging = false;
 let movedDuringDrag = false;
 let dragDistance = 0;
 let moveHistory = []; // recent { t, dx, dy } samples, used to estimate release velocity
+let isHoveringPet = false; // cursor is currently resting on the pet
+let pettingHistory = []; // recent hover-move samples, used to detect back-and-forth stroking
+let pettingCooldownUntil = 0; // suppresses repeat petting reactions for a short while
+let blushTimer = null;
 let blinkTimer = null;
 let speechActionTimer = null;
 let characterManifest = null;
@@ -371,11 +383,58 @@ function triggerBump() {
   }, 320);
 }
 
+function triggerBlush() {
+  pet.classList.add('is-blushing');
+  clearTimeout(blushTimer);
+  blushTimer = setTimeout(() => {
+    pet.classList.remove('is-blushing');
+  }, BLUSH_DURATION_MS);
+}
+
+// Records a horizontal hover-move sample and decides whether the recent
+// motion looks like stroking (enough back-and-forth reversals and travel).
+// Returns true exactly once per gesture, then starts a cooldown.
+function detectPetting(dx) {
+  const now = performance.now();
+  pettingHistory.push({ t: now, dx });
+  const cutoff = now - PETTING_WINDOW_MS;
+  while (pettingHistory.length && pettingHistory[0].t < cutoff) {
+    pettingHistory.shift();
+  }
+  if (now < pettingCooldownUntil) return false;
+
+  let reversals = 0;
+  let travel = 0;
+  let lastSign = 0;
+  for (const sample of pettingHistory) {
+    travel += Math.abs(sample.dx);
+    const sign = Math.sign(sample.dx);
+    if (sign !== 0) {
+      if (lastSign !== 0 && sign !== lastSign) reversals += 1;
+      lastSign = sign;
+    }
+  }
+
+  if (reversals >= PETTING_MIN_REVERSALS && travel >= PETTING_MIN_TRAVEL_PX) {
+    pettingCooldownUntil = now + PETTING_COOLDOWN_MS;
+    pettingHistory = [];
+    return true;
+  }
+  return false;
+}
+
 function applyHoverAt(x, y) {
   if (dragging) return;
   const el = document.elementFromPoint(x, y);
   const hovering = !!(el && el.closest('#pet'));
   window.petAPI.setIgnoreMouse(!hovering);
+  if (hovering !== isHoveringPet) {
+    isHoveringPet = hovering;
+    // Hovering holds the pet still so it doesn't swim out from under the
+    // cursor; the main process folds this into isMovementPaused().
+    window.petAPI.setHoverPaused(hovering);
+    if (!hovering) pettingHistory = [];
+  }
 }
 
 window.petAPI.onDirection((dir) => setDirection(dir));
@@ -470,6 +529,15 @@ document.addEventListener('mousemove', (event) => {
   }
 
   applyHoverAt(event.clientX, event.clientY);
+
+  // While the cursor rests on the pet, back-and-forth motion reads as petting:
+  // the pet blushes and says something. The blush is a local visual; the line
+  // goes through the main process so it uses the phrase engine and language
+  // pack like every other bit of speech.
+  if (isHoveringPet && event.movementX !== 0 && detectPetting(event.movementX)) {
+    triggerBlush();
+    window.petAPI.petStroked();
+  }
 });
 
 document.addEventListener('mouseup', () => {

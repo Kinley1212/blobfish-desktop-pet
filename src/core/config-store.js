@@ -26,7 +26,7 @@ const DEFAULT_CONFIG = Object.freeze({
     idleMaxMinutes: 35,
     categories: Object.freeze({ schedule: true, system: true, calendar: true, agents: true }),
   }),
-  pet: Object.freeze({ characterPackId: 'blobfish', speed: 1.5, scale: 1, roamWhenNoTasks: false }),
+  pet: Object.freeze({ characterPackId: 'blobfish', speed: 1.5, scale: 1, roamWhenNoTasks: false, moveAxis: 'horizontal' }),
   startup: Object.freeze({ launchAtLogin: false }),
   integrations: Object.freeze({ calendar: false, codex: true, claudeCode: true }),
   privacy: Object.freeze({ includeTaskTitles: false, includeCalendarTitles: true }),
@@ -166,6 +166,9 @@ function validateConfig(input) {
       roamWhenNoTasks: input.pet.roamWhenNoTasks === undefined
         ? !requireBoolean(input.pet.stopWhenAllTasksComplete, 'pet.stopWhenAllTasksComplete')
         : requireBoolean(input.pet.roamWhenNoTasks, 'pet.roamWhenNoTasks'),
+      // Only 'vertical' opts into vertical roaming; anything else (including
+      // undefined from configs written before this feature) stays horizontal.
+      moveAxis: input.pet.moveAxis === 'vertical' ? 'vertical' : 'horizontal',
     },
     startup: {
       launchAtLogin: requireBoolean(startup.launchAtLogin, 'startup.launchAtLogin'),
