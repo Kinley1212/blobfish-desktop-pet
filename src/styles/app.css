@@ -207,6 +207,32 @@ body.has-task-bubble #bubble[data-placement="below"] {
   filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.15));
 }
 
+/* Two soft pink cheeks that fade in while the pet is being stroked (petting).
+   Drawn as overlay pseudo-elements so they work for any character pack
+   without touching each pack's SVG. */
+#pet::before,
+#pet::after {
+  content: '';
+  position: absolute;
+  bottom: 42%;
+  width: 18%;
+  height: 12%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 122, 146, 0.78), rgba(255, 122, 146, 0));
+  opacity: 0;
+  transition: opacity 0.28s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+
+#pet::before { left: 12%; }
+#pet::after { right: 12%; }
+
+#pet.is-blushing::before,
+#pet.is-blushing::after {
+  opacity: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   #pet,
   #pet * {

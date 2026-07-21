@@ -508,6 +508,7 @@ function renderConfig(config, characters, languages, sounds) {
   speedOutput.value = `${config.pet.speed.toFixed(2)}×`;
   setValue('pet-scale', config.pet.scale);
   scaleOutput.value = `${Math.round(config.pet.scale * 100)}%`;
+  setValue('pet-move-axis', config.pet.moveAxis || 'horizontal');
   setChecked('roam-without-tasks', config.pet.roamWhenNoTasks);
   setChecked('launch-at-login', config.startup.launchAtLogin);
   setChecked('integration-codex', config.integrations.codex);
@@ -568,6 +569,7 @@ function readConfig() {
       speed: Number(speedInput.value),
       scale: Number(scaleInput.value),
       roamWhenNoTasks: byId('roam-without-tasks').checked,
+      moveAxis: byId('pet-move-axis').value,
     },
     startup: {
       launchAtLogin: byId('launch-at-login').checked,

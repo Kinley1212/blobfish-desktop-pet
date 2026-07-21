@@ -82,10 +82,13 @@ let win;
 let settingsWin;
 let tray;
 let direction = 1;
+let verticalDirection = 1; // 1 = moving down, -1 = moving up (vertical roam mode)
+let currentPetTopPrecise = null; // sub-pixel pet-top tracker for vertical roaming
 let paused = false;
 let contextMenuPaused = false;
 let systemPaused = false;
 let agentPaused = false;
+let hoverPaused = false; // true while the cursor is resting on the pet
 let currentX;
 let currentY;
 let petTopOffset = null;
@@ -238,7 +241,7 @@ function maybeSpeakStartupGreeting(date = new Date()) {
 }
 
 function isMovementPaused() {
-  return paused || contextMenuPaused || systemPaused || agentPaused;
+  return paused || contextMenuPaused || systemPaused || agentPaused || hoverPaused;
 }
 
 function isProviderEnabled(provider) {
@@ -739,6 +742,10 @@ function createWindow() {
     win.setIgnoreMouseEvents(ignore, { forward: true });
   });
 
+  ipcMain.on('hover-pause', (_event, value) => {
+    hoverPaused = Boolean(value);
+  });
+
   ipcMain.on('pet-clicked', () => {
     clickCount += 1;
     speak('interaction.click', { clickCount }, {
@@ -756,6 +763,17 @@ function createWindow() {
         allowDuringQuiet: true,
       });
     }
+  });
+
+  ipcMain.on('pet-stroked', () => {
+    // The blush is handled locally in the renderer; here we just voice the
+    // reaction through the phrase engine so it honors the active language pack.
+    speak('interaction.petting', {}, {
+      priority: SPEECH_PRIORITY.interaction,
+      durationMs: 2600,
+      replaceKey: 'interaction.petting',
+      allowDuringQuiet: true,
+    });
   });
 
   ipcMain.on('pet-context-menu', showPetContextMenu);
@@ -811,6 +829,36 @@ function createWindow() {
     }
     const { x: areaX, width: areaWidth } = nearestBounds;
     const petMetrics = getPetMetrics();
+
+    if (config.pet.moveAxis === 'vertical') {
+      // Vertical roaming: drift the pet up and down between the top and bottom
+      // of the current display, bouncing at each edge. The sprite keeps its
+      // facing (no horizontal flip), so no 'direction' event is sent here.
+      const minY = nearestBounds.y;
+      const maxY = nearestBounds.y + nearestBounds.height;
+      const nativePetTop = wy + (Number.isFinite(petTopOffset) ? petTopOffset : petMetrics.topMargin);
+      // Self-healing sub-pixel tracker: if our tracked value has drifted from
+      // where the window actually is (a drag or fling moved it), resync.
+      let basePetTop = currentPetTopPrecise;
+      if (!Number.isFinite(basePetTop) || Math.abs(basePetTop - nativePetTop) > 1.5) {
+        basePetTop = nativePetTop;
+      }
+      let desiredPetTop = basePetTop + verticalDirection * config.pet.speed;
+      const probe = calculateVerticalPlacement(desiredPetTop, { minY, maxY }, petMetrics);
+      if (probe.hitTop) {
+        desiredPetTop = probe.petTop;
+        verticalDirection = 1;
+      } else if (probe.hitBottom) {
+        desiredPetTop = probe.petTop;
+        verticalDirection = -1;
+      }
+      currentPetTopPrecise = desiredPetTop;
+      const placement = positionPetAt(wx, desiredPetTop, { minY, maxY });
+      currentX = wx;
+      currentY = roundWindowCoordinate(placement.windowY);
+      syncAutomaticHoverState();
+      return;
+    }
 
     let newX = advanceFractionalCoordinate(currentX, wx, direction * config.pet.speed);
     const minWinX = areaX - petMetrics.offsetX;

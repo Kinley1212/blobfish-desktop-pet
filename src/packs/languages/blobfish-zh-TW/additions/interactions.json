@@ -16,6 +16,19 @@
     { "id": "idle-roam-off-03", "event": "interaction.idleRoamOff", "text": "好吧。空下来就歇着。", "weight": 3 },
     { "id": "idle-roam-on-01", "event": "interaction.idleRoamOn", "text": "没事也游两下。", "weight": 5 },
     { "id": "idle-roam-on-02", "event": "interaction.idleRoamOn", "text": "好吧，继续晃悠。", "weight": 4 },
-    { "id": "idle-roam-on-03", "event": "interaction.idleRoamOn", "text": "空着也是空着……", "weight": 3 }
+    { "id": "idle-roam-on-03", "event": "interaction.idleRoamOn", "text": "空着也是空着……", "weight": 3 },
+    { "id": "petting-01", "event": "interaction.petting", "text": "……嗯，勉强让你摸一下。", "weight": 5 },
+    { "id": "petting-02", "event": "interaction.petting", "text": "唔……再懒一点点……", "weight": 5 },
+    { "id": "petting-03", "event": "interaction.petting", "text": "手感不错吧，天然的。", "weight": 5 },
+    { "id": "petting-04", "event": "interaction.petting", "text": "别误会，我只是没力气躲。", "weight": 4 },
+    { "id": "petting-05", "event": "interaction.petting", "text": "深海躺平冠军，了解一下。", "weight": 4 },
+    { "id": "petting-06", "event": "interaction.petting", "text": "……嗯。就这样，别太用力。", "weight": 4 },
+    { "id": "petting-07", "event": "interaction.petting", "text": "摸到的可是限量款。", "weight": 4 },
+    { "id": "petting-08", "event": "interaction.petting", "text": "哼，又不是很舒服。", "weight": 3 },
+    { "id": "petting-09", "event": "interaction.petting", "text": "再摸下去要起球了。", "weight": 3 },
+    { "id": "petting-10", "event": "interaction.petting", "text": "这一身软，别处可找不到。", "weight": 3 },
+    { "id": "petting-11", "event": "interaction.petting", "text": "随你吧……我又懒得动。", "weight": 3 },
+    { "id": "petting-rare-01", "event": "interaction.petting", "text": "别以为这样我就高兴了……（尾巴悄悄摇）", "weight": 1, "rarity": "rare" },
+    { "id": "petting-rare-02", "event": "interaction.petting", "text": "免费仅此一次。……才怪，随时欢迎。", "weight": 1, "rarity": "rare" }
   ]
 }
