@@ -103,6 +103,7 @@ function applyCharacterPack(pack) {
   document.querySelectorAll('style[data-character-style]').forEach((element) => element.remove());
 
   characterManifest = pack.manifest;
+  pet.dataset.character = pack.manifest.id;
   for (const style of pack.styles) {
     const styleElement = document.createElement('style');
     styleElement.dataset.characterStyle = style.path;

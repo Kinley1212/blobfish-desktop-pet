@@ -233,6 +233,13 @@ body.has-task-bubble #bubble[data-placement="below"] {
   opacity: 1;
 }
 
+#pet[data-character="blobfish-wotou"]::before,
+#pet[data-character="blobfish-wotou"]::after {
+  bottom: 32%;
+}
+#pet[data-character="blobfish-wotou"]::before { left: 18%; }
+#pet[data-character="blobfish-wotou"]::after { right: 18%; }
+
 @media (prefers-reduced-motion: reduce) {
   #pet,
   #pet * {
