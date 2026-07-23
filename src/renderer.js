@@ -2,6 +2,7 @@ const pet = document.getElementById('pet');
 const bubble = document.getElementById('bubble');
 const taskBubble = document.getElementById('task-bubble');
 const { buildCarouselLayout, nextTaskKey } = globalThis.taskCarouselModel;
+const { applyDiyToSvg } = globalThis.diyModel;
 
 const VELOCITY_WINDOW_MS = 300;
 const BLINK_MIN_MS = 3500;
@@ -55,6 +56,8 @@ let speechActionTimer = null;
 let characterManifest = null;
 let petScale = 1;
 let petTopOffset = null;
+let diySpec = null;
+let renderedDiySignature = null; // the spec the SVG currently in the DOM was built from
 
 function applyPetLayout(layout = {}) {
   const nextTopOffset = Number(layout.topOffset);
@@ -72,6 +75,15 @@ function applyPetConfig(config = {}) {
   const nextScale = Number(config.scale);
   petScale = Number.isFinite(nextScale) ? Math.min(1.5, Math.max(0.65, nextScale)) : 1;
   applyPetLayout(config);
+  // A shape preset swaps SVG nodes outright, so the only reliable way to move
+  // between presets is to rebuild the character from its untouched art.
+  if (config.customization !== undefined) {
+    diySpec = config.customization;
+    if (characterManifest && JSON.stringify(diySpec) !== renderedDiySignature) {
+      installCharacterPack();
+      return;
+    }
+  }
   if (!characterManifest) return;
   const width = characterManifest.size.width * petScale;
   const height = characterManifest.size.height * petScale;
@@ -117,6 +129,8 @@ function applyCharacterPack(pack) {
     document.head.appendChild(styleElement);
   }
   pet.innerHTML = svg;
+  applyDiyToSvg(pet.querySelector('svg'), diySpec, pack.manifest);
+  renderedDiySignature = JSON.stringify(diySpec);
   applyPetConfig({ scale: petScale });
   scheduleBlink(300);
 }

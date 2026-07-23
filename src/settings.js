@@ -18,6 +18,9 @@ const connectionTestTimers = {};
 const integrationOperations = new Map();
 let charactersById = new Map();
 let activeSettingsCopy = null;
+let diyMap = {};
+let diyArt = null;
+const diyModel = globalThis.diyModel;
 const panelTabs = [...document.querySelectorAll('.nav-item[data-panel]')];
 const panels = [...document.querySelectorAll('.settings-panel[data-panel-name]')];
 
@@ -38,6 +41,9 @@ function activatePanel(panelId, options = {}) {
     tab.tabIndex = selected ? 0 : -1;
   }
   for (const panel of panels) panel.hidden = panel.id !== `panel-${activeTab.dataset.panel}`;
+  // The preview measures its own bounding boxes, which only works once the
+  // panel is actually on screen.
+  if (activeTab.dataset.panel === 'diy') renderDiyPreview();
   document.querySelector('.content-scroll').scrollTop = 0;
   if (options.focus) activeTab.focus();
 }
@@ -187,6 +193,144 @@ function renderCharacters(characters, selectedId) {
     select.appendChild(option);
   }
   applyCharacterCopy(select.value);
+}
+
+// --- 捏鱼 (DIY) ----------------------------------------------------------
+// Edits live in `diyMap` keyed by character pack, and only reach the pet when
+// the form is saved. The preview re-parses the pack's own art every time, so
+// a shape preset can replace nodes without ever accumulating.
+
+function currentDiySpec() {
+  const packId = byId('character-pack').value;
+  if (!diyMap[packId]) diyMap[packId] = diyModel.defaultDiy();
+  return diyMap[packId];
+}
+
+function formatDiyValue(field, value) {
+  return field.kind === 'ratio' ? `${Math.round(value * 100)}%` : `${value > 0 ? '+' : ''}${value}`;
+}
+
+function buildDiyShapeField(groupName, group, spec) {
+  const options = diyModel.listShapeOptions(diyArt && diyArt.diy, groupName);
+  if (options.length === 0) return null;
+
+  const label = document.createElement('label');
+  label.className = 'field';
+  label.append(group.label);
+
+  const select = document.createElement('select');
+  select.dataset.diyShape = groupName;
+  for (const option of options) {
+    const element = document.createElement('option');
+    element.value = option.id;
+    element.textContent = option.label;
+    select.appendChild(element);
+  }
+  // An id from another pack won't exist here; fall back to the first preset.
+  select.value = options.some((option) => option.id === spec[groupName].shape)
+    ? spec[groupName].shape
+    : options[0].id;
+  spec[groupName].shape = select.value;
+
+  select.addEventListener('change', () => {
+    currentDiySpec()[groupName].shape = select.value;
+    renderDiyPreview();
+  });
+  label.appendChild(select);
+  return label;
+}
+
+function buildDiySlider(part, field, spec) {
+  const label = document.createElement('label');
+  label.className = 'field range-field';
+
+  const heading = document.createElement('span');
+  const name = document.createElement('span');
+  name.textContent = field.label;
+  const output = document.createElement('output');
+  output.textContent = formatDiyValue(field, spec[part][field.key]);
+  heading.append(name, output);
+
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.min = String(field.min);
+  input.max = String(field.max);
+  input.step = String(field.step);
+  input.value = String(spec[part][field.key]);
+  input.addEventListener('input', () => {
+    const value = Number(input.value);
+    currentDiySpec()[part][field.key] = value;
+    output.textContent = formatDiyValue(field, value);
+    renderDiyPreview();
+  });
+
+  label.append(heading, input);
+  return label;
+}
+
+function renderDiyControls() {
+  const container = byId('diy-controls');
+  container.replaceChildren();
+  const spec = currentDiySpec();
+
+  for (const group of diyModel.DIY_CONTROLS) {
+    const card = document.createElement('div');
+    card.className = 'card diy-group';
+
+    const heading = document.createElement('h3');
+    heading.textContent = group.label;
+    card.appendChild(heading);
+
+    const shapeGroup = diyModel.SHAPE_GROUPS[group.part];
+    if (shapeGroup) {
+      const shapeField = buildDiyShapeField(group.part, shapeGroup, spec);
+      if (shapeField) card.appendChild(shapeField);
+    }
+
+    const stack = document.createElement('div');
+    stack.className = 'range-stack';
+    for (const field of group.fields) stack.appendChild(buildDiySlider(group.part, field, spec));
+    card.appendChild(stack);
+    container.appendChild(card);
+  }
+}
+
+function renderDiyPreview() {
+  const stage = byId('diy-preview');
+  if (!diyArt) {
+    stage.replaceChildren();
+    return;
+  }
+
+  const parsed = new DOMParser().parseFromString(diyArt.svg, 'image/svg+xml');
+  if (parsed.querySelector('parsererror')) {
+    stage.replaceChildren();
+    return;
+  }
+
+  const svg = document.importNode(parsed.documentElement, true);
+  stage.replaceChildren(svg);
+  // getBBox only reports real numbers once the node is laid out, which is why
+  // the SVG goes into the document before the spec is applied.
+  diyModel.applyDiyToSvg(svg, currentDiySpec(), { diy: diyArt.diy });
+}
+
+async function loadDiy(packId) {
+  const supported = Boolean(charactersById.get(packId)?.diy?.enabled);
+  byId('diy-unsupported').hidden = supported;
+  byId('diy-workspace').hidden = !supported;
+  if (!supported) {
+    diyArt = null;
+    byId('diy-controls').replaceChildren();
+    byId('diy-preview').replaceChildren();
+    return;
+  }
+
+  diyArt = await window.settingsAPI.getCharacterArt(packId);
+  // The selection can change while the art request is in flight.
+  if (byId('character-pack').value !== packId) return;
+  renderDiyControls();
+  renderDiyPreview();
 }
 
 function renderIntegrationStatus(integrationStatus = {}) {
@@ -519,6 +663,8 @@ function renderConfig(config, characters, languages, sounds) {
   const soundSetting = config.sound?.taskComplete || { enabled: true, soundId: '' };
   renderSounds(sounds || [], soundSetting.soundId);
   setChecked('sound-task-complete-enabled', soundSetting.enabled);
+  diyMap = JSON.parse(JSON.stringify(config.pet.customization || {}));
+  loadDiy(config.pet.characterPackId);
   syncDependentControls();
   updateFormValidity();
 }
@@ -570,6 +716,7 @@ function readConfig() {
       scale: Number(scaleInput.value),
       roamWhenNoTasks: byId('roam-without-tasks').checked,
       moveAxis: byId('pet-move-axis').value,
+      customization: diyMap,
     },
     startup: {
       launchAtLogin: byId('launch-at-login').checked,
@@ -648,6 +795,13 @@ byId('character-pack').addEventListener('change', (event) => {
     setValue('language-pack', languagePackId);
   }
   applyCharacterCopy(event.target.value);
+  loadDiy(event.target.value);
+});
+
+byId('diy-reset').addEventListener('click', () => {
+  diyMap[byId('character-pack').value] = diyModel.defaultDiy();
+  renderDiyControls();
+  renderDiyPreview();
 });
 
 for (const provider of agentProviders) {

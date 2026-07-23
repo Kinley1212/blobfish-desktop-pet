@@ -645,3 +645,57 @@ button.compact { min-width: 72px; height: 29px; padding: 0 10px; font-size: 9px;
   .settings-panel { padding-top: 25px; }
   .panel-header { margin-bottom: 17px; }
 }
+
+/* 捏鱼 —— preview on the left, grouped sliders on the right. */
+.diy-workspace {
+  display: grid;
+  grid-template-columns: minmax(190px, 250px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.diy-stage {
+  position: sticky;
+  top: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.diy-preview {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1 / 1;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.9), rgba(0, 0, 0, 0) 62%),
+    var(--surface-soft);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.diy-preview svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.diy-reset { width: 100%; }
+
+.diy-controls {
+  display: grid;
+  gap: 12px;
+}
+
+.diy-group { margin-bottom: 0; }
+.diy-group h3 { margin: 0 0 10px; font-size: 13px; letter-spacing: -0.01em; }
+.diy-group .field + .range-stack { margin-top: 12px; }
+
+.diy-unsupported p { margin: 0; color: var(--muted); font-size: 12px; }
+
+@media (max-width: 760px) {
+  .diy-workspace { grid-template-columns: minmax(0, 1fr); }
+  .diy-stage { position: static; }
+  .diy-preview { max-width: 260px; }
+}

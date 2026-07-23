@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { DEFAULT_TASK_COMPLETE_SOUND_ID, isValidTaskCompleteSoundId } = require('./sound-catalog');
+const { normalizeDiyMap } = require('./diy-model');
 
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const DEFAULT_CONFIG = Object.freeze({
@@ -26,7 +27,14 @@ const DEFAULT_CONFIG = Object.freeze({
     idleMaxMinutes: 35,
     categories: Object.freeze({ schedule: true, system: true, calendar: true, agents: true }),
   }),
-  pet: Object.freeze({ characterPackId: 'blobfish', speed: 1.5, scale: 1, roamWhenNoTasks: false, moveAxis: 'horizontal' }),
+  pet: Object.freeze({
+    characterPackId: 'blobfish',
+    speed: 1.5,
+    scale: 1,
+    roamWhenNoTasks: false,
+    moveAxis: 'horizontal',
+    customization: Object.freeze({}),
+  }),
   startup: Object.freeze({ launchAtLogin: false }),
   integrations: Object.freeze({ calendar: false, codex: true, claudeCode: true }),
   privacy: Object.freeze({ includeTaskTitles: false, includeCalendarTitles: true }),
@@ -169,6 +177,9 @@ function validateConfig(input) {
       // Only 'vertical' opts into vertical roaming; anything else (including
       // undefined from configs written before this feature) stays horizontal.
       moveAxis: input.pet.moveAxis === 'vertical' ? 'vertical' : 'horizontal',
+      // DIY tweaks are per character pack, and each value is clamped rather
+      // than rejected so a hand-edited file can't lock the pet out.
+      customization: normalizeDiyMap(input.pet.customization),
     },
     startup: {
       launchAtLogin: requireBoolean(startup.launchAtLogin, 'startup.launchAtLogin'),
