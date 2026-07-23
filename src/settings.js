@@ -304,7 +304,15 @@ function currentAccessorySpec() {
   return accessoryMap[packId];
 }
 
-function buildAccessorySlider(slotKey, field, settings) {
+// Tuning belongs to the accessory, so a slider always writes into the entry
+// for whatever that slot is currently wearing.
+function currentTuning(accessoryId) {
+  const spec = currentAccessorySpec();
+  if (!spec.tuning[accessoryId]) spec.tuning[accessoryId] = accessoryModel.defaultTuning();
+  return spec.tuning[accessoryId];
+}
+
+function buildAccessorySlider(getAccessoryId, field) {
   const label = document.createElement('label');
   label.className = 'field range-field';
 
@@ -312,7 +320,6 @@ function buildAccessorySlider(slotKey, field, settings) {
   const name = document.createElement('span');
   name.textContent = field.label;
   const output = document.createElement('output');
-  output.textContent = formatDiyValue(field, settings[field.key]);
   heading.append(name, output);
 
   const input = document.createElement('input');
@@ -320,15 +327,24 @@ function buildAccessorySlider(slotKey, field, settings) {
   input.min = String(field.min);
   input.max = String(field.max);
   input.step = String(field.step);
-  input.value = String(settings[field.key]);
   input.addEventListener('input', () => {
     const value = Number(input.value);
-    currentAccessorySpec()[slotKey][field.key] = value;
+    currentTuning(getAccessoryId())[field.key] = value;
     output.textContent = formatDiyValue(field, value);
     renderDiyPreview();
   });
 
   label.append(heading, input);
+  // Re-reads the worn piece's own numbers, so swapping hats swaps the sliders.
+  label.syncFromSpec = () => {
+    const accessoryId = getAccessoryId();
+    const value = accessoryId
+      ? accessoryModel.getTuning(currentAccessorySpec(), accessoryId)[field.key]
+      : accessoryModel.DEFAULT_TUNING[field.key];
+    input.value = String(value);
+    output.textContent = formatDiyValue(field, value);
+  };
+  label.syncFromSpec();
   return label;
 }
 
@@ -350,7 +366,6 @@ function renderAccessoryControls() {
   const spec = currentAccessorySpec();
   for (const slot of accessoryModel.ACCESSORY_SLOTS) {
     if (!slots[slot.key]) continue;
-    const settings = spec[slot.key];
 
     const field = document.createElement('label');
     field.className = 'field';
@@ -368,25 +383,37 @@ function renderAccessoryControls() {
       option.textContent = item.displayName;
       select.appendChild(option);
     }
-    select.value = [...select.options].some((option) => option.value === settings.id) ? settings.id : '';
+    const worn = spec.equipped[slot.key];
+    select.value = [...select.options].some((option) => option.value === worn) ? worn : '';
+    field.appendChild(select);
+    container.appendChild(field);
 
-    // Nudging an empty slot means nothing, so the sliders only appear once
-    // something is actually being worn.
+    // An expression is picked, not fitted, so it gets no sliders at all.
+    if (!slot.tunable) {
+      select.addEventListener('change', () => {
+        currentAccessorySpec().equipped[slot.key] = select.value || null;
+        renderDiyPreview();
+      });
+      continue;
+    }
+
     const sliders = document.createElement('div');
     sliders.className = 'range-stack accessory-sliders';
     for (const sliderField of accessoryModel.ACCESSORY_FIELDS) {
-      sliders.appendChild(buildAccessorySlider(slot.key, sliderField, settings));
+      sliders.appendChild(buildAccessorySlider(() => select.value || null, sliderField));
     }
-    sliders.hidden = !settings.id;
+    // Nudging an empty slot means nothing, so the sliders only appear once
+    // something is actually being worn.
+    sliders.hidden = !select.value;
 
     select.addEventListener('change', () => {
-      currentAccessorySpec()[slot.key].id = select.value || null;
+      currentAccessorySpec().equipped[slot.key] = select.value || null;
       sliders.hidden = !select.value;
+      for (const child of sliders.children) child.syncFromSpec();
       renderDiyPreview();
     });
 
-    field.appendChild(select);
-    container.append(field, sliders);
+    container.appendChild(sliders);
   }
 }
 
