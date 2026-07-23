@@ -38,6 +38,13 @@
     "dragging": "dragging",
     "exit": "exit"
   },
+  "accessories": {
+    "slots": {
+      "hat": { "x": 70, "y": 17, "scale": 1.05 },
+      "eyewear": { "x": 70, "y": 50, "scale": 1.02 },
+      "hand": { "x": 118, "y": 78, "scale": 0.38 }
+    }
+  },
   "diy": {
     "enabled": true,
     "shapes": {

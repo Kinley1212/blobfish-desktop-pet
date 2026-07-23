@@ -699,3 +699,7 @@ button.compact { min-width: 72px; height: 29px; padding: 0 10px; font-size: 9px;
   .diy-stage { position: static; }
   .diy-preview { max-width: 260px; }
 }
+
+.accessory-sliders { margin: 8px 0 14px; }
+.accessory-sliders[hidden] { display: none; }
+#accessory-controls[hidden] { display: none; }

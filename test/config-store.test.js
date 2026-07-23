@@ -51,6 +51,7 @@ test('legacy stop-after-task setting migrates without losing user intent', () =>
     roamWhenNoTasks: false,
     moveAxis: 'horizontal',
     customization: {},
+    accessories: {},
   });
   assert.deepEqual(validateConfig(legacy).startup, { launchAtLogin: false });
   assert.deepEqual(validateConfig(legacy).greetings, DEFAULT_CONFIG.greetings);

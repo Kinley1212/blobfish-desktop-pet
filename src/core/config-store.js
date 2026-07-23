@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { DEFAULT_TASK_COMPLETE_SOUND_ID, isValidTaskCompleteSoundId } = require('./sound-catalog');
 const { normalizeDiyMap } = require('./diy-model');
+const { normalizeAccessoryMap } = require('./accessory-model');
 
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const DEFAULT_CONFIG = Object.freeze({
@@ -34,6 +35,7 @@ const DEFAULT_CONFIG = Object.freeze({
     roamWhenNoTasks: false,
     moveAxis: 'horizontal',
     customization: Object.freeze({}),
+    accessories: Object.freeze({}),
   }),
   startup: Object.freeze({ launchAtLogin: false }),
   integrations: Object.freeze({ calendar: false, codex: true, claudeCode: true }),
@@ -180,6 +182,9 @@ function validateConfig(input) {
       // DIY tweaks are per character pack, and each value is clamped rather
       // than rejected so a hand-edited file can't lock the pet out.
       customization: normalizeDiyMap(input.pet.customization),
+      // Equipped accessories are per character pack too, and normalise the
+      // same forgiving way: an unknown id simply won't match the catalogue.
+      accessories: normalizeAccessoryMap(input.pet.accessories),
     },
     startup: {
       launchAtLogin: requireBoolean(startup.launchAtLogin, 'startup.launchAtLogin'),

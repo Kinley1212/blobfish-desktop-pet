@@ -1,0 +1,8 @@
+{
+  "id": "beanie",
+  "displayName": "毛线帽",
+  "version": 1,
+  "slot": "hat",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 74 }
+}

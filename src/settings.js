@@ -20,7 +20,10 @@ let charactersById = new Map();
 let activeSettingsCopy = null;
 let diyMap = {};
 let diyArt = null;
+let accessoryMap = {};
+let accessoryCatalog = [];
 const diyModel = globalThis.diyModel;
+const accessoryModel = globalThis.accessoryModel;
 const panelTabs = [...document.querySelectorAll('.nav-item[data-panel]')];
 const panels = [...document.querySelectorAll('.settings-panel[data-panel-name]')];
 
@@ -295,6 +298,98 @@ function renderDiyControls() {
   }
 }
 
+function currentAccessorySpec() {
+  const packId = byId('character-pack').value;
+  if (!accessoryMap[packId]) accessoryMap[packId] = accessoryModel.defaultAccessories();
+  return accessoryMap[packId];
+}
+
+function buildAccessorySlider(slotKey, field, settings) {
+  const label = document.createElement('label');
+  label.className = 'field range-field';
+
+  const heading = document.createElement('span');
+  const name = document.createElement('span');
+  name.textContent = field.label;
+  const output = document.createElement('output');
+  output.textContent = formatDiyValue(field, settings[field.key]);
+  heading.append(name, output);
+
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.min = String(field.min);
+  input.max = String(field.max);
+  input.step = String(field.step);
+  input.value = String(settings[field.key]);
+  input.addEventListener('input', () => {
+    const value = Number(input.value);
+    currentAccessorySpec()[slotKey][field.key] = value;
+    output.textContent = formatDiyValue(field, value);
+    renderDiyPreview();
+  });
+
+  label.append(heading, input);
+  return label;
+}
+
+function renderAccessoryControls() {
+  const container = byId('accessory-controls');
+  container.replaceChildren();
+
+  const slots = accessoryModel.getCharacterSlots({ accessories: diyArt && diyArt.accessories });
+  if (!slots) {
+    container.hidden = true;
+    return;
+  }
+  container.hidden = false;
+
+  const heading = document.createElement('h3');
+  heading.textContent = '饰品';
+  container.appendChild(heading);
+
+  const spec = currentAccessorySpec();
+  for (const slot of accessoryModel.ACCESSORY_SLOTS) {
+    if (!slots[slot.key]) continue;
+    const settings = spec[slot.key];
+
+    const field = document.createElement('label');
+    field.className = 'field';
+    field.append(slot.label);
+
+    const select = document.createElement('select');
+    select.dataset.accessorySlot = slot.key;
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = slot.empty;
+    select.appendChild(none);
+    for (const item of accessoryCatalog.filter((entry) => entry.slot === slot.key)) {
+      const option = document.createElement('option');
+      option.value = item.id;
+      option.textContent = item.displayName;
+      select.appendChild(option);
+    }
+    select.value = [...select.options].some((option) => option.value === settings.id) ? settings.id : '';
+
+    // Nudging an empty slot means nothing, so the sliders only appear once
+    // something is actually being worn.
+    const sliders = document.createElement('div');
+    sliders.className = 'range-stack accessory-sliders';
+    for (const sliderField of accessoryModel.ACCESSORY_FIELDS) {
+      sliders.appendChild(buildAccessorySlider(slot.key, sliderField, settings));
+    }
+    sliders.hidden = !settings.id;
+
+    select.addEventListener('change', () => {
+      currentAccessorySpec()[slot.key].id = select.value || null;
+      sliders.hidden = !select.value;
+      renderDiyPreview();
+    });
+
+    field.appendChild(select);
+    container.append(field, sliders);
+  }
+}
+
 function renderDiyPreview() {
   const stage = byId('diy-preview');
   if (!diyArt) {
@@ -309,10 +404,18 @@ function renderDiyPreview() {
   }
 
   const svg = document.importNode(parsed.documentElement, true);
+  // Tears only belong to the "被揍" reaction; a resting portrait shouldn't cry.
+  svg.querySelectorAll('.tears, .tear').forEach((node) => node.remove());
   stage.replaceChildren(svg);
   // getBBox only reports real numbers once the node is laid out, which is why
   // the SVG goes into the document before the spec is applied.
   diyModel.applyDiyToSvg(svg, currentDiySpec(), { diy: diyArt.diy });
+  accessoryModel.applyAccessoriesToSvg(
+    svg,
+    { accessories: diyArt.accessories },
+    accessoryCatalog,
+    currentAccessorySpec(),
+  );
 }
 
 async function loadDiy(packId) {
@@ -322,6 +425,7 @@ async function loadDiy(packId) {
   if (!supported) {
     diyArt = null;
     byId('diy-controls').replaceChildren();
+    byId('accessory-controls').replaceChildren();
     byId('diy-preview').replaceChildren();
     return;
   }
@@ -330,6 +434,7 @@ async function loadDiy(packId) {
   // The selection can change while the art request is in flight.
   if (byId('character-pack').value !== packId) return;
   renderDiyControls();
+  renderAccessoryControls();
   renderDiyPreview();
 }
 
@@ -620,7 +725,7 @@ async function runPrimaryAgentAction(provider) {
   }
 }
 
-function renderConfig(config, characters, languages, sounds) {
+function renderConfig(config, characters, languages, sounds, accessories) {
   document.querySelectorAll('input[name="workday"]').forEach((input) => {
     input.checked = config.schedule.workdays.includes(Number(input.value));
   });
@@ -664,6 +769,8 @@ function renderConfig(config, characters, languages, sounds) {
   renderSounds(sounds || [], soundSetting.soundId);
   setChecked('sound-task-complete-enabled', soundSetting.enabled);
   diyMap = JSON.parse(JSON.stringify(config.pet.customization || {}));
+  accessoryMap = JSON.parse(JSON.stringify(config.pet.accessories || {}));
+  accessoryCatalog = Array.isArray(accessories) ? accessories : accessoryCatalog;
   loadDiy(config.pet.characterPackId);
   syncDependentControls();
   updateFormValidity();
@@ -717,6 +824,7 @@ function readConfig() {
       roamWhenNoTasks: byId('roam-without-tasks').checked,
       moveAxis: byId('pet-move-axis').value,
       customization: diyMap,
+      accessories: accessoryMap,
     },
     startup: {
       launchAtLogin: byId('launch-at-login').checked,
@@ -799,8 +907,11 @@ byId('character-pack').addEventListener('change', (event) => {
 });
 
 byId('diy-reset').addEventListener('click', () => {
-  diyMap[byId('character-pack').value] = diyModel.defaultDiy();
+  const packId = byId('character-pack').value;
+  diyMap[packId] = diyModel.defaultDiy();
+  accessoryMap[packId] = accessoryModel.defaultAccessories();
   renderDiyControls();
+  renderAccessoryControls();
   renderDiyPreview();
 });
 
@@ -821,7 +932,7 @@ form.addEventListener('submit', async (event) => {
   try {
     const result = await window.settingsAPI.save(readConfig());
     renderAppVersion(result.appVersion);
-    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds);
+    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds, result.accessories);
     renderIntegrationStatus(result.integrationStatus);
     refreshAgentIntegrations();
     showStatus(activeSettingsCopy?.savedStatus || '已保存。');
@@ -838,7 +949,7 @@ resetButton.addEventListener('click', async () => {
   try {
     const result = await window.settingsAPI.reset();
     renderAppVersion(result.appVersion);
-    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds);
+    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds, result.accessories);
     renderIntegrationStatus(result.integrationStatus);
     showStatus(activeSettingsCopy?.resetStatus || '已经恢复默认。');
   } catch (error) {
@@ -851,7 +962,7 @@ resetButton.addEventListener('click', async () => {
 window.settingsAPI.load()
   .then((result) => {
     renderAppVersion(result.appVersion);
-    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds);
+    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds, result.accessories);
     renderIntegrationStatus(result.integrationStatus);
     refreshAgentIntegrations();
     if (result.warning) showStatus(result.warning, true);
