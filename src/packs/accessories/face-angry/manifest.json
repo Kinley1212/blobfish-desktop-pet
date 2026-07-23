@@ -1,0 +1,9 @@
+{
+  "id": "face-angry",
+  "displayName": "生气",
+  "version": 1,
+  "slot": "face",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 50 },
+  "hidesEyes": true
+}

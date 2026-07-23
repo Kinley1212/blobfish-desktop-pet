@@ -1,0 +1,7 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <g fill="#f0a0b4" opacity="0.9">
+    <path d="M 25 28 L 29.7 41.53 L 44.02 41.82 L 32.61 50.47 L 36.76 64.18 L 25 56 L 13.24 64.18 L 17.39 50.47 L 5.98 41.82 L 20.3 41.53 Z" />
+    <path d="M 75 28 L 79.7 41.53 L 94.02 41.82 L 82.61 50.47 L 86.76 64.18 L 75 56 L 63.24 64.18 L 67.39 50.47 L 55.98 41.82 L 70.3 41.53 Z" />
+  </g>
+  <path d="M 44 46 L 56 46" stroke="#dd8aa0" stroke-width="4" stroke-linecap="round" />
+</svg>

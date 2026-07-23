@@ -9,6 +9,7 @@ const { ConnectionHealthTracker } = require('./core/connection-health');
 const { ConfigStore, DEFAULT_CONFIG, validateConfig } = require('./core/config-store');
 const { comparePluginVersions, IntegrationManager, PLUGIN_NAME } = require('./core/integration-manager');
 const { loadCharacterPack } = require('./core/pack-loader');
+const { loadAccessoryCatalog } = require('./core/accessory-loader');
 const { loadLanguagePack } = require('./core/language-pack-loader');
 const { calculateVerticalPlacement } = require('./core/pet-boundary');
 const { PhraseEngine } = require('./core/phrase-engine');
@@ -40,6 +41,9 @@ const DEFAULT_CHARACTER_PACK_ID = 'blobfish';
 const DEFAULT_LANGUAGE_PACK_ID = 'blobfish-zh-TW';
 const CHARACTERS_ROOT = path.join(__dirname, 'packs', 'characters');
 const LANGUAGES_ROOT = path.join(__dirname, 'packs', 'languages');
+const ACCESSORIES_ROOT = path.join(__dirname, 'packs', 'accessories');
+// The wardrobe is static art, so it is read once and shared by every window.
+const accessoryCatalog = loadAccessoryCatalog(ACCESSORIES_ROOT);
 let characterPack = loadCharacterPack(CHARACTERS_ROOT, DEFAULT_CHARACTER_PACK_ID);
 const SPEECH_PRIORITY = Object.freeze({
   idle: 10,
@@ -189,6 +193,7 @@ function listCharacterPacks() {
           preview: pack.manifest.preview,
           defaultLanguagePack: pack.manifest.defaultLanguagePack,
           settingsCopy: pack.settingsCopy,
+          diy: pack.manifest.diy || null,
         };
       } catch (error) {
         console.error(`Ignoring invalid character pack ${entry.name}: ${error.message}`);
@@ -498,6 +503,7 @@ function getSettingsPayload() {
     config: JSON.parse(JSON.stringify(config)),
     characters: listCharacterPacks(),
     languages: listLanguagePacks(),
+    accessories: accessoryCatalog,
     taskCompleteSounds: TASK_COMPLETE_SOUNDS.map((sound) => ({ id: sound.id, label: sound.label })),
     warning: runtimeWarnings.getMessage(configStore.loadWarning),
     integrationStatus: { calendar: calendarStatus, agentBridge: agentBridgeStatus },
@@ -554,8 +560,8 @@ function applyConfig(nextConfig) {
       currentY = placement.windowY;
       safeSetPosition(previousPetPosition.x, placement.windowY);
     }
-    if (characterChanged) win.webContents.send('character-pack', characterPack);
-    win.webContents.send('pet-config', { scale: config.pet.scale, ...getPetLayoutPayload() });
+    if (characterChanged) win.webContents.send('character-pack', getCharacterPayload());
+    win.webContents.send('pet-config', getPetConfigPayload());
     syncHoverState();
   }
   scheduleIdleChatter();
@@ -618,6 +624,27 @@ function safeSetPosition(x, y) {
   // rejects negative zero outright ("conversion failure") - `|| 0` folds it
   // back to plain 0 without touching any other value.
   win.setPosition(roundWindowCoordinate(x), roundWindowCoordinate(y));
+}
+
+function getCharacterDiy(packId) {
+  return config.pet.customization[packId] || null;
+}
+
+function getCharacterAccessories(packId) {
+  return config.pet.accessories[packId] || null;
+}
+
+function getCharacterPayload() {
+  return { ...characterPack, accessories: accessoryCatalog };
+}
+
+function getPetConfigPayload() {
+  return {
+    scale: config.pet.scale,
+    customization: getCharacterDiy(config.pet.characterPackId),
+    accessories: getCharacterAccessories(config.pet.characterPackId),
+    ...getPetLayoutPayload(),
+  };
 }
 
 function getPetLayoutPayload() {
@@ -1500,8 +1527,8 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   }
   updateAgentState(currentAgentSnapshot);
 
-  ipcMain.handle('character-pack:get', () => characterPack);
-  ipcMain.handle('pet-config:get', () => ({ scale: config.pet.scale, ...getPetLayoutPayload() }));
+  ipcMain.handle('character-pack:get', () => getCharacterPayload());
+  ipcMain.handle('pet-config:get', () => getPetConfigPayload());
   ipcMain.handle('agent-state:get', () => ({
     ...currentAgentSnapshot,
     motion: currentAgentSnapshot.activeCount > 0
@@ -1512,6 +1539,24 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('settings:get', (event) => {
     assertSettingsSender(event);
     return getSettingsPayload();
+  });
+  // The DIY editor draws a live preview, so it needs the pack's own art. Only
+  // the settings window may ask, and only for a pack that actually exists.
+  ipcMain.handle('settings:character-art', (event, packId) => {
+    assertSettingsSender(event);
+    try {
+      const pack = loadCharacterPack(CHARACTERS_ROOT, packId);
+      return {
+        id: pack.manifest.id,
+        svg: pack.svg,
+        size: pack.manifest.size,
+        diy: pack.manifest.diy || null,
+        accessories: pack.manifest.accessories || null,
+      };
+    } catch (error) {
+      console.error(`Cannot preview character pack ${packId}: ${error.message}`);
+      return null;
+    }
   });
   ipcMain.handle('settings:preview-sound', (event, soundId) => {
     assertSettingsSender(event);

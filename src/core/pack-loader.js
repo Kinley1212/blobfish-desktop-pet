@@ -2,6 +2,9 @@ const fs = require('fs');
 const path = require('path');
 
 const PACK_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const DIY_SHAPE_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const DIY_SHAPE_GROUPS = ['body', 'fins'];
+const ACCESSORY_SLOT_KEYS = ['face', 'hat', 'eyewear', 'hand'];
 const MAX_SVG_BYTES = 512 * 1024;
 const MAX_CSS_BYTES = 128 * 1024;
 const MAX_SETTINGS_COPY_BYTES = 32 * 1024;
@@ -90,10 +93,100 @@ function validateManifest(manifest, expectedId) {
       throw new Error(`Character manifest is missing action: ${action}`);
     }
   }
+  if (manifest.accessories !== undefined) validateAccessorySlots(manifest.accessories);
+  if (manifest.diy !== undefined) validateDiy(manifest.diy);
   if (manifest.settingsCopy !== undefined && (
     typeof manifest.settingsCopy !== 'string' || !manifest.settingsCopy.endsWith('.json')
   )) {
     throw new Error('Character settingsCopy must be a .json file');
+  }
+}
+
+// Where a shared accessory hangs on this particular character, in the pack's
+// own viewBox coordinates.
+function validateAccessorySlots(accessories) {
+  if (!accessories || typeof accessories !== 'object' || Array.isArray(accessories)) {
+    throw new Error('Character accessories must be an object');
+  }
+  const { slots } = accessories;
+  if (!slots || typeof slots !== 'object' || Array.isArray(slots)) {
+    throw new Error('Character accessories.slots must be an object');
+  }
+  for (const key of Object.keys(slots)) {
+    if (!ACCESSORY_SLOT_KEYS.includes(key)) {
+      throw new Error(`Unsupported accessory slot: ${key}`);
+    }
+    const slot = slots[key];
+    if (!slot || typeof slot !== 'object' || Array.isArray(slot)) {
+      throw new Error(`accessories.slots.${key} must be an object`);
+    }
+    if (!Number.isFinite(slot.x) || !Number.isFinite(slot.y)) {
+      throw new Error(`accessories.slots.${key} requires numeric x and y`);
+    }
+    if (slot.scale !== undefined && (!Number.isFinite(slot.scale) || slot.scale <= 0 || slot.scale > 8)) {
+      throw new Error(`accessories.slots.${key}.scale must be between 0 and 8`);
+    }
+  }
+}
+
+// Shape presets end up in a `d` attribute, so the payload is restricted to
+// path-command syntax and a sane length before it ever reaches the DOM.
+function validatePathData(value, label) {
+  if (typeof value !== 'string' || value.trim().length === 0 || value.length > 4096) {
+    throw new Error(`${label} must be a non-empty path shorter than 4096 characters`);
+  }
+  if (!/^[-0-9.,\seEMmLlHhVvCcSsQqTtAaZz]+$/.test(value)) {
+    throw new Error(`${label} contains characters that are not SVG path data`);
+  }
+}
+
+function validateShapeOption(option, groupName, index) {
+  const label = `diy.shapes.${groupName}[${index}]`;
+  if (!option || typeof option !== 'object' || Array.isArray(option)) {
+    throw new Error(`${label} must be an object`);
+  }
+  if (!DIY_SHAPE_ID_PATTERN.test(option.id || '')) {
+    throw new Error(`${label}.id is invalid`);
+  }
+  if (typeof option.label !== 'string' || option.label.trim().length === 0 || option.label.length > 24) {
+    throw new Error(`${label}.label must be a short string`);
+  }
+  if (groupName === 'fins') {
+    validatePathData(option.left, `${label}.left`);
+    validatePathData(option.right, `${label}.right`);
+  } else {
+    validatePathData(option.d, `${label}.d`);
+  }
+  if (option.hideShading !== undefined && typeof option.hideShading !== 'boolean') {
+    throw new Error(`${label}.hideShading must be a boolean`);
+  }
+}
+
+function validateDiy(diy) {
+  if (!diy || typeof diy !== 'object' || Array.isArray(diy)) {
+    throw new Error('Character diy must be an object');
+  }
+  if (typeof diy.enabled !== 'boolean') {
+    throw new Error('Character diy requires a boolean enabled flag');
+  }
+  if (diy.shapes === undefined) return;
+  if (!diy.shapes || typeof diy.shapes !== 'object' || Array.isArray(diy.shapes)) {
+    throw new Error('Character diy.shapes must be an object');
+  }
+  for (const groupName of Object.keys(diy.shapes)) {
+    if (!DIY_SHAPE_GROUPS.includes(groupName)) {
+      throw new Error(`Unsupported diy shape group: ${groupName}`);
+    }
+    const options = diy.shapes[groupName];
+    if (!Array.isArray(options) || options.length === 0 || options.length > 12) {
+      throw new Error(`diy.shapes.${groupName} must list 1-12 options`);
+    }
+    const seen = new Set();
+    options.forEach((option, index) => {
+      validateShapeOption(option, groupName, index);
+      if (seen.has(option.id)) throw new Error(`diy.shapes.${groupName} has a duplicate id: ${option.id}`);
+      seen.add(option.id);
+    });
   }
 }
 
@@ -152,6 +245,8 @@ module.exports = {
   REQUIRED_ACTIONS,
   assertInside,
   loadCharacterPack,
+  validateAccessorySlots,
+  validateDiy,
   validateManifest,
   validateSettingsCopy,
 };

@@ -1,0 +1,8 @@
+{
+  "id": "flag",
+  "displayName": "小旗子",
+  "version": 1,
+  "slot": "hand",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 36, "y": 92 }
+}

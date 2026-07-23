@@ -1,0 +1,8 @@
+{
+  "id": "ice-cream",
+  "displayName": "冰淇淋",
+  "version": 1,
+  "slot": "hand",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 90 }
+}

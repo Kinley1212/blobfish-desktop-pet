@@ -2,7 +2,14 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const test = require('node:test');
 
-const { REQUIRED_ACTIONS, assertInside, loadCharacterPack, validateSettingsCopy } = require('../src/core/pack-loader');
+const {
+  REQUIRED_ACTIONS,
+  assertInside,
+  loadCharacterPack,
+  validateDiy,
+  validateManifest,
+  validateSettingsCopy,
+} = require('../src/core/pack-loader');
 
 const charactersRoot = path.join(__dirname, '..', 'src', 'packs', 'characters');
 
@@ -84,4 +91,51 @@ test('legacy character settings copy remains valid without greeting labels', () 
   delete copy.greetingTitle;
   delete copy.greetingHint;
   assert.doesNotThrow(() => validateSettingsCopy(copy));
+});
+
+test('both blobfish packs ship DIY shape presets and the grass buddy does not', () => {
+  for (const id of ['blobfish', 'blobfish-wotou']) {
+    const { manifest } = loadCharacterPack(charactersRoot, id);
+    assert.equal(manifest.diy.enabled, true, `${id} should opt into DIY`);
+    assert.ok(manifest.diy.shapes.body.length >= 2, `${id} needs body presets`);
+    assert.ok(manifest.diy.shapes.fins.length >= 2, `${id} needs fin presets`);
+    assert.equal(manifest.diy.shapes.body[0].id, 'default', `${id} must lead with its own shape`);
+    assert.equal(manifest.diy.shapes.fins[0].id, 'default', `${id} must lead with its own fins`);
+  }
+
+  assert.equal(loadCharacterPack(charactersRoot, 'grass-buddy').manifest.diy, undefined);
+});
+
+test('DIY presets reject anything that is not plain path data', () => {
+  const validShapes = { body: [{ id: 'default', label: '圆润', d: 'M 0 0 L 10 10 Z' }] };
+
+  assert.doesNotThrow(() => validateDiy({ enabled: true }));
+  assert.doesNotThrow(() => validateDiy({ enabled: true, shapes: validShapes }));
+  assert.throws(() => validateDiy({ enabled: 'yes' }), /boolean enabled/);
+  assert.throws(() => validateDiy({ enabled: true, shapes: { tail: [] } }), /Unsupported diy shape group/);
+  assert.throws(
+    () => validateDiy({ enabled: true, shapes: { body: [{ id: 'x', label: 'x', d: 'url(#evil)' }] } }),
+    /not SVG path data/,
+  );
+  assert.throws(
+    () => validateDiy({ enabled: true, shapes: { fins: [{ id: 'x', label: 'x', left: 'M 0 0 Z' }] } }),
+    /fins\[0\]\.right/,
+  );
+  assert.throws(
+    () => validateDiy({
+      enabled: true,
+      shapes: { body: [{ id: 'a', label: 'a', d: 'M 0 0 Z' }, { id: 'a', label: 'b', d: 'M 1 1 Z' }] },
+    }),
+    /duplicate id/,
+  );
+});
+
+test('a character manifest with a broken DIY block fails to load', () => {
+  const manifest = loadCharacterPack(charactersRoot, 'blobfish').manifest;
+
+  assert.doesNotThrow(() => validateManifest(manifest, 'blobfish'));
+  assert.throws(
+    () => validateManifest({ ...manifest, diy: { enabled: true, shapes: { body: [] } } }, 'blobfish'),
+    /must list 1-12 options/,
+  );
 });

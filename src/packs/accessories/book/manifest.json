@@ -1,0 +1,8 @@
+{
+  "id": "book",
+  "displayName": "小书",
+  "version": 1,
+  "slot": "hand",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 80 }
+}

@@ -23,6 +23,9 @@
         <button class="nav-item" type="button" role="tab" aria-selected="true" aria-controls="panel-general" id="tab-general" data-panel="general">
           <span class="nav-icon" aria-hidden="true">◌</span><span><strong>角色与动作</strong><small>形象、大小、移动</small></span>
         </button>
+        <button class="nav-item" type="button" role="tab" aria-selected="false" aria-controls="panel-diy" id="tab-diy" data-panel="diy" tabindex="-1">
+          <span class="nav-icon" aria-hidden="true">✎</span><span><strong>捏鱼</strong><small>身体、鱼鳍、五官</small></span>
+        </button>
         <button class="nav-item" type="button" role="tab" aria-selected="false" aria-controls="panel-schedule" id="tab-schedule" data-panel="schedule" tabindex="-1">
           <span class="nav-icon" aria-hidden="true">◷</span><span><strong>问候与作息</strong><small>首次见面、吃饭、下班</small></span>
         </button>
@@ -86,6 +89,29 @@
               <span><strong>登录后自动打开</strong><small>在后台启动，仍然不会占用程序坞。</small></span>
               <input id="launch-at-login" type="checkbox" />
             </label>
+          </div>
+        </section>
+
+        <section id="panel-diy" class="settings-panel" role="tabpanel" aria-labelledby="tab-diy" data-panel-name="捏鱼" hidden>
+          <header class="panel-header">
+            <p class="panel-kicker">自己动手</p>
+            <h2>捏鱼</h2>
+            <p>调身体、鱼鳍和五官。左边实时预览，保存后桌面上的角色才会跟着变。</p>
+          </header>
+
+          <div class="card diy-unsupported" id="diy-unsupported" hidden>
+            <p>这个形象暂时不支持捏。换回水滴鱼就可以了。</p>
+          </div>
+
+          <div class="diy-workspace" id="diy-workspace">
+            <div class="diy-stage">
+              <div class="diy-preview" id="diy-preview" role="img" aria-label="捏鱼预览"></div>
+              <button type="button" class="secondary diy-reset" id="diy-reset">恢复原样</button>
+            </div>
+            <div class="diy-controls">
+              <div class="card diy-group" id="accessory-controls"></div>
+              <div id="diy-controls"></div>
+            </div>
           </div>
         </section>
 
@@ -295,6 +321,8 @@
     </main>
   </form>
   <script src="core/integration-ui-model.js"></script>
+  <script src="core/diy-model.js"></script>
+  <script src="core/accessory-model.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

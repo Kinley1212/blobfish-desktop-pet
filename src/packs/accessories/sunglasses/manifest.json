@@ -1,0 +1,8 @@
+{
+  "id": "sunglasses",
+  "displayName": "墨镜",
+  "version": 1,
+  "slot": "eyewear",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 50 }
+}

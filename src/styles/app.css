@@ -204,6 +204,9 @@ body.has-task-bubble #bubble[data-placement="below"] {
   display: block;
   width: 100%;
   height: 100%;
+  /* A tall accessory (a hat) is drawn above the character's own viewBox, so
+     the art has to be allowed to spill out of it rather than be clipped. */
+  overflow: visible;
   filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.15));
 }
 

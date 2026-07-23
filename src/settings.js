@@ -18,6 +18,12 @@ const connectionTestTimers = {};
 const integrationOperations = new Map();
 let charactersById = new Map();
 let activeSettingsCopy = null;
+let diyMap = {};
+let diyArt = null;
+let accessoryMap = {};
+let accessoryCatalog = [];
+const diyModel = globalThis.diyModel;
+const accessoryModel = globalThis.accessoryModel;
 const panelTabs = [...document.querySelectorAll('.nav-item[data-panel]')];
 const panels = [...document.querySelectorAll('.settings-panel[data-panel-name]')];
 
@@ -38,6 +44,9 @@ function activatePanel(panelId, options = {}) {
     tab.tabIndex = selected ? 0 : -1;
   }
   for (const panel of panels) panel.hidden = panel.id !== `panel-${activeTab.dataset.panel}`;
+  // The preview measures its own bounding boxes, which only works once the
+  // panel is actually on screen.
+  if (activeTab.dataset.panel === 'diy') renderDiyPreview();
   document.querySelector('.content-scroll').scrollTop = 0;
   if (options.focus) activeTab.focus();
 }
@@ -187,6 +196,273 @@ function renderCharacters(characters, selectedId) {
     select.appendChild(option);
   }
   applyCharacterCopy(select.value);
+}
+
+// --- 捏鱼 (DIY) ----------------------------------------------------------
+// Edits live in `diyMap` keyed by character pack, and only reach the pet when
+// the form is saved. The preview re-parses the pack's own art every time, so
+// a shape preset can replace nodes without ever accumulating.
+
+function currentDiySpec() {
+  const packId = byId('character-pack').value;
+  if (!diyMap[packId]) diyMap[packId] = diyModel.defaultDiy();
+  return diyMap[packId];
+}
+
+function formatDiyValue(field, value) {
+  return field.kind === 'ratio' ? `${Math.round(value * 100)}%` : `${value > 0 ? '+' : ''}${value}`;
+}
+
+function buildDiyShapeField(groupName, group, spec) {
+  const options = diyModel.listShapeOptions(diyArt && diyArt.diy, groupName);
+  if (options.length === 0) return null;
+
+  const label = document.createElement('label');
+  label.className = 'field';
+  label.append(group.label);
+
+  const select = document.createElement('select');
+  select.dataset.diyShape = groupName;
+  for (const option of options) {
+    const element = document.createElement('option');
+    element.value = option.id;
+    element.textContent = option.label;
+    select.appendChild(element);
+  }
+  // An id from another pack won't exist here; fall back to the first preset.
+  select.value = options.some((option) => option.id === spec[groupName].shape)
+    ? spec[groupName].shape
+    : options[0].id;
+  spec[groupName].shape = select.value;
+
+  select.addEventListener('change', () => {
+    currentDiySpec()[groupName].shape = select.value;
+    renderDiyPreview();
+  });
+  label.appendChild(select);
+  return label;
+}
+
+function buildDiySlider(part, field, spec) {
+  const label = document.createElement('label');
+  label.className = 'field range-field';
+
+  const heading = document.createElement('span');
+  const name = document.createElement('span');
+  name.textContent = field.label;
+  const output = document.createElement('output');
+  output.textContent = formatDiyValue(field, spec[part][field.key]);
+  heading.append(name, output);
+
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.min = String(field.min);
+  input.max = String(field.max);
+  input.step = String(field.step);
+  input.value = String(spec[part][field.key]);
+  input.addEventListener('input', () => {
+    const value = Number(input.value);
+    currentDiySpec()[part][field.key] = value;
+    output.textContent = formatDiyValue(field, value);
+    renderDiyPreview();
+  });
+
+  label.append(heading, input);
+  return label;
+}
+
+function renderDiyControls() {
+  const container = byId('diy-controls');
+  container.replaceChildren();
+  const spec = currentDiySpec();
+
+  for (const group of diyModel.DIY_CONTROLS) {
+    const card = document.createElement('div');
+    card.className = 'card diy-group';
+
+    const heading = document.createElement('h3');
+    heading.textContent = group.label;
+    card.appendChild(heading);
+
+    const shapeGroup = diyModel.SHAPE_GROUPS[group.part];
+    if (shapeGroup) {
+      const shapeField = buildDiyShapeField(group.part, shapeGroup, spec);
+      if (shapeField) card.appendChild(shapeField);
+    }
+
+    const stack = document.createElement('div');
+    stack.className = 'range-stack';
+    for (const field of group.fields) stack.appendChild(buildDiySlider(group.part, field, spec));
+    card.appendChild(stack);
+    container.appendChild(card);
+  }
+}
+
+function currentAccessorySpec() {
+  const packId = byId('character-pack').value;
+  if (!accessoryMap[packId]) accessoryMap[packId] = accessoryModel.defaultAccessories();
+  return accessoryMap[packId];
+}
+
+// Tuning belongs to the accessory, so a slider always writes into the entry
+// for whatever that slot is currently wearing.
+function currentTuning(accessoryId) {
+  const spec = currentAccessorySpec();
+  if (!spec.tuning[accessoryId]) spec.tuning[accessoryId] = accessoryModel.defaultTuning();
+  return spec.tuning[accessoryId];
+}
+
+function buildAccessorySlider(getAccessoryId, field) {
+  const label = document.createElement('label');
+  label.className = 'field range-field';
+
+  const heading = document.createElement('span');
+  const name = document.createElement('span');
+  name.textContent = field.label;
+  const output = document.createElement('output');
+  heading.append(name, output);
+
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.min = String(field.min);
+  input.max = String(field.max);
+  input.step = String(field.step);
+  input.addEventListener('input', () => {
+    const value = Number(input.value);
+    currentTuning(getAccessoryId())[field.key] = value;
+    output.textContent = formatDiyValue(field, value);
+    renderDiyPreview();
+  });
+
+  label.append(heading, input);
+  // Re-reads the worn piece's own numbers, so swapping hats swaps the sliders.
+  label.syncFromSpec = () => {
+    const accessoryId = getAccessoryId();
+    const value = accessoryId
+      ? accessoryModel.getTuning(currentAccessorySpec(), accessoryId)[field.key]
+      : accessoryModel.DEFAULT_TUNING[field.key];
+    input.value = String(value);
+    output.textContent = formatDiyValue(field, value);
+  };
+  label.syncFromSpec();
+  return label;
+}
+
+function renderAccessoryControls() {
+  const container = byId('accessory-controls');
+  container.replaceChildren();
+
+  const slots = accessoryModel.getCharacterSlots({ accessories: diyArt && diyArt.accessories });
+  if (!slots) {
+    container.hidden = true;
+    return;
+  }
+  container.hidden = false;
+
+  const heading = document.createElement('h3');
+  heading.textContent = '表情与饰品';
+  container.appendChild(heading);
+
+  const spec = currentAccessorySpec();
+  for (const slot of accessoryModel.ACCESSORY_SLOTS) {
+    if (!slots[slot.key]) continue;
+
+    const field = document.createElement('label');
+    field.className = 'field';
+    field.append(slot.label);
+
+    const select = document.createElement('select');
+    select.dataset.accessorySlot = slot.key;
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = slot.empty;
+    select.appendChild(none);
+    for (const item of accessoryCatalog.filter((entry) => entry.slot === slot.key)) {
+      const option = document.createElement('option');
+      option.value = item.id;
+      option.textContent = item.displayName;
+      select.appendChild(option);
+    }
+    const worn = spec.equipped[slot.key];
+    select.value = [...select.options].some((option) => option.value === worn) ? worn : '';
+    field.appendChild(select);
+    container.appendChild(field);
+
+    // An expression is picked, not fitted, so it gets no sliders at all.
+    if (!slot.tunable) {
+      select.addEventListener('change', () => {
+        currentAccessorySpec().equipped[slot.key] = select.value || null;
+        renderDiyPreview();
+      });
+      continue;
+    }
+
+    const sliders = document.createElement('div');
+    sliders.className = 'range-stack accessory-sliders';
+    for (const sliderField of accessoryModel.ACCESSORY_FIELDS) {
+      sliders.appendChild(buildAccessorySlider(() => select.value || null, sliderField));
+    }
+    // Nudging an empty slot means nothing, so the sliders only appear once
+    // something is actually being worn.
+    sliders.hidden = !select.value;
+
+    select.addEventListener('change', () => {
+      currentAccessorySpec().equipped[slot.key] = select.value || null;
+      sliders.hidden = !select.value;
+      for (const child of sliders.children) child.syncFromSpec();
+      renderDiyPreview();
+    });
+
+    container.appendChild(sliders);
+  }
+}
+
+function renderDiyPreview() {
+  const stage = byId('diy-preview');
+  if (!diyArt) {
+    stage.replaceChildren();
+    return;
+  }
+
+  const parsed = new DOMParser().parseFromString(diyArt.svg, 'image/svg+xml');
+  if (parsed.querySelector('parsererror')) {
+    stage.replaceChildren();
+    return;
+  }
+
+  const svg = document.importNode(parsed.documentElement, true);
+  // Tears only belong to the "被揍" reaction; a resting portrait shouldn't cry.
+  svg.querySelectorAll('.tears, .tear').forEach((node) => node.remove());
+  stage.replaceChildren(svg);
+  // getBBox only reports real numbers once the node is laid out, which is why
+  // the SVG goes into the document before the spec is applied.
+  diyModel.applyDiyToSvg(svg, currentDiySpec(), { diy: diyArt.diy });
+  accessoryModel.applyAccessoriesToSvg(
+    svg,
+    { accessories: diyArt.accessories },
+    accessoryCatalog,
+    currentAccessorySpec(),
+  );
+}
+
+async function loadDiy(packId) {
+  const supported = Boolean(charactersById.get(packId)?.diy?.enabled);
+  byId('diy-unsupported').hidden = supported;
+  byId('diy-workspace').hidden = !supported;
+  if (!supported) {
+    diyArt = null;
+    byId('diy-controls').replaceChildren();
+    byId('accessory-controls').replaceChildren();
+    byId('diy-preview').replaceChildren();
+    return;
+  }
+
+  diyArt = await window.settingsAPI.getCharacterArt(packId);
+  // The selection can change while the art request is in flight.
+  if (byId('character-pack').value !== packId) return;
+  renderDiyControls();
+  renderAccessoryControls();
+  renderDiyPreview();
 }
 
 function renderIntegrationStatus(integrationStatus = {}) {
@@ -476,7 +752,7 @@ async function runPrimaryAgentAction(provider) {
   }
 }
 
-function renderConfig(config, characters, languages, sounds) {
+function renderConfig(config, characters, languages, sounds, accessories) {
   document.querySelectorAll('input[name="workday"]').forEach((input) => {
     input.checked = config.schedule.workdays.includes(Number(input.value));
   });
@@ -519,6 +795,10 @@ function renderConfig(config, characters, languages, sounds) {
   const soundSetting = config.sound?.taskComplete || { enabled: true, soundId: '' };
   renderSounds(sounds || [], soundSetting.soundId);
   setChecked('sound-task-complete-enabled', soundSetting.enabled);
+  diyMap = JSON.parse(JSON.stringify(config.pet.customization || {}));
+  accessoryMap = JSON.parse(JSON.stringify(config.pet.accessories || {}));
+  accessoryCatalog = Array.isArray(accessories) ? accessories : accessoryCatalog;
+  loadDiy(config.pet.characterPackId);
   syncDependentControls();
   updateFormValidity();
 }
@@ -570,6 +850,8 @@ function readConfig() {
       scale: Number(scaleInput.value),
       roamWhenNoTasks: byId('roam-without-tasks').checked,
       moveAxis: byId('pet-move-axis').value,
+      customization: diyMap,
+      accessories: accessoryMap,
     },
     startup: {
       launchAtLogin: byId('launch-at-login').checked,
@@ -648,6 +930,16 @@ byId('character-pack').addEventListener('change', (event) => {
     setValue('language-pack', languagePackId);
   }
   applyCharacterCopy(event.target.value);
+  loadDiy(event.target.value);
+});
+
+byId('diy-reset').addEventListener('click', () => {
+  const packId = byId('character-pack').value;
+  diyMap[packId] = diyModel.defaultDiy();
+  accessoryMap[packId] = accessoryModel.defaultAccessories();
+  renderDiyControls();
+  renderAccessoryControls();
+  renderDiyPreview();
 });
 
 for (const provider of agentProviders) {
@@ -667,7 +959,7 @@ form.addEventListener('submit', async (event) => {
   try {
     const result = await window.settingsAPI.save(readConfig());
     renderAppVersion(result.appVersion);
-    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds);
+    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds, result.accessories);
     renderIntegrationStatus(result.integrationStatus);
     refreshAgentIntegrations();
     showStatus(activeSettingsCopy?.savedStatus || '已保存。');
@@ -684,7 +976,7 @@ resetButton.addEventListener('click', async () => {
   try {
     const result = await window.settingsAPI.reset();
     renderAppVersion(result.appVersion);
-    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds);
+    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds, result.accessories);
     renderIntegrationStatus(result.integrationStatus);
     showStatus(activeSettingsCopy?.resetStatus || '已经恢复默认。');
   } catch (error) {
@@ -697,7 +989,7 @@ resetButton.addEventListener('click', async () => {
 window.settingsAPI.load()
   .then((result) => {
     renderAppVersion(result.appVersion);
-    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds);
+    renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds, result.accessories);
     renderIntegrationStatus(result.integrationStatus);
     refreshAgentIntegrations();
     if (result.warning) showStatus(result.warning, true);

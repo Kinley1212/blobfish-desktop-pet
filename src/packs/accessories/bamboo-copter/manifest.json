@@ -1,0 +1,11 @@
+{
+  "id": "bamboo-copter",
+  "displayName": "竹蜻蜓",
+  "version": 1,
+  "slot": "hat",
+  "art": "art/accessory.svg",
+  "anchor": {
+    "x": 50.0,
+    "y": 74.0
+  }
+}

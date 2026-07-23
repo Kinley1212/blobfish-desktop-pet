@@ -3,8 +3,8 @@
     <path class="fin fin-left" d="M 25 68 C 6 64 -6 77 -3 89 C 0 98 13 95 23 88 Z" fill="#eeaebb" />
     <path class="fin fin-right" d="M 115 68 C 134 64 146 77 143 89 C 140 98 127 95 117 88 Z" fill="#eeaebb" />
   </g>
-  <path class="body-shape" d="M 70 15 C 42 15 22 35 14 62 C 11 80 11 96 22 106 C 35 115 54 115 70 115 C 86 115 105 115 118 106 C 129 96 129 80 126 62 C 118 35 98 15 70 15 Z" fill="#f7dde2" />
-  <g class="face" transform="translate(10.5 11.4) scale(0.85)">
+  <path class="body-shape" d="M 70 15 C 36 15 13 40 11 65 C 10 83 14 100 27 108 C 39 114 56 115 70 115 C 84 115 101 114 113 108 C 126 100 130 83 129 65 C 127 40 104 15 70 15 Z" fill="#f7dde2" />
+  <g class="face" transform="translate(3.5 3.8) scale(0.95)">
     <g class="eyes">
       <circle class="eye eye-left" cx="45" cy="58" r="6.3" fill="#2e2a2c" />
       <circle class="eye eye-right" cx="95" cy="58" r="6.3" fill="#2e2a2c" />
@@ -15,11 +15,11 @@
     </g>
     <g class="mouth">
       <path d="M 37 94 Q 70 78 103 94" stroke="#eeaebb" stroke-width="24" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-      <path d="M 43 89 Q 70 75 97 89" stroke="#f6cdd9" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.6" />
+      <path d="M 41 92.2 Q 70 79.8 99 92.2" stroke="#c87d95" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.95" />
     </g>
     <g class="nose">
-      <path d="M 70 64 C 79 74 84 81 84 87 C 84 94 78 98 70 98 C 62 98 56 94 56 87 C 56 81 61 74 70 64 Z" fill="#fbeaef" />
-      <ellipse cx="65" cy="83" rx="2.8" ry="2.2" fill="white" opacity="0.9" />
+      <path d="M 70 60.6 C 80.8 72.6 86.8 81 86.8 88.2 C 86.8 96.6 79.6 101.4 70 101.4 C 60.4 101.4 53.2 96.6 53.2 88.2 C 53.2 81 59.2 72.6 70 60.6 Z" fill="#fbeaef" />
+      <ellipse cx="64" cy="83.4" rx="3.36" ry="2.64" fill="white" opacity="0.9" />
     </g>
   </g>
 </svg>

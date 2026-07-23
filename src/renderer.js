@@ -2,6 +2,8 @@ const pet = document.getElementById('pet');
 const bubble = document.getElementById('bubble');
 const taskBubble = document.getElementById('task-bubble');
 const { buildCarouselLayout, nextTaskKey } = globalThis.taskCarouselModel;
+const { applyDiyToSvg } = globalThis.diyModel;
+const { applyAccessoriesToSvg } = globalThis.accessoryModel;
 
 const VELOCITY_WINDOW_MS = 300;
 const BLINK_MIN_MS = 3500;
@@ -55,6 +57,10 @@ let speechActionTimer = null;
 let characterManifest = null;
 let petScale = 1;
 let petTopOffset = null;
+let diySpec = null;
+let accessorySpec = null;
+let accessoryCatalog = [];
+let renderedLookSignature = null; // the specs the SVG currently in the DOM was built from
 
 function applyPetLayout(layout = {}) {
   const nextTopOffset = Number(layout.topOffset);
@@ -68,10 +74,26 @@ function applyPetLayout(layout = {}) {
   }
 }
 
+// Both the DIY spec and the equipped accessories change the SVG structurally,
+// so they share one "is what's on screen still current?" check.
+function lookSignature() {
+  return JSON.stringify([diySpec, accessorySpec]);
+}
+
 function applyPetConfig(config = {}) {
   const nextScale = Number(config.scale);
   petScale = Number.isFinite(nextScale) ? Math.min(1.5, Math.max(0.65, nextScale)) : 1;
   applyPetLayout(config);
+  // A shape preset swaps SVG nodes outright, so the only reliable way to move
+  // between presets is to rebuild the character from its untouched art.
+  if (config.customization !== undefined) diySpec = config.customization;
+  if (config.accessories !== undefined) accessorySpec = config.accessories;
+  if (config.customization !== undefined || config.accessories !== undefined) {
+    if (characterManifest && lookSignature() !== renderedLookSignature) {
+      installCharacterPack();
+      return;
+    }
+  }
   if (!characterManifest) return;
   const width = characterManifest.size.width * petScale;
   const height = characterManifest.size.height * petScale;
@@ -109,6 +131,7 @@ function applyCharacterPack(pack) {
   document.querySelectorAll('style[data-character-style]').forEach((element) => element.remove());
 
   characterManifest = pack.manifest;
+  accessoryCatalog = Array.isArray(pack.accessories) ? pack.accessories : [];
   pet.dataset.character = pack.manifest.id;
   for (const style of pack.styles) {
     const styleElement = document.createElement('style');
@@ -117,6 +140,10 @@ function applyCharacterPack(pack) {
     document.head.appendChild(styleElement);
   }
   pet.innerHTML = svg;
+  const svgRoot = pet.querySelector('svg');
+  applyDiyToSvg(svgRoot, diySpec, pack.manifest);
+  applyAccessoriesToSvg(svgRoot, pack.manifest, accessoryCatalog, accessorySpec);
+  renderedLookSignature = lookSignature();
   applyPetConfig({ scale: petScale });
   scheduleBlink(300);
 }
