@@ -30,6 +30,9 @@ function validateAccessoryManifest(manifest, expectedId) {
   if (manifest.anchor.x < 0 || manifest.anchor.x > 100 || manifest.anchor.y < 0 || manifest.anchor.y > 100) {
     throw new Error('Accessory anchor must sit inside the 100x100 art box');
   }
+  if (manifest.hidesEyes !== undefined && typeof manifest.hidesEyes !== 'boolean') {
+    throw new Error('Accessory hidesEyes must be a boolean');
+  }
 }
 
 function loadAccessory(accessoriesRoot, id) {
@@ -52,6 +55,7 @@ function loadAccessory(accessoriesRoot, id) {
     displayName: manifest.displayName,
     slot: manifest.slot,
     anchor: { x: manifest.anchor.x, y: manifest.anchor.y },
+    hidesEyes: manifest.hidesEyes === true,
     svg: fs.readFileSync(artPath, 'utf8'),
   };
 }

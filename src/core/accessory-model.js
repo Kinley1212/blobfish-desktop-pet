@@ -12,6 +12,7 @@
   'use strict';
 
   const ACCESSORY_SLOTS = Object.freeze([
+    Object.freeze({ key: 'face', label: '表情', empty: '原本的' }),
     Object.freeze({ key: 'hat', label: '头顶', empty: '不戴' }),
     Object.freeze({ key: 'eyewear', label: '眼镜', empty: '不戴' }),
     Object.freeze({ key: 'hand', label: '手边', empty: '不拿' }),
@@ -20,7 +21,8 @@
   // Same slider vocabulary as the DIY editor, so a slot can be nudged when a
   // shared accessory doesn't quite sit right on a particular character.
   const ACCESSORY_FIELDS = Object.freeze([
-    Object.freeze({ key: 'size', label: '大小', min: 0.4, max: 2, step: 0.01, kind: 'ratio' }),
+    Object.freeze({ key: 'width', label: '宽度', min: 0.4, max: 2, step: 0.01, kind: 'ratio' }),
+    Object.freeze({ key: 'height', label: '高度', min: 0.4, max: 2, step: 0.01, kind: 'ratio' }),
     Object.freeze({ key: 'offsetX', label: '左右', min: -30, max: 30, step: 0.5, kind: 'length' }),
     Object.freeze({ key: 'offsetY', label: '上下', min: -30, max: 30, step: 0.5, kind: 'length' }),
   ]);
@@ -28,7 +30,7 @@
   const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
   function defaultSlot() {
-    return { id: null, size: 1, offsetX: 0, offsetY: 0 };
+    return { id: null, width: 1, height: 1, offsetX: 0, offsetY: 0 };
   }
 
   function defaultAccessories() {
@@ -56,7 +58,12 @@
       if (!source || typeof source !== 'object' || Array.isArray(source)) continue;
       if (typeof source.id === 'string' && ID_PATTERN.test(source.id)) spec[slot.key].id = source.id;
       for (const field of ACCESSORY_FIELDS) {
-        const value = Number(source[field.key]);
+        // Configs written while width and height were one uniform `size`
+        // slider still load: the old value seeds both axes.
+        const raw = source[field.key] === undefined && (field.key === 'width' || field.key === 'height')
+          ? source.size
+          : source[field.key];
+        const value = Number(raw);
         if (!Number.isFinite(value)) continue;
         spec[slot.key][field.key] = quantize(clamp(value, field.min, field.max), field.step);
       }
@@ -99,10 +106,11 @@
   // Maps the accessory's anchor onto the character's slot, then applies the
   // character's slot scale and the user's own nudges.
   function accessoryTransform(slotAnchor, accessoryAnchor, settings) {
-    const scale = (Number.isFinite(slotAnchor.scale) ? slotAnchor.scale : 1) * settings.size;
+    const base = Number.isFinite(slotAnchor.scale) ? slotAnchor.scale : 1;
     const x = slotAnchor.x + settings.offsetX;
     const y = slotAnchor.y + settings.offsetY;
-    return `translate(${round(x)} ${round(y)}) scale(${round(scale)}) `
+    return `translate(${round(x)} ${round(y)}) `
+      + `scale(${round(base * settings.width)} ${round(base * settings.height)}) `
       + `translate(${round(-accessoryAnchor.x)} ${round(-accessoryAnchor.y)})`;
   }
 
@@ -141,6 +149,10 @@
 
       const art = parseAccessoryArt(accessory.svg, svgRoot.ownerDocument);
       if (!art) continue;
+      // An expression draws its own eyes, so the character's have to go first.
+      if (accessory.hidesEyes) {
+        svgRoot.querySelectorAll('.eyes, .eye, .tears, .tear').forEach((node) => node.remove());
+      }
       art.setAttribute('data-accessory-slot', slot.key);
       art.setAttribute('class', `accessory accessory-${slot.key}`);
       art.setAttribute('transform', accessoryTransform(slotAnchor, accessory.anchor, settings));

@@ -344,7 +344,7 @@ function renderAccessoryControls() {
   container.hidden = false;
 
   const heading = document.createElement('h3');
-  heading.textContent = '饰品';
+  heading.textContent = '表情与饰品';
   container.appendChild(heading);
 
   const spec = currentAccessorySpec();
