@@ -1,0 +1,16 @@
+{
+  "category": "idle-context",
+  "phrases": [
+    { "id": "grass-late-01", "event": "idle.lateNight", "text": "这个点了，草都睡了。", "weight": 5 },
+    { "id": "grass-late-02", "event": "idle.lateNight", "text": "夜里没有光合作用，我先歇着。", "weight": 5 },
+    { "id": "grass-late-03", "event": "idle.lateNight", "text": "熬夜熬到比枯草还蔫。", "weight": 4 },
+    { "id": "grass-late-04", "event": "idle.lateNight", "text": "不催你。我只是站着看。", "weight": 3 },
+    { "id": "grass-weekend-01", "event": "idle.weekend", "text": "周末了，草也想放空。", "weight": 5 },
+    { "id": "grass-weekend-02", "event": "idle.weekend", "text": "今天不长个子，今天躺平。", "weight": 5 },
+    { "id": "grass-weekend-03", "event": "idle.weekend", "text": "休息日就别惦记那些活了。", "weight": 4 },
+    { "id": "grass-session-01", "event": "idle.longSession", "text": "坐太久了，根都要扎住了。", "weight": 5 },
+    { "id": "grass-session-02", "event": "idle.longSession", "text": "陪了半天，我叶子都干了。", "weight": 5 },
+    { "id": "grass-session-03", "event": "idle.longSession", "text": "喝点水吧。草也要浇。", "weight": 4 },
+    { "id": "grass-session-04", "event": "idle.longSession", "text": "拼归拼，也得给自己浇点水。", "weight": 3 }
+  ]
+}

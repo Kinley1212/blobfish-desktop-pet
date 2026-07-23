@@ -29,6 +29,19 @@
     { "id": "petting-10", "event": "interaction.petting", "text": "这一身软，别处可找不到。", "weight": 3 },
     { "id": "petting-11", "event": "interaction.petting", "text": "随你吧……我又懒得动。", "weight": 3 },
     { "id": "petting-rare-01", "event": "interaction.petting", "text": "别以为这样我就高兴了……（尾巴悄悄摇）", "weight": 1, "rarity": "rare" },
-    { "id": "petting-rare-02", "event": "interaction.petting", "text": "免费仅此一次。……才怪，随时欢迎。", "weight": 1, "rarity": "rare" }
+    { "id": "petting-rare-02", "event": "interaction.petting", "text": "免费仅此一次。……才怪，随时欢迎。", "weight": 1, "rarity": "rare" },
+    { "id": "petting-more-01", "event": "interaction.pettingMore", "text": "……还摸。行吧。", "weight": 5 },
+    { "id": "petting-more-02", "event": "interaction.pettingMore", "text": "我不躲了，省点力气。", "weight": 5 },
+    { "id": "petting-more-03", "event": "interaction.pettingMore", "text": "手感这么好，你也不亏。", "weight": 4 },
+    { "id": "petting-more-04", "event": "interaction.pettingMore", "text": "深海也没这种待遇。", "weight": 4 },
+    { "id": "petting-more-05", "event": "interaction.pettingMore", "text": "唔……再懒亿点点。", "weight": 4 },
+    { "id": "petting-more-06", "event": "interaction.pettingMore", "text": "这不算舒服。只是懒得反驳。", "weight": 3 },
+    { "id": "petting-lots-01", "event": "interaction.pettingLots", "text": "随便你了。我不动了。", "weight": 5 },
+    { "id": "petting-lots-02", "event": "interaction.pettingLots", "text": "再摸就要塌了。", "weight": 5 },
+    { "id": "petting-lots-03", "event": "interaction.pettingLots", "text": "行，你赢了。我承认。", "weight": 4 },
+    { "id": "petting-lots-04", "event": "interaction.pettingLots", "text": "限量款被你摸出包浆了。", "weight": 4 },
+    { "id": "petting-lots-05", "event": "interaction.pettingLots", "text": "咕噜……已下线。", "weight": 4 },
+    { "id": "petting-lots-06", "event": "interaction.pettingLots", "text": "我这辈子最努力的一次，是躺着。", "weight": 3 },
+    { "id": "petting-lots-rare-01", "event": "interaction.pettingLots", "text": "水滴魚已融化。请稍后再试。", "weight": 1, "rarity": "rare" }
   ]
 }

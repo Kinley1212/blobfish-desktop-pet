@@ -124,12 +124,35 @@ let runtimeErrorNotifier;
 const connectionHealth = new ConnectionHealthTracker();
 const longRunningNotified = new Set();
 
+const sessionStartedAt = Date.now();
+
 function getDateContext(date = new Date()) {
+  const hour = date.getHours();
+  const weekday = date.getDay();
   return {
-    hour: date.getHours(),
+    hour,
     minute: date.getMinutes(),
-    weekday: date.getDay(),
+    weekday,
+    isLateNight: hour >= 23 || hour <= 4,
+    isWeekend: weekday === 0 || weekday === 6,
+    sessionHours: Math.floor((Date.now() - sessionStartedAt) / 3600000),
   };
+}
+
+// Picks a chatter line that fits the moment - deep night, a weekend, or a
+// session that has been running for hours - and falls back to the generic
+// line when the language pack has nothing for that situation.
+function speakContextualIdleChatter(dateContext) {
+  const options = { priority: SPEECH_PRIORITY.idle, durationMs: SPEECH_DURATION_MS.idleChatter };
+  const candidates = [];
+  if (dateContext.isLateNight) candidates.push('idle.lateNight');
+  if (dateContext.isWeekend) candidates.push('idle.weekend');
+  if (dateContext.sessionHours >= 4) candidates.push('idle.longSession');
+
+  for (const event of candidates) {
+    if (speak(event, dateContext, { ...options, replaceKey: event })) return true;
+  }
+  return speak('idle.chatter', dateContext, { ...options, replaceKey: 'idle.chatter' });
 }
 
 function listLanguagePacks() {
@@ -765,15 +788,26 @@ function createWindow() {
     }
   });
 
-  ipcMain.on('pet-stroked', () => {
+  ipcMain.on('pet-stroked', (_event, streak) => {
     // The blush is handled locally in the renderer; here we just voice the
     // reaction through the phrase engine so it honors the active language pack.
-    speak('interaction.petting', {}, {
+    // Keep stroking without pausing and the reaction escalates: a longer
+    // streak reaches for warmer lines, falling back to the plain ones when a
+    // language pack doesn't define them.
+    const count = Number.isFinite(streak) ? streak : 1;
+    const options = {
       priority: SPEECH_PRIORITY.interaction,
       durationMs: 2600,
-      replaceKey: 'interaction.petting',
       allowDuringQuiet: true,
-    });
+    };
+    const candidates = [];
+    if (count >= 6) candidates.push('interaction.pettingLots');
+    if (count >= 3) candidates.push('interaction.pettingMore');
+    candidates.push('interaction.petting');
+
+    for (const event of candidates) {
+      if (speak(event, { count }, { ...options, replaceKey: event })) break;
+    }
   });
 
   ipcMain.on('pet-context-menu', showPetContextMenu);
@@ -1008,11 +1042,7 @@ function scheduleIdleChatter() {
       });
     }
     if (!usedRareLine) {
-      speak('idle.chatter', dateContext, {
-        priority: SPEECH_PRIORITY.idle,
-        durationMs: SPEECH_DURATION_MS.idleChatter,
-        replaceKey: 'idle.chatter',
-      });
+      speakContextualIdleChatter(dateContext);
     }
     scheduleIdleChatter();
   }, delay);

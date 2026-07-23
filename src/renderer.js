@@ -23,6 +23,10 @@ const PETTING_WINDOW_MS = 900;
 const PETTING_MIN_REVERSALS = 3;
 const PETTING_MIN_TRAVEL_PX = 44;
 const PETTING_COOLDOWN_MS = 2600;
+// Keep stroking and the streak builds; stop for this long and it resets, so
+// the pet only "warms up" while you're actually still petting it.
+const PETTING_STREAK_RESET_MS = 12000;
+const PETTING_STREAK_DEEP_BLUSH = 3;
 const BLUSH_DURATION_MS = 2600;
 
 let bubbleTimer = null;
@@ -44,6 +48,8 @@ let isHoveringPet = false; // cursor is currently resting on the pet
 let pettingHistory = []; // recent hover-move samples, used to detect back-and-forth stroking
 let pettingCooldownUntil = 0; // suppresses repeat petting reactions for a short while
 let blushTimer = null;
+let pettingStreak = 0;
+let lastPettingAt = 0;
 let blinkTimer = null;
 let speechActionTimer = null;
 let characterManifest = null;
@@ -384,12 +390,22 @@ function triggerBump() {
   }, 320);
 }
 
-function triggerBlush() {
+function triggerBlush(streak = 1) {
   pet.classList.add('is-blushing');
+  pet.classList.toggle('is-blushing-deep', streak >= PETTING_STREAK_DEEP_BLUSH);
   clearTimeout(blushTimer);
   blushTimer = setTimeout(() => {
-    pet.classList.remove('is-blushing');
+    pet.classList.remove('is-blushing', 'is-blushing-deep');
   }, BLUSH_DURATION_MS);
+}
+
+// Counts how many times in a row the pet has been stroked without a long
+// pause, so the reaction can build up instead of repeating the same beat.
+function advancePettingStreak() {
+  const now = performance.now();
+  pettingStreak = now - lastPettingAt <= PETTING_STREAK_RESET_MS ? pettingStreak + 1 : 1;
+  lastPettingAt = now;
+  return pettingStreak;
 }
 
 // Records a horizontal hover-move sample and decides whether the recent
@@ -536,8 +552,9 @@ document.addEventListener('mousemove', (event) => {
   // goes through the main process so it uses the phrase engine and language
   // pack like every other bit of speech.
   if (isHoveringPet && event.movementX !== 0 && detectPetting(event.movementX)) {
-    triggerBlush();
-    window.petAPI.petStroked();
+    const streak = advancePettingStreak();
+    triggerBlush(streak);
+    window.petAPI.petStroked(streak);
   }
 });
 

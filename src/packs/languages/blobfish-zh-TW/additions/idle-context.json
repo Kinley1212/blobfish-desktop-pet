@@ -1,0 +1,19 @@
+{
+  "category": "idle-context",
+  "phrases": [
+    { "id": "idle-late-01", "event": "idle.lateNight", "text": "這個點還醒著，你是深海生物嗎", "weight": 5 },
+    { "id": "idle-late-02", "event": "idle.lateNight", "text": "夜深了……我先躺平，你隨意", "weight": 5 },
+    { "id": "idle-late-03", "event": "idle.lateNight", "text": "凌晨的螢幕特別亮，眼睛會壞的", "weight": 4 },
+    { "id": "idle-late-04", "event": "idle.lateNight", "text": "沒在催你睡，只是陳述一下時間", "weight": 4 },
+    { "id": "idle-late-05", "event": "idle.lateNight", "text": "熬夜和深海魚，都見不到太陽", "weight": 3 },
+    { "id": "idle-weekend-01", "event": "idle.weekend", "text": "週末還開著電腦，放不下什麼", "weight": 5 },
+    { "id": "idle-weekend-02", "event": "idle.weekend", "text": "今天可以什麼都不做，我先示範", "weight": 5 },
+    { "id": "idle-weekend-03", "event": "idle.weekend", "text": "週末的水滴魚，和平日一樣懶", "weight": 4 },
+    { "id": "idle-weekend-04", "event": "idle.weekend", "text": "休息日就別想工作的事了", "weight": 4 },
+    { "id": "idle-session-01", "event": "idle.longSession", "text": "坐很久了，起來走兩步吧", "weight": 5 },
+    { "id": "idle-session-02", "event": "idle.longSession", "text": "陪你這麼久，我鰭都痠了", "weight": 5 },
+    { "id": "idle-session-03", "event": "idle.longSession", "text": "喝口水吧，該補水了", "weight": 4 },
+    { "id": "idle-session-04", "event": "idle.longSession", "text": "這麼拚，也對自己好一點", "weight": 4 },
+    { "id": "idle-session-05", "event": "idle.longSession", "text": "我陪著，但你真的該休息了", "weight": 3 }
+  ]
+}

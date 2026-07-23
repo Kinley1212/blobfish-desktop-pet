@@ -233,6 +233,14 @@ body.has-task-bubble #bubble[data-placement="below"] {
   opacity: 1;
 }
 
+/* Keep petting and the blush deepens and spreads a little. */
+#pet.is-blushing-deep::before,
+#pet.is-blushing-deep::after {
+  width: 22%;
+  height: 14%;
+  background: radial-gradient(closest-side, rgba(255, 96, 126, 0.92), rgba(255, 96, 126, 0));
+}
+
 #pet[data-character="blobfish-wotou"]::before,
 #pet[data-character="blobfish-wotou"]::after {
   bottom: 32%;

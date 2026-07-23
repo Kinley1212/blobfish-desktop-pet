@@ -18,7 +18,7 @@ contextBridge.exposeInMainWorld('petAPI', {
   setPaused: (value) => ipcRenderer.send('pause', value),
   setHoverPaused: (value) => ipcRenderer.send('hover-pause', value),
   petClicked: () => ipcRenderer.send('pet-clicked'),
-  petStroked: () => ipcRenderer.send('pet-stroked'),
+  petStroked: (streak) => ipcRenderer.send('pet-stroked', streak),
   showContextMenu: () => ipcRenderer.send('pet-context-menu'),
   setIgnoreMouse: (ignore) => ipcRenderer.send('set-ignore-mouse', ignore),
   dragStart: () => ipcRenderer.send('drag-start'),
