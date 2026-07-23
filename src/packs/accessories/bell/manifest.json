@@ -1,8 +1,0 @@
-{
-  "id": "bell",
-  "displayName": "铃铛",
-  "version": 1,
-  "slot": "neck",
-  "art": "art/accessory.svg",
-  "anchor": { "x": 50, "y": 44 }
-}

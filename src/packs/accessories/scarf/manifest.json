@@ -1,8 +1,0 @@
-{
-  "id": "scarf",
-  "displayName": "围巾",
-  "version": 1,
-  "slot": "neck",
-  "art": "art/accessory.svg",
-  "anchor": { "x": 50, "y": 44 }
-}

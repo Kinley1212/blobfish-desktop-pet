@@ -20,7 +20,7 @@ const { loadCharacterPack } = require('../src/core/pack-loader');
 test('a fresh wardrobe has every slot empty', () => {
   const spec = defaultAccessories();
 
-  assert.deepEqual(Object.keys(spec), ['hat', 'eyewear', 'neck', 'hand']);
+  assert.deepEqual(Object.keys(spec), ['hat', 'eyewear', 'hand']);
   for (const slot of ACCESSORY_SLOTS) {
     assert.deepEqual(spec[slot.key], { id: null, size: 1, offsetX: 0, offsetY: 0 });
   }
@@ -72,10 +72,10 @@ test('an accessory lands on the slot with the character scale and the user nudge
 test('every bundled accessory declares a slot, an anchor and real art', () => {
   const catalog = loadAccessoryCatalog(accessoriesRoot);
 
-  assert.equal(catalog.length, 29);
+  assert.equal(catalog.length, 25);
   const counts = {};
   for (const item of catalog) counts[item.slot] = (counts[item.slot] || 0) + 1;
-  assert.deepEqual(counts, { hat: 9, eyewear: 7, neck: 4, hand: 9 });
+  assert.deepEqual(counts, { hat: 9, eyewear: 7, hand: 9 });
   assert.equal(new Set(catalog.map((item) => item.id)).size, catalog.length, 'ids must be unique');
   for (const item of catalog) {
     assert.match(item.svg, /^<svg viewBox="0 0 100 100"/, `${item.id} must be drawn in the shared 100x100 box`);
