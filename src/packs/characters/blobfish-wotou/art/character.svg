@@ -1,0 +1,23 @@
+<svg viewBox="-16 0 172 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="水滴魚（窩窩頭）">
+  <g class="fins">
+    <path class="fin fin-left" d="M 27 54 Q -12 44 1 73 Q -14 86 18 81 Z" fill="#eeaebb" />
+    <path class="fin fin-right" d="M 113 54 Q 152 44 139 73 Q 154 86 122 81 Z" fill="#eeaebb" />
+  </g>
+  <path class="body-shape" d="M 70 15 C 42 15 22 35 14 62 C 11 80 11 96 22 106 C 35 115 54 115 70 115 C 86 115 105 115 118 106 C 129 96 129 80 126 62 C 118 35 98 15 70 15 Z" fill="#f7dde2" />
+  <g class="eyes">
+    <circle class="eye eye-left" cx="45" cy="54" r="5.5" fill="#2e2a2c" />
+    <circle class="eye eye-right" cx="95" cy="54" r="5.5" fill="#2e2a2c" />
+  </g>
+  <g class="tears">
+    <path class="tear tear-left" d="M 45 60 C 48 66 48 72 45 74 C 42 72 42 66 45 60 Z" fill="#6fb3e0" />
+    <path class="tear tear-right" d="M 95 60 C 98 66 98 72 95 74 C 92 72 92 66 95 60 Z" fill="#6fb3e0" />
+  </g>
+  <g class="mouth">
+    <path d="M 37 94 Q 70 78 103 94" stroke="#eeaebb" stroke-width="24" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 43 89 Q 70 75 97 89" stroke="#f6cdd9" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.6" />
+  </g>
+  <g class="nose">
+    <path d="M 70 59 C 82 73 89 83 89 92 C 89 102 81 108 70 108 C 59 108 51 102 51 92 C 51 83 58 73 70 59 Z" fill="#fbeaef" />
+    <ellipse cx="63" cy="79" rx="3.5" ry="2.8" fill="white" opacity="0.9" />
+  </g>
+</svg>
