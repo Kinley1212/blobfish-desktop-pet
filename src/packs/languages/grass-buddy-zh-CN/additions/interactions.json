@@ -27,6 +27,14 @@
     { "id": "grass-petting-06", "event": "interaction.petting", "text": "这一撮，可是精心打理的。", "weight": 3 },
     { "id": "grass-petting-07", "event": "interaction.petting", "text": "随你揉吧，我扎根很稳。", "weight": 3 },
     { "id": "grass-petting-08", "event": "interaction.petting", "text": "再揉要变盆栽了。", "weight": 3 },
-    { "id": "grass-petting-rare-01", "event": "interaction.petting", "text": "别以为这样我就冒芽了……（悄悄冒了）", "weight": 1, "rarity": "rare" }
+    { "id": "grass-petting-rare-01", "event": "interaction.petting", "text": "别以为这样我就冒芽了……（悄悄冒了）", "weight": 1, "rarity": "rare" },
+    { "id": "grass-petting-more-01", "event": "interaction.pettingMore", "text": "……还揉啊。那再一会儿。", "weight": 5 },
+    { "id": "grass-petting-more-02", "event": "interaction.pettingMore", "text": "唔，这手法，比风舒服。", "weight": 5 },
+    { "id": "grass-petting-more-03", "event": "interaction.pettingMore", "text": "我没在享受。叶子自己抖的。", "weight": 4 },
+    { "id": "grass-petting-more-04", "event": "interaction.pettingMore", "text": "行吧，准你多揉两下。", "weight": 3 },
+    { "id": "grass-petting-lots-01", "event": "interaction.pettingLots", "text": "好了好了，我承认很舒服。", "weight": 5 },
+    { "id": "grass-petting-lots-02", "event": "interaction.pettingLots", "text": "再揉我真要开花了。", "weight": 5 },
+    { "id": "grass-petting-lots-03", "event": "interaction.pettingLots", "text": "你不忙吗。……别停。", "weight": 4 },
+    { "id": "grass-petting-lots-04", "event": "interaction.pettingLots", "text": "沙沙沙……（已进入摇摆状态）", "weight": 3 }
   ]
 }

@@ -15,6 +15,7 @@
       "additions/errors.json",
       "additions/greetings.json",
       "additions/interactions.json",
+      "additions/idle-context.json",
       "additions/calendar.json",
       "additions/agents.json",
       "additions/agent-lifecycle.json",
