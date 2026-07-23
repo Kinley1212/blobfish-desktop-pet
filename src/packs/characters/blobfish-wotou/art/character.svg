@@ -15,11 +15,11 @@
     </g>
     <g class="mouth">
       <path d="M 37 94 Q 70 78 103 94" stroke="#eeaebb" stroke-width="24" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-      <path d="M 43 89 Q 70 75 97 89" stroke="#f6cdd9" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.6" />
+      <path d="M 41 92.2 Q 70 79.8 99 92.2" stroke="#c87d95" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.95" />
     </g>
     <g class="nose">
-      <path d="M 70 64 C 79 74 84 81 84 87 C 84 94 78 98 70 98 C 62 98 56 94 56 87 C 56 81 61 74 70 64 Z" fill="#fbeaef" />
-      <ellipse cx="65" cy="83" rx="2.8" ry="2.2" fill="white" opacity="0.9" />
+      <path d="M 70 60.6 C 80.8 72.6 86.8 81 86.8 88.2 C 86.8 96.6 79.6 101.4 70 101.4 C 60.4 101.4 53.2 96.6 53.2 88.2 C 53.2 81 59.2 72.6 70 60.6 Z" fill="#fbeaef" />
+      <ellipse cx="64" cy="83.4" rx="3.36" ry="2.64" fill="white" opacity="0.9" />
     </g>
   </g>
 </svg>
