@@ -70,7 +70,8 @@ function loadAccessoryCatalog(accessoriesRoot) {
       }
     })
     .filter(Boolean)
-    .sort((a, b) => a.id.localeCompare(b.id));
+    // Sorted by name so each slot's dropdown reads in a stable, human order.
+    .sort((a, b) => a.displayName.localeCompare(b.displayName, 'zh-Hans'));
 }
 
 module.exports = {

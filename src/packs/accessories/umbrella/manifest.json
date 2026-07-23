@@ -1,0 +1,8 @@
+{
+  "id": "umbrella",
+  "displayName": "小雨伞",
+  "version": 1,
+  "slot": "hand",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 84 }
+}

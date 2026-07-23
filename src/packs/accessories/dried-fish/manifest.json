@@ -1,0 +1,8 @@
+{
+  "id": "dried-fish",
+  "displayName": "小鱼干",
+  "version": 1,
+  "slot": "hand",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 64 }
+}

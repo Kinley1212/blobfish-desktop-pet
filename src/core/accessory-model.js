@@ -14,6 +14,7 @@
   const ACCESSORY_SLOTS = Object.freeze([
     Object.freeze({ key: 'hat', label: '头顶', empty: '不戴' }),
     Object.freeze({ key: 'eyewear', label: '眼镜', empty: '不戴' }),
+    Object.freeze({ key: 'neck', label: '胸前', empty: '不戴' }),
     Object.freeze({ key: 'hand', label: '手边', empty: '不拿' }),
   ]);
 

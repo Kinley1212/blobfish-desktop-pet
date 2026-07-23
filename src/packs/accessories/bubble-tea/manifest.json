@@ -1,0 +1,8 @@
+{
+  "id": "bubble-tea",
+  "displayName": "珍珠奶茶",
+  "version": 1,
+  "slot": "hand",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 86 }
+}
