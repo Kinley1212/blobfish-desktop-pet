@@ -1,0 +1,8 @@
+{
+  "id": "donut",
+  "displayName": "甜甜圈",
+  "version": 1,
+  "slot": "hand",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 84 }
+}

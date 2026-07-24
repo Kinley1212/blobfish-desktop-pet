@@ -83,6 +83,11 @@ test('a roll at the very top of its range still lands on a real face', () => {
   }
 });
 
+test('a starting task gets its own mood rather than the generic agent one', () => {
+  assert.equal(findMood('agent.started').prefix, 'agent.started');
+  assert.equal(pickExpression('agent.started', { random: alwaysFirst }), 'face-determined');
+});
+
 test('every face a mood can ask for is actually bundled', () => {
   const shipped = new Set(loadAccessoryCatalog(accessoriesRoot).filter((item) => item.slot === 'face').map((item) => item.id));
 
@@ -99,6 +104,7 @@ test('every speech family the language packs use has a mood', () => {
     'idle.chatter', 'idle.lateNight', 'idle.weekend', 'idle.longSession',
     'schedule.halfHour', 'schedule.lunchSoon', 'schedule.offWorkSoon',
     'agent.started', 'agent.completed', 'agent.failed', 'agent.needsInput', 'agent.allCompleted',
+    'agent.longRunning', 'agent.ended', 'agent.allEnded',
     'system.error', 'system.battery', 'system.unlocked',
     'calendar.upcoming', 'calendar.busyDay', 'startup.workdayMorning', 'rare.friday',
   ];

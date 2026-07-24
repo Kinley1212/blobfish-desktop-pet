@@ -1,0 +1,12 @@
+{
+  "id": "face-star-eye",
+  "displayName": "星星眼",
+  "version": 1,
+  "slot": "face",
+  "art": "art/accessory.svg",
+  "anchor": {
+    "x": 50,
+    "y": 50
+  },
+  "hidesEyes": true
+}
