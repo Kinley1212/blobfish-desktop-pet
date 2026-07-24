@@ -3,7 +3,8 @@ const bubble = document.getElementById('bubble');
 const taskBubble = document.getElementById('task-bubble');
 const { buildCarouselLayout, nextTaskKey } = globalThis.taskCarouselModel;
 const { applyDiyToSvg } = globalThis.diyModel;
-const { applyAccessoriesToSvg } = globalThis.accessoryModel;
+const { applyAccessoriesToSvg, normalizeAccessories } = globalThis.accessoryModel;
+const { pickExpression } = globalThis.expressionMoods;
 
 const VELOCITY_WINDOW_MS = 300;
 const BLINK_MIN_MS = 3500;
@@ -60,6 +61,10 @@ let petTopOffset = null;
 let diySpec = null;
 let accessorySpec = null;
 let accessoryCatalog = [];
+// A speech line can pull a face for as long as its bubble is up; this holds
+// the borrowed expression so the saved one can come back afterwards.
+let moodExpressionId = null;
+let moodExpressionTimer = null;
 let renderedLookSignature = null; // the specs the SVG currently in the DOM was built from
 
 function applyPetLayout(layout = {}) {
@@ -125,6 +130,46 @@ function sanitizeSvg(svgText) {
   return documentNode.documentElement.outerHTML;
 }
 
+// The worn accessories, with a temporary mood expression standing in for the
+// saved one while a line is being spoken.
+function accessorySpecWithMood() {
+  if (!moodExpressionId) return accessorySpec;
+  const spec = normalizeAccessories(accessorySpec);
+  spec.equipped.face = moodExpressionId;
+  return spec;
+}
+
+function renderAccessories() {
+  const svgRoot = pet.querySelector('svg');
+  if (!svgRoot || !characterManifest) return;
+  applyAccessoriesToSvg(svgRoot, characterManifest, accessoryCatalog, accessorySpecWithMood());
+}
+
+function clearMoodExpression() {
+  clearTimeout(moodExpressionTimer);
+  moodExpressionTimer = null;
+  if (!moodExpressionId) return;
+  moodExpressionId = null;
+  renderAccessories();
+}
+
+// Sometimes a line comes with a face. It lasts as long as the bubble does, and
+// only borrows the slot - whatever the user picked is restored afterwards.
+function showMoodExpression(event, durationMs) {
+  const faces = accessoryCatalog.filter((item) => item.slot === 'face').map((item) => item.id);
+  if (faces.length === 0) return;
+  const expression = pickExpression(event, { available: faces });
+  if (!expression) {
+    clearMoodExpression();
+    return;
+  }
+
+  clearTimeout(moodExpressionTimer);
+  moodExpressionId = expression;
+  renderAccessories();
+  moodExpressionTimer = setTimeout(clearMoodExpression, Math.max(800, durationMs || 0));
+}
+
 function applyCharacterPack(pack) {
   clearTimeout(blinkTimer);
   const svg = sanitizeSvg(pack.svg);
@@ -142,7 +187,7 @@ function applyCharacterPack(pack) {
   pet.innerHTML = svg;
   const svgRoot = pet.querySelector('svg');
   applyDiyToSvg(svgRoot, diySpec, pack.manifest);
-  applyAccessoriesToSvg(svgRoot, pack.manifest, accessoryCatalog, accessorySpec);
+  applyAccessoriesToSvg(svgRoot, pack.manifest, accessoryCatalog, accessorySpecWithMood());
   renderedLookSignature = lookSignature();
   applyPetConfig({ scale: petScale });
   scheduleBlink(300);
@@ -484,6 +529,7 @@ function applyHoverAt(x, y) {
 window.petAPI.onDirection((dir) => setDirection(dir));
 window.petAPI.onSpeech((message) => {
   showBubble(message.text, message.durationMs);
+  showMoodExpression(message.event, message.durationMs);
   triggerSpeechAction(message.action);
 });
 window.petAPI.onAgentState((state) => applyAgentState(state));

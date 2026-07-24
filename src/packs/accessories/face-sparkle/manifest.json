@@ -1,0 +1,9 @@
+{
+  "id": "face-sparkle",
+  "displayName": "闪闪",
+  "version": 1,
+  "slot": "face",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 50 },
+  "hidesEyes": true
+}

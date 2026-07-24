@@ -187,6 +187,12 @@
   function applyAccessoriesToSvg(svgRoot, manifest, catalog, spec) {
     if (!svgRoot) return;
     svgRoot.querySelectorAll('[data-accessory-slot]').forEach((node) => node.remove());
+    // The character's own eyes are hidden rather than removed, so taking an
+    // expression back off is just another call to this function - no rebuild,
+    // and the running animations are left alone.
+    svgRoot.querySelectorAll('.eyes, .eye, .tears, .tear').forEach((node) => {
+      node.style.removeProperty('display');
+    });
 
     const slots = getCharacterSlots(manifest);
     if (!slots || !Array.isArray(catalog)) return;
@@ -202,9 +208,11 @@
 
       const art = parseAccessoryArt(accessory.svg, svgRoot.ownerDocument);
       if (!art) continue;
-      // An expression draws its own eyes, so the character's have to go first.
+      // An expression draws its own eyes, so the character's give way.
       if (accessory.hidesEyes) {
-        svgRoot.querySelectorAll('.eyes, .eye, .tears, .tear').forEach((node) => node.remove());
+        svgRoot.querySelectorAll('.eyes, .eye, .tears, .tear').forEach((node) => {
+          node.style.setProperty('display', 'none');
+        });
       }
       const tuning = slot.tunable ? (normalized.tuning[id] || defaultTuning()) : defaultTuning();
       art.setAttribute('data-accessory-slot', slot.key);

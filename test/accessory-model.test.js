@@ -117,10 +117,10 @@ test('size scales both axes and width and height stretch on top of it', () => {
 test('every bundled accessory declares a slot, an anchor and real art', () => {
   const catalog = loadAccessoryCatalog(accessoriesRoot);
 
-  assert.equal(catalog.length, 33);
+  assert.equal(catalog.length, 43);
   const counts = {};
   for (const item of catalog) counts[item.slot] = (counts[item.slot] || 0) + 1;
-  assert.deepEqual(counts, { face: 8, hat: 9, eyewear: 7, hand: 9 });
+  assert.deepEqual(counts, { face: 18, hat: 9, eyewear: 7, hand: 9 });
   assert.equal(new Set(catalog.map((item) => item.id)).size, catalog.length, 'ids must be unique');
   for (const item of catalog) {
     assert.match(item.svg, /^<svg viewBox="0 0 100 100"/, `${item.id} must be drawn in the shared 100x100 box`);
