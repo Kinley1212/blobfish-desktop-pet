@@ -74,6 +74,7 @@ function selectReleaseUpdate(release, options) {
     state: 'available',
     currentVersion,
     version,
+    architecture: options.architecture,
     publishedAt: typeof release.published_at === 'string' ? release.published_at : null,
     releaseUrl: typeof release.html_url === 'string' ? release.html_url : null,
     asset: {

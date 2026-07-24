@@ -499,6 +499,34 @@ input[type="range"] {
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #7ca49d; box-shadow: 0 0 0 4px rgba(124, 164, 157, 0.13); }
 .integration-status { margin: 0; color: var(--muted); font-size: 9px; }
 
+.app-update-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px 20px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 17px;
+  border: 1px solid rgba(75, 119, 112, 0.24);
+  border-radius: 16px;
+  background:
+    linear-gradient(115deg, rgba(226, 239, 235, 0.92), rgba(255, 255, 255, 0.92) 62%),
+    var(--surface);
+  box-shadow: 0 10px 30px rgba(45, 89, 80, 0.06);
+}
+.app-update-copy { min-width: 0; }
+.app-update-copy .panel-kicker { margin-bottom: 5px; }
+.app-update-copy h3 { margin: 0; color: var(--accent-dark); font-size: 14px; }
+.app-update-copy > p:last-child { margin: 5px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.app-update-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.app-update-actions button { white-space: nowrap; }
+.app-update-note {
+  grid-column: 1 / -1;
+  margin: -2px 0 0;
+  color: var(--soft-muted);
+  font-size: 8px;
+  line-height: 1.45;
+}
+
 .connection-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -634,6 +662,8 @@ button.compact { min-width: 72px; height: 29px; padding: 0 10px; font-size: 9px;
   .schedule-row .time-pair { grid-column: 1 / -1; }
   .quiet-layout { grid-template-columns: 1fr; gap: 14px; }
   .connection-grid { grid-template-columns: 1fr; }
+  .app-update-card { grid-template-columns: 1fr; }
+  .app-update-actions { justify-content: flex-start; }
   .privacy-options { grid-template-columns: 1fr; }
   .privacy-options > label { border-bottom: 1px solid var(--line); padding-bottom: 10px; }
   .privacy-options > label:last-child { border-bottom: 0; padding-bottom: 0; }

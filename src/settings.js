@@ -16,6 +16,12 @@ const integrationControls = Object.fromEntries(agentProviders.map((provider) => 
 const integrationResults = {};
 const connectionTestTimers = {};
 const integrationOperations = new Map();
+const appUpdateControls = {
+  check: byId('check-app-update'),
+  install: byId('install-app-update'),
+  status: byId('app-update-status'),
+};
+let appUpdateResult = null;
 let charactersById = new Map();
 let activeSettingsCopy = null;
 let diyMap = {};
@@ -157,6 +163,92 @@ function showStatus(message, isError = false) {
 function setBusy(busy) {
   saveButton.disabled = busy;
   resetButton.disabled = busy;
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  return `${(bytes / (1024 * 1024)).toFixed(bytes >= 100 * 1024 * 1024 ? 0 : 1)} MB`;
+}
+
+function renderAppUpdate(result) {
+  appUpdateResult = result || null;
+  const { check, install, status: updateStatus } = appUpdateControls;
+  check.disabled = false;
+  install.hidden = true;
+  install.disabled = false;
+  if (!result || result.state === 'idle') {
+    updateStatus.textContent = `当前是 Pro${result?.currentVersion || '…'}。需要时可以检查 GitHub 的正式版本。`;
+    return;
+  }
+  if (result.state === 'checking') {
+    check.disabled = true;
+    updateStatus.textContent = '正在检查 GitHub 的最新正式版本…';
+    return;
+  }
+  if (result.state === 'available') {
+    updateStatus.textContent = `发现 Pro${result.version}（${formatBytes(result.asset.size)}）。下载完成后会自动替换并重新打开。`;
+    install.hidden = false;
+    install.textContent = `下载并更新到 Pro${result.version}`;
+    return;
+  }
+  if (result.state === 'up-to-date') {
+    updateStatus.textContent = `已是最新版本 Pro${result.currentVersion}。`;
+    return;
+  }
+  updateStatus.textContent = result.message || '暂时无法检查 GitHub 更新。';
+}
+
+async function checkAppUpdate() {
+  renderAppUpdate({ state: 'checking' });
+  try {
+    const result = await window.settingsAPI.checkAppUpdate();
+    renderAppUpdate(result);
+    if (result.state === 'available') showStatus(`发现 Pro${result.version}，可以直接下载并更新。`);
+    else if (result.state === 'error') showStatus(result.message, true);
+    return result;
+  } catch (error) {
+    const result = { state: 'error', message: `无法检查 GitHub 更新：${error.message}` };
+    renderAppUpdate(result);
+    showStatus(result.message, true);
+    return result;
+  }
+}
+
+async function installAppUpdate() {
+  let update = appUpdateResult;
+  if (!update || update.state !== 'available') update = await checkAppUpdate();
+  if (!update || update.state !== 'available') return;
+  const confirmed = window.confirm(
+    `下载并安装 Pro${update.version} 吗？\n\n将下载 ${formatBytes(update.asset.size)} 的 ${update.architecture === 'arm64' ? 'Apple 芯片' : 'Intel'} 版本。下载后水滴鱼会退出、安装新版本并自动重新打开；当前版本会移到废纸篓，可以恢复。`,
+  );
+  if (!confirmed) return;
+
+  appUpdateControls.check.disabled = true;
+  appUpdateControls.install.disabled = true;
+  appUpdateControls.status.textContent = `准备下载 Pro${update.version}…`;
+  try {
+    const result = await window.settingsAPI.installAppUpdate();
+    if (result.state === 'installing') {
+      appUpdateControls.status.textContent = `Pro${result.version} 已校验，正在退出并安装…`;
+    }
+  } catch (error) {
+    appUpdateControls.check.disabled = false;
+    appUpdateControls.install.disabled = false;
+    appUpdateControls.status.textContent = `更新失败：${error.message}`;
+    showStatus(`更新失败：${error.message}`, true);
+  }
+}
+
+function renderAppUpdateProgress(progress) {
+  if (!progress || typeof progress !== 'object') return;
+  if (progress.state === 'downloading') {
+    const total = Number(progress.total);
+    const received = Number(progress.received);
+    const percent = total > 0 ? Math.min(100, Math.floor((received / total) * 100)) : 0;
+    appUpdateControls.status.textContent = `正在下载 Pro${progress.version}：${percent}%（${formatBytes(received)} / ${formatBytes(total)}）`;
+  } else if (progress.state === 'installing') {
+    appUpdateControls.status.textContent = `Pro${progress.version} 已校验，正在准备安装…`;
+  }
 }
 
 function renderLanguages(languages, selectedId) {
@@ -948,6 +1040,8 @@ for (const provider of agentProviders) {
   integrationControls[provider].disconnect.addEventListener('click', () => disconnectAgentIntegration(provider));
 }
 byId('refresh-integrations').addEventListener('click', refreshAgentIntegrations);
+appUpdateControls.check.addEventListener('click', checkAppUpdate);
+appUpdateControls.install.addEventListener('click', installAppUpdate);
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -961,6 +1055,7 @@ form.addEventListener('submit', async (event) => {
     renderAppVersion(result.appVersion);
     renderConfig(result.config, result.characters, result.languages, result.taskCompleteSounds, result.accessories);
     renderIntegrationStatus(result.integrationStatus);
+    renderAppUpdate({ state: 'idle', currentVersion: result.appVersion });
     refreshAgentIntegrations();
     showStatus(activeSettingsCopy?.savedStatus || '已保存。');
   } catch (error) {
@@ -997,6 +1092,7 @@ window.settingsAPI.load()
   .catch((error) => showStatus(`读取设置失败：${error.message}`, true));
 
 window.settingsAPI.onIntegrationStatus((integrationStatus) => renderIntegrationStatus(integrationStatus));
+window.settingsAPI.onAppUpdateProgress((progress) => renderAppUpdateProgress(progress));
 window.settingsAPI.onAgentConnectionHealth((health) => {
   const current = integrationResults[health.provider] || { state: 'checking' };
   const testPassed = current.health === 'awaiting-event' && health.health === 'active';
