@@ -12,7 +12,7 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 ![platform](https://img.shields.io/badge/platform-macOS-1f2328?style=flat-square)
 ![electron](https://img.shields.io/badge/Electron-43-47848F?style=flat-square)
 ![node](https://img.shields.io/badge/Node.js-%E2%89%A522.12-5FA04E?style=flat-square)
-![version](https://img.shields.io/badge/version-1.1.0-c87d95?style=flat-square)
+![version](https://img.shields.io/badge/version-1.1.2-c87d95?style=flat-square)
 
 </div>
 
@@ -72,6 +72,19 @@ npm start
 ```
 
 右键鱼本体、或点击菜单栏的 🐟 打开设置。
+
+### 应用内更新
+
+在“设置 → 连接与隐私 → 软件更新”中点“检查 GitHub 更新”。发现新版后，“下载并更新”会只下载适合当前 Mac 芯片的 GitHub Release 安装包，校验 GitHub 提供的 SHA-256 后自动安装、重开应用，并把旧版放进废纸篓以便恢复。
+
+维护者发布时需要创建**正式** GitHub Release，标签使用 `v1.1.2` 这类格式，并上传两个同版本产物：
+
+```text
+水滴鱼Pro1.1.2-macOS-arm64.zip
+水滴鱼Pro1.1.2-macOS-x64.zip
+```
+
+Draft 和 Pre-release 不会被应用内更新发现；缺少 GitHub SHA-256 摘要的安装包也不会自动安装。
 
 ### 打包成 App
 
@@ -197,6 +210,19 @@ npm start
 ```
 
 Right-click the fish, or click the 🐟 in the menu bar, to open settings.
+
+### In-app updates
+
+Open **Settings → Connections & Privacy → Software Update**, then choose **Check GitHub updates**. When a newer release is available, the app downloads only the matching Mac architecture, verifies GitHub's SHA-256 digest, installs it, reopens the app, and moves the previous copy to the Trash for recovery.
+
+Maintainers must create a published GitHub Release tagged like `v1.1.2` and attach both matching files:
+
+```text
+水滴鱼Pro1.1.2-macOS-arm64.zip
+水滴鱼Pro1.1.2-macOS-x64.zip
+```
+
+Drafts, pre-releases, and assets without a GitHub SHA-256 digest are intentionally not eligible for in-app installation.
 
 ### Packaging
 

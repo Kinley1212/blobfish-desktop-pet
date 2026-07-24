@@ -2,7 +2,7 @@
 <html lang="zh-Hans">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="styles/settings.css" />
   <title>水滴鱼设置</title>
@@ -246,6 +246,19 @@
             <h2>连接与隐私</h2>
             <p>每张卡片都会直接说明当前状态、下一步和可执行操作。</p>
           </header>
+
+          <section class="app-update-card" aria-labelledby="app-update-title">
+            <div class="app-update-copy">
+              <p class="panel-kicker">GitHub Releases</p>
+              <h3 id="app-update-title">软件更新</h3>
+              <p id="app-update-status" role="status" aria-live="polite">当前是 Pro1.1.2。需要时可以检查 GitHub 的正式版本。</p>
+            </div>
+            <div class="app-update-actions">
+              <button id="check-app-update" class="secondary" type="button">检查 GitHub 更新</button>
+              <button id="install-app-update" type="button" hidden>下载并更新</button>
+            </div>
+            <p class="app-update-note">只下载与你的 Mac 芯片匹配、并通过 SHA-256 校验的安装包。安装后会自动重开，旧版本移到废纸篓。</p>
+          </section>
 
           <div class="connection-summary-bar">
             <div><span class="status-dot"></span><p id="agent-bridge-status" class="integration-status">本地接收器正在启动…</p></div>

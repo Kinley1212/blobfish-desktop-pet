@@ -1,4 +1,5 @@
-const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, powerMonitor, shell } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, powerMonitor, shell, net } = require('electron');
+const crypto = require('crypto');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -24,6 +25,12 @@ const { formatProviderTaskSummary } = require('./core/task-menu-summary');
 const { advanceFractionalCoordinate, roundWindowCoordinate } = require('./core/fractional-position');
 const { getCurrentTaskStatus, getTerminalTaskStatus } = require('./core/task-status-presenter');
 const { TaskTracker } = require('./core/task-tracker');
+const {
+  LATEST_RELEASE_URL,
+  buildMacInstallerScript,
+  getInstalledAppBundle,
+  selectReleaseUpdate,
+} = require('./core/github-release-updater');
 const { version: appVersion } = require('../package.json');
 
 const userDataRoot = app.getPath('appData');
@@ -508,6 +515,131 @@ function getSettingsPayload() {
     warning: runtimeWarnings.getMessage(configStore.loadWarning),
     integrationStatus: { calendar: calendarStatus, agentBridge: agentBridgeStatus },
   };
+}
+
+function sendAppUpdateProgress(payload) {
+  if (settingsWin && !settingsWin.isDestroyed()) {
+    settingsWin.webContents.send('app-update-progress', payload);
+  }
+}
+
+async function checkForAppUpdate() {
+  if (!app.isPackaged) {
+    return { state: 'development', message: '开发模式不检查安装包更新。' };
+  }
+  if (process.platform !== 'darwin' || !['arm64', 'x64'].includes(process.arch)) {
+    return { state: 'unsupported', message: '当前设备不支持自动更新。' };
+  }
+
+  try {
+    const response = await net.fetch(LATEST_RELEASE_URL, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': appDisplayName,
+      },
+    });
+    if (response.status === 404) return { state: 'no-release', message: 'GitHub 还没有发布可安装的正式版本。' };
+    if (!response.ok) throw new Error(`GitHub 返回了 ${response.status}`);
+    return selectReleaseUpdate(await response.json(), {
+      currentVersion: appVersion,
+      architecture: process.arch,
+    });
+  } catch (error) {
+    console.warn(`Cannot check GitHub release update: ${error.message}`);
+    return { state: 'error', message: `无法检查 GitHub 更新：${error.message}` };
+  }
+}
+
+async function writeAll(fileHandle, value) {
+  const buffer = Buffer.from(value);
+  let offset = 0;
+  while (offset < buffer.length) {
+    const { bytesWritten } = await fileHandle.write(buffer, offset, buffer.length - offset, null);
+    if (bytesWritten <= 0) throw new Error('无法写入更新文件');
+    offset += bytesWritten;
+  }
+}
+
+async function downloadReleaseAsset(update, destination) {
+  const response = await net.fetch(update.asset.url, {
+    headers: { 'User-Agent': appDisplayName },
+  });
+  if (!response.ok || !response.body) throw new Error(`GitHub 安装包下载失败（${response.status}）`);
+
+  const fileHandle = await fs.promises.open(destination, 'wx', 0o600);
+  const checksum = crypto.createHash('sha256');
+  const reader = response.body.getReader();
+  let received = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value || value.length === 0) continue;
+      received += value.length;
+      if (received > update.asset.size) throw new Error('下载文件超过 GitHub 声明的大小，已停止更新');
+      checksum.update(value);
+      await writeAll(fileHandle, value);
+      sendAppUpdateProgress({ state: 'downloading', version: update.version, received, total: update.asset.size });
+    }
+  } finally {
+    await fileHandle.close();
+  }
+  if (received !== update.asset.size) throw new Error('下载文件大小与 GitHub 声明不一致，已停止更新');
+  if (checksum.digest('hex') !== update.asset.digest) throw new Error('下载文件校验失败，已停止更新');
+}
+
+function getUpdateStagingDirectory() {
+  const updateRoot = path.join(app.getPath('userData'), 'updates');
+  fs.mkdirSync(updateRoot, { recursive: true, mode: 0o700 });
+  return fs.mkdtempSync(path.join(updateRoot, 'release-'));
+}
+
+async function installGithubUpdate() {
+  const update = await checkForAppUpdate();
+  if (update.state !== 'available') {
+    throw new Error(update.message || '没有可安装的新版本');
+  }
+  if (!app.isPackaged) throw new Error('开发模式不能安装更新');
+
+  const currentAppPath = getInstalledAppBundle(process.execPath);
+  const targetAppPath = path.join(path.dirname(currentAppPath), update.asset.bundleName);
+  if (fs.existsSync(targetAppPath)) {
+    throw new Error(`Pro${update.version} 已经在这个文件夹里，请直接打开它`);
+  }
+  try {
+    fs.accessSync(path.dirname(currentAppPath), fs.constants.W_OK);
+  } catch {
+    throw new Error('当前应用所在文件夹没有写入权限，无法自动安装更新');
+  }
+
+  const stagingDirectory = getUpdateStagingDirectory();
+  const zipPath = path.join(stagingDirectory, update.asset.name);
+  const commandPath = path.join(stagingDirectory, '安装水滴鱼更新.command');
+  try {
+    sendAppUpdateProgress({ state: 'downloading', version: update.version, received: 0, total: update.asset.size });
+    await downloadReleaseAsset(update, zipPath);
+    sendAppUpdateProgress({ state: 'installing', version: update.version });
+    fs.writeFileSync(commandPath, buildMacInstallerScript({
+      currentAppPath,
+      targetAppPath,
+      zipPath,
+      stagingDirectory,
+      processId: process.pid,
+    }), { mode: 0o700 });
+    fs.chmodSync(commandPath, 0o700);
+    const openError = await shell.openPath(commandPath);
+    if (openError) throw new Error(`无法打开更新安装器：${openError}`);
+  } catch (error) {
+    fs.rmSync(stagingDirectory, { recursive: true, force: true });
+    throw error;
+  }
+
+  setTimeout(() => {
+    allowImmediateQuit = true;
+    app.quit();
+  }, 500);
+  return { state: 'installing', version: update.version };
 }
 
 function getIntegrationResourcesRoot() {
@@ -1596,6 +1728,14 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       reportRuntimeError('Settings reset', error);
       throw error;
     }
+  });
+  ipcMain.handle('app-update:check', async (event) => {
+    assertSettingsSender(event);
+    return checkForAppUpdate();
+  });
+  ipcMain.handle('app-update:install', async (event) => {
+    assertSettingsSender(event);
+    return installGithubUpdate();
   });
   ipcMain.handle('agent-integrations:inspect', async (event, provider) => {
     assertSettingsSender(event);

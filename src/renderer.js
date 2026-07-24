@@ -121,7 +121,10 @@ function sanitizeSvg(svgText) {
       const value = attribute.value.trim();
       if (name.startsWith('on')) {
         node.removeAttribute(attribute.name);
-      } else if ((name === 'href' || name === 'xlink:href') && !value.startsWith('#')) {
+      } else if (
+        (name === 'href' || name === 'xlink:href')
+        && !window.svgHrefPolicy.isSafeSvgHref(value)
+      ) {
         node.removeAttribute(attribute.name);
       }
     }

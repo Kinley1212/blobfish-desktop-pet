@@ -1,0 +1,45 @@
+<svg viewBox="0 0 180 125" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="水滴魚（趴窩）">
+  <defs>
+    <linearGradient id="pawo-body" x1="0.18" y1="0.08" x2="0.82" y2="0.92">
+      <stop offset="0" stop-color="#eee6ed" />
+      <stop offset="0.52" stop-color="#e8dce7" />
+      <stop offset="1" stop-color="#e1d3e1" />
+    </linearGradient>
+    <linearGradient id="pawo-fin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e5a9cf" />
+      <stop offset="1" stop-color="#d895c0" />
+    </linearGradient>
+    <radialGradient id="pawo-nose" cx="0.62" cy="0.28" r="0.84">
+      <stop offset="0" stop-color="#f4edf3" />
+      <stop offset="1" stop-color="#e6d9e6" />
+    </radialGradient>
+  </defs>
+
+  <path class="back-fin" d="M 145 35 C 156 27 169 30 172 40 C 174 48 166 56 154 59 Z" fill="url(#pawo-fin)" />
+  <g class="fins">
+    <path class="fin fin-left" d="M 28 55 C 13 47 5 55 7 68 C 9 78 18 80 30 73 Z" fill="url(#pawo-fin)" />
+  </g>
+
+  <path class="body-shape" d="M 18 68 C 18 39 45 14 83 10 C 124 6 155 26 164 58 C 174 94 145 116 98 120 C 51 124 19 105 18 68 Z" fill="url(#pawo-body)" />
+  <path class="body-shading" d="M 36 92 C 65 113 118 117 150 94 C 142 112 122 120 96 122 C 65 124 43 115 30 102 Z" fill="#ccb9ce" opacity="0.16" />
+
+  <g class="eyes">
+    <ellipse class="eye eye-left" cx="39" cy="47" rx="5.1" ry="5.7" fill="#343236" transform="rotate(18 39 47)" />
+    <ellipse class="eye eye-right" cx="86" cy="58" rx="5.8" ry="6.1" fill="#343236" />
+  </g>
+  <g class="tears">
+    <path class="tear tear-left" d="M 39 53 C 43 60 42 65 39 67 C 36 64 36 59 39 53 Z" fill="#78b7dd" />
+    <path class="tear tear-right" d="M 86 65 C 90 72 89 77 86 79 C 83 76 83 70 86 65 Z" fill="#78b7dd" />
+  </g>
+
+  <g class="nose">
+    <ellipse cx="51" cy="67" rx="16" ry="22" fill="url(#pawo-nose)" transform="rotate(13 51 67)" />
+  </g>
+  <g class="mouth">
+    <path d="M 28 89 C 42 82 62 88 77 101 C 85 108 91 111 96 106" fill="none" stroke="#dea0c8" stroke-width="18" stroke-linecap="round" />
+    <path d="M 29 87 C 45 82 65 91 82 105" fill="none" stroke="#cb82b1" stroke-width="2.5" stroke-linecap="round" opacity="0.72" />
+  </g>
+
+  <path class="fin fin-right" d="M 150 78 C 166 71 177 78 178 91 C 178 104 163 109 145 104 C 145 95 146 86 150 78 Z" fill="url(#pawo-fin)" />
+  <ellipse class="cheek-highlight" cx="91" cy="96" rx="5" ry="3.2" fill="#fff9ff" opacity="0.72" transform="rotate(-18 91 96)" />
+</svg>

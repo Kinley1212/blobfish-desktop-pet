@@ -1,0 +1,51 @@
+{
+  "id": "blobfish-3d-pawo",
+  "displayName": "水滴魚（3D趴窩）",
+  "version": 1,
+  "renderer": "svg",
+  "art": "art/character.svg",
+  "preview": "art/character.svg",
+  "embeddedImages": {
+    "character": "art/character.webp"
+  },
+  "settingsCopy": "ui/settings.zh-CN.json",
+  "size": {
+    "width": 126,
+    "height": 88
+  },
+  "anchor": "bottom-center",
+  "styles": [
+    "animations/base.css",
+    "animations/idle.css",
+    "animations/blink.css",
+    "animations/roam.css",
+    "animations/working.css",
+    "animations/waiting.css",
+    "animations/success.css",
+    "animations/failed.css",
+    "animations/hit.css",
+    "animations/bump.css",
+    "animations/dragging.css",
+    "animations/exit.css"
+  ],
+  "actions": {
+    "idle": "idle",
+    "blink": "blink",
+    "roam": "roam",
+    "working": "working",
+    "waiting": "waiting",
+    "success": "success",
+    "failed": "failed",
+    "hit": "hit",
+    "bump": "bump",
+    "dragging": "dragging",
+    "exit": "exit"
+  },
+  "fallbacks": {
+    "working": "roam",
+    "waiting": "idle",
+    "success": "idle",
+    "failed": "idle"
+  },
+  "defaultLanguagePack": "blobfish-zh-TW"
+}

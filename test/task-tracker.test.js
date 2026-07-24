@@ -57,6 +57,26 @@ test('a stale stop from the previous turn cannot close the current turn', () => 
   assert.equal(tracker.getTasks()[0].turnId, 'turn-two');
 });
 
+test('an unfamiliar terminal turn id still closes the active conversation', () => {
+  const tracker = new TaskTracker();
+  tracker.handle(event('started', 'turn-one', 1000));
+  tracker.handle(event('ended', 'normalized-stop-id', 2000));
+
+  assert.equal(tracker.snapshot().activeCount, 0);
+});
+
+test('remembers several superseded turns so delayed stops cannot close the latest turn', () => {
+  const tracker = new TaskTracker();
+  tracker.handle(event('started', 'turn-one', 1000));
+  tracker.handle(event('started', 'turn-two', 2000));
+  tracker.handle(event('started', 'turn-three', 3000));
+  tracker.handle(event('ended', 'turn-one', 4000));
+  tracker.handle(event('ended', 'turn-two', 5000));
+
+  assert.equal(tracker.snapshot().activeCount, 1);
+  assert.equal(tracker.getTasks()[0].turnId, 'turn-three');
+});
+
 test('a terminal event without a turn id closes the current conversation', () => {
   const tracker = new TaskTracker();
   tracker.handle(event('started', 'turn-one', 1000));

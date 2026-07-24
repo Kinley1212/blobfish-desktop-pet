@@ -30,7 +30,8 @@ class TaskTracker {
       && existing.turnId
       && event.turnId !== existing.turnId
     ) {
-      return this.snapshot();
+      const isKnownOlderTurn = existing.supersededTurnIds?.includes(event.turnId);
+      if (!terminalEvent || isKnownOlderTurn) return this.snapshot();
     }
     let transition = null;
     let transitionTask = null;
@@ -45,12 +46,25 @@ class TaskTracker {
 
     if (event.event === 'started') {
       if (!existing) {
-        const task = { ...event, key, state: 'running', startedAt: now, updatedAt: now };
+        const task = {
+          ...event,
+          key,
+          state: 'running',
+          startedAt: now,
+          updatedAt: now,
+          supersededTurnIds: [],
+        };
         this.tasks.set(key, task);
         transitionTask = task;
         transition = 'started';
       } else {
         const startsNewTurn = Boolean(event.turnId && event.turnId !== existing.turnId);
+        if (startsNewTurn && existing.turnId) {
+          existing.supersededTurnIds = [
+            ...(existing.supersededTurnIds || []).filter((turnId) => turnId !== existing.turnId),
+            existing.turnId,
+          ].slice(-8);
+        }
         transitionTask = updateTask(existing, 'running');
         if (startsNewTurn) {
           transitionTask.startedAt = now;
