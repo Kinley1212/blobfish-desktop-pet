@@ -1,6 +1,6 @@
 {
   "name": "blobfish-agent-bridge",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Send local Codex task lifecycle states to the Blobfish desktop pet.",
   "author": {
     "name": "Blobfish Desktop Pet"
