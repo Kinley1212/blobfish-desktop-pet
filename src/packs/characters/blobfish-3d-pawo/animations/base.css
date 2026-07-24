@@ -1,0 +1,18 @@
+#pet .tear {
+  opacity: 0;
+  transform-origin: center;
+}
+
+#pet .fin,
+#pet .body-shape,
+#pet .body-shading,
+#pet .mouth,
+#pet .nose {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes blobfish-swim {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -5px; }
+}

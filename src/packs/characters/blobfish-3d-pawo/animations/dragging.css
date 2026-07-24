@@ -1,0 +1,4 @@
+#pet.dragging {
+  cursor: grabbing;
+  animation: none;
+}

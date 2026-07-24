@@ -7,6 +7,7 @@ const DIY_SHAPE_GROUPS = ['body', 'fins'];
 const ACCESSORY_SLOT_KEYS = ['face', 'hat', 'eyewear', 'hand'];
 const MAX_SVG_BYTES = 512 * 1024;
 const MAX_CSS_BYTES = 128 * 1024;
+const MAX_EMBEDDED_IMAGE_BYTES = 384 * 1024;
 const MAX_SETTINGS_COPY_BYTES = 32 * 1024;
 const REQUIRED_ACTIONS = ['idle', 'blink', 'roam', 'working', 'waiting', 'success', 'failed', 'hit', 'bump', 'dragging', 'exit'];
 const REQUIRED_SETTINGS_COPY_KEYS = [
@@ -55,6 +56,30 @@ function readTextFile(root, relativePath, maxBytes) {
   return fs.readFileSync(filePath, 'utf8');
 }
 
+function readBinaryFile(root, relativePath, maxBytes) {
+  const filePath = assertInside(root, relativePath);
+  const stat = fs.statSync(filePath);
+  if (!stat.isFile()) throw new Error(`Pack entry is not a file: ${relativePath}`);
+  if (stat.size > maxBytes) throw new Error(`Pack file is too large: ${relativePath}`);
+  return fs.readFileSync(filePath);
+}
+
+function validateEmbeddedImages(embeddedImages) {
+  if (!embeddedImages || typeof embeddedImages !== 'object' || Array.isArray(embeddedImages)) {
+    throw new Error('Character embeddedImages must be an object');
+  }
+  const entries = Object.entries(embeddedImages);
+  if (entries.length === 0 || entries.length > 4) {
+    throw new Error('Character embeddedImages must contain 1-4 images');
+  }
+  for (const [id, relativePath] of entries) {
+    if (!DIY_SHAPE_ID_PATTERN.test(id)) throw new Error(`Invalid embedded image id: ${id}`);
+    if (typeof relativePath !== 'string' || !/\.(?:png|webp)$/i.test(relativePath)) {
+      throw new Error(`Embedded image ${id} must be a PNG or WebP file`);
+    }
+  }
+}
+
 function validateManifest(manifest, expectedId) {
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
     throw new Error('Character manifest must be an object');
@@ -95,6 +120,7 @@ function validateManifest(manifest, expectedId) {
   }
   if (manifest.accessories !== undefined) validateAccessorySlots(manifest.accessories);
   if (manifest.diy !== undefined) validateDiy(manifest.diy);
+  if (manifest.embeddedImages !== undefined) validateEmbeddedImages(manifest.embeddedImages);
   if (manifest.settingsCopy !== undefined && (
     typeof manifest.settingsCopy !== 'string' || !manifest.settingsCopy.endsWith('.json')
   )) {
@@ -223,7 +249,17 @@ function loadCharacterPack(charactersRoot, id) {
   const manifest = JSON.parse(manifestText);
   validateManifest(manifest, id);
 
-  const svg = readTextFile(packRoot, manifest.art, MAX_SVG_BYTES);
+  let svg = readTextFile(packRoot, manifest.art, MAX_SVG_BYTES);
+  for (const [imageId, relativePath] of Object.entries(manifest.embeddedImages || {})) {
+    const token = `pack-image:${imageId}`;
+    if (!svg.includes(token)) throw new Error(`Character SVG does not use embedded image: ${imageId}`);
+    const image = readBinaryFile(packRoot, relativePath, MAX_EMBEDDED_IMAGE_BYTES);
+    const mime = relativePath.toLowerCase().endsWith('.png') ? 'image/png' : 'image/webp';
+    svg = svg.split(token).join(`data:${mime};base64,${image.toString('base64')}`);
+  }
+  if (Buffer.byteLength(svg) > MAX_SVG_BYTES) {
+    throw new Error('Character SVG is too large after embedding images');
+  }
   const styles = manifest.styles.map((relativePath) => ({
     path: relativePath,
     css: readTextFile(packRoot, relativePath, MAX_CSS_BYTES),
@@ -247,6 +283,7 @@ module.exports = {
   loadCharacterPack,
   validateAccessorySlots,
   validateDiy,
+  validateEmbeddedImages,
   validateManifest,
   validateSettingsCopy,
 };
