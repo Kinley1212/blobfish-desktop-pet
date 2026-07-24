@@ -13,10 +13,10 @@
 
   // Longest prefix wins, so a specific event can override its family.
   const MOODS = Object.freeze([
-    Object.freeze({ prefix: 'interaction.click', chance: 0.85, faces: ['face-cry', 'face-panic', 'face-shocked', 'face-angry'] }),
-    Object.freeze({ prefix: 'interaction.pettingLots', chance: 0.9, faces: ['face-love', 'face-coy', 'face-sparkle'] }),
-    Object.freeze({ prefix: 'interaction.pettingMore', chance: 0.75, faces: ['face-coy', 'face-happy', 'face-smug'] }),
-    Object.freeze({ prefix: 'interaction.petting', chance: 0.6, faces: ['face-coy', 'face-smug', 'face-blank'] }),
+    Object.freeze({ prefix: 'interaction.click', chance: 0.5, faces: ['face-cry', 'face-panic', 'face-shocked', 'face-angry'] }),
+    Object.freeze({ prefix: 'interaction.pettingLots', chance: 0.5, faces: ['face-love', 'face-coy', 'face-sparkle'] }),
+    Object.freeze({ prefix: 'interaction.pettingMore', chance: 0.5, faces: ['face-coy', 'face-happy', 'face-smug'] }),
+    Object.freeze({ prefix: 'interaction.petting', chance: 0.5, faces: ['face-coy', 'face-smug', 'face-blank'] }),
     Object.freeze({ prefix: 'interaction.goodbye', chance: 0.6, faces: ['face-wink', 'face-relieved'] }),
     Object.freeze({ prefix: 'interaction.', chance: 0.3, faces: ['face-blank', 'face-smug', 'face-happy'] }),
 

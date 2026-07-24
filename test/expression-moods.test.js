@@ -40,10 +40,17 @@ test('the mood suits the moment', () => {
   assert.equal(pickExpression('interaction.pettingLots', { random: alwaysFirst }), 'face-love');
 });
 
-test('being hit or breaking almost always shows on the face, idle chatter rarely does', () => {
+test('something breaking almost always shows on the face, idle chatter rarely does', () => {
   assert.ok(findMood('system.error').chance > 0.9);
-  assert.ok(findMood('interaction.click').chance > 0.8);
   assert.ok(findMood('idle.').chance <= 0.35, 'ordinary muttering should mostly keep a straight face');
+});
+
+test('being hit and being petted land on a coin flip', () => {
+  // Deliberately even: these fire constantly while you play with the pet, so
+  // reacting every time reads as a twitch rather than a reaction.
+  for (const event of ['interaction.click', 'interaction.petting', 'interaction.pettingMore', 'interaction.pettingLots']) {
+    assert.equal(findMood(event).chance, 0.5, `${event} should be an even chance`);
+  }
 });
 
 test('a face the pack does not ship is never chosen', () => {
