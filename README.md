@@ -38,12 +38,12 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 - 所有调整存在配置里、渲染时叠加，**角色美术文件不会被改动**，随时一键还原
 - 每只角色分别保存，互不影响
 
-**表情与饰品（73 件）**
+**表情与饰品（88 件）**
 
 | 位置 | 数量 | 举例 |
 | --- | --- | --- |
 | 表情 | 31 | 晕、生气、困、撒娇、可怜、得意、心动、慌张、害羞、认真、财迷、吐舌…… |
-| 头顶 | 15 | 草帽、毛线帽、贝雷帽、圣诞帽、小皇冠、礼帽、厨师帽、耳机、光环…… |
+| 头顶 | 30 | 草帽、贝雷帽、礼帽、渔夫帽、学士帽、猫耳、兔耳、樱桃、小蘑菇、光环…… |
 | 眼镜 | 10 | 圆框眼镜、墨镜、爱心镜、星星镜、方框眼镜、泳镜、眼罩…… |
 | 手边 | 17 | 咖啡杯、珍珠奶茶、冰淇淋、甜甜圈、小雨伞、小手机、棒棒糖、小玩偶…… |
 
@@ -163,12 +163,12 @@ A macOS desktop pet built with Electron. It lives in a transparent always-on-top
 - Every tweak lives in your config and is layered on at render time — **the character art files are never modified**, so one click puts everything back
 - Saved separately per character
 
-**Expressions and accessories (73 pieces)**
+**Expressions and accessories (88 pieces)**
 
 | Slot | Count | Examples |
 | --- | --- | --- |
 | Expression | 31 | dizzy, angry, sleepy, coy, pitiful, proud, smitten, panicked, shy, determined, tongue-out… |
-| Head | 15 | straw hat, beanie, beret, santa hat, crown, top hat, chef hat, headphones, halo… |
+| Head | 30 | straw hat, beret, top hat, bucket hat, graduation cap, cat ears, bunny ears, cherries, mushroom, halo… |
 | Eyewear | 10 | round glasses, sunglasses, heart glasses, star glasses, square glasses, goggles, eyepatch… |
 | Hand | 17 | coffee, bubble tea, ice cream, donut, umbrella, phone, lollipop, plushie… |
 
