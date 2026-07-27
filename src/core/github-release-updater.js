@@ -35,6 +35,14 @@ function expectedAssetName(version, architecture) {
   return `水滴鱼Pro${version}-macOS-${architecture}.zip`;
 }
 
+function expectedAssetNames(version, architecture) {
+  const fullName = expectedAssetName(version, architecture);
+  // GitHub Release assets may strip the leading non-ASCII product name from
+  // uploaded filenames. Accept that normalized form too, while still requiring
+  // the URL to belong to this repository's Release downloads.
+  return [fullName, `Pro${version}-macOS-${architecture}.zip`];
+}
+
 function parseSha256Digest(value) {
   const match = /^sha256:([a-f0-9]{64})$/i.exec(String(value || '').trim());
   return match ? match[1].toLowerCase() : null;
@@ -63,8 +71,8 @@ function selectReleaseUpdate(release, options) {
   if (comparison === null) throw new Error('无法比较应用版本');
   if (comparison <= 0) return { state: 'up-to-date', currentVersion, version };
 
-  const assetName = expectedAssetName(version, options?.architecture);
-  const asset = Array.isArray(release.assets) ? release.assets.find((item) => item?.name === assetName) : null;
+  const assetNames = new Set(expectedAssetNames(version, options?.architecture));
+  const asset = Array.isArray(release.assets) ? release.assets.find((item) => assetNames.has(item?.name)) : null;
   if (!asset) throw new Error(`Pro${version} 没有适用于这台 Mac 的完整安装包`);
   if (!Number.isSafeInteger(asset.size) || asset.size <= 0 || asset.size > MAX_RELEASE_ASSET_BYTES) {
     throw new Error('GitHub 安装包大小异常，已停止更新');
@@ -165,6 +173,7 @@ module.exports = {
   buildGitHubUserAgent,
   compareVersions,
   expectedAssetName,
+  expectedAssetNames,
   getInstalledAppBundle,
   isExpectedReleaseUrl,
   normalizeVersion,

@@ -5,6 +5,7 @@ const {
   buildMacInstallerScript,
   buildGitHubUserAgent,
   compareVersions,
+  expectedAssetNames,
   getInstalledAppBundle,
   selectReleaseUpdate,
 } = require('../src/core/github-release-updater');
@@ -32,6 +33,23 @@ test('selects only the matching GitHub release asset and reports a newer version
   assert.equal(result.version, '1.2.1');
   assert.equal(result.asset.bundleName, '水滴鱼Pro1.2.1.app');
   assert.equal(result.asset.digest, DIGEST);
+});
+
+test('accepts the ASCII filename GitHub keeps after normalizing a Chinese asset name', () => {
+  const result = selectReleaseUpdate(release({
+    assets: [{
+      ...release().assets[0],
+      name: 'Pro1.2.1-macOS-arm64.zip',
+      browser_download_url: 'https://github.com/Kinley1212/blobfish-desktop-pet/releases/download/v1.2.1/Pro1.2.1-macOS-arm64.zip',
+    }],
+  }), { currentVersion: '1.2.0', architecture: 'arm64' });
+
+  assert.equal(result.state, 'available');
+  assert.equal(result.asset.name, 'Pro1.2.1-macOS-arm64.zip');
+  assert.deepEqual(expectedAssetNames('1.2.1', 'arm64'), [
+    '水滴鱼Pro1.2.1-macOS-arm64.zip',
+    'Pro1.2.1-macOS-arm64.zip',
+  ]);
 });
 
 test('does not offer an update when the latest version is already installed', () => {
