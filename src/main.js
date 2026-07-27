@@ -28,6 +28,7 @@ const { TaskTracker } = require('./core/task-tracker');
 const {
   LATEST_RELEASE_URL,
   buildMacInstallerScript,
+  buildGitHubUserAgent,
   getInstalledAppBundle,
   selectReleaseUpdate,
 } = require('./core/github-release-updater');
@@ -35,6 +36,8 @@ const { version: appVersion } = require('../package.json');
 
 const userDataRoot = app.getPath('appData');
 const appDisplayName = `水滴鱼Pro${appVersion}`;
+const githubUserAgent = buildGitHubUserAgent(appVersion);
+const isMacOS = process.platform === 'darwin';
 app.setName(appDisplayName);
 app.setPath('userData', path.join(userDataRoot, 'BlobfishDesktopPet'));
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
@@ -342,7 +345,7 @@ function reportRuntimeError(scope, error) {
 function syncLaunchAtLogin(enabled) {
   app.setLoginItemSettings({ openAtLogin: enabled });
   const actual = app.getLoginItemSettings().openAtLogin;
-  if (actual !== enabled) throw new Error('macOS 未能更新登录时自动启动设置');
+  if (actual !== enabled) throw new Error('系统未能更新登录时自动启动设置');
   runtimeWarnings.clear('startup');
 }
 
@@ -527,8 +530,8 @@ async function checkForAppUpdate() {
   if (!app.isPackaged) {
     return { state: 'development', message: '开发模式不检查安装包更新。' };
   }
-  if (process.platform !== 'darwin' || !['arm64', 'x64'].includes(process.arch)) {
-    return { state: 'unsupported', message: '当前设备不支持自动更新。' };
+  if (!isMacOS || !['arm64', 'x64'].includes(process.arch)) {
+    return { state: 'unsupported', message: '当前版本暂时只支持 macOS 自动安装更新。' };
   }
 
   try {
@@ -536,7 +539,7 @@ async function checkForAppUpdate() {
       headers: {
         Accept: 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': appDisplayName,
+        'User-Agent': githubUserAgent,
       },
     });
     if (response.status === 404) return { state: 'no-release', message: 'GitHub 还没有发布可安装的正式版本。' };
@@ -563,7 +566,7 @@ async function writeAll(fileHandle, value) {
 
 async function downloadReleaseAsset(update, destination) {
   const response = await net.fetch(update.asset.url, {
-    headers: { 'User-Agent': appDisplayName },
+    headers: { 'User-Agent': githubUserAgent },
   });
   if (!response.ok || !response.body) throw new Error(`GitHub 安装包下载失败（${response.status}）`);
 
@@ -648,6 +651,7 @@ function getIntegrationResourcesRoot() {
 }
 
 function getAgentEventSenderPath() {
+  if (!isMacOS) return null;
   if (app.isPackaged) return path.join(process.resourcesPath, 'native', 'blobfish-agent-event-sender');
   return path.join(__dirname, '..', 'native', 'build', process.arch, 'blobfish-agent-event-sender');
 }
@@ -1208,6 +1212,7 @@ function scheduleIdleChatter() {
 }
 
 function pollBattery() {
+  if (!isMacOS) return;
   readMacBattery()
     .then((sample) => {
       batteryReadErrorLogged = false;
@@ -1243,20 +1248,24 @@ function speakAfterWake() {
 }
 
 function setupSystemMonitors() {
-  batteryTracker = new BatteryThresholdTracker((threshold) => {
-    speak('system.battery', { battery: threshold }, {
-      priority: SPEECH_PRIORITY.urgent,
-      durationMs: 10000,
-      replaceKey: 'system.battery',
-      allowDuringQuiet: true,
-      action: 'waiting',
+  if (isMacOS) {
+    batteryTracker = new BatteryThresholdTracker((threshold) => {
+      speak('system.battery', { battery: threshold }, {
+        priority: SPEECH_PRIORITY.urgent,
+        durationMs: 10000,
+        replaceKey: 'system.battery',
+        allowDuringQuiet: true,
+        action: 'waiting',
+      });
     });
-  });
-  pollBattery();
-  batteryPollTimer = setInterval(pollBattery, 60 * 1000);
+    pollBattery();
+    batteryPollTimer = setInterval(pollBattery, 60 * 1000);
+  }
 
-  powerMonitor.on('on-ac', pollBattery);
-  powerMonitor.on('on-battery', pollBattery);
+  if (isMacOS) {
+    powerMonitor.on('on-ac', pollBattery);
+    powerMonitor.on('on-battery', pollBattery);
+  }
   powerMonitor.on('lock-screen', () => {
     systemPaused = true;
     lockedAt = Date.now();
@@ -1270,6 +1279,7 @@ function setupSystemMonitors() {
 }
 
 function getCalendarHelperPath() {
+  if (!isMacOS) return null;
   if (app.isPackaged) return path.join(process.resourcesPath, 'native', 'blobfish-calendar-helper');
   return path.join(__dirname, '..', 'native', 'build', process.arch, 'blobfish-calendar-helper');
 }
@@ -1295,6 +1305,11 @@ function handleCalendarEvent(calendarEvent) {
 }
 
 function setupCalendarService() {
+  if (!isMacOS) {
+    calendarStatus = 'unsupported';
+    calendarService = null;
+    return;
+  }
   calendarService = new CalendarService({
     helperPath: getCalendarHelperPath(),
     onEvent: handleCalendarEvent,
@@ -1329,10 +1344,20 @@ function getVisibleTaskStatus() {
   );
 }
 
+function playSoundFile(soundPath) {
+  if (!soundPath) return false;
+  if (isMacOS) {
+    execFile('/usr/bin/afplay', [soundPath], () => {});
+    return true;
+  }
+  shell.beep();
+  return true;
+}
+
 const COMPLETION_SOUND_THROTTLE_MS = 300;
 let lastCompletionSoundAt = 0;
 
-// Plays a short macOS system chime when an agent task finishes. Which sound
+// Plays a short system chime when an agent task finishes. Which sound
 // (and whether it plays at all) comes from config.sound.taskComplete, chosen
 // in Settings. Kept out of the speech pipeline on purpose: the bubble is
 // throttled/replaced per event, but the sound is a plain fire-and-forget cue.
@@ -1348,7 +1373,7 @@ function playTaskCompleteSound() {
   const soundPath = taskCompleteSoundPath(setting.soundId) || taskCompleteSoundPath(DEFAULT_TASK_COMPLETE_SOUND_ID);
   if (!soundPath) return;
   lastCompletionSoundAt = now;
-  execFile('/usr/bin/afplay', [soundPath], () => {});
+  playSoundFile(soundPath);
 }
 
 function emitTaskStatus(status = getVisibleTaskStatus()) {
@@ -1447,6 +1472,10 @@ function setupAgentBridge() {
   taskTracker = new TaskTracker(handleTaskTransition);
   updateAgentState(taskTracker.snapshot());
   emitTaskStatus();
+  if (!isMacOS) {
+    agentBridgeStatus = 'unsupported';
+    return;
+  }
   agentBridge = new AgentBridge(path.join(app.getPath('userData'), 'agent-events.sock'), {
     onEvent: (event) => {
       if (!isProviderEnabled(event.provider)) return;
@@ -1476,6 +1505,7 @@ function setupAgentBridge() {
 }
 
 async function connectAgentIntegration(provider, force = false) {
+  if (!isMacOS) throw new Error('当前 Windows 版暂不支持 Codex / Claude Code 状态连接');
   try {
     let status = null;
     if (provider === 'codex') {
@@ -1553,6 +1583,7 @@ async function connectAgentIntegration(provider, force = false) {
 }
 
 async function disconnectAgentIntegration(provider) {
+  if (!isMacOS) throw new Error('当前 Windows 版暂不支持 Codex / Claude Code 状态连接');
   try {
     if (provider === 'claude') {
       const prepared = integrationManager.prepareClaudeTerminalAction(process.execPath, 'disconnect');
@@ -1601,6 +1632,18 @@ async function disconnectAgentIntegration(provider) {
 }
 
 async function inspectAgentIntegration(provider) {
+  if (!isMacOS) {
+    return connectionHealth.decorate(provider, {
+      provider,
+      state: 'unsupported',
+      cliFound: false,
+      installed: false,
+      enabled: false,
+      bundledVersion: integrationManager.getBundledVersion(provider),
+      updateAvailable: false,
+      receiveEnabled: false,
+    });
+  }
   const result = await integrationManager.inspect(provider);
   if (result.state === 'error') reportRuntimeError(`${provider} connection check`, result.error || 'unknown error');
   const bundledVersion = integrationManager.getBundledVersion(provider);
@@ -1615,6 +1658,7 @@ async function inspectAgentIntegration(provider) {
 }
 
 async function testAgentIntegration(provider) {
+  if (!isMacOS) throw new Error('当前 Windows 版暂不支持 Codex / Claude Code 状态连接');
   if (!isProviderEnabled(provider)) throw new Error('任务状态接收已暂停，请先恢复接收');
   const status = await integrationManager.inspect(provider);
   const health = connectionHealth.snapshot(provider);
@@ -1695,9 +1739,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     // A manual preview always plays: it deliberately ignores the enabled
     // toggle and quiet hours, since the user explicitly asked to hear it.
     const soundPath = taskCompleteSoundPath(soundId);
-    if (!soundPath) return false;
-    execFile('/usr/bin/afplay', [soundPath], () => {});
-    return true;
+    return playSoundFile(soundPath);
   });
   ipcMain.handle('settings:save', (event, nextConfig) => {
     assertSettingsSender(event);

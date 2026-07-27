@@ -3,6 +3,7 @@ const path = require('path');
 const REPOSITORY = 'Kinley1212/blobfish-desktop-pet';
 const LATEST_RELEASE_URL = `https://api.github.com/repos/${REPOSITORY}/releases/latest`;
 const MAX_RELEASE_ASSET_BYTES = 512 * 1024 * 1024;
+const USER_AGENT_PRODUCT = 'blobfish-desktop-pet';
 
 function parseVersion(value) {
   const match = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(String(value || '').trim());
@@ -23,6 +24,10 @@ function compareVersions(left, right) {
     if (leftParts[index] !== rightParts[index]) return leftParts[index] - rightParts[index];
   }
   return 0;
+}
+
+function buildGitHubUserAgent(version) {
+  return `${USER_AGENT_PRODUCT}/${normalizeVersion(version) || 'unknown'} (macOS updater)`;
 }
 
 function expectedAssetName(version, architecture) {
@@ -157,6 +162,7 @@ module.exports = {
   MAX_RELEASE_ASSET_BYTES,
   REPOSITORY,
   buildMacInstallerScript,
+  buildGitHubUserAgent,
   compareVersions,
   expectedAssetName,
   getInstalledAppBundle,

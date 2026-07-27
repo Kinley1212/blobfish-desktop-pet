@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('path');
 const {
   buildMacInstallerScript,
+  buildGitHubUserAgent,
   compareVersions,
   getInstalledAppBundle,
   selectReleaseUpdate,
@@ -59,6 +60,13 @@ test('compares stable semantic versions only', () => {
   assert.ok(compareVersions('1.1.2', '1.1.1') > 0);
   assert.equal(compareVersions('v1.1.2', '1.1.2'), 0);
   assert.equal(compareVersions('1.1', '1.1.2'), null);
+});
+
+test('uses an ASCII-only GitHub user agent', () => {
+  const userAgent = buildGitHubUserAgent('1.1.2');
+  assert.equal(userAgent, 'blobfish-desktop-pet/1.1.2 (macOS updater)');
+  assert.doesNotMatch(userAgent, /[^\x20-\x7e]/);
+  assert.doesNotMatch(buildGitHubUserAgent('水滴鱼Pro1.1.2'), /[^\x20-\x7e]/);
 });
 
 test('derives an app bundle only from a normal macOS executable location', () => {

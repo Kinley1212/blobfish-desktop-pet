@@ -31,6 +31,14 @@ function describeAgentIntegration(provider, result = {}, options = {}) {
         instruction: '现在不需要操作，检测完成后这里会告诉你下一步。',
         primary: { action: 'none', label: '正在检测…', disabled: true },
       };
+    case 'unsupported':
+      return {
+        verdict: '暂不支持',
+        verdictState: 'disconnected',
+        summary: `当前系统暂不支持 ${name} 状态连接`,
+        instruction: '这个版本仍可作为桌面宠物使用；任务状态连接目前只在 macOS 版开放。',
+        primary: { action: 'none', label: '当前系统不可用', disabled: true },
+      };
     case 'conflict':
       return {
         verdict: '需要处理',

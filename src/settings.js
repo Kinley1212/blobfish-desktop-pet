@@ -568,6 +568,7 @@ function renderIntegrationStatus(integrationStatus = {}) {
     writeOnly: '只有写入权限，无法读取',
     unknown: '权限状态未知',
     error: '连接失败，请查看日志',
+    unsupported: '当前系统暂不支持',
   };
   const statusName = integrationStatus.calendar || 'disabled';
   byId('calendar-status').textContent = `日历：${labels[statusName] || labels.unknown}`;
@@ -576,6 +577,7 @@ function renderIntegrationStatus(integrationStatus = {}) {
     listening: '本地接收器已就绪（不代表平台已连接）',
     stopped: '未启动',
     error: '启动失败，请查看日志',
+    unsupported: '当前系统暂不支持任务状态接收',
   };
   const bridgeStatus = integrationStatus.agentBridge || 'stopped';
   byId('agent-bridge-status').textContent = bridgeLabels[bridgeStatus] || bridgeLabels.error;
