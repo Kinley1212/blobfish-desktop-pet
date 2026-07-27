@@ -16,6 +16,7 @@ const { calculateVerticalPlacement } = require('./core/pet-boundary');
 const { PhraseEngine } = require('./core/phrase-engine');
 const { getScheduleReminder, isInQuietHours } = require('./core/reminder-scheduler');
 const { DEFAULT_TASK_COMPLETE_SOUND_ID, TASK_COMPLETE_SOUNDS, taskCompleteSoundPath } = require('./core/sound-catalog');
+const { playTaskSoundFile } = require('./core/sound-player');
 const { RuntimeErrorNotifier } = require('./core/runtime-error-notifier');
 const { RuntimeWarningStore } = require('./core/runtime-warning-store');
 const { SpeechQueue } = require('./core/speech-queue');
@@ -1302,8 +1303,8 @@ let lastCompletionSoundAt = 0;
 // in Settings. Kept out of the speech pipeline on purpose: the bubble is
 // throttled/replaced per event, but the sound is a plain fire-and-forget cue.
 // Respects quiet hours (same as non-urgent speech), throttles bursts when
-// several tasks finish at once, and swallows any playback error so it can
-// never disrupt task handling.
+// several tasks finish at once, and falls back to the system beep if macOS
+// refuses to play the selected file.
 function playTaskCompleteSound() {
   const setting = config.sound?.taskComplete;
   if (!setting || !setting.enabled) return;
@@ -1313,7 +1314,11 @@ function playTaskCompleteSound() {
   const soundPath = taskCompleteSoundPath(setting.soundId) || taskCompleteSoundPath(DEFAULT_TASK_COMPLETE_SOUND_ID);
   if (!soundPath) return;
   lastCompletionSoundAt = now;
-  execFile('/usr/bin/afplay', [soundPath], () => {});
+  playTaskSoundFile(soundPath, {
+    execFile,
+    beep: () => shell.beep(),
+    onError: (error) => reportRuntimeError('Task completion sound', error),
+  });
 }
 
 function emitTaskStatus(status = getVisibleTaskStatus()) {
@@ -1661,8 +1666,11 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     // toggle and quiet hours, since the user explicitly asked to hear it.
     const soundPath = taskCompleteSoundPath(soundId);
     if (!soundPath) return false;
-    execFile('/usr/bin/afplay', [soundPath], () => {});
-    return true;
+    return playTaskSoundFile(soundPath, {
+      execFile,
+      beep: () => shell.beep(),
+      onError: (error) => reportRuntimeError('Sound preview', error),
+    });
   });
   ipcMain.handle('settings:save', (event, nextConfig) => {
     assertSettingsSender(event);
