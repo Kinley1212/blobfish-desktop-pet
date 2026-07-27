@@ -1,4 +1,5 @@
 const { getNode, pickOpenerId, resolveChoice } = globalThis.dialogueModel;
+const miniGames = globalThis.miniGames;
 const { applyDiyToSvg } = globalThis.diyModel;
 const { applyAccessoriesToSvg, normalizeAccessories } = globalThis.accessoryModel;
 
@@ -57,6 +58,28 @@ function noPack() {
   currentNodeId = null;
 }
 
+// Draws a set of buttons; each choice carries its own click handler. Used both
+// for scripted nodes and for the free-form buttons a mini-game needs.
+function setChoices(choices) {
+  optionsEl.replaceChildren();
+  for (const choice of choices) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'chat-option';
+    button.textContent = choice.label;
+    button.addEventListener('click', choice.onClick);
+    optionsEl.appendChild(button);
+  }
+}
+
+// The fish reacts in the window — its face changes and it says the line — and
+// the desktop pet mirrors the same expression.
+function reactAndSay(text, face) {
+  showAvatarFace(face);
+  if (face) window.dialogueAPI.react({ face });
+  if (text) promptEl.textContent = text;
+}
+
 function renderNode(nodeId) {
   const node = getNode(pack, nodeId);
   if (!node) {
@@ -65,36 +88,84 @@ function renderNode(nodeId) {
   }
   currentNodeId = nodeId;
   promptEl.textContent = node.prompt;
-  optionsEl.replaceChildren();
-
-  node.options.forEach((option, index) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'chat-option';
-    button.textContent = option.label;
-    button.addEventListener('click', () => choose(index));
-    optionsEl.appendChild(button);
-  });
+  setChoices(node.options.map((option, index) => ({ label: option.label, onClick: () => choose(index) })));
 }
 
 function choose(index) {
   const outcome = resolveChoice(pack, currentNodeId, index);
   if (!outcome) return;
 
-  // The fish reacts right here in the window — its face changes and it says
-  // its reply — and the desktop pet mirrors the same expression.
-  showAvatarFace(outcome.face);
-  if (outcome.face) window.dialogueAPI.react({ face: outcome.face });
-  if (outcome.reply) promptEl.textContent = outcome.reply;
-
+  reactAndSay(outcome.reply, outcome.face);
   for (const button of optionsEl.querySelectorAll('button')) button.disabled = true;
-  // A branch keeps going; a finished topic rolls straight into a new one after
-  // a slightly longer beat, so the reply has time to land.
-  if (outcome.ended) {
+
+  if (outcome.game) {
+    setTimeout(() => runGame(outcome.game), outcome.reply ? 700 : 350);
+  } else if (outcome.ended) {
+    // A finished topic rolls straight into a new one after a beat.
     setTimeout(startFresh, NEXT_TOPIC_DELAY_MS);
   } else {
     setTimeout(() => renderNode(outcome.nextId), outcome.reply ? 950 : 200);
   }
+}
+
+// --- mini-games ----------------------------------------------------------
+// Each game reuses the same window: a prompt plus buttons, with the fish
+// emoting the outcome. After a round you can replay, switch games or go back
+// to talking.
+
+function afterRound(replay) {
+  setChoices([
+    { label: '再来一局', onClick: replay },
+    { label: '换个游戏', onClick: () => renderNode('games') },
+    { label: '不玩了', onClick: startFresh },
+  ]);
+}
+
+function playRpsRound() {
+  promptEl.textContent = '出什么？输了不许哭。';
+  setChoices(miniGames.RPS_MOVES.map((move) => ({
+    label: move.label,
+    onClick: () => {
+      const result = miniGames.playRps(move.id);
+      reactAndSay(`我出${result.fishMove.label.slice(2)}。${result.reply}`, result.face);
+      afterRound(playRpsRound);
+    },
+  })));
+}
+
+function playDiceRound() {
+  promptEl.textContent = '猜大小。骰子要摇了。';
+  setChoices([
+    { label: '压大（8-11）', onClick: () => rollDice('big') },
+    { label: '压小（3-6）', onClick: () => rollDice('small') },
+  ]);
+}
+
+function rollDice(bet) {
+  const result = miniGames.playDice(bet);
+  reactAndSay(`🎲 ${result.dice[0]} + ${result.dice[1]} = ${result.total}。${result.reply}`, result.face);
+  afterRound(playDiceRound);
+}
+
+function playRiddleRound() {
+  const riddle = miniGames.pickRiddle();
+  promptEl.textContent = riddle.question;
+  setChoices(riddle.options.map((label, index) => ({
+    label,
+    onClick: () => {
+      const result = miniGames.checkRiddle(riddle, index);
+      reactAndSay(result.reply, result.face);
+      afterRound(playRiddleRound);
+    },
+  })));
+}
+
+function runGame(gameId) {
+  currentNodeId = null;
+  if (gameId === 'rps') playRpsRound();
+  else if (gameId === 'dice') playDiceRound();
+  else if (gameId === 'riddle') playRiddleRound();
+  else startFresh();
 }
 
 function startFresh() {

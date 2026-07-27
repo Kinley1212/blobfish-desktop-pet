@@ -46,10 +46,10 @@ test('choosing resolves to a reaction and either branches or ends', () => {
   const pack = samplePack();
 
   const branch = resolveChoice(pack, 'hi', 1);
-  assert.deepEqual(branch, { reply: '行吧。', face: 'face-blank', nextId: 'chat', ended: false });
+  assert.deepEqual(branch, { reply: '行吧。', face: 'face-blank', nextId: 'chat', game: null, ended: false });
 
   const leaf = resolveChoice(pack, 'hi', 0);
-  assert.deepEqual(leaf, { reply: '看够了没。', face: 'face-side-eye', nextId: null, ended: true });
+  assert.deepEqual(leaf, { reply: '看够了没。', face: 'face-side-eye', nextId: null, game: null, ended: true });
 
   assert.equal(resolveChoice(pack, 'hi', 9), null, 'an out-of-range option resolves to nothing');
   assert.equal(resolveChoice(pack, 'ghost', 0), null, 'a missing node resolves to nothing');
@@ -90,11 +90,27 @@ test('validation rejects the ways a pack can be broken', () => {
     () => validateDialogue({ nodes: { a: { opener: true, prompt: 'a', options: [{ label: 'x', face: 'crown' }] } } }),
     /face must be a face id/,
   );
+  assert.throws(
+    () => validateDialogue({ nodes: { a: { opener: true, prompt: 'a', options: [{ label: 'x', game: 'chess' }] } } }),
+    /unknown game/,
+  );
+});
+
+test('an option can hand off to a mini-game instead of ending or branching', () => {
+  const pack = validateDialogue({
+    nodes: { a: { opener: true, prompt: 'a', options: [{ label: '玩', game: 'rps' }] } },
+  });
+  assert.deepEqual(resolveChoice(pack, 'a', 0), { reply: null, face: null, nextId: null, game: 'rps', ended: false });
 });
 
 test('the bundled blobfish dialogue pack loads and stays self-consistent', () => {
   const pack = loadDialoguePack(dialoguesRoot, 'blobfish-zh-TW');
-  assert.ok(listOpeners(pack).length >= 3, 'a real conversation needs several openers');
+  assert.ok(listOpeners(pack).length >= 6, 'a real conversation needs plenty of openers');
+  const games = new Set();
+  for (const id of Object.keys(pack.nodes)) {
+    for (const option of pack.nodes[id].options) if (option.game) games.add(option.game);
+  }
+  assert.deepEqual([...games].sort(), ['dice', 'riddle', 'rps'], 'all three games should be launchable from dialogue');
 
   // Every face a choice can trigger must actually exist in the wardrobe, or
   // the reaction would silently do nothing.

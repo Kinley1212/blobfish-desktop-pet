@@ -14,6 +14,7 @@
 
   const NODE_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   const FACE_ID_PATTERN = /^face-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+  const GAMES = Object.freeze(['rps', 'dice', 'riddle']);
   const MAX_PROMPT = 140;
   const MAX_REPLY = 200;
   const MAX_LABEL = 30;
@@ -36,6 +37,10 @@
       if (typeof option.next !== 'string' || !nodeIds.has(option.next)) {
         throw new Error(`${where} points to a missing node: ${option.next}`);
       }
+    }
+    // An option can hand off to a mini-game instead of another line.
+    if (option.game !== undefined && !GAMES.includes(option.game)) {
+      throw new Error(`${where} names an unknown game: ${option.game}`);
     }
   }
 
@@ -103,8 +108,9 @@
       reply: option.reply || null,
       face: option.face || null,
       nextId: option.next || null,
-      // With no follow-up node the conversation is over after this reply.
-      ended: !option.next,
+      game: option.game || null,
+      // With no follow-up node and no game, the topic is over after this reply.
+      ended: !option.next && !option.game,
     };
   }
 
