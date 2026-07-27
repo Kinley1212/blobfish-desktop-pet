@@ -86,6 +86,19 @@ npm run package:mac:x64     # Intel
 >
 > ad-hoc 签名适合本机验收和开发者之间传递。面向普通用户分发仍需 Apple Developer ID 证书签名并完成 notarization。
 
+### 发布可自动更新的版本
+
+设置里的“检查 GitHub 更新”只读取 GitHub 的正式 Release。PR、分支、Draft Release 和 Pre-release 都不会被当成可安装更新。
+
+发布 `vX.Y.Z` 时，Release assets 至少要上传当前 Mac 自动安装需要的完整安装包：
+
+```text
+水滴鱼ProX.Y.Z-macOS-arm64.zip
+水滴鱼ProX.Y.Z-macOS-x64.zip
+```
+
+应用会只选择当前 Mac 芯片对应的 zip，并校验 GitHub API 返回的 SHA-256 digest。Release 没有这些 zip 时，设置页会提示“没有适用于这台 Mac 的完整安装包”。
+
 ### 加一件自己的饰品
 
 新建一个文件夹就行，不用碰代码：
@@ -210,6 +223,19 @@ Each command builds the matching-architecture calendar helper and task sender, p
 > The calendar helper uses macOS 14 EventKit APIs, so packaging needs macOS 14 or newer.
 >
 > Ad-hoc signing is fine for local acceptance and passing builds between developers. Distributing to ordinary users still needs an Apple Developer ID certificate and notarization.
+
+### Publishing an auto-updatable version
+
+The “Check GitHub Updates” button in Settings only reads formal GitHub Releases. PRs, branches, Draft Releases and pre-releases are intentionally ignored.
+
+When publishing `vX.Y.Z`, attach at least the complete macOS packages needed by the in-app updater:
+
+```text
+水滴鱼ProX.Y.Z-macOS-arm64.zip
+水滴鱼ProX.Y.Z-macOS-x64.zip
+```
+
+The app picks only the zip matching the current Mac architecture and verifies the SHA-256 digest reported by the GitHub API. If the Release has no matching zip, Settings will report that no complete installer is available for this Mac.
 
 ### Adding your own accessory
 
