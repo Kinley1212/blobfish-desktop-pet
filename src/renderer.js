@@ -65,6 +65,7 @@ let accessoryCatalog = [];
 // the borrowed expression so the saved one can come back afterwards.
 let moodExpressionId = null;
 let moodExpressionTimer = null;
+let chatInviteUntil = 0; // while > now, a click opens the chat instead of punching
 let renderedLookSignature = null; // the specs the SVG currently in the DOM was built from
 
 function applyPetLayout(layout = {}) {
@@ -153,21 +154,29 @@ function clearMoodExpression() {
   renderAccessories();
 }
 
+function faceIsBundled(faceId) {
+  return accessoryCatalog.some((item) => item.slot === 'face' && item.id === faceId);
+}
+
+// Wears an expression for a while, then hands the slot back to whatever the
+// user picked. Used both by speech moods and by dialogue reactions.
+function wearMoodExpression(faceId, durationMs) {
+  if (!faceId || !faceIsBundled(faceId)) {
+    clearMoodExpression();
+    return;
+  }
+  clearTimeout(moodExpressionTimer);
+  moodExpressionId = faceId;
+  renderAccessories();
+  moodExpressionTimer = setTimeout(clearMoodExpression, Math.max(800, durationMs || 0));
+}
+
 // Sometimes a line comes with a face. It lasts as long as the bubble does, and
 // only borrows the slot - whatever the user picked is restored afterwards.
 function showMoodExpression(event, durationMs) {
   const faces = accessoryCatalog.filter((item) => item.slot === 'face').map((item) => item.id);
   if (faces.length === 0) return;
-  const expression = pickExpression(event, { available: faces });
-  if (!expression) {
-    clearMoodExpression();
-    return;
-  }
-
-  clearTimeout(moodExpressionTimer);
-  moodExpressionId = expression;
-  renderAccessories();
-  moodExpressionTimer = setTimeout(clearMoodExpression, Math.max(800, durationMs || 0));
+  wearMoodExpression(pickExpression(event, { available: faces }), durationMs);
 }
 
 function applyCharacterPack(pack) {
@@ -537,6 +546,16 @@ window.petAPI.onTaskStatus((state) => renderTaskStatus(state));
 window.petAPI.onCharacterPack((pack) => applyCharacterPack(pack));
 window.petAPI.onPetLayout((layout) => applyPetLayout(layout));
 window.petAPI.onPetConfig((config) => applyPetConfig(config));
+window.petAPI.onDialogueReaction((reaction) => {
+  if (reaction.text) showBubble(reaction.text, reaction.durationMs);
+  wearMoodExpression(reaction.face, reaction.durationMs);
+});
+window.petAPI.onChatInvite((invite) => {
+  showBubble(invite.text, invite.durationMs);
+  // A hopeful little face while it waits to be clicked.
+  wearMoodExpression('face-coy', invite.durationMs);
+  chatInviteUntil = performance.now() + invite.durationMs;
+});
 window.petAPI.onBump(() => triggerBump());
 window.petAPI.onPetAction((action) => triggerPetAction(action));
 window.petAPI.getAgentState().then((state) => applyAgentState(state));
@@ -572,6 +591,17 @@ pet.addEventListener('contextmenu', (event) => {
 
 pet.addEventListener('click', () => {
   if (movedDuringDrag) return;
+
+  // If the fish just asked to chat, a click takes it up on the offer rather
+  // than punching it.
+  if (performance.now() < chatInviteUntil) {
+    chatInviteUntil = 0;
+    clearTimeout(bubbleTimer);
+    bubble.style.opacity = '0';
+    clearMoodExpression();
+    window.petAPI.openChat();
+    return;
+  }
 
   window.petAPI.setPaused(true);
   clearTimeout(bumpTimer);

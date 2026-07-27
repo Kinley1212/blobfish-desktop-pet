@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="styles/dialogue.css" />
+  <title>和水滴鱼聊天</title>
+</head>
+<body>
+  <main class="chat-card">
+    <header class="chat-head">
+      <span class="chat-title">和水滴鱼聊天</span>
+      <button id="close" type="button" class="chat-close" aria-label="关闭">✕</button>
+    </header>
+    <div class="chat-stage">
+      <div id="avatar" class="chat-avatar" aria-hidden="true"></div>
+      <p id="prompt" class="chat-prompt" role="status" aria-live="polite"></p>
+    </div>
+    <div id="options" class="chat-options"></div>
+    <footer class="chat-foot">
+      <button id="another" type="button" class="chat-ghost">换个话题</button>
+    </footer>
+  </main>
+  <script src="core/diy-model.js"></script>
+  <script src="core/accessory-model.js"></script>
+  <script src="core/dialogue-model.js"></script>
+  <script src="dialogue.js"></script>
+</body>
+</html>

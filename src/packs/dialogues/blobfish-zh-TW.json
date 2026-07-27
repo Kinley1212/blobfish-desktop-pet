@@ -1,0 +1,215 @@
+{
+  "nodes": {
+    "poke": {
+      "opener": true,
+      "prompt": "……你戳我干嘛。",
+      "options": [
+        {
+          "label": "就想看看你",
+          "reply": "看够了没。",
+          "face": "face-side-eye"
+        },
+        {
+          "label": "陪我聊会儿",
+          "reply": "……行吧。反正我也没在忙。",
+          "face": "face-blank",
+          "next": "chat"
+        },
+        {
+          "label": "没事，撤了",
+          "reply": "……哦。走好。",
+          "face": "face-cold"
+        }
+      ]
+    },
+    "mood": {
+      "opener": true,
+      "prompt": "今天心情，一般。你呢？",
+      "options": [
+        {
+          "label": "我很好！",
+          "reply": "……真好啊你。",
+          "face": "face-smug"
+        },
+        {
+          "label": "有点累",
+          "reply": "那就一起烂着。",
+          "face": "face-sleepy",
+          "next": "tired"
+        },
+        {
+          "label": "不太好",
+          "reply": "……过来，蹭一下。",
+          "face": "face-coy",
+          "next": "comfort"
+        }
+      ]
+    },
+    "hungry": {
+      "opener": true,
+      "prompt": "我有点饿了……你吃了没。",
+      "options": [
+        {
+          "label": "吃了",
+          "reply": "……哼，也不叫我。",
+          "face": "face-annoyed"
+        },
+        {
+          "label": "还没",
+          "reply": "那一起？我请你看我吃。",
+          "face": "face-sparkle",
+          "next": "eat"
+        },
+        {
+          "label": "给你吃的",
+          "reply": "……勉为其难收下了。",
+          "face": "face-satisfied"
+        }
+      ]
+    },
+    "work": {
+      "opener": true,
+      "prompt": "还在工作？都几点了。",
+      "options": [
+        {
+          "label": "快做完了",
+          "reply": "做完就歇。别硬撑。",
+          "face": "face-determined"
+        },
+        {
+          "label": "做不完了",
+          "reply": "……做不完就明天。地球不会爆。",
+          "face": "face-cold",
+          "next": "overwork"
+        },
+        {
+          "label": "在摸鱼",
+          "reply": "……摸鱼还带上我。",
+          "face": "face-teasing"
+        }
+      ]
+    },
+    "praise": {
+      "opener": true,
+      "prompt": "你觉得……我可爱吗。",
+      "options": [
+        {
+          "label": "超可爱",
+          "reply": "……知道了。别说了。",
+          "face": "face-shy",
+          "next": "shy"
+        },
+        {
+          "label": "还行吧",
+          "reply": "『还行』？你再说一次试试。",
+          "face": "face-angry"
+        },
+        {
+          "label": "丑萌丑萌的",
+          "reply": "……我谢谢你啊。",
+          "face": "face-blank"
+        }
+      ]
+    },
+    "chat": {
+      "prompt": "那……说点什么。别冷场。",
+      "options": [
+        {
+          "label": "夸夸你",
+          "reply": "……继续。我听着呢。",
+          "face": "face-love"
+        },
+        {
+          "label": "讲个烦心事",
+          "reply": "嗯。倒吧，我接着。",
+          "face": "face-determined"
+        },
+        {
+          "label": "算了不说了",
+          "reply": "……又不说。行。",
+          "face": "face-annoyed"
+        }
+      ]
+    },
+    "tired": {
+      "prompt": "累了就别撑着。要不要躺一会儿。",
+      "options": [
+        {
+          "label": "躺！",
+          "reply": "对喽。我陪你烂在这。",
+          "face": "face-satisfied"
+        },
+        {
+          "label": "还得再撑撑",
+          "reply": "……逞强。那我盯着你。",
+          "face": "face-side-eye"
+        }
+      ]
+    },
+    "comfort": {
+      "prompt": "谁惹你了。报个名，我去瞪他。",
+      "options": [
+        {
+          "label": "就是有点丧",
+          "reply": "……没事。我在。",
+          "face": "face-love"
+        },
+        {
+          "label": "被你治愈了",
+          "reply": "……哼，算你识货。",
+          "face": "face-swirl-cheek"
+        }
+      ]
+    },
+    "eat": {
+      "prompt": "你想吃啥？我帮你选（虽然我也吃不着）。",
+      "options": [
+        {
+          "label": "火锅！",
+          "reply": "……水滴鱼进火锅？你狠。",
+          "face": "face-scared"
+        },
+        {
+          "label": "随便",
+          "reply": "『随便』最难了。你懂不懂。",
+          "face": "face-annoyed"
+        },
+        {
+          "label": "跟你一样",
+          "reply": "我吃……空气。你确定？",
+          "face": "face-teasing"
+        }
+      ]
+    },
+    "overwork": {
+      "prompt": "答应我，做完这件就下班。行不行。",
+      "options": [
+        {
+          "label": "答应你",
+          "reply": "……嗯。说话算话。",
+          "face": "face-satisfied"
+        },
+        {
+          "label": "做不到",
+          "reply": "……那我坐这陪你熬。",
+          "face": "face-cold"
+        }
+      ]
+    },
+    "shy": {
+      "prompt": "……别、别一直看着我。",
+      "options": [
+        {
+          "label": "偏要看",
+          "reply": "……随你。我不躲了。",
+          "face": "face-coy"
+        },
+        {
+          "label": "好，不看了",
+          "reply": "……诶，也别真不看。",
+          "face": "face-pitiful"
+        }
+      ]
+    }
+  }
+}

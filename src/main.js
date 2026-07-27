@@ -10,6 +10,7 @@ const { ConfigStore, DEFAULT_CONFIG, validateConfig } = require('./core/config-s
 const { comparePluginVersions, IntegrationManager, PLUGIN_NAME } = require('./core/integration-manager');
 const { loadCharacterPack } = require('./core/pack-loader');
 const { loadAccessoryCatalog } = require('./core/accessory-loader');
+const { loadDialoguePackSafe } = require('./core/dialogue-loader');
 const { loadLanguagePack } = require('./core/language-pack-loader');
 const { calculateVerticalPlacement } = require('./core/pet-boundary');
 const { PhraseEngine } = require('./core/phrase-engine');
@@ -44,6 +45,8 @@ const LANGUAGES_ROOT = path.join(__dirname, 'packs', 'languages');
 const ACCESSORIES_ROOT = path.join(__dirname, 'packs', 'accessories');
 // The wardrobe is static art, so it is read once and shared by every window.
 const accessoryCatalog = loadAccessoryCatalog(ACCESSORIES_ROOT);
+const DIALOGUES_ROOT = path.join(__dirname, 'packs', 'dialogues');
+let dialoguePack = loadDialoguePackSafe(DIALOGUES_ROOT, DEFAULT_LANGUAGE_PACK_ID);
 let characterPack = loadCharacterPack(CHARACTERS_ROOT, DEFAULT_CHARACTER_PACK_ID);
 const SPEECH_PRIORITY = Object.freeze({
   idle: 10,
@@ -84,6 +87,7 @@ const THROW_POWER = 1.35;
 
 let win;
 let settingsWin;
+let dialogueWin;
 let tray;
 let direction = 1;
 let verticalDirection = 1; // 1 = moving down, -1 = moving up (vertical roam mode)
@@ -99,6 +103,7 @@ let petTopOffset = null;
 let flingIntervalId = null;
 let speechQueue;
 let idleChatterTimer = null;
+let chatInviteTimer = null;
 let clickCount = 0;
 let configStore;
 let startupGreetingStore;
@@ -268,6 +273,34 @@ function maybeSpeakStartupGreeting(date = new Date()) {
   return true;
 }
 
+// Every so often the fish quietly offers to chat. It never steals focus: it
+// just floats a bubble, and only if you click the fish does the window open.
+const CHAT_INVITE_MIN_MS = 25 * 60 * 1000;
+const CHAT_INVITE_MAX_MS = 55 * 60 * 1000;
+const CHAT_INVITE_CHANCE = 0.5;
+const CHAT_INVITE_LINES = ['……有空吗。', '陪我说会儿话？', '喂……在忙吗。', '有点无聊。要不聊聊？'];
+const CHAT_INVITE_DURATION_MS = 9000;
+
+function scheduleChatInvite() {
+  clearTimeout(chatInviteTimer);
+  const delay = CHAT_INVITE_MIN_MS + Math.random() * (CHAT_INVITE_MAX_MS - CHAT_INVITE_MIN_MS);
+  chatInviteTimer = setTimeout(() => {
+    maybeInviteToChat();
+    scheduleChatInvite();
+  }, delay);
+}
+
+function maybeInviteToChat() {
+  if (!win || win.isDestroyed()) return;
+  if (dialogueWin && !dialogueWin.isDestroyed()) return; // already chatting
+  if (isMovementPaused() || flingIntervalId) return;
+  if (isInQuietHours(new Date(), config.quietHours)) return;
+  if (Math.random() >= CHAT_INVITE_CHANCE) return;
+
+  const text = CHAT_INVITE_LINES[Math.floor(Math.random() * CHAT_INVITE_LINES.length)];
+  win.webContents.send('chat-invite', { text, durationMs: CHAT_INVITE_DURATION_MS });
+}
+
 function isMovementPaused() {
   return paused || contextMenuPaused || systemPaused || agentPaused || hoverPaused;
 }
@@ -393,6 +426,7 @@ function buildPetMenuTemplate() {
       enabled: false,
     },
     { type: 'separator' },
+    { label: '找水滴鱼聊天…', click: () => createDialogueWindow() },
     { label: '打开设置…', click: () => createSettingsWindow() },
     {
       label: characterPack?.settingsCopy?.roamWithoutTasksLabel || '没有任务时也继续游动',
@@ -483,6 +517,39 @@ function createSettingsWindow() {
   settingsWin.loadFile(path.join(__dirname, 'settings.html'));
 }
 
+// The chooser lives in its own small window rather than the click-through pet
+// window, so its buttons are always reliably clickable.
+function createDialogueWindow() {
+  if (dialogueWin && !dialogueWin.isDestroyed()) {
+    dialogueWin.show();
+    dialogueWin.focus();
+    return;
+  }
+  dialogueWin = new BrowserWindow({
+    width: 320,
+    height: 300,
+    resizable: false,
+    fullscreenable: false,
+    title: '和水滴鱼聊天',
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    alwaysOnTop: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'dialogue-preload.js'),
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+  dialogueWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  dialogueWin.on('closed', () => { dialogueWin = null; });
+  dialogueWin.loadFile(path.join(__dirname, 'dialogue.html'));
+}
+
+function assertDialogueSender(event) {
+  return dialogueWin && !dialogueWin.isDestroyed() && event.sender.id === dialogueWin.webContents.id;
+}
+
 function revealExistingInstance() {
   if (app.isReady()) {
     createSettingsWindow();
@@ -545,7 +612,10 @@ function applyConfig(nextConfig) {
     emitConnectionHealth('claude');
   }
   if (characterChanged) loadConfiguredCharacter(config.pet.characterPackId);
-  if (languageChanged) loadConfiguredLanguage(config.language.packId);
+  if (languageChanged) {
+    loadConfiguredLanguage(config.language.packId);
+    dialoguePack = loadDialoguePackSafe(DIALOGUES_ROOT, config.language.packId);
+  }
   if (calendarService) calendarService.setEnabled(config.integrations.calendar);
   if (taskTracker) {
     if (!config.integrations.codex) taskTracker.removeProvider('codex');
@@ -565,6 +635,7 @@ function applyConfig(nextConfig) {
     syncHoverState();
   }
   scheduleIdleChatter();
+  scheduleChatInvite();
   rebuildTrayMenu();
 }
 
@@ -838,6 +909,31 @@ function createWindow() {
   });
 
   ipcMain.on('pet-context-menu', showPetContextMenu);
+  ipcMain.on('pet-open-chat', () => createDialogueWindow());
+  ipcMain.handle('dialogue:get', (event) => (assertDialogueSender(event) ? dialoguePack : null));
+  ipcMain.handle('dialogue:character', (event) => {
+    if (!assertDialogueSender(event)) return null;
+    return {
+      manifest: characterPack.manifest,
+      svg: characterPack.svg,
+      accessories: accessoryCatalog,
+      worn: getCharacterAccessories(config.pet.characterPackId),
+      customization: getCharacterDiy(config.pet.characterPackId),
+    };
+  });
+  ipcMain.on('dialogue:react', (event, reaction) => {
+    if (!assertDialogueSender(event)) return;
+    if (!reaction || typeof reaction !== 'object') return;
+    const text = typeof reaction.reply === 'string' ? reaction.reply.slice(0, 200) : '';
+    const face = typeof reaction.face === 'string' ? reaction.face : null;
+    if (!win || win.isDestroyed()) return;
+    // Reuse the pet's own bubble + expression so the reaction shows on the
+    // desktop, not in the chat window.
+    win.webContents.send('dialogue-reaction', { text, face, durationMs: 3200 });
+  });
+  ipcMain.on('dialogue:close', (event) => {
+    if (assertDialogueSender(event)) dialogueWin.close();
+  });
 
   ipcMain.on('drag-start', () => {
     paused = true;
@@ -1050,6 +1146,7 @@ function scheduleReminders() {
 
 function scheduleIdleChatter() {
   clearTimeout(idleChatterTimer);
+  clearTimeout(chatInviteTimer);
   if (!config.language.idleEnabled) return;
   const minMs = config.language.idleMinMinutes * 60 * 1000;
   const maxMs = config.language.idleMaxMinutes * 60 * 1000;
