@@ -20,6 +20,7 @@ const { RuntimeErrorNotifier } = require('./core/runtime-error-notifier');
 const { RuntimeWarningStore } = require('./core/runtime-warning-store');
 const { SpeechQueue } = require('./core/speech-queue');
 const { SPEECH_DURATION_MS } = require('./core/speech-timing');
+const { playTaskSoundFile } = require('./core/sound-player');
 const { StartupGreetingStore, getStartupGreeting } = require('./core/startup-greeting');
 const { formatProviderTaskSummary } = require('./core/task-menu-summary');
 const { advanceFractionalCoordinate, roundWindowCoordinate } = require('./core/fractional-position');
@@ -542,7 +543,12 @@ async function checkForAppUpdate() {
         'User-Agent': githubUserAgent,
       },
     });
-    if (response.status === 404) return { state: 'no-release', message: 'GitHub 还没有发布可安装的正式版本。' };
+    if (response.status === 404) {
+      return {
+        state: 'no-release',
+        message: 'GitHub 还没有发布正式 Release；PR、分支和 Draft 不会被一键更新发现。',
+      };
+    }
     if (!response.ok) throw new Error(`GitHub 返回了 ${response.status}`);
     return selectReleaseUpdate(await response.json(), {
       currentVersion: appVersion,
@@ -1345,13 +1351,12 @@ function getVisibleTaskStatus() {
 }
 
 function playSoundFile(soundPath) {
-  if (!soundPath) return false;
-  if (isMacOS) {
-    execFile('/usr/bin/afplay', [soundPath], () => {});
-    return true;
-  }
-  shell.beep();
-  return true;
+  return playTaskSoundFile(soundPath, {
+    execFile,
+    platform: process.platform,
+    beep: () => shell.beep(),
+    onError: (error) => reportRuntimeError('Task completion sound', error),
+  });
 }
 
 const COMPLETION_SOUND_THROTTLE_MS = 300;
