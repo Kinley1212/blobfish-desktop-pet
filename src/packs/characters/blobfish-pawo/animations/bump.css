@@ -1,0 +1,11 @@
+#pet.bump {
+  animation: blobfish-bump 0.32s ease;
+}
+
+@keyframes blobfish-bump {
+  0% { transform: translateX(-50%) scaleX(var(--dir)) scaleY(1); }
+  30% { transform: translateX(-50%) scaleX(calc(var(--dir) * 1.38)) scaleY(0.6); }
+  55% { transform: translateX(-50%) scaleX(calc(var(--dir) * 0.85)) scaleY(1.18); }
+  75% { transform: translateX(-50%) scaleX(calc(var(--dir) * 1.08)) scaleY(0.94); }
+  100% { transform: translateX(-50%) scaleX(var(--dir)) scaleY(1); }
+}

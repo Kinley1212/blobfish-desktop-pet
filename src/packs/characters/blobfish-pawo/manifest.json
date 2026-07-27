@@ -1,0 +1,100 @@
+{
+  "id": "blobfish-pawo",
+  "displayName": "水滴魚（趴窩）",
+  "version": 1,
+  "renderer": "svg",
+  "art": "art/character.svg",
+  "preview": "art/character.svg",
+  "settingsCopy": "ui/settings.zh-CN.json",
+  "size": {
+    "width": 126,
+    "height": 88
+  },
+  "anchor": "bottom-center",
+  "styles": [
+    "animations/base.css",
+    "animations/idle.css",
+    "animations/blink.css",
+    "animations/roam.css",
+    "animations/working.css",
+    "animations/waiting.css",
+    "animations/success.css",
+    "animations/failed.css",
+    "animations/hit.css",
+    "animations/bump.css",
+    "animations/dragging.css",
+    "animations/exit.css"
+  ],
+  "actions": {
+    "idle": "idle",
+    "blink": "blink",
+    "roam": "roam",
+    "working": "working",
+    "waiting": "waiting",
+    "success": "success",
+    "failed": "failed",
+    "hit": "hit",
+    "bump": "bump",
+    "dragging": "dragging",
+    "exit": "exit"
+  },
+  "accessories": {
+    "slots": {
+      "face": { "x": 73, "y": 51, "scale": 0.94 },
+      "hat": { "x": 88, "y": 17, "scale": 1.02 },
+      "eyewear": { "x": 71, "y": 49, "scale": 0.96 },
+      "hand": { "x": 151, "y": 83, "scale": 0.38 }
+    }
+  },
+  "diy": {
+    "enabled": true,
+    "shapes": {
+      "body": [
+        {
+          "id": "default",
+          "label": "趴窩",
+          "d": "M 18 68 C 18 39 45 14 83 10 C 124 6 155 26 164 58 C 174 94 145 116 98 120 C 51 124 19 105 18 68 Z"
+        },
+        {
+          "id": "round",
+          "label": "团圆",
+          "d": "M 20 66 C 20 34 48 11 87 9 C 126 7 155 28 163 60 C 171 93 145 116 98 119 C 53 122 20 102 20 66 Z",
+          "hideShading": true
+        },
+        {
+          "id": "wide",
+          "label": "趴平",
+          "d": "M 12 72 C 14 43 45 22 88 19 C 134 16 169 38 171 70 C 174 101 143 117 94 119 C 46 121 10 104 12 72 Z",
+          "hideShading": true
+        }
+      ],
+      "fins": [
+        {
+          "id": "default",
+          "label": "趴趴鳍",
+          "left": "M 28 55 C 13 47 5 55 7 68 C 9 78 18 80 30 73 Z",
+          "right": "M 150 78 C 166 71 177 78 178 91 C 178 104 163 109 145 104 C 145 95 146 86 150 78 Z"
+        },
+        {
+          "id": "small",
+          "label": "小圆鳍",
+          "left": "M 27 57 C 17 51 10 58 11 67 C 12 75 20 77 29 72 Z",
+          "right": "M 151 81 C 162 76 171 81 171 91 C 171 100 160 104 147 101 C 147 94 148 87 151 81 Z"
+        },
+        {
+          "id": "soft",
+          "label": "软软鳍",
+          "left": "M 29 54 C 15 48 5 58 8 72 C 11 82 22 79 31 72 Z",
+          "right": "M 149 79 C 164 69 180 78 179 92 C 178 106 160 111 143 104 C 144 94 146 85 149 79 Z"
+        }
+      ]
+    }
+  },
+  "fallbacks": {
+    "working": "roam",
+    "waiting": "idle",
+    "success": "idle",
+    "failed": "idle"
+  },
+  "defaultLanguagePack": "blobfish-zh-TW"
+}

@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('settingsAPI', {
   reset: () => ipcRenderer.invoke('settings:reset'),
   previewSound: (soundId) => ipcRenderer.invoke('settings:preview-sound', soundId),
   getCharacterArt: (packId) => ipcRenderer.invoke('settings:character-art', packId),
+  checkAppUpdate: () => ipcRenderer.invoke('app-update:check'),
+  installAppUpdate: () => ipcRenderer.invoke('app-update:install'),
   getAgentIntegration: (provider) => ipcRenderer.invoke('agent-integrations:inspect', provider),
   installAgentIntegration: (provider) => ipcRenderer.invoke('agent-integrations:install', provider),
   repairAgentIntegration: (provider) => ipcRenderer.invoke('agent-integrations:repair', provider),
@@ -13,6 +15,7 @@ contextBridge.exposeInMainWorld('settingsAPI', {
   testAgentIntegration: (provider) => ipcRenderer.invoke('agent-integrations:test', provider),
   setAgentIntegrationReceiving: (provider, enabled) => ipcRenderer.invoke('agent-integrations:set-receiving', provider, enabled),
   onIntegrationStatus: (callback) => ipcRenderer.on('integration-status', (_event, status) => callback(status)),
+  onAppUpdateProgress: (callback) => ipcRenderer.on('app-update-progress', (_event, progress) => callback(progress)),
   onAgentConnectionHealth: (callback) => ipcRenderer.on('agent-connection-health', (_event, health) => callback(health)),
   onSettingChanged: (callback) => ipcRenderer.on('setting-changed', (_event, setting) => callback(setting)),
 });

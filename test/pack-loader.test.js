@@ -7,6 +7,7 @@ const {
   assertInside,
   loadCharacterPack,
   validateDiy,
+  validateEmbeddedImages,
   validateManifest,
   validateSettingsCopy,
 } = require('../src/core/pack-loader');
@@ -81,6 +82,35 @@ test('loads the grass buddy pack with compositor-friendly standard actions', () 
   assert.doesNotMatch(pack.svg, /stroke-width="5\.5"/, 'body should not flatten the hand-drawn outline into one fixed stroke width');
 });
 
+test('loads the vector pawo blobfish with DIY shapes, blink eyes and the shared language pack', () => {
+  const pack = loadCharacterPack(charactersRoot, 'blobfish-pawo');
+
+  assert.equal(pack.manifest.displayName, '水滴魚（趴窩）');
+  assert.equal(pack.manifest.defaultLanguagePack, 'blobfish-zh-TW');
+  assert.equal(pack.settingsCopy.pageTitle, '水滴魚（趴窩）');
+  assert.equal(pack.manifest.diy.enabled, true);
+  assert.ok(pack.manifest.diy.shapes.body.length >= 3);
+  assert.ok(pack.manifest.diy.shapes.fins.length >= 3);
+  assert.match(pack.svg, /class="body-shape"/);
+  assert.match(pack.svg, /class="eye eye-left"/);
+  assert.doesNotMatch(pack.svg, /<image\b/, 'the 2D pawo character must remain editable vector art');
+  assert.match(pack.styles.find((style) => style.path.endsWith('blink.css')).css, /\.eye\.is-blinking/);
+});
+
+test('loads the 3D pawo source as a bounded local WebP with blink overlays', () => {
+  const pack = loadCharacterPack(charactersRoot, 'blobfish-3d-pawo');
+
+  assert.equal(pack.manifest.displayName, '水滴魚（3D趴窩）');
+  assert.equal(pack.manifest.defaultLanguagePack, 'blobfish-zh-TW');
+  assert.equal(pack.settingsCopy.pageTitle, '水滴魚（3D趴窩）');
+  assert.equal(pack.manifest.diy, undefined);
+  assert.match(pack.svg, /href="data:image\/webp;base64,/);
+  assert.doesNotMatch(pack.svg, /pack-image:/);
+  assert.match(pack.svg, /class="eye eye-left"/);
+  assert.match(pack.styles.find((style) => style.path.endsWith('blink.css')).css, /blobfish-3d-pawo-blink/);
+  assert.ok(Buffer.byteLength(pack.svg) < 512 * 1024);
+});
+
 test('rejects invalid ids and paths outside the pack root', () => {
   assert.throws(() => loadCharacterPack(charactersRoot, '../blobfish'), /Invalid character pack id/);
   assert.throws(() => assertInside(charactersRoot, '../outside'), /escapes its root/);
@@ -93,8 +123,8 @@ test('legacy character settings copy remains valid without greeting labels', () 
   assert.doesNotThrow(() => validateSettingsCopy(copy));
 });
 
-test('both blobfish packs ship DIY shape presets and the grass buddy does not', () => {
-  for (const id of ['blobfish', 'blobfish-wotou']) {
+test('all vector blobfish packs ship DIY shape presets and non-vector characters do not', () => {
+  for (const id of ['blobfish', 'blobfish-wotou', 'blobfish-pawo']) {
     const { manifest } = loadCharacterPack(charactersRoot, id);
     assert.equal(manifest.diy.enabled, true, `${id} should opt into DIY`);
     assert.ok(manifest.diy.shapes.body.length >= 2, `${id} needs body presets`);
@@ -104,6 +134,7 @@ test('both blobfish packs ship DIY shape presets and the grass buddy does not', 
   }
 
   assert.equal(loadCharacterPack(charactersRoot, 'grass-buddy').manifest.diy, undefined);
+  assert.equal(loadCharacterPack(charactersRoot, 'blobfish-3d-pawo').manifest.diy, undefined);
 });
 
 test('DIY presets reject anything that is not plain path data', () => {
@@ -138,4 +169,11 @@ test('a character manifest with a broken DIY block fails to load', () => {
     () => validateManifest({ ...manifest, diy: { enabled: true, shapes: { body: [] } } }, 'blobfish'),
     /must list 1-12 options/,
   );
+});
+
+test('embedded character images accept only a small declared PNG or WebP set', () => {
+  assert.doesNotThrow(() => validateEmbeddedImages({ character: 'art/character.webp' }));
+  assert.throws(() => validateEmbeddedImages({}), /1-4 images/);
+  assert.throws(() => validateEmbeddedImages({ Character: 'art/character.webp' }), /Invalid embedded image id/);
+  assert.throws(() => validateEmbeddedImages({ character: 'art/character.svg' }), /PNG or WebP/);
 });

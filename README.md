@@ -4,15 +4,15 @@
 
 # 水滴鱼 · Blobfish Desktop Pet
 
-一只住在 macOS 桌面上的水滴鱼。会游泳、会碎碎念、会提醒你下班，还能自己捏形状、换表情、戴帽子。<br>
-A blobfish that lives on your macOS desktop — it swims, mutters, reminds you to log off, and lets you reshape its face and dress it up.
+一只住在桌面上的水滴鱼。会游泳、会碎碎念、会提醒你下班，还能自己捏形状、换表情、戴帽子。<br>
+A blobfish that lives on your desktop — it swims, mutters, reminds you to log off, and lets you reshape its face and dress it up.
 
 **[中文](#中文) · [English](#english)**
 
-![platform](https://img.shields.io/badge/platform-macOS-1f2328?style=flat-square)
+![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-1f2328?style=flat-square)
 ![electron](https://img.shields.io/badge/Electron-43-47848F?style=flat-square)
 ![node](https://img.shields.io/badge/Node.js-%E2%89%A522.12-5FA04E?style=flat-square)
-![version](https://img.shields.io/badge/version-1.1.0-c87d95?style=flat-square)
+![version](https://img.shields.io/badge/version-1.1.2-c87d95?style=flat-square)
 
 </div>
 
@@ -22,7 +22,7 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 
 ### 这是什么
 
-一个 Electron 写的 macOS 桌面宠物。透明置顶窗口，不占程序坞，平时在屏幕边缘来回游动，到点提醒你吃饭下班，跑 Codex / Claude Code 任务时会在头顶显示任务卡片。
+一个 Electron 写的桌面宠物。透明置顶窗口，平时在屏幕边缘来回游动，到点提醒你吃饭下班，跑 Codex / Claude Code 任务时会在头顶显示任务卡片。
 
 ### 功能
 
@@ -73,14 +73,29 @@ npm start
 
 右键鱼本体、或点击菜单栏的 🐟 打开设置。
 
+### 应用内更新
+
+在“设置 → 连接与隐私 → 软件更新”中点“检查 GitHub 更新”。发现新版后，“下载并更新”会只下载适合当前 Mac 芯片的 GitHub Release 安装包，校验 GitHub 提供的 SHA-256 后自动安装、重开应用，并把旧版放进废纸篓以便恢复。
+
+维护者发布时需要创建**正式** GitHub Release，标签使用 `v1.1.2` 这类格式，并上传同版本产物：
+
+```text
+水滴鱼Pro1.1.2-macOS-arm64.zip
+水滴鱼Pro1.1.2-macOS-x64.zip
+水滴鱼Pro1.1.2-windows-x64.zip
+```
+
+Draft 和 Pre-release 不会被应用内更新发现；缺少 GitHub SHA-256 摘要的安装包也不会自动安装。当前应用内自动安装更新只支持 macOS 包，Windows 包用于手动下载解压。
+
 ### 打包成 App
 
 ```bash
 npm run package:mac:arm64   # Apple Silicon
 npm run package:mac:x64     # Intel
+npm run package:win:x64     # Windows zip
 ```
 
-会编译对应架构的日历助手与任务发送器、生成 App、做 ad-hoc 本地签名、校验架构，产物写入 `release/`。`npm run package:mac` 会依次生成两种架构。
+macOS 命令会编译对应架构的日历助手与任务发送器、生成 App、做 ad-hoc 本地签名、校验架构，产物写入 `release/`。`npm run package:mac` 会依次生成两种架构。Windows 命令会生成免安装 zip 包；桌宠本体、设置、角色和语言可用，Codex / Claude Code 状态连接、macOS 日历和应用内自动安装更新暂时只在 macOS 版开放。
 
 > 日历助手用到 macOS 14 的 EventKit 接口，需要在 macOS 14 或更新的系统上打包。
 >
@@ -147,7 +162,7 @@ npm test
 
 ### What is this
 
-A macOS desktop pet built with Electron. It lives in a transparent always-on-top window, stays out of the Dock, swims back and forth along the edge of your screen, reminds you when to eat and when to log off, and shows task cards above its head while Codex or Claude Code is working.
+A desktop pet built with Electron. It lives in a transparent always-on-top window, swims back and forth along the edge of your screen, reminds you when to eat and when to log off, and shows task cards above its head while Codex or Claude Code is working.
 
 ### Features
 
@@ -198,14 +213,29 @@ npm start
 
 Right-click the fish, or click the 🐟 in the menu bar, to open settings.
 
+### In-app updates
+
+Open **Settings → Connections & Privacy → Software Update**, then choose **Check GitHub updates**. When a newer release is available, the app downloads only the matching Mac architecture, verifies GitHub's SHA-256 digest, installs it, reopens the app, and moves the previous copy to the Trash for recovery.
+
+Maintainers must create a published GitHub Release tagged like `v1.1.2` and attach the matching files:
+
+```text
+水滴鱼Pro1.1.2-macOS-arm64.zip
+水滴鱼Pro1.1.2-macOS-x64.zip
+水滴鱼Pro1.1.2-windows-x64.zip
+```
+
+Drafts, pre-releases, and assets without a GitHub SHA-256 digest are intentionally not eligible for in-app installation. In-app installation currently supports the macOS assets only; the Windows zip is downloaded and unpacked manually.
+
 ### Packaging
 
 ```bash
 npm run package:mac:arm64   # Apple Silicon
 npm run package:mac:x64     # Intel
+npm run package:win:x64     # Windows zip
 ```
 
-Each command builds the matching-architecture calendar helper and task sender, produces the app, ad-hoc signs it locally, verifies the architecture of the binaries and writes the bundle to `release/`. `npm run package:mac` builds both in turn.
+The macOS commands build the matching-architecture calendar helper and task sender, produce the app, ad-hoc sign it locally, verify the binary architectures and write the bundle to `release/`. `npm run package:mac` builds both Mac architectures in turn. The Windows command creates a portable zip package; the pet, settings, character packs and language packs work there, while Codex / Claude Code status bridging, macOS Calendar and in-app installation remain macOS-only for now.
 
 > The calendar helper uses macOS 14 EventKit APIs, so packaging needs macOS 14 or newer.
 >

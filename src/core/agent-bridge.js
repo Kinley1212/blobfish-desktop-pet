@@ -5,6 +5,10 @@ const { validateAgentEvent } = require('./agent-event-schema');
 
 const MAX_MESSAGE_BYTES = 16 * 1024;
 
+function isWindowsPipePath(value) {
+  return /^\\\\\.\\pipe\\[^\\]/i.test(String(value || ''));
+}
+
 class AgentBridge {
   constructor(socketPath, options = {}) {
     this.socketPath = socketPath;
@@ -15,17 +19,20 @@ class AgentBridge {
 
   start() {
     if (this.server) return Promise.resolve();
-    if (Buffer.byteLength(this.socketPath) > 100) {
+    const namedPipe = isWindowsPipePath(this.socketPath);
+    if (!namedPipe && Buffer.byteLength(this.socketPath) > 100) {
       return Promise.reject(new Error('Agent bridge socket path is too long for macOS'));
     }
 
-    const directory = path.dirname(this.socketPath);
-    fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
-    fs.chmodSync(directory, 0o700);
-    if (fs.existsSync(this.socketPath)) {
-      const stat = fs.lstatSync(this.socketPath);
-      if (!stat.isSocket()) return Promise.reject(new Error('Agent bridge path exists and is not a socket'));
-      fs.unlinkSync(this.socketPath);
+    if (!namedPipe) {
+      const directory = path.dirname(this.socketPath);
+      fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+      fs.chmodSync(directory, 0o700);
+      if (fs.existsSync(this.socketPath)) {
+        const stat = fs.lstatSync(this.socketPath);
+        if (!stat.isSocket()) return Promise.reject(new Error('Agent bridge path exists and is not a socket'));
+        fs.unlinkSync(this.socketPath);
+      }
     }
 
     this.server = net.createServer((socket) => this.handleConnection(socket));
@@ -39,7 +46,7 @@ class AgentBridge {
       this.server.once('error', onStartupError);
       this.server.listen(this.socketPath, () => {
         this.server.removeListener('error', onStartupError);
-        fs.chmodSync(this.socketPath, 0o600);
+        if (!namedPipe) fs.chmodSync(this.socketPath, 0o600);
         resolve();
       });
     });
@@ -86,6 +93,7 @@ class AgentBridge {
   }
 
   removeSocketFile() {
+    if (isWindowsPipePath(this.socketPath)) return;
     if (!fs.existsSync(this.socketPath)) return;
     const stat = fs.lstatSync(this.socketPath);
     if (stat.isSocket()) fs.unlinkSync(this.socketPath);
@@ -95,4 +103,5 @@ class AgentBridge {
 module.exports = {
   AgentBridge,
   MAX_MESSAGE_BYTES,
+  isWindowsPipePath,
 };

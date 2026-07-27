@@ -5,7 +5,7 @@ const net = require('net');
 const os = require('os');
 const path = require('path');
 const { execFileSync, spawn } = require('child_process');
-const { AgentBridge } = require('../src/core/agent-bridge');
+const { AgentBridge, isWindowsPipePath } = require('../src/core/agent-bridge');
 
 const senderPath = path.join(__dirname, '..', 'native', 'build', process.arch, 'blobfish-agent-event-sender');
 if (process.platform === 'darwin' && !fs.existsSync(senderPath)) {
@@ -27,6 +27,11 @@ function runSender(socketPath, input, provider = 'codex') {
     child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`sender exited ${code}`)));
   });
 }
+
+test('recognizes Windows named pipe endpoints without treating them as files', () => {
+  assert.equal(isWindowsPipePath('\\\\.\\pipe\\blobfish-desktop-pet'), true);
+  assert.equal(isWindowsPipePath('/tmp/blobfish.sock'), false);
+});
 
 test('accepts validated status-only events over a private Unix socket', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-bridge-'));

@@ -1,0 +1,30 @@
+<svg viewBox="0 0 180 125" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="水滴魚（3D趴窩）">
+  <defs>
+    <linearGradient id="pawo-3d-lid-left" x1="0" y1="0" x2="0.7" y2="1">
+      <stop offset="0" stop-color="#d9cfd3" />
+      <stop offset="1" stop-color="#d7c6cc" />
+    </linearGradient>
+    <linearGradient id="pawo-3d-lid-right" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#d1c0c6" />
+      <stop offset="1" stop-color="#ccbec2" />
+    </linearGradient>
+    <filter id="pawo-3d-lid-edge" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="0.58" />
+    </filter>
+  </defs>
+  <image class="body-shape" href="pack-image:character" x="0" y="0" width="180" height="125" preserveAspectRatio="xMidYMid meet" />
+
+  <g class="eye eye-left" opacity="0">
+    <ellipse cx="25" cy="45.8" rx="6.1" ry="6.5" fill="url(#pawo-3d-lid-left)" filter="url(#pawo-3d-lid-edge)" transform="rotate(-13 25 45.8)" />
+    <path d="M 20.8 46.3 Q 25 48.5 29.3 46.1" fill="none" stroke="#625861" stroke-width="1.6" stroke-linecap="round" />
+  </g>
+  <g class="eye eye-right" opacity="0">
+    <ellipse cx="79.5" cy="59.6" rx="7.1" ry="7.2" fill="url(#pawo-3d-lid-right)" filter="url(#pawo-3d-lid-edge)" />
+    <path d="M 74.3 60.1 Q 79.5 62.7 84.8 60" fill="none" stroke="#625861" stroke-width="1.7" stroke-linecap="round" />
+  </g>
+
+  <g class="tears">
+    <path class="tear tear-left" d="M 25 52 C 29 59 28 64 25 66 C 22 63 22 58 25 52 Z" fill="#76b5dc" />
+    <path class="tear tear-right" d="M 79.5 67 C 83.5 74 82.5 79 79.5 81 C 76.5 78 76.5 72 79.5 67 Z" fill="#76b5dc" />
+  </g>
+</svg>

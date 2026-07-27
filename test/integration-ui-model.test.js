@@ -15,6 +15,7 @@ const STATES = [
   'terminal-opened',
   'conflict',
   'error',
+  'unsupported',
   'unknown',
 ];
 
@@ -38,6 +39,13 @@ test('legacy plugins get a single automatic upgrade action', () => {
   assert.equal(result.primary.action, 'manage');
   assert.equal(result.primary.label, '升级并连接');
   assert.match(result.instruction, /自动升级并连接/);
+});
+
+test('unsupported platforms do not offer connection actions', () => {
+  const result = describeAgentIntegration('codex', { state: 'unsupported' });
+  assert.equal(result.verdict, '暂不支持');
+  assert.deepEqual(result.primary, { action: 'none', label: '当前系统不可用', disabled: true });
+  assert.match(result.instruction, /macOS/);
 });
 
 test('a managed plugin asks for verification instead of repair', () => {

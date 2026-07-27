@@ -1,0 +1,9 @@
+#pet.is-success {
+  animation: blobfish-success 0.7s ease-in-out;
+}
+
+@keyframes blobfish-success {
+  0%, 100% { transform: translateX(-50%) scaleX(var(--dir)) translateY(0); }
+  45% { transform: translateX(-50%) scaleX(var(--dir)) translateY(-12px); }
+  70% { transform: translateX(-50%) scaleX(var(--dir)) translateY(2px); }
+}

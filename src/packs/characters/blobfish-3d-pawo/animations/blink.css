@@ -1,0 +1,12 @@
+#pet .eye {
+  opacity: 0;
+}
+
+#pet .eye.is-blinking {
+  animation: blobfish-3d-pawo-blink 160ms ease-in-out;
+}
+
+@keyframes blobfish-3d-pawo-blink {
+  0%, 100% { opacity: 0; }
+  35%, 65% { opacity: 1; }
+}
