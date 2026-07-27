@@ -4,9 +4,11 @@ const { applyAccessoriesToSvg, normalizeAccessories } = globalThis.accessoryMode
 
 const promptEl = document.getElementById('prompt');
 const optionsEl = document.getElementById('options');
-const anotherEl = document.getElementById('another');
 const closeEl = document.getElementById('close');
 const avatarEl = document.getElementById('avatar');
+
+// After a topic wraps up, the fish just moves on to the next one on its own.
+const NEXT_TOPIC_DELAY_MS = 1400;
 
 let pack = null;
 let currentNodeId = null;
@@ -49,20 +51,16 @@ function buildAvatar() {
   renderAvatar(null);
 }
 
-function renderEnd() {
-  promptEl.textContent = '……先这样吧。';
+function noPack() {
+  promptEl.textContent = '……我现在不太想说话。';
   optionsEl.replaceChildren();
-  const end = document.createElement('p');
-  end.className = 'chat-end';
-  end.textContent = '（点「换个话题」再聊，或关掉窗口）';
-  optionsEl.appendChild(end);
   currentNodeId = null;
 }
 
 function renderNode(nodeId) {
   const node = getNode(pack, nodeId);
   if (!node) {
-    renderEnd();
+    startFresh();
     return;
   }
   currentNodeId = nodeId;
@@ -90,30 +88,32 @@ function choose(index) {
   if (outcome.reply) promptEl.textContent = outcome.reply;
 
   for (const button of optionsEl.querySelectorAll('button')) button.disabled = true;
-  const advance = () => (outcome.ended ? renderEnd() : renderNode(outcome.nextId));
-  setTimeout(advance, outcome.reply ? 950 : 200);
+  // A branch keeps going; a finished topic rolls straight into a new one after
+  // a slightly longer beat, so the reply has time to land.
+  if (outcome.ended) {
+    setTimeout(startFresh, NEXT_TOPIC_DELAY_MS);
+  } else {
+    setTimeout(() => renderNode(outcome.nextId), outcome.reply ? 950 : 200);
+  }
 }
 
 function startFresh() {
+  if (!pack) {
+    noPack();
+    return;
+  }
   showAvatarFace(null);
   const openerId = pickOpenerId(pack);
   if (openerId) renderNode(openerId);
-  else renderEnd();
+  else noPack();
 }
 
-anotherEl.addEventListener('click', startFresh);
 closeEl.addEventListener('click', () => window.dialogueAPI.close());
 
 Promise.all([window.dialogueAPI.getPack(), window.dialogueAPI.getCharacter()])
   .then(([loadedPack, loadedCharacter]) => {
     character = loadedCharacter;
     buildAvatar();
-    if (!loadedPack) {
-      promptEl.textContent = '……我现在不太想说话。';
-      optionsEl.replaceChildren();
-      anotherEl.disabled = true;
-      return;
-    }
     pack = loadedPack;
     startFresh();
   })

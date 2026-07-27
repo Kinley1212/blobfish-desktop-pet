@@ -60,9 +60,9 @@ html, body {
 }
 
 .chat-avatar {
-  flex: 0 0 72px;
-  width: 72px;
-  height: 68px;
+  flex: 0 0 104px;
+  width: 104px;
+  height: 96px;
   align-self: center;
 }
 .chat-avatar svg {
@@ -105,23 +105,6 @@ html, body {
 .chat-option:hover { background: #fbf4f7; border-color: var(--accent); }
 .chat-option:active { transform: scale(0.98); }
 .chat-option:disabled { opacity: 0.5; cursor: default; }
-
-.chat-foot {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: auto;
-}
-
-.chat-ghost {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 13px;
-  cursor: pointer;
-}
-.chat-ghost:hover { color: var(--accent); }
 
 .chat-end { color: var(--muted); font-size: 13px; text-align: center; padding: 8px 0; }
 

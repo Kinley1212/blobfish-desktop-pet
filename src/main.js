@@ -527,7 +527,7 @@ function createDialogueWindow() {
   }
   dialogueWin = new BrowserWindow({
     width: 320,
-    height: 300,
+    height: 340,
     resizable: false,
     fullscreenable: false,
     title: '和水滴鱼聊天',
