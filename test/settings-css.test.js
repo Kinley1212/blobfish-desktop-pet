@@ -10,3 +10,8 @@ test('settings navigation owns its height and is excluded from generic action bu
   assert.match(css, /button:not\(\.nav-item\)\s*\{/);
   assert.doesNotMatch(css, /(?:^|\n)button\s*\{\s*\n\s*min-width:/);
 });
+
+test('sound picker rows align preview buttons with selects', () => {
+  assert.match(css, /\.sound-picker-row\s*\{[\s\S]*?align-items:\s*end;/);
+  assert.match(css, /\.sound-picker-row \.sound-preview-button\s*\{[\s\S]*?align-self:\s*end;[\s\S]*?height:\s*38px;/);
+});
