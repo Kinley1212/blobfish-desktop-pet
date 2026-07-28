@@ -1436,30 +1436,37 @@ function getVisibleTaskStatus() {
   );
 }
 
-const COMPLETION_SOUND_THROTTLE_MS = 300;
-let lastCompletionSoundAt = 0;
+const AGENT_SOUND_THROTTLE_MS = 300;
+let lastAgentSoundAt = 0;
 
-// Plays a short macOS system chime when an agent task finishes. Which sound
-// (and whether it plays at all) comes from config.sound.taskComplete, chosen
-// in Settings. Kept out of the speech pipeline on purpose: the bubble is
+// Plays a short system chime for important agent cues. Which sound (and
+// whether it plays at all) comes from config.sound.taskComplete, chosen in
+// Settings. Kept out of the speech pipeline on purpose: the bubble is
 // throttled/replaced per event, but the sound is a plain fire-and-forget cue.
-// Respects quiet hours (same as non-urgent speech), throttles bursts when
-// several tasks finish at once, and falls back to the system beep if macOS
-// refuses to play the selected file.
-function playTaskCompleteSound() {
+// Completion respects quiet hours; notifications that need user input may opt
+// out because they mirror Codex/Claude's own "needs attention" notification.
+function playAgentSoundCue(scope, options = {}) {
   const setting = config.sound?.taskComplete;
   if (!setting || !setting.enabled) return;
-  if (isInQuietHours(new Date(), config.quietHours)) return;
+  if (!options.allowDuringQuiet && isInQuietHours(new Date(), config.quietHours)) return;
   const now = Date.now();
-  if (now - lastCompletionSoundAt < COMPLETION_SOUND_THROTTLE_MS) return;
+  if (now - lastAgentSoundAt < AGENT_SOUND_THROTTLE_MS) return;
   const soundPath = taskCompleteSoundPath(setting.soundId) || taskCompleteSoundPath(DEFAULT_TASK_COMPLETE_SOUND_ID);
   if (!soundPath) return;
-  lastCompletionSoundAt = now;
+  lastAgentSoundAt = now;
   playTaskSoundFile(soundPath, {
     execFile,
     beep: () => shell.beep(),
-    onError: (error) => reportRuntimeError('Task completion sound', error),
+    onError: (error) => reportRuntimeError(scope, error),
   });
+}
+
+function playTaskCompleteSound() {
+  playAgentSoundCue('Task completion sound');
+}
+
+function playTaskNotificationSound() {
+  playAgentSoundCue('Task notification sound', { allowDuringQuiet: true });
 }
 
 function emitTaskStatus(status = getVisibleTaskStatus()) {
@@ -1498,6 +1505,7 @@ function handleTaskTransition(transition) {
   if (transition.type === 'started') {
     speak('agent.started', context, { ...speechOptions, replaceKey: 'agent.started' });
   } else if (transition.type === 'needsInput') {
+    playTaskNotificationSound();
     speak('agent.needsInput', context, {
       priority: SPEECH_PRIORITY.urgent,
       durationMs: SPEECH_DURATION_MS.agentLifecycle,
