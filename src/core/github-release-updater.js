@@ -34,15 +34,18 @@ function buildGitHubUserAgent(version) {
 
 function expectedAssetName(version, architecture) {
   if (!['arm64', 'x64'].includes(architecture)) throw new Error('不支持此 Mac 芯片类型');
-  return `水滴鱼Pro${version}-macOS-${architecture}.zip`;
+  return `BlobfishPro-${version}-macOS-${architecture}.zip`;
 }
 
 function expectedAssetNames(version, architecture) {
-  const fullName = expectedAssetName(version, architecture);
-  // GitHub Release assets may strip the leading non-ASCII product name from
-  // uploaded filenames. Accept that normalized form too, while still requiring
-  // the URL to belong to this repository's Release downloads.
-  return [fullName, `Pro${version}-macOS-${architecture}.zip`];
+  // Keep the new release asset name ASCII-only. The older Chinese and
+  // GitHub-normalized names are still accepted so previously published releases
+  // and already-generated local packages remain readable.
+  return [
+    expectedAssetName(version, architecture),
+    `Pro${version}-macOS-${architecture}.zip`,
+    `水滴鱼Pro${version}-macOS-${architecture}.zip`,
+  ];
 }
 
 function parseSha256Digest(value) {

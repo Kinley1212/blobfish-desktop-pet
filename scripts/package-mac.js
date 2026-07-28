@@ -6,6 +6,7 @@ const packageManifest = require('../package.json');
 
 const root = path.join(__dirname, '..');
 const productName = `水滴鱼Pro${packageManifest.version}`;
+const releaseProductName = `BlobfishPro-${packageManifest.version}`;
 const architecture = process.argv[2];
 if (process.platform !== 'darwin') {
   throw new Error('macOS packages must be built on macOS');
@@ -19,8 +20,12 @@ const outputDirectory = path.join(root, 'release', architecture);
 const helperPath = path.join(root, 'native', 'build', architecture, 'blobfish-calendar-helper');
 const agentSenderPath = path.join(root, 'native', 'build', architecture, 'blobfish-agent-event-sender');
 const iconPath = path.join(root, 'src', 'packs', 'characters', 'blobfish', 'art', 'character.svg');
-const zipPath = path.join(root, 'release', `${productName}-macOS-${architecture}.zip`);
-const legacyZipPath = path.join(root, 'release', `BlobfishDesktopPet-macOS-${architecture}.zip`);
+const zipPath = path.join(root, 'release', `${releaseProductName}-macOS-${architecture}.zip`);
+const staleZipPaths = [
+  path.join(root, 'release', `${productName}-macOS-${architecture}.zip`),
+  path.join(root, 'release', `Pro${packageManifest.version}-macOS-${architecture}.zip`),
+  path.join(root, 'release', `BlobfishDesktopPet-macOS-${architecture}.zip`),
+];
 
 function findAppBundle(directory) {
   const queue = [directory];
@@ -52,7 +57,7 @@ async function main() {
   fs.mkdirSync(path.dirname(outputDirectory), { recursive: true });
   fs.rmSync(outputDirectory, { recursive: true, force: true });
   fs.rmSync(zipPath, { force: true });
-  fs.rmSync(legacyZipPath, { force: true });
+  for (const staleZipPath of staleZipPaths) fs.rmSync(staleZipPath, { force: true });
 
   run(process.execPath, [path.join(__dirname, 'build-calendar-helper.js'), architecture]);
   run(process.execPath, [path.join(__dirname, 'build-agent-sender.js'), architecture]);

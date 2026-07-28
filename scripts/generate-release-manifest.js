@@ -9,8 +9,8 @@ const releaseDirectory = path.join(root, 'release');
 const version = packageManifest.version;
 
 function assetEntry(architecture) {
-  const githubName = `Pro${version}-macOS-${architecture}.zip`;
-  const localPath = path.join(releaseDirectory, `水滴鱼Pro${version}-macOS-${architecture}.zip`);
+  const githubName = `BlobfishPro-${version}-macOS-${architecture}.zip`;
+  const localPath = path.join(releaseDirectory, githubName);
   const buffer = fs.readFileSync(localPath);
   return {
     name: githubName,

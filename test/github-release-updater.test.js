@@ -20,10 +20,10 @@ function release(overrides = {}) {
     html_url: 'https://github.com/Kinley1212/blobfish-desktop-pet/releases/tag/v1.2.1',
     published_at: '2026-07-27T08:00:00Z',
     assets: [{
-      name: '水滴鱼Pro1.2.1-macOS-arm64.zip',
+      name: 'BlobfishPro-1.2.1-macOS-arm64.zip',
       size: 123456,
       digest: `sha256:${DIGEST}`,
-      browser_download_url: 'https://github.com/Kinley1212/blobfish-desktop-pet/releases/download/v1.2.1/%E6%B0%B4%E6%BB%B4%E9%B1%BCPro1.2.1-macOS-arm64.zip',
+      browser_download_url: 'https://github.com/Kinley1212/blobfish-desktop-pet/releases/download/v1.2.1/BlobfishPro-1.2.1-macOS-arm64.zip',
     }],
     ...overrides,
   };
@@ -36,12 +36,12 @@ function manifest(overrides = {}) {
     releaseUrl: 'https://github.com/Kinley1212/blobfish-desktop-pet/releases/tag/v1.2.4',
     assets: {
       arm64: {
-        name: 'Pro1.2.4-macOS-arm64.zip',
+        name: 'BlobfishPro-1.2.4-macOS-arm64.zip',
         size: 123456,
         digest: `sha256:${DIGEST}`,
       },
       x64: {
-        name: 'Pro1.2.4-macOS-x64.zip',
+        name: 'BlobfishPro-1.2.4-macOS-x64.zip',
         size: 223456,
         digest: `sha256:${'b'.repeat(64)}`,
       },
@@ -58,7 +58,7 @@ test('selects only the matching GitHub release asset and reports a newer version
   assert.equal(result.asset.digest, DIGEST);
 });
 
-test('accepts the ASCII filename GitHub keeps after normalizing a Chinese asset name', () => {
+test('uses an ASCII-only release asset name and keeps old names compatible', () => {
   const result = selectReleaseUpdate(release({
     assets: [{
       ...release().assets[0],
@@ -70,8 +70,9 @@ test('accepts the ASCII filename GitHub keeps after normalizing a Chinese asset 
   assert.equal(result.state, 'available');
   assert.equal(result.asset.name, 'Pro1.2.1-macOS-arm64.zip');
   assert.deepEqual(expectedAssetNames('1.2.1', 'arm64'), [
-    '水滴鱼Pro1.2.1-macOS-arm64.zip',
+    'BlobfishPro-1.2.1-macOS-arm64.zip',
     'Pro1.2.1-macOS-arm64.zip',
+    '水滴鱼Pro1.2.1-macOS-arm64.zip',
   ]);
 });
 
@@ -80,8 +81,8 @@ test('selects updates from the downloadable manifest without using the GitHub AP
 
   assert.equal(result.state, 'available');
   assert.equal(result.version, '1.2.4');
-  assert.equal(result.asset.name, 'Pro1.2.4-macOS-arm64.zip');
-  assert.equal(result.asset.url, latestAssetDownloadUrl('Pro1.2.4-macOS-arm64.zip'));
+  assert.equal(result.asset.name, 'BlobfishPro-1.2.4-macOS-arm64.zip');
+  assert.equal(result.asset.url, latestAssetDownloadUrl('BlobfishPro-1.2.4-macOS-arm64.zip'));
   assert.equal(result.asset.digest, DIGEST);
 });
 
