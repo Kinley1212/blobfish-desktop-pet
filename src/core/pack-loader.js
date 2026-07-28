@@ -27,7 +27,26 @@ const REQUIRED_SETTINGS_COPY_KEYS = [
   'savedStatus',
   'resetStatus',
 ];
-const OPTIONAL_SETTINGS_COPY_KEYS = ['greetingTitle', 'greetingHint'];
+const OPTIONAL_SETTINGS_COPY_KEYS = [
+  'greetingTitle',
+  'greetingHint',
+  'diyNavTitle',
+  'diyNavHint',
+  'diyPanelName',
+  'diyKicker',
+  'diyTitle',
+  'diyHint',
+  'diyUnsupported',
+  'diyPreviewLabel',
+  'diyAccessoryTitle',
+  'diyBodyLabel',
+  'diyFinsLabel',
+  'diyEyesLabel',
+  'diyMouthLabel',
+  'diyNoseLabel',
+  'diyBodyShapeLabel',
+  'diyFinsShapeLabel',
+];
 const SETTINGS_COPY_KEYS = [...REQUIRED_SETTINGS_COPY_KEYS, ...OPTIONAL_SETTINGS_COPY_KEYS];
 
 function assertInside(root, relativePath) {

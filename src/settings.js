@@ -153,6 +153,14 @@ function applyCharacterCopy(characterId) {
   byId('roam-without-tasks-label').textContent = copy.roamWithoutTasksLabel;
   byId('roam-without-tasks').setAttribute('aria-label', copy.roamWithoutTasksLabel);
   byId('entry-hint').textContent = copy.entryHint;
+  byId('diy-nav-title').textContent = copy.diyNavTitle || '捏鱼';
+  byId('diy-nav-hint').textContent = copy.diyNavHint || '身体、鱼鳍、五官';
+  byId('panel-diy').dataset.panelName = copy.diyPanelName || copy.diyTitle || '捏鱼';
+  byId('diy-kicker').textContent = copy.diyKicker || '自己动手';
+  byId('diy-title').textContent = copy.diyTitle || '捏鱼';
+  byId('diy-hint').textContent = copy.diyHint || '调身体、鱼鳍和五官。左边实时预览，保存后桌面上的角色才会跟着变。';
+  byId('diy-unsupported-copy').textContent = copy.diyUnsupported || '这个形象暂时不支持捏。换回水滴鱼就可以了。';
+  byId('diy-preview').setAttribute('aria-label', copy.diyPreviewLabel || '捏鱼预览');
 }
 
 function showStatus(message, isError = false) {
@@ -308,13 +316,49 @@ function formatDiyValue(field, value) {
   return field.kind === 'ratio' ? `${Math.round(value * 100)}%` : `${value > 0 ? '+' : ''}${value}`;
 }
 
+function diyControlLabel(part, fallback) {
+  const copyKey = {
+    body: 'diyBodyLabel',
+    fins: 'diyFinsLabel',
+    eyes: 'diyEyesLabel',
+    mouth: 'diyMouthLabel',
+    nose: 'diyNoseLabel',
+  }[part];
+  return (copyKey && activeSettingsCopy?.[copyKey]) || fallback;
+}
+
+function diyShapeLabel(part, fallback) {
+  const copyKey = {
+    body: 'diyBodyShapeLabel',
+    fins: 'diyFinsShapeLabel',
+  }[part];
+  return (copyKey && activeSettingsCopy?.[copyKey]) || fallback;
+}
+
+function diyPartExists(part) {
+  if (!diyArt?.svg) return true;
+  const parsed = new DOMParser().parseFromString(diyArt.svg, 'image/svg+xml');
+  if (parsed.querySelector('parsererror')) return true;
+  const layerKeysByPart = {
+    body: ['body'],
+    fins: ['finLeft', 'finRight'],
+    eyes: ['eyeLeft', 'eyeRight'],
+    mouth: ['mouth'],
+    nose: ['nose'],
+  };
+  const layerKeys = layerKeysByPart[part] || [];
+  return diyModel.DIY_LAYERS
+    .filter((layer) => layerKeys.includes(layer.key))
+    .some((layer) => layer.elements.some((selector) => parsed.querySelector(selector)));
+}
+
 function buildDiyShapeField(groupName, group, spec) {
   const options = diyModel.listShapeOptions(diyArt && diyArt.diy, groupName);
   if (options.length === 0) return null;
 
   const label = document.createElement('label');
   label.className = 'field';
-  label.append(group.label);
+  label.append(diyShapeLabel(groupName, group.label));
 
   const select = document.createElement('select');
   select.dataset.diyShape = groupName;
@@ -372,11 +416,12 @@ function renderDiyControls() {
   const spec = currentDiySpec();
 
   for (const group of diyModel.DIY_CONTROLS) {
+    if (!diyPartExists(group.part)) continue;
     const card = document.createElement('div');
     card.className = 'card diy-group';
 
     const heading = document.createElement('h3');
-    heading.textContent = group.label;
+    heading.textContent = diyControlLabel(group.part, group.label);
     card.appendChild(heading);
 
     const shapeGroup = diyModel.SHAPE_GROUPS[group.part];
@@ -455,7 +500,7 @@ function renderAccessoryControls() {
   container.hidden = false;
 
   const heading = document.createElement('h3');
-  heading.textContent = '表情与饰品';
+  heading.textContent = activeSettingsCopy?.diyAccessoryTitle || '表情与饰品';
   container.appendChild(heading);
 
   const spec = currentAccessorySpec();

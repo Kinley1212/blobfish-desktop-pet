@@ -142,8 +142,8 @@ test('accessory manifests are checked before their art is read', () => {
   assert.throws(() => loadAccessory(accessoriesRoot, '../characters'), /Invalid accessory id/);
 });
 
-test('both blobfish packs offer every slot and the grass buddy offers none', () => {
-  for (const id of ['blobfish', 'blobfish-wotou']) {
+test('bundled customisable characters offer every accessory slot', () => {
+  for (const id of ['blobfish', 'blobfish-wotou', 'grass-buddy']) {
     const { manifest } = loadCharacterPack(charactersRoot, id);
     assert.ok(supportsAccessories(manifest), `${id} should support accessories`);
     for (const slot of ACCESSORY_SLOTS) {
@@ -152,5 +152,4 @@ test('both blobfish packs offer every slot and the grass buddy offers none', () 
     }
   }
 
-  assert.equal(supportsAccessories(loadCharacterPack(charactersRoot, 'grass-buddy').manifest), false);
 });
