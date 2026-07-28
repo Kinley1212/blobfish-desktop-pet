@@ -95,9 +95,10 @@ npm run package:mac:x64     # Intel
 ```text
 水滴鱼ProX.Y.Z-macOS-arm64.zip
 水滴鱼ProX.Y.Z-macOS-x64.zip
+blobfish-latest.json
 ```
 
-应用会只选择当前 Mac 芯片对应的 zip，并校验 GitHub API 返回的 SHA-256 digest。Release 没有这些 zip 时，设置页会提示“没有适用于这台 Mac 的完整安装包”。
+先运行 `npm run package:mac`，再运行 `npm run release:manifest` 生成 `blobfish-latest.json`。应用会优先读取这个清单，避开 GitHub API 频率限制；清单缺失时才退回 GitHub API。Release 没有对应 zip 或清单校验信息时，设置页会提示没有适用于这台 Mac 的完整安装包。
 
 ### 加一件自己的饰品
 
@@ -233,9 +234,10 @@ When publishing `vX.Y.Z`, attach at least the complete macOS packages needed by 
 ```text
 水滴鱼ProX.Y.Z-macOS-arm64.zip
 水滴鱼ProX.Y.Z-macOS-x64.zip
+blobfish-latest.json
 ```
 
-The app picks only the zip matching the current Mac architecture and verifies the SHA-256 digest reported by the GitHub API. If the Release has no matching zip, Settings will report that no complete installer is available for this Mac.
+Run `npm run package:mac`, then `npm run release:manifest` to generate `blobfish-latest.json`. The app reads this manifest first to avoid GitHub API rate limits, and falls back to the GitHub API only when the manifest is missing. If the Release has no matching zip or digest metadata, Settings will report that no complete installer is available for this Mac.
 
 ### Adding your own accessory
 

@@ -2,6 +2,8 @@ const path = require('path');
 
 const REPOSITORY = 'Kinley1212/blobfish-desktop-pet';
 const LATEST_RELEASE_URL = `https://api.github.com/repos/${REPOSITORY}/releases/latest`;
+const LATEST_MANIFEST_ASSET_NAME = 'blobfish-latest.json';
+const LATEST_MANIFEST_URL = `https://github.com/${REPOSITORY}/releases/latest/download/${LATEST_MANIFEST_ASSET_NAME}`;
 const MAX_RELEASE_ASSET_BYTES = 512 * 1024 * 1024;
 const USER_AGENT_PRODUCT = 'blobfish-desktop-pet';
 
@@ -53,10 +55,17 @@ function isExpectedReleaseUrl(value) {
     const url = new URL(value);
     return url.protocol === 'https:'
       && url.hostname === 'github.com'
-      && url.pathname.startsWith(`/${REPOSITORY}/releases/download/`);
+      && (
+        url.pathname.startsWith(`/${REPOSITORY}/releases/download/`)
+        || url.pathname.startsWith(`/${REPOSITORY}/releases/latest/download/`)
+      );
   } catch {
     return false;
   }
+}
+
+function latestAssetDownloadUrl(assetName) {
+  return `https://github.com/${REPOSITORY}/releases/latest/download/${encodeURIComponent(assetName)}`;
 }
 
 function selectReleaseUpdate(release, options) {
@@ -93,6 +102,52 @@ function selectReleaseUpdate(release, options) {
     asset: {
       name: asset.name,
       url: asset.browser_download_url,
+      size: asset.size,
+      digest,
+      bundleName: `水滴鱼Pro${version}.app`,
+    },
+  };
+}
+
+function selectManifestUpdate(manifest, options) {
+  if (!manifest || typeof manifest !== 'object') throw new Error('GitHub 更新清单无效');
+  if (manifest.repository && manifest.repository !== REPOSITORY) throw new Error('GitHub 更新清单来源不匹配');
+
+  const version = normalizeVersion(manifest.version || manifest.tag_name);
+  if (!version) throw new Error('GitHub 更新清单的版本格式无效');
+  const currentVersion = normalizeVersion(options?.currentVersion);
+  if (!currentVersion) throw new Error('当前应用版本格式无效');
+  const comparison = compareVersions(version, currentVersion);
+  if (comparison === null) throw new Error('无法比较应用版本');
+  if (comparison <= 0) return { state: 'up-to-date', currentVersion, version };
+
+  const architecture = options?.architecture;
+  if (!['arm64', 'x64'].includes(architecture)) throw new Error('不支持此 Mac 芯片类型');
+  const asset = manifest.assets?.[architecture];
+  if (!asset || typeof asset !== 'object') throw new Error(`Pro${version} 没有适用于这台 Mac 的完整安装包`);
+  if (!expectedAssetNames(version, architecture).includes(asset.name)) {
+    throw new Error('GitHub 更新清单的安装包名称无效，已停止更新');
+  }
+  if (!Number.isSafeInteger(asset.size) || asset.size <= 0 || asset.size > MAX_RELEASE_ASSET_BYTES) {
+    throw new Error('GitHub 安装包大小异常，已停止更新');
+  }
+  const url = asset.url || latestAssetDownloadUrl(asset.name);
+  if (!isExpectedReleaseUrl(url)) {
+    throw new Error('GitHub 安装包下载地址无效，已停止更新');
+  }
+  const digest = parseSha256Digest(asset.digest);
+  if (!digest) throw new Error('GitHub 安装包缺少 SHA-256 校验信息，无法安全自动更新');
+
+  return {
+    state: 'available',
+    currentVersion,
+    version,
+    architecture,
+    publishedAt: typeof manifest.publishedAt === 'string' ? manifest.publishedAt : null,
+    releaseUrl: typeof manifest.releaseUrl === 'string' ? manifest.releaseUrl : null,
+    asset: {
+      name: asset.name,
+      url,
       size: asset.size,
       digest,
       bundleName: `水滴鱼Pro${version}.app`,
@@ -167,6 +222,8 @@ APPLESCRIPT
 
 module.exports = {
   LATEST_RELEASE_URL,
+  LATEST_MANIFEST_ASSET_NAME,
+  LATEST_MANIFEST_URL,
   MAX_RELEASE_ASSET_BYTES,
   REPOSITORY,
   buildMacInstallerScript,
@@ -176,7 +233,9 @@ module.exports = {
   expectedAssetNames,
   getInstalledAppBundle,
   isExpectedReleaseUrl,
+  latestAssetDownloadUrl,
   normalizeVersion,
   parseSha256Digest,
+  selectManifestUpdate,
   selectReleaseUpdate,
 };

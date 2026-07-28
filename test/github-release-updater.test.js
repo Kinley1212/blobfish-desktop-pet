@@ -7,6 +7,8 @@ const {
   compareVersions,
   expectedAssetNames,
   getInstalledAppBundle,
+  latestAssetDownloadUrl,
+  selectManifestUpdate,
   selectReleaseUpdate,
 } = require('../src/core/github-release-updater');
 
@@ -23,6 +25,27 @@ function release(overrides = {}) {
       digest: `sha256:${DIGEST}`,
       browser_download_url: 'https://github.com/Kinley1212/blobfish-desktop-pet/releases/download/v1.2.1/%E6%B0%B4%E6%BB%B4%E9%B1%BCPro1.2.1-macOS-arm64.zip',
     }],
+    ...overrides,
+  };
+}
+
+function manifest(overrides = {}) {
+  return {
+    version: '1.2.4',
+    repository: 'Kinley1212/blobfish-desktop-pet',
+    releaseUrl: 'https://github.com/Kinley1212/blobfish-desktop-pet/releases/tag/v1.2.4',
+    assets: {
+      arm64: {
+        name: 'Pro1.2.4-macOS-arm64.zip',
+        size: 123456,
+        digest: `sha256:${DIGEST}`,
+      },
+      x64: {
+        name: 'Pro1.2.4-macOS-x64.zip',
+        size: 223456,
+        digest: `sha256:${'b'.repeat(64)}`,
+      },
+    },
     ...overrides,
   };
 }
@@ -50,6 +73,35 @@ test('accepts the ASCII filename GitHub keeps after normalizing a Chinese asset 
     '水滴鱼Pro1.2.1-macOS-arm64.zip',
     'Pro1.2.1-macOS-arm64.zip',
   ]);
+});
+
+test('selects updates from the downloadable manifest without using the GitHub API', () => {
+  const result = selectManifestUpdate(manifest(), { currentVersion: '1.2.3', architecture: 'arm64' });
+
+  assert.equal(result.state, 'available');
+  assert.equal(result.version, '1.2.4');
+  assert.equal(result.asset.name, 'Pro1.2.4-macOS-arm64.zip');
+  assert.equal(result.asset.url, latestAssetDownloadUrl('Pro1.2.4-macOS-arm64.zip'));
+  assert.equal(result.asset.digest, DIGEST);
+});
+
+test('rejects manifest assets that do not match the version, architecture or repository', () => {
+  assert.throws(
+    () => selectManifestUpdate(manifest({ repository: 'someone/else' }), { currentVersion: '1.2.3', architecture: 'arm64' }),
+    /来源不匹配/,
+  );
+  assert.throws(
+    () => selectManifestUpdate(manifest({
+      assets: { arm64: { ...manifest().assets.arm64, name: 'Pro1.2.5-macOS-arm64.zip' } },
+    }), { currentVersion: '1.2.3', architecture: 'arm64' }),
+    /名称无效/,
+  );
+  assert.throws(
+    () => selectManifestUpdate(manifest({
+      assets: { arm64: { ...manifest().assets.arm64, url: 'https://example.com/blobfish.zip' } },
+    }), { currentVersion: '1.2.3', architecture: 'arm64' }),
+    /下载地址无效/,
+  );
 });
 
 test('does not offer an update when the latest version is already installed', () => {

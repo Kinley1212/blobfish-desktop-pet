@@ -29,9 +29,11 @@ const { getCurrentTaskStatus, getTerminalTaskStatus } = require('./core/task-sta
 const { TaskTracker } = require('./core/task-tracker');
 const {
   LATEST_RELEASE_URL,
+  LATEST_MANIFEST_URL,
   buildGitHubUserAgent,
   buildMacInstallerScript,
   getInstalledAppBundle,
+  selectManifestUpdate,
   selectReleaseUpdate,
 } = require('./core/github-release-updater');
 const { version: appVersion } = require('../package.json');
@@ -603,6 +605,19 @@ async function checkForAppUpdate() {
   }
 
   try {
+    const manifestResponse = await net.fetch(LATEST_MANIFEST_URL, {
+      headers: { 'User-Agent': githubUserAgent },
+    });
+    if (manifestResponse.ok) {
+      return selectManifestUpdate(await manifestResponse.json(), {
+        currentVersion: appVersion,
+        architecture: process.arch,
+      });
+    }
+    if (manifestResponse.status !== 404) {
+      console.warn(`Cannot read GitHub update manifest: ${manifestResponse.status}`);
+    }
+
     const response = await net.fetch(LATEST_RELEASE_URL, {
       headers: {
         Accept: 'application/vnd.github+json',

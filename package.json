@@ -1,6 +1,6 @@
 {
   "name": "blobfish-desktop-pet",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "private": true,
   "description": "A tiny blobfish desktop pet for macOS",
   "engines": {
@@ -12,6 +12,7 @@
     "package:mac": "npm run package:mac:arm64 && npm run package:mac:x64",
     "package:mac:arm64": "node scripts/package-mac.js arm64",
     "package:mac:x64": "node scripts/package-mac.js x64",
+    "release:manifest": "node scripts/generate-release-manifest.js",
     "start": "electron .",
     "test": "node --test"
   },
