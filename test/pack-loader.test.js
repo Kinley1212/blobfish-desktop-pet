@@ -54,7 +54,9 @@ test('loads the grass buddy pack with compositor-friendly standard actions', () 
   assert.equal(pack.settingsCopy.pageTitle, '小草团');
   assert.equal(pack.settingsCopy.speedLabel, '走路速度');
   assert.equal(pack.settingsCopy.greetingTitle, '醒来长一句');
-  assert.match(pack.svg, /class="grass-body-shape"/);
+  assert.equal(pack.settingsCopy.diyTitle, '捏草');
+  assert.match(pack.svg, /class="grass-body-shape body-shape"/);
+  assert.match(pack.svg, /class="fin arm fin-left arm-left"/);
   assert.doesNotMatch(pack.svg, /grass-highlight/);
   assert.match(pack.svg, /class="eye eye-left"/);
   assert.equal(pack.styles.length, pack.manifest.styles.length);
@@ -69,7 +71,7 @@ test('loads the grass buddy pack with compositor-friendly standard actions', () 
   assert.match(animationCss, /grass-buddy-exit/);
 
   const mouthY = Number(pack.svg.match(/class="mouth mouth-smile" d="M \d+ (\d+)/)?.[1]);
-  const leftArmY = Number(pack.svg.match(/class="arm arm-left" d="M \d+ (\d+)/)?.[1]);
+  const leftArmY = Number(pack.svg.match(/class="fin arm fin-left arm-left" d="M \d+ (\d+)/)?.[1]);
   assert.ok(Number.isFinite(mouthY) && Number.isFinite(leftArmY));
   assert.ok(leftArmY - mouthY >= 15, 'mouth and arms need clear vertical spacing');
 
@@ -93,17 +95,17 @@ test('legacy character settings copy remains valid without greeting labels', () 
   assert.doesNotThrow(() => validateSettingsCopy(copy));
 });
 
-test('both blobfish packs ship DIY shape presets and the grass buddy does not', () => {
-  for (const id of ['blobfish', 'blobfish-wotou']) {
+test('bundled customisable characters ship DIY shape presets', () => {
+  for (const id of ['blobfish', 'blobfish-wotou', 'grass-buddy']) {
     const { manifest } = loadCharacterPack(charactersRoot, id);
     assert.equal(manifest.diy.enabled, true, `${id} should opt into DIY`);
-    assert.ok(manifest.diy.shapes.body.length >= 2, `${id} needs body presets`);
     assert.ok(manifest.diy.shapes.fins.length >= 2, `${id} needs fin presets`);
-    assert.equal(manifest.diy.shapes.body[0].id, 'default', `${id} must lead with its own shape`);
+    if (manifest.diy.shapes.body) {
+      assert.ok(manifest.diy.shapes.body.length >= 2, `${id} needs body presets`);
+      assert.equal(manifest.diy.shapes.body[0].id, 'default', `${id} must lead with its own shape`);
+    }
     assert.equal(manifest.diy.shapes.fins[0].id, 'default', `${id} must lead with its own fins`);
   }
-
-  assert.equal(loadCharacterPack(charactersRoot, 'grass-buddy').manifest.diy, undefined);
 });
 
 test('DIY presets reject anything that is not plain path data', () => {

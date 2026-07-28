@@ -24,7 +24,7 @@
           <span class="nav-icon" aria-hidden="true">◌</span><span><strong>角色与动作</strong><small>形象、大小、移动</small></span>
         </button>
         <button class="nav-item" type="button" role="tab" aria-selected="false" aria-controls="panel-diy" id="tab-diy" data-panel="diy" tabindex="-1">
-          <span class="nav-icon" aria-hidden="true">✎</span><span><strong>捏鱼</strong><small>身体、鱼鳍、五官</small></span>
+          <span class="nav-icon" aria-hidden="true">✎</span><span><strong id="diy-nav-title">捏鱼</strong><small id="diy-nav-hint">身体、鱼鳍、五官</small></span>
         </button>
         <button class="nav-item" type="button" role="tab" aria-selected="false" aria-controls="panel-schedule" id="tab-schedule" data-panel="schedule" tabindex="-1">
           <span class="nav-icon" aria-hidden="true">◷</span><span><strong>问候与作息</strong><small>首次见面、吃饭、下班</small></span>
@@ -94,13 +94,13 @@
 
         <section id="panel-diy" class="settings-panel" role="tabpanel" aria-labelledby="tab-diy" data-panel-name="捏鱼" hidden>
           <header class="panel-header">
-            <p class="panel-kicker">自己动手</p>
-            <h2>捏鱼</h2>
-            <p>调身体、鱼鳍和五官。左边实时预览，保存后桌面上的角色才会跟着变。</p>
+            <p class="panel-kicker" id="diy-kicker">自己动手</p>
+            <h2 id="diy-title">捏鱼</h2>
+            <p id="diy-hint">调身体、鱼鳍和五官。左边实时预览，保存后桌面上的角色才会跟着变。</p>
           </header>
 
           <div class="card diy-unsupported" id="diy-unsupported" hidden>
-            <p>这个形象暂时不支持捏。换回水滴鱼就可以了。</p>
+            <p id="diy-unsupported-copy">这个形象暂时不支持捏。换回水滴鱼就可以了。</p>
           </div>
 
           <div class="diy-workspace" id="diy-workspace">

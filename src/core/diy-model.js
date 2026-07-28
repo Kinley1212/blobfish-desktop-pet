@@ -253,7 +253,7 @@
     if (existing) return existing;
 
     const nodes = layer.elements
-      .map((selector) => svgRoot.querySelector(selector))
+      .flatMap((selector) => [...svgRoot.querySelectorAll(selector)])
       .filter(Boolean);
     if (nodes.length === 0) return null;
 
