@@ -16,7 +16,12 @@ const { loadLanguagePack } = require('./core/language-pack-loader');
 const { calculateVerticalPlacement } = require('./core/pet-boundary');
 const { PhraseEngine } = require('./core/phrase-engine');
 const { getScheduleReminder, isInQuietHours } = require('./core/reminder-scheduler');
-const { DEFAULT_TASK_COMPLETE_SOUND_ID, TASK_COMPLETE_SOUNDS, taskCompleteSoundPath } = require('./core/sound-catalog');
+const {
+  DEFAULT_NEEDS_INPUT_SOUND_ID,
+  DEFAULT_TASK_COMPLETE_SOUND_ID,
+  TASK_COMPLETE_SOUNDS,
+  taskCompleteSoundPath,
+} = require('./core/sound-catalog');
 const { playTaskSoundFile } = require('./core/sound-player');
 const { RuntimeErrorNotifier } = require('./core/runtime-error-notifier');
 const { RuntimeWarningStore } = require('./core/runtime-warning-store');
@@ -1454,19 +1459,18 @@ function getVisibleTaskStatus() {
 const AGENT_SOUND_THROTTLE_MS = 300;
 let lastAgentSoundAt = 0;
 
-// Plays a short system chime for important agent cues. Which sound (and
-// whether it plays at all) comes from config.sound.taskComplete, chosen in
-// Settings. Kept out of the speech pipeline on purpose: the bubble is
-// throttled/replaced per event, but the sound is a plain fire-and-forget cue.
-// Completion respects quiet hours; notifications that need user input may opt
-// out because they mirror Codex/Claude's own "needs attention" notification.
-function playAgentSoundCue(scope, options = {}) {
-  const setting = config.sound?.taskComplete;
+// Plays a short system chime for important agent cues. Completion and
+// needs-input notifications have separate settings, because one says "done"
+// and the other says "come back and approve this". Kept out of the speech
+// pipeline on purpose: the bubble is throttled/replaced per event, but the
+// sound is a plain fire-and-forget cue.
+function playAgentSoundCue(scope, soundKey, fallbackSoundId, options = {}) {
+  const setting = config.sound?.[soundKey];
   if (!setting || !setting.enabled) return;
   if (!options.allowDuringQuiet && isInQuietHours(new Date(), config.quietHours)) return;
   const now = Date.now();
   if (now - lastAgentSoundAt < AGENT_SOUND_THROTTLE_MS) return;
-  const soundPath = taskCompleteSoundPath(setting.soundId) || taskCompleteSoundPath(DEFAULT_TASK_COMPLETE_SOUND_ID);
+  const soundPath = taskCompleteSoundPath(setting.soundId) || taskCompleteSoundPath(fallbackSoundId);
   if (!soundPath) return;
   lastAgentSoundAt = now;
   playTaskSoundFile(soundPath, {
@@ -1477,11 +1481,11 @@ function playAgentSoundCue(scope, options = {}) {
 }
 
 function playTaskCompleteSound() {
-  playAgentSoundCue('Task completion sound');
+  playAgentSoundCue('Task completion sound', 'taskComplete', DEFAULT_TASK_COMPLETE_SOUND_ID);
 }
 
 function playTaskNotificationSound() {
-  playAgentSoundCue('Task notification sound', { allowDuringQuiet: true });
+  playAgentSoundCue('Task needs-input sound', 'needsInput', DEFAULT_NEEDS_INPUT_SOUND_ID, { allowDuringQuiet: true });
 }
 
 function emitTaskStatus(status = getVisibleTaskStatus()) {

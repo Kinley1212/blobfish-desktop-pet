@@ -1,6 +1,10 @@
 const fs = require('fs');
 const path = require('path');
-const { DEFAULT_TASK_COMPLETE_SOUND_ID, isValidTaskCompleteSoundId } = require('./sound-catalog');
+const {
+  DEFAULT_NEEDS_INPUT_SOUND_ID,
+  DEFAULT_TASK_COMPLETE_SOUND_ID,
+  isValidTaskCompleteSoundId,
+} = require('./sound-catalog');
 const { normalizeDiyMap } = require('./diy-model');
 const { normalizeAccessoryMap } = require('./accessory-model');
 
@@ -42,6 +46,7 @@ const DEFAULT_CONFIG = Object.freeze({
   privacy: Object.freeze({ includeTaskTitles: false, includeCalendarTitles: true }),
   sound: Object.freeze({
     taskComplete: Object.freeze({ enabled: true, soundId: DEFAULT_TASK_COMPLETE_SOUND_ID }),
+    needsInput: Object.freeze({ enabled: true, soundId: DEFAULT_NEEDS_INPUT_SOUND_ID }),
   }),
 });
 
@@ -90,8 +95,12 @@ function requirePackId(value, label = 'language.packId') {
 
 // An unknown/removed sound id shouldn't brick the whole config load, so an
 // invalid value quietly falls back to the default rather than throwing.
-function normalizeSoundId(value) {
-  return isValidTaskCompleteSoundId(value) ? value : DEFAULT_TASK_COMPLETE_SOUND_ID;
+function normalizeSoundSetting(value, fallback, label) {
+  assertObject(value, label);
+  return {
+    enabled: requireBoolean(value.enabled, `${label}.enabled`),
+    soundId: isValidTaskCompleteSoundId(value.soundId) ? value.soundId : fallback.soundId,
+  };
 }
 
 function validateConfig(input) {
@@ -114,7 +123,14 @@ function validateConfig(input) {
   const taskCompleteSound = sound.taskComplete === undefined
     ? DEFAULT_CONFIG.sound.taskComplete
     : sound.taskComplete;
-  assertObject(taskCompleteSound, 'sound.taskComplete');
+  const needsInputSound = sound.needsInput === undefined
+    ? {
+        ...DEFAULT_CONFIG.sound.needsInput,
+        enabled: taskCompleteSound.enabled === undefined
+          ? DEFAULT_CONFIG.sound.needsInput.enabled
+          : taskCompleteSound.enabled,
+      }
+    : sound.needsInput;
 
   if (input.version !== 1) throw new Error('Unsupported config version');
   if (!Array.isArray(input.schedule.workdays) || input.schedule.workdays.length > 7) {
@@ -199,10 +215,8 @@ function validateConfig(input) {
       includeCalendarTitles: requireBoolean(input.privacy.includeCalendarTitles, 'privacy.includeCalendarTitles'),
     },
     sound: {
-      taskComplete: {
-        enabled: requireBoolean(taskCompleteSound.enabled, 'sound.taskComplete.enabled'),
-        soundId: normalizeSoundId(taskCompleteSound.soundId),
-      },
+      taskComplete: normalizeSoundSetting(taskCompleteSound, DEFAULT_CONFIG.sound.taskComplete, 'sound.taskComplete'),
+      needsInput: normalizeSoundSetting(needsInputSound, DEFAULT_CONFIG.sound.needsInput, 'sound.needsInput'),
     },
   };
 

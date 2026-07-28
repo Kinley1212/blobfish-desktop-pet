@@ -57,12 +57,19 @@ test('legacy stop-after-task setting migrates without losing user intent', () =>
   assert.deepEqual(validateConfig(legacy).greetings, DEFAULT_CONFIG.greetings);
 });
 
-test('task-complete sound setting round-trips and defends against bad input', () => {
-  const { DEFAULT_TASK_COMPLETE_SOUND_ID } = require('../src/core/sound-catalog');
+test('agent sound settings round-trip, migrate and defend against bad input', () => {
+  const { DEFAULT_NEEDS_INPUT_SOUND_ID, DEFAULT_TASK_COMPLETE_SOUND_ID } = require('../src/core/sound-catalog');
 
   // A valid custom choice survives validation unchanged.
   const custom = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-  custom.sound = { taskComplete: { enabled: false, soundId: 'Submarine' } };
+  custom.sound = {
+    needsInput: { enabled: true, soundId: 'Ping' },
+    taskComplete: { enabled: false, soundId: 'Submarine' },
+  };
+  assert.deepEqual(validateConfig(custom).sound.needsInput, {
+    enabled: true,
+    soundId: 'Ping',
+  });
   assert.deepEqual(validateConfig(custom).sound.taskComplete, {
     enabled: false,
     soundId: 'Submarine',
@@ -76,12 +83,29 @@ test('task-complete sound setting round-trips and defends against bad input', ()
     enabled: true,
     soundId: DEFAULT_TASK_COMPLETE_SOUND_ID,
   });
+  assert.deepEqual(validateConfig(legacy).sound.needsInput, {
+    enabled: true,
+    soundId: DEFAULT_NEEDS_INPUT_SOUND_ID,
+  });
+
+  // A config saved with the old single sound switch keeps that switch's
+  // enabled state for the newly split needs-input cue.
+  const oldSingleSwitch = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  oldSingleSwitch.sound = { taskComplete: { enabled: false, soundId: 'Submarine' } };
+  assert.deepEqual(validateConfig(oldSingleSwitch).sound.needsInput, {
+    enabled: false,
+    soundId: DEFAULT_NEEDS_INPUT_SOUND_ID,
+  });
 
   // An unknown sound id (e.g. removed in a later version) falls back to the
   // default rather than bricking the whole config load.
   const unknown = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-  unknown.sound = { taskComplete: { enabled: true, soundId: 'NotARealSound' } };
+  unknown.sound = {
+    needsInput: { enabled: true, soundId: 'AlsoFake' },
+    taskComplete: { enabled: true, soundId: 'NotARealSound' },
+  };
   assert.equal(validateConfig(unknown).sound.taskComplete.soundId, DEFAULT_TASK_COMPLETE_SOUND_ID);
+  assert.equal(validateConfig(unknown).sound.needsInput.soundId, DEFAULT_NEEDS_INPUT_SOUND_ID);
 });
 
 test('invalid config is rejected without weakening validation', () => {
