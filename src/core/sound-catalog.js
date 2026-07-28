@@ -20,6 +20,7 @@ const TASK_COMPLETE_SOUNDS = Object.freeze([
 ]);
 
 const DEFAULT_TASK_COMPLETE_SOUND_ID = 'Glass';
+const DEFAULT_NEEDS_INPUT_SOUND_ID = 'Ping';
 
 function isValidTaskCompleteSoundId(id) {
   return TASK_COMPLETE_SOUNDS.some((sound) => sound.id === id);
@@ -35,6 +36,7 @@ function taskCompleteSoundPath(id) {
 module.exports = {
   SYSTEM_SOUNDS_DIR,
   TASK_COMPLETE_SOUNDS,
+  DEFAULT_NEEDS_INPUT_SOUND_ID,
   DEFAULT_TASK_COMPLETE_SOUND_ID,
   isValidTaskCompleteSoundId,
   taskCompleteSoundPath,

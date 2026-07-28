@@ -63,6 +63,7 @@ function syncDependentControls() {
     ['dayoff-greeting-enabled', 'dayoff-greeting-times'],
     ['quiet-enabled', 'quiet-times'],
     ['idle-enabled', 'idle-time-fields'],
+    ['sound-needs-input-enabled', 'sound-needs-input-fields'],
     ['sound-task-complete-enabled', 'sound-task-complete-fields'],
   ];
   for (const [toggleId, groupId] of dependencies) {
@@ -274,8 +275,8 @@ function renderLanguages(languages, selectedId) {
   }
 }
 
-function renderSounds(sounds, selectedId) {
-  const select = byId('sound-task-complete-id');
+function renderSoundSelect(selectId, sounds, selectedId) {
+  const select = byId(selectId);
   select.replaceChildren();
   for (const sound of sounds) {
     const option = document.createElement('option');
@@ -932,9 +933,12 @@ function renderConfig(config, characters, languages, sounds, accessories) {
   setChecked('integration-calendar', config.integrations.calendar);
   setChecked('privacy-task-titles', config.privacy.includeTaskTitles);
   setChecked('privacy-calendar-titles', config.privacy.includeCalendarTitles);
-  const soundSetting = config.sound?.taskComplete || { enabled: true, soundId: '' };
-  renderSounds(sounds || [], soundSetting.soundId);
-  setChecked('sound-task-complete-enabled', soundSetting.enabled);
+  const needsInputSound = config.sound?.needsInput || { enabled: true, soundId: 'Ping' };
+  const taskCompleteSound = config.sound?.taskComplete || { enabled: true, soundId: '' };
+  renderSoundSelect('sound-needs-input-id', sounds || [], needsInputSound.soundId);
+  renderSoundSelect('sound-task-complete-id', sounds || [], taskCompleteSound.soundId);
+  setChecked('sound-needs-input-enabled', needsInputSound.enabled);
+  setChecked('sound-task-complete-enabled', taskCompleteSound.enabled);
   diyMap = JSON.parse(JSON.stringify(config.pet.customization || {}));
   accessoryMap = JSON.parse(JSON.stringify(config.pet.accessories || {}));
   accessoryCatalog = Array.isArray(accessories) ? accessories : accessoryCatalog;
@@ -1006,6 +1010,10 @@ function readConfig() {
       includeCalendarTitles: byId('privacy-calendar-titles').checked,
     },
     sound: {
+      needsInput: {
+        enabled: byId('sound-needs-input-enabled').checked,
+        soundId: byId('sound-needs-input-id').value,
+      },
       taskComplete: {
         enabled: byId('sound-task-complete-enabled').checked,
         soundId: byId('sound-task-complete-id').value,
@@ -1037,20 +1045,21 @@ for (const tab of panelTabs) {
   });
 }
 
-for (const toggleId of ['workday-greeting-enabled', 'dayoff-greeting-enabled', 'quiet-enabled', 'idle-enabled', 'sound-task-complete-enabled']) {
+for (const toggleId of ['workday-greeting-enabled', 'dayoff-greeting-enabled', 'quiet-enabled', 'idle-enabled', 'sound-needs-input-enabled', 'sound-task-complete-enabled']) {
   byId(toggleId).addEventListener('change', syncDependentControls);
 }
 
-byId('sound-preview-button').addEventListener('click', async () => {
-  const soundId = byId('sound-task-complete-id').value;
-  if (!soundId) return;
-  const button = byId('sound-preview-button');
-  button.disabled = true;
-  try {
-    await window.settingsAPI.previewSound(soundId);
-  } finally {
-    setTimeout(() => { button.disabled = false; }, 350);
-  }
+document.querySelectorAll('.sound-preview-button').forEach((button) => {
+  button.addEventListener('click', async () => {
+    const soundId = byId(button.dataset.soundSelect).value;
+    if (!soundId) return;
+    button.disabled = true;
+    try {
+      await window.settingsAPI.previewSound(soundId);
+    } finally {
+      setTimeout(() => { button.disabled = false; }, 350);
+    }
+  });
 });
 
 appUpdateControls.check.addEventListener('click', checkAppUpdate);

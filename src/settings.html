@@ -228,14 +228,22 @@
           </div>
 
           <div class="card">
-            <div class="card-heading"><div><h3>任务完成音效</h3><p>Codex / Claude Code 的任务跑完时，播放一声提示音。安静时段不会响。</p></div></div>
+            <div class="card-heading"><div><h3>任务提示音</h3><p>分别设置需要你审核时、任务结束时的提示音。完成音效在安静时段不会响。</p></div></div>
+            <label class="toggle-row">
+              <span><strong>播放需要审核音效</strong><small>Codex / Claude Code 等你确认时响一声，安静时段也会提醒。</small></span>
+              <input id="sound-needs-input-enabled" type="checkbox" />
+            </label>
+            <div class="grid two sound-picker-row" id="sound-needs-input-fields">
+              <label class="field">审核音效<select id="sound-needs-input-id"></select></label>
+              <button type="button" class="secondary compact sound-preview-button" data-sound-select="sound-needs-input-id">试听</button>
+            </div>
             <label class="toggle-row">
               <span><strong>播放完成音效</strong><small>关闭后任务完成只冒对话泡泡，不出声。</small></span>
               <input id="sound-task-complete-enabled" type="checkbox" />
             </label>
             <div class="grid two sound-picker-row" id="sound-task-complete-fields">
-              <label class="field">选择音效<select id="sound-task-complete-id"></select></label>
-              <button type="button" class="secondary compact" id="sound-preview-button">试听</button>
+              <label class="field">完成音效<select id="sound-task-complete-id"></select></label>
+              <button type="button" class="secondary compact sound-preview-button" data-sound-select="sound-task-complete-id">试听</button>
             </div>
           </div>
         </section>
