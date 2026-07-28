@@ -266,6 +266,19 @@ h1 {
 .grid { display: grid; gap: 12px; }
 .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
+.sound-picker-row {
+  align-items: end;
+  margin-top: 10px;
+}
+
+.sound-picker-row + .toggle-row { margin-top: 22px; }
+
+.sound-picker-row .sound-preview-button {
+  align-self: end;
+  width: 100%;
+  height: 38px;
+}
+
 .field {
   display: grid;
   min-width: 0;
@@ -667,6 +680,7 @@ button.compact { min-width: 72px; height: 29px; padding: 0 10px; font-size: 9px;
   .privacy-options { grid-template-columns: 1fr; }
   .privacy-options > label { border-bottom: 1px solid var(--line); padding-bottom: 10px; }
   .privacy-options > label:last-child { border-bottom: 0; padding-bottom: 0; }
+  .sound-picker-row .sound-preview-button { margin-top: -2px; }
 }
 
 @media (max-height: 650px) {
