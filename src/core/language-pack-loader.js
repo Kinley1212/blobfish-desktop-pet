@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { assertInside } = require('./pack-loader');
+const { getConditionValidationError } = require('./phrase-engine');
 
 const PACK_ID_PATTERN = /^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
 const PHRASE_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -28,18 +29,11 @@ function isPlainObject(value) {
 }
 
 function validateConditions(conditions, phraseId) {
-  if (conditions === undefined) return;
-  if (!isPlainObject(conditions)) throw new Error(`Phrase ${phraseId} conditions must be an object`);
-
-  for (const [key, value] of Object.entries(conditions)) {
-    const validScalar = typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
-    const validArray = Array.isArray(value) && value.length <= 32 && value.every((entry) => (
-      typeof entry === 'string' || typeof entry === 'number'
-    ));
-    if (!validScalar && !validArray) {
-      throw new Error(`Phrase ${phraseId} has an invalid condition: ${key}`);
-    }
+  const validationError = getConditionValidationError(conditions);
+  if (validationError === 'conditions must be an object') {
+    throw new Error(`Phrase ${phraseId} ${validationError}`);
   }
+  if (validationError !== null) throw new Error(`Phrase ${phraseId} has ${validationError}`);
 }
 
 function validatePhrase(phrase, sourcePath) {
