@@ -22,6 +22,16 @@
     Object.freeze({ key: 'hat', label: '头顶', empty: '不戴', tunable: true }),
     Object.freeze({ key: 'eyewear', label: '眼镜', empty: '不戴', tunable: true }),
     Object.freeze({ key: 'hand', label: '手边', empty: '不拿', tunable: true }),
+    // System props are shown by runtime state rather than manually equipped.
+    // Their tuning still lives in the same per-accessory model, so the DIY
+    // screen can place them for every character without a second config path.
+    Object.freeze({
+      key: 'clock',
+      label: '闹钟位置',
+      empty: '',
+      tunable: true,
+      systemAccessoryId: 'alarm-clock',
+    }),
   ]);
 
   const ACCESSORY_FIELDS = Object.freeze([
@@ -173,6 +183,13 @@
     return normalizeAccessories(spec).tuning[accessoryId] || defaultTuning();
   }
 
+  function withAccessoryEquipped(spec, slotKey, accessoryId) {
+    const normalized = normalizeAccessories(spec);
+    if (!ACCESSORY_SLOTS.some((slot) => slot.key === slotKey)) return normalized;
+    normalized.equipped[slotKey] = normalizeId(accessoryId);
+    return normalized;
+  }
+
   function getCharacterSlots(manifest) {
     const slots = manifest && manifest.accessories && manifest.accessories.slots;
     return slots && typeof slots === 'object' ? slots : null;
@@ -296,5 +313,6 @@
     normalizeTuning,
     sanitizeSvgTree,
     supportsAccessories,
+    withAccessoryEquipped,
   });
 }));

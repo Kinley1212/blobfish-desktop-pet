@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('petAPI', {
   onChatInvite: (callback) => ipcRenderer.on('chat-invite', (_event, invite) => callback(invite)),
   openChat: () => ipcRenderer.send('pet-open-chat'),
   onPetAction: (callback) => ipcRenderer.on('pet-action', (_event, action) => callback(action)),
+  onPetEffect: (callback) => ipcRenderer.on('pet-effect', (_event, effect) => callback(effect)),
   onCheckHover: (callback) => ipcRenderer.on('check-hover', (_event, x, y) => callback(x, y)),
   setPaused: (value) => ipcRenderer.send('pause', value),
   setHoverPaused: (value) => ipcRenderer.send('hover-pause', value),

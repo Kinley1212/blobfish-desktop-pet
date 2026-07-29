@@ -9,9 +9,15 @@ const clockAlertKind = document.getElementById('clock-alert-kind');
 const clockAlertTitle = document.getElementById('clock-alert-title');
 const clockAlertSnooze = document.getElementById('clock-alert-snooze');
 const clockAlertDismiss = document.getElementById('clock-alert-dismiss');
+const completionEffect = document.getElementById('completion-effect');
 const { buildCarouselLayout, nextTaskKey } = globalThis.taskCarouselModel;
 const { applyDiyToSvg } = globalThis.diyModel;
-const { applyAccessoriesToSvg, normalizeAccessories, sanitizeSvgTree } = globalThis.accessoryModel;
+const {
+  applyAccessoriesToSvg,
+  normalizeAccessories,
+  sanitizeSvgTree,
+  withAccessoryEquipped,
+} = globalThis.accessoryModel;
 const { pickExpression } = globalThis.expressionMoods;
 const { bootstrapRenderer, createAsyncGuard, createChatInviteIntent } = globalThis.rendererRuntime;
 
@@ -64,6 +70,12 @@ let pettingStreak = 0;
 let lastPettingAt = 0;
 let blinkTimer = null;
 let speechActionTimer = null;
+let completionEffectTimer = null;
+let alarmPropMotionTimer = null;
+let alarmPropExitTimer = null;
+let alarmPropInitialized = false;
+let alarmPropVisible = false;
+let alarmPropTargetVisible = false;
 let characterManifest = null;
 let petScale = 1;
 let petTopOffset = null;
@@ -119,6 +131,41 @@ function updateClockCountdown() {
   clockDisplayTime.textContent = formatClockDuration(remainingMs);
 }
 
+function updateAlarmProp() {
+  const nextVisible = clockSummary.hasEnabledAlarm
+    || clockSummary.alerts.some((alert) => alert.sourceType === 'alarm');
+  if (!alarmPropInitialized) {
+    alarmPropInitialized = true;
+    alarmPropTargetVisible = nextVisible;
+    alarmPropVisible = nextVisible;
+    renderAccessories();
+    return;
+  }
+  if (nextVisible === alarmPropTargetVisible) return;
+  alarmPropTargetVisible = nextVisible;
+  clearTimeout(alarmPropMotionTimer);
+  clearTimeout(alarmPropExitTimer);
+  pet.classList.remove('alarm-clock-entering', 'alarm-clock-exiting');
+
+  if (nextVisible) {
+    alarmPropVisible = true;
+    renderAccessories();
+    void pet.offsetWidth;
+    pet.classList.add('alarm-clock-entering');
+    alarmPropMotionTimer = setTimeout(() => {
+      pet.classList.remove('alarm-clock-entering');
+    }, 560);
+    return;
+  }
+
+  pet.classList.add('alarm-clock-exiting');
+  alarmPropExitTimer = setTimeout(() => {
+    alarmPropVisible = false;
+    pet.classList.remove('alarm-clock-exiting');
+    renderAccessories();
+  }, 460);
+}
+
 function renderClockState(summary = {}) {
   clockSummary = {
     timer: summary.timer || null,
@@ -141,6 +188,10 @@ function renderClockState(summary = {}) {
   }
 
   const alert = clockSummary.alerts[0];
+  document.body.classList.toggle(
+    'clock-alarm-ringing',
+    clockSummary.alerts.some((item) => item.sourceType === 'alarm'),
+  );
   document.body.classList.toggle('has-clock-alert', Boolean(alert));
   clockAlert.dataset.visible = String(Boolean(alert));
   if (alert) {
@@ -153,6 +204,7 @@ function renderClockState(summary = {}) {
     delete clockAlertDismiss.dataset.alertId;
   }
   applyEffectiveBubblePlacement();
+  updateAlarmProp();
 }
 
 // Both the DIY spec and the equipped accessories change the SVG structurally,
@@ -198,9 +250,9 @@ function sanitizeSvg(svgText) {
 // The worn accessories, with a temporary mood expression standing in for the
 // saved one while a line is being spoken.
 function accessorySpecWithMood() {
-  if (!moodExpressionId) return accessorySpec;
-  const spec = normalizeAccessories(accessorySpec);
-  spec.equipped.face = moodExpressionId;
+  let spec = normalizeAccessories(accessorySpec);
+  if (alarmPropVisible) spec = withAccessoryEquipped(spec, 'clock', 'alarm-clock');
+  if (moodExpressionId) spec.equipped.face = moodExpressionId;
   return spec;
 }
 
@@ -505,6 +557,21 @@ function triggerSpeechAction(action) {
   }, action === 'success' ? 750 : 950);
 }
 
+function triggerPetEffect(effect = {}) {
+  if (effect.type !== 'task-completed') return;
+  triggerSpeechAction('success');
+  clearTimeout(completionEffectTimer);
+  completionEffect.classList.remove('is-all');
+  completionEffect.dataset.visible = 'false';
+  void completionEffect.offsetWidth;
+  completionEffect.classList.toggle('is-all', effect.all === true);
+  completionEffect.dataset.visible = 'true';
+  completionEffectTimer = setTimeout(() => {
+    completionEffect.dataset.visible = 'false';
+    completionEffect.classList.remove('is-all');
+  }, effect.all === true ? 2000 : 1400);
+}
+
 function triggerPetAction(message = {}) {
   if (message.action !== 'exit') return;
   const requestedDuration = Number(message.durationMs);
@@ -635,6 +702,7 @@ window.petAPI.onChatInvite((invite) => {
 });
 window.petAPI.onBump(() => triggerBump());
 window.petAPI.onPetAction((action) => triggerPetAction(action));
+window.petAPI.onPetEffect((effect) => triggerPetEffect(effect));
 void rendererAsyncGuard.run('bootstrap', () => bootstrapRenderer({
   applyAgentState,
   applyPetConfig,

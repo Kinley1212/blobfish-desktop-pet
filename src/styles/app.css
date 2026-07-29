@@ -230,6 +230,86 @@ body.has-clock-alert #task-bubble {
   font-variant-numeric: tabular-nums;
 }
 
+#completion-effect {
+  position: absolute;
+  top: calc(var(--pet-top) + 14px);
+  left: calc(50% + 53px);
+  z-index: 7;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 2px solid rgba(255, 255, 255, 0.94);
+  border-radius: 50%;
+  background: #6d9d79;
+  box-shadow: 0 3px 10px rgba(40, 78, 52, 0.32);
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 6px) scale(0.55);
+}
+
+#completion-effect[data-visible="true"] {
+  animation: completion-pop 1.4s cubic-bezier(0.2, 0.78, 0.3, 1) both;
+}
+
+#completion-effect.is-all {
+  background: #4e8872;
+  animation-duration: 2s;
+}
+
+body.has-clock-display #completion-effect {
+  top: calc(var(--pet-top) - 28px);
+}
+
+#pet.alarm-clock-entering .alarm-clock-shaker {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: alarm-clock-enter 0.52s cubic-bezier(0.2, 0.8, 0.25, 1) both;
+}
+
+#pet.alarm-clock-exiting .alarm-clock-shaker {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: alarm-clock-exit 0.44s ease-in both;
+}
+
+body.clock-alarm-ringing #pet .alarm-clock-shaker {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: alarm-clock-vibrate 0.78s ease-in-out infinite;
+}
+
+@keyframes completion-pop {
+  0% { opacity: 0; transform: translate(-50%, 7px) scale(0.55); }
+  18%, 68% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  82% { opacity: 1; transform: translate(-50%, 0) scale(0.93); }
+  100% { opacity: 0; transform: translate(-50%, -3px) scale(0.75); }
+}
+
+@keyframes alarm-clock-enter {
+  0% { opacity: 0; transform: translateY(10px) scale(0.55) rotate(-9deg); }
+  62% { opacity: 1; transform: translateY(-2px) scale(1.08) rotate(3deg); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+}
+
+@keyframes alarm-clock-exit {
+  0% { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+  100% { opacity: 0; transform: translateY(9px) scale(0.62) rotate(8deg); }
+}
+
+@keyframes alarm-clock-vibrate {
+  0%, 48%, 100% { transform: translate(0, 0) rotate(0deg); }
+  8% { transform: translate(-2px, 0) rotate(-5deg); }
+  16% { transform: translate(2px, -1px) rotate(5deg); }
+  24% { transform: translate(-2px, 0) rotate(-4deg); }
+  32% { transform: translate(2px, 0) rotate(4deg); }
+  40% { transform: translate(-1px, 0) rotate(-2deg); }
+}
+
 body.has-clock-display #pet {
   top: calc(var(--pet-top) - 42px);
 }
@@ -423,8 +503,15 @@ body.has-clock-display #clock-alert {
 
   #task-bubble,
   .task-card,
-  .task-status-icon {
+  .task-status-icon,
+  #completion-effect,
+  #pet .alarm-clock-shaker {
     animation: none !important;
     transition: none !important;
+  }
+
+  #completion-effect[data-visible="true"] {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
   }
 }

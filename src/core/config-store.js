@@ -31,7 +31,13 @@ const DEFAULT_CONFIG = Object.freeze({
     rareEnabled: true,
     idleMinMinutes: 12,
     idleMaxMinutes: 35,
-    categories: Object.freeze({ schedule: true, system: true, calendar: true, agents: true }),
+    categories: Object.freeze({
+      schedule: true,
+      system: true,
+      calendar: true,
+      agents: true,
+      clock: true,
+    }),
   }),
   pet: Object.freeze({
     characterPackId: 'blobfish',
@@ -180,6 +186,9 @@ function validateConfig(input) {
         system: requireBoolean(input.language.categories.system, 'language.categories.system'),
         calendar: requireBoolean(input.language.categories.calendar, 'language.categories.calendar'),
         agents: requireBoolean(input.language.categories.agents, 'language.categories.agents'),
+        clock: input.language.categories.clock === undefined
+          ? DEFAULT_CONFIG.language.categories.clock
+          : requireBoolean(input.language.categories.clock, 'language.categories.clock'),
       },
     },
     pet: {

@@ -1,0 +1,40 @@
+{
+  "category": "clock",
+  "phrases": [
+    { "id": "clock-prop-in-01", "event": "clock.alarmClockAppeared", "text": "我拿著鬧鐘了……你別忘就好。", "weight": 5 },
+    { "id": "clock-prop-in-02", "event": "clock.alarmClockAppeared", "text": "鬧鐘放在手邊了。我會看著。", "weight": 5 },
+    { "id": "clock-prop-in-03", "event": "clock.alarmClockAppeared", "text": "好，我替你拿著時間。", "weight": 3 },
+    { "id": "clock-prop-in-04", "event": "clock.alarmClockAppeared", "text": "它在這裡了……到時候別怪我太吵。", "weight": 3 },
+
+    { "id": "clock-prop-out-01", "event": "clock.alarmClockDisappeared", "text": "鬧鐘收起來了。應該沒有漏掉吧。", "weight": 5 },
+    { "id": "clock-prop-out-02", "event": "clock.alarmClockDisappeared", "text": "現在不用守著時間了……大概。", "weight": 4 },
+    { "id": "clock-prop-out-03", "event": "clock.alarmClockDisappeared", "text": "我把鬧鐘放回去了。", "weight": 4 },
+    { "id": "clock-prop-out-04", "event": "clock.alarmClockDisappeared", "text": "手邊空了。這次是真的結束了吧。", "weight": 3 },
+
+    { "id": "clock-alarm-ring-01", "event": "clock.alarmRinging", "text": "時間到了。真的到了。", "weight": 6 },
+    { "id": "clock-alarm-ring-02", "event": "clock.alarmRinging", "text": "鬧鐘在抖……你也該動了。", "weight": 5 },
+    { "id": "clock-alarm-ring-03", "event": "clock.alarmRinging", "text": "「{label}」到時間了。", "weight": 5, "conditions": { "requires": ["label"] } },
+    { "id": "clock-alarm-ring-04", "event": "clock.alarmRinging", "text": "我已經叫你了。剩下的交給你。", "weight": 3 },
+
+    { "id": "clock-timer-start-01", "event": "clock.timerStarted", "text": "開始計時了。我盯著下面。", "weight": 5 },
+    { "id": "clock-timer-start-02", "event": "clock.timerStarted", "text": "數字開始走了……你去忙吧。", "weight": 4 },
+    { "id": "clock-timer-pause-01", "event": "clock.timerPaused", "text": "先停住了。時間沒有跑掉。", "weight": 5 },
+    { "id": "clock-timer-pause-02", "event": "clock.timerPaused", "text": "計時暫停。你也喘一下。", "weight": 4 },
+    { "id": "clock-timer-resume-01", "event": "clock.timerResumed", "text": "又開始走了。", "weight": 5 },
+    { "id": "clock-timer-resume-02", "event": "clock.timerResumed", "text": "繼續計時……這次別忘了。", "weight": 4 },
+    { "id": "clock-timer-extend-01", "event": "clock.timerExtended", "text": "多給你 {minutes} 分鐘。", "weight": 5, "conditions": { "requires": ["minutes"] } },
+    { "id": "clock-timer-extend-02", "event": "clock.timerExtended", "text": "往後挪了一點。時間還在。", "weight": 4 },
+    { "id": "clock-timer-cancel-01", "event": "clock.timerCancelled", "text": "計時取消了。那我不數了。", "weight": 5 },
+    { "id": "clock-timer-cancel-02", "event": "clock.timerCancelled", "text": "下面安靜了……先這樣。", "weight": 4 },
+
+    { "id": "clock-timer-done-01", "event": "clock.timerCompleted", "text": "計時結束。抬頭看一眼。", "weight": 6 },
+    { "id": "clock-timer-done-02", "event": "clock.timerCompleted", "text": "時間用完了。先停一下吧。", "weight": 5 },
+    { "id": "clock-timer-done-03", "event": "clock.timerCompleted", "text": "「{label}」計時結束了。", "weight": 5, "conditions": { "requires": ["label"] } },
+    { "id": "clock-snooze-01", "event": "clock.alertSnoozed", "text": "好，再等 {minutes} 分鐘。", "weight": 5, "conditions": { "requires": ["minutes"] } },
+    { "id": "clock-snooze-02", "event": "clock.alertSnoozed", "text": "我先不吵。等一下還會回來。", "weight": 4 },
+    { "id": "clock-dismiss-01", "event": "clock.alertDismissed", "text": "知道了。這次我停。", "weight": 5 },
+    { "id": "clock-dismiss-02", "event": "clock.alertDismissed", "text": "提醒關掉了。你有記住就好。", "weight": 4 },
+    { "id": "clock-missed-01", "event": "clock.missedAfterWake", "text": "剛才錯過了一個提醒……現在補告訴你。", "weight": 6 },
+    { "id": "clock-missed-02", "event": "clock.missedAfterWake", "text": "你離開時有時間到了。我沒能叫醒你。", "weight": 4 }
+  ]
+}

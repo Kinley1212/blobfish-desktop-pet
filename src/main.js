@@ -154,6 +154,7 @@ let configStore;
 let startupGreetingStore;
 let clockStore;
 let clockService;
+let clockPropSpeechVisible = false;
 let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 let phraseEngine = null;
 const runtimeWarnings = new RuntimeWarningStore();
@@ -297,6 +298,7 @@ function getEventCategory(event) {
   if (event.startsWith('system.')) return 'system';
   if (event.startsWith('calendar.')) return 'calendar';
   if (event.startsWith('agent.')) return 'agents';
+  if (event.startsWith('clock.')) return 'clock';
   return null;
 }
 
@@ -797,8 +799,19 @@ function getClockSummaryPayload(state = clockService?.getState(), nowMs = Date.n
     alerts: state.alerts
       .filter((alert) => alert.state === 'ringing')
       .map((alert) => ({ ...alert })),
-    hasEnabledAlarm: state.alarms.some((alarm) => alarm.enabled),
+    // A snoozed one-shot alert still belongs in the pet's hand even though
+    // its source alarm has already disabled itself.
+    hasEnabledAlarm: state.alarms.some((alarm) => alarm.enabled)
+      || state.alerts.some((alert) => alert.sourceType === 'alarm'),
   };
+}
+
+function hasVisibleAlarmProp(state) {
+  return Boolean(state)
+    && (
+      state.alarms.some((alarm) => alarm.enabled)
+      || state.alerts.some((alert) => alert.sourceType === 'alarm')
+    );
 }
 
 function clockMenuSignature(state) {
@@ -826,6 +839,44 @@ function broadcastClockState(state) {
     broadcastClockState.lastMenuSignature = signature;
     rebuildTrayMenu();
   }
+}
+
+function handleClockStateChange(state, details = {}) {
+  broadcastClockState(state);
+  const nextPropVisible = hasVisibleAlarmProp(state);
+  const propChanged = nextPropVisible !== clockPropSpeechVisible;
+  clockPropSpeechVisible = nextPropVisible;
+  if (details.reason === 'reconcile' || details.reason === 'preferences-updated') return;
+
+  if (propChanged) {
+    speak(
+      nextPropVisible ? 'clock.alarmClockAppeared' : 'clock.alarmClockDisappeared',
+      {},
+      {
+        priority: SPEECH_PRIORITY.schedule,
+        durationMs: 5000,
+        replaceKey: 'clock.prop',
+      },
+    );
+    return;
+  }
+
+  const eventByReason = {
+    'timer-started': 'clock.timerStarted',
+    'timer-paused': 'clock.timerPaused',
+    'timer-resumed': 'clock.timerResumed',
+    'timer-extended': 'clock.timerExtended',
+    'timer-cancelled': 'clock.timerCancelled',
+    'alert-snoozed': 'clock.alertSnoozed',
+    'alert-dismissed': 'clock.alertDismissed',
+  };
+  const event = eventByReason[details.reason];
+  if (!event) return;
+  speak(event, { minutes: details.minutes }, {
+    priority: SPEECH_PRIORITY.schedule,
+    durationMs: 4600,
+    replaceKey: 'clock.control',
+  });
 }
 
 function playClockAlertSound(alerts) {
@@ -881,10 +932,11 @@ function setupClockService() {
   const loadWarning = clockStore.loadWarning;
   clockService = new ClockService(clockStore, {
     getWorkdays: () => [...config.schedule.workdays],
-    onChange: (state) => broadcastClockState(state),
+    onChange: (state, details) => handleClockStateChange(state, details),
     onDue: handleClockDue,
     onMissed: handleClockMissed,
   });
+  clockPropSpeechVisible = hasVisibleAlarmProp(clockService.getState());
   clockService.start();
   if (loadWarning) {
     runtimeWarnings.set('clock', loadWarning);
@@ -1928,6 +1980,10 @@ function emitTaskStatus(status = getVisibleTaskStatus()) {
   if (win && !win.isDestroyed()) win.webContents.send('task-status', status);
 }
 
+function emitPetEffect(effect) {
+  if (win && !win.isDestroyed()) win.webContents.send('pet-effect', effect);
+}
+
 function handleTaskTransition(transition) {
   updateAgentState(transition.snapshot);
   const terminalState = transition.type === 'failed'
@@ -1971,12 +2027,13 @@ function handleTaskTransition(transition) {
       action: 'waiting',
     });
   } else if (transition.type === 'completed') {
-    speak('agent.completed', context, { ...speechOptions, replaceKey: 'agent.completed', action: 'success' });
+    emitPetEffect({ type: 'task-completed', all: false });
+    speak('agent.completed', context, { ...speechOptions, replaceKey: 'agent.completed' });
   } else if (transition.type === 'allCompleted') {
+    emitPetEffect({ type: 'task-completed', all: true });
     speak('agent.allCompleted', context, {
       ...speechOptions,
       replaceKey: 'agent.allCompleted',
-      action: 'success',
     });
   } else if (transition.type === 'ended') {
     speak('agent.ended', context, { ...speechOptions, replaceKey: 'agent.ended' });

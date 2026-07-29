@@ -17,6 +17,7 @@
       "additions/system.json",
       "additions/calendar.json",
       "additions/agents.json",
+      "additions/clock.json",
       "additions/rare.json"
     ]
   }

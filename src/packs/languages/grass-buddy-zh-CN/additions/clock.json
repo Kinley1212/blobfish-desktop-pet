@@ -1,0 +1,40 @@
+{
+  "category": "clock",
+  "phrases": [
+    { "id": "grass-clock-prop-in-01", "event": "clock.alarmClockAppeared", "text": "闹钟放手边了。我替你看着。", "weight": 6 },
+    { "id": "grass-clock-prop-in-02", "event": "clock.alarmClockAppeared", "text": "时间种下了。到点会响。", "weight": 4 },
+    { "id": "grass-clock-prop-in-03", "event": "clock.alarmClockAppeared", "text": "好，闹钟在这里。", "weight": 4 },
+    { "id": "grass-clock-prop-in-04", "event": "clock.alarmClockAppeared", "text": "我拿住它。你先做自己的事。", "weight": 3 },
+
+    { "id": "grass-clock-prop-out-01", "event": "clock.alarmClockDisappeared", "text": "闹钟收起来了。", "weight": 6 },
+    { "id": "grass-clock-prop-out-02", "event": "clock.alarmClockDisappeared", "text": "手边空出来了。提醒已经处理完。", "weight": 4 },
+    { "id": "grass-clock-prop-out-03", "event": "clock.alarmClockDisappeared", "text": "这段时间守完了。", "weight": 4 },
+    { "id": "grass-clock-prop-out-04", "event": "clock.alarmClockDisappeared", "text": "不用再盯着它了。", "weight": 3 },
+
+    { "id": "grass-clock-alarm-ring-01", "event": "clock.alarmRinging", "text": "到点了。该动身了。", "weight": 6 },
+    { "id": "grass-clock-alarm-ring-02", "event": "clock.alarmRinging", "text": "闹钟在震。时间已经到了。", "weight": 5 },
+    { "id": "grass-clock-alarm-ring-03", "event": "clock.alarmRinging", "text": "「{label}」到时间了。", "weight": 5, "conditions": { "requires": ["label"] } },
+    { "id": "grass-clock-alarm-ring-04", "event": "clock.alarmRinging", "text": "提醒送到了。别让它白响。", "weight": 3 },
+
+    { "id": "grass-clock-timer-start-01", "event": "clock.timerStarted", "text": "开始计时。下面会一直显示。", "weight": 5 },
+    { "id": "grass-clock-timer-start-02", "event": "clock.timerStarted", "text": "数字开始走了。专心做吧。", "weight": 4 },
+    { "id": "grass-clock-timer-pause-01", "event": "clock.timerPaused", "text": "计时暂停。先把这一刻留住。", "weight": 5 },
+    { "id": "grass-clock-timer-pause-02", "event": "clock.timerPaused", "text": "停住了。需要时再继续。", "weight": 4 },
+    { "id": "grass-clock-timer-resume-01", "event": "clock.timerResumed", "text": "继续计时。", "weight": 5 },
+    { "id": "grass-clock-timer-resume-02", "event": "clock.timerResumed", "text": "时间又往前走了。", "weight": 4 },
+    { "id": "grass-clock-timer-extend-01", "event": "clock.timerExtended", "text": "加了 {minutes} 分钟。", "weight": 5, "conditions": { "requires": ["minutes"] } },
+    { "id": "grass-clock-timer-extend-02", "event": "clock.timerExtended", "text": "时间往后挪了一截。", "weight": 4 },
+    { "id": "grass-clock-timer-cancel-01", "event": "clock.timerCancelled", "text": "计时取消。显示器可以收了。", "weight": 5 },
+    { "id": "grass-clock-timer-cancel-02", "event": "clock.timerCancelled", "text": "不数了。换下一件事吧。", "weight": 4 },
+
+    { "id": "grass-clock-timer-done-01", "event": "clock.timerCompleted", "text": "计时结束。停一下，看看现在。", "weight": 6 },
+    { "id": "grass-clock-timer-done-02", "event": "clock.timerCompleted", "text": "时间到了。这一段长完了。", "weight": 5 },
+    { "id": "grass-clock-timer-done-03", "event": "clock.timerCompleted", "text": "「{label}」计时结束。", "weight": 5, "conditions": { "requires": ["label"] } },
+    { "id": "grass-clock-snooze-01", "event": "clock.alertSnoozed", "text": "再等 {minutes} 分钟。我还拿着。", "weight": 5, "conditions": { "requires": ["minutes"] } },
+    { "id": "grass-clock-snooze-02", "event": "clock.alertSnoozed", "text": "先缓一会儿。提醒还会回来。", "weight": 4 },
+    { "id": "grass-clock-dismiss-01", "event": "clock.alertDismissed", "text": "提醒关掉了。", "weight": 5 },
+    { "id": "grass-clock-dismiss-02", "event": "clock.alertDismissed", "text": "收到就好。声音停了。", "weight": 4 },
+    { "id": "grass-clock-missed-01", "event": "clock.missedAfterWake", "text": "刚才错过了一个提醒。现在补上。", "weight": 6 },
+    { "id": "grass-clock-missed-02", "event": "clock.missedAfterWake", "text": "你不在时有时间到了。回来记得看。", "weight": 4 }
+  ]
+}

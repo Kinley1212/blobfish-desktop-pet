@@ -526,6 +526,25 @@ function renderAccessoryControls() {
   for (const slot of accessoryModel.ACCESSORY_SLOTS) {
     if (!slots[slot.key]) continue;
 
+    if (slot.systemAccessoryId) {
+      const systemField = document.createElement('div');
+      systemField.className = 'field accessory-system-field';
+      const systemTitle = document.createElement('strong');
+      systemTitle.textContent = slot.label;
+      const systemHint = document.createElement('span');
+      systemHint.textContent = '设好闹钟后自动出现；这里只调整它在角色手边的位置。';
+      systemField.append(systemTitle, systemHint);
+      container.appendChild(systemField);
+
+      const sliders = document.createElement('div');
+      sliders.className = 'range-stack accessory-sliders';
+      for (const sliderField of accessoryModel.ACCESSORY_FIELDS) {
+        sliders.appendChild(buildAccessorySlider(() => slot.systemAccessoryId, sliderField));
+      }
+      container.appendChild(sliders);
+      continue;
+    }
+
     const field = document.createElement('label');
     field.className = 'field';
     field.append(slot.label);
@@ -606,7 +625,7 @@ function renderDiyPreview() {
     svg,
     { accessories: diyArt.accessories },
     accessoryCatalog,
-    currentAccessorySpec(),
+    accessoryModel.withAccessoryEquipped(currentAccessorySpec(), 'clock', 'alarm-clock'),
   );
 }
 
@@ -963,6 +982,7 @@ function renderConfig(config, characters, languages, sounds, accessories) {
   setChecked('category-system', config.language.categories.system);
   setChecked('category-calendar', config.language.categories.calendar);
   setChecked('category-agents', config.language.categories.agents);
+  setChecked('category-clock', config.language.categories.clock);
   setValue('pet-speed', config.pet.speed);
   speedOutput.value = `${config.pet.speed.toFixed(2)}×`;
   syncPetScaleLimit(config.pet.characterPackId, { clamp: false });
@@ -1029,6 +1049,7 @@ function readConfig() {
         system: byId('category-system').checked,
         calendar: byId('category-calendar').checked,
         agents: byId('category-agents').checked,
+        clock: byId('category-clock').checked,
       },
     },
     pet: {

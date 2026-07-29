@@ -747,3 +747,20 @@ button.compact { min-width: 72px; height: 29px; padding: 0 10px; font-size: 9px;
 .accessory-sliders { margin: 8px 0 14px; }
 .accessory-sliders[hidden] { display: none; }
 #accessory-controls[hidden] { display: none; }
+
+.accessory-system-field {
+  display: grid;
+  gap: 3px;
+  margin-top: 8px;
+}
+
+.accessory-system-field strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.accessory-system-field span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}

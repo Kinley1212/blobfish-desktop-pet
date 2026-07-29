@@ -3,7 +3,8 @@
 }
 
 @keyframes blobfish-success {
-  0%, 100% { transform: translateX(-50%) scaleX(var(--dir)) translateY(0); }
-  45% { transform: translateX(-50%) scaleX(var(--dir)) translateY(-12px); }
-  70% { transform: translateX(-50%) scaleX(var(--dir)) translateY(2px); }
+  0%, 100% { transform: translateX(-50%) scaleX(var(--dir)) scaleY(1); }
+  28% { transform: translateX(-50%) scaleX(var(--dir)) scaleY(0.94); }
+  58% { transform: translateX(-50%) scaleX(var(--dir)) scaleY(1.06); }
+  78% { transform: translateX(-50%) scaleX(var(--dir)) scaleY(0.98); }
 }

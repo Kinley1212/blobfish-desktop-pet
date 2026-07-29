@@ -77,6 +77,7 @@ function createRendererHarness() {
     'clock-alert-title',
     'clock-alert-snooze',
     'clock-alert-dismiss',
+    'completion-effect',
   ].map((id) => [id, element()]));
   const body = element();
   const svgRoot = { outerHTML: '<svg></svg>' };
@@ -128,6 +129,7 @@ function createRendererHarness() {
     'onDialogueReaction',
     'onDirection',
     'onPetAction',
+    'onPetEffect',
     'onPetConfig',
     'onPetLayout',
     'onSpeech',
@@ -175,6 +177,7 @@ function createRendererHarness() {
       applyAccessoriesToSvg() {},
       normalizeAccessories: () => ({ equipped: {} }),
       sanitizeSvgTree: (root) => root,
+      withAccessoryEquipped: (spec) => spec,
     },
     clearTimeout(id) {
       timers.delete(id);
