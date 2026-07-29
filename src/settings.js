@@ -232,7 +232,7 @@ async function installAppUpdate() {
   if (!update || update.state !== 'available') update = await checkAppUpdate();
   if (!update || update.state !== 'available') return;
   const confirmed = window.confirm(
-    `下载并安装 Pro${update.version} 吗？\n\n将下载 ${formatBytes(update.asset.size)} 的 ${update.architecture === 'arm64' ? 'Apple 芯片' : 'Intel'} 版本。下载后水滴鱼会退出、安装新版本并自动重新打开；当前版本会移到废纸篓，可以恢复。`,
+    `下载并安装 Pro${update.version} 吗？\n\n将下载 ${formatBytes(update.asset.size)} 的 ${update.architecture === 'arm64' ? 'Apple 芯片' : 'Intel'} 版本。下载后水滴鱼会退出、安装新版本并自动重新打开。\n\n如果当前位置不可写，新版会自动安装到你个人的“应用程序”文件夹，不需要管理员权限；这种情况下旧版会保留。`,
   );
   if (!confirmed) return;
 
@@ -242,27 +242,40 @@ async function installAppUpdate() {
   try {
     const result = await window.settingsAPI.installAppUpdate();
     if (result.state === 'installing') {
-      appUpdateControls.status.textContent = `Pro${result.version} 已校验，正在退出并安装…`;
+      const destination = result.installLocation === 'user-applications'
+        ? '个人“应用程序”文件夹'
+        : '当前文件夹';
+      appUpdateControls.status.textContent = `Pro${result.version} 已校验，正在退出并安装到${destination}…`;
+    } else if (result.state === 'error') {
+      appUpdateControls.check.disabled = false;
+      appUpdateControls.install.disabled = false;
+      appUpdateControls.status.textContent = `更新没有完成：${result.message}`;
+      showStatus(`更新没有完成：${result.message}`, true);
     }
   } catch (error) {
     appUpdateControls.check.disabled = false;
     appUpdateControls.install.disabled = false;
-    appUpdateControls.status.textContent = `更新失败：${error.message}`;
-    showStatus(`更新失败：${error.message}`, true);
+    appUpdateControls.status.textContent = '更新没有完成，请重新检查后再试。';
+    showStatus('更新没有完成，请重新检查后再试。', true);
   }
 }
 
 function renderAppUpdateProgress(progress) {
   if (!progress || typeof progress !== 'object') return;
-  if (progress.state === 'downloading') {
+  const personalApplications = progress.installLocation === 'user-applications';
+  if (progress.state === 'preparing' && personalApplications) {
+    appUpdateControls.status.textContent = '当前位置不可写，将把新版安装到你个人的“应用程序”文件夹…';
+  } else if (progress.state === 'downloading') {
     const total = Number(progress.total);
     const received = Number(progress.received);
     const suffix = Number.isFinite(total) && total > 0
       ? `（${Math.min(100, Math.round((received / total) * 100))}%）`
       : '';
-    appUpdateControls.status.textContent = `正在下载 Pro${progress.version} ${suffix}…`;
+    const destination = personalApplications ? '，稍后安装到个人“应用程序”文件夹' : '';
+    appUpdateControls.status.textContent = `正在下载 Pro${progress.version} ${suffix}${destination}…`;
   } else if (progress.state === 'installing') {
-    appUpdateControls.status.textContent = `Pro${progress.version} 已校验，正在准备安装…`;
+    const destination = personalApplications ? '到个人“应用程序”文件夹' : '';
+    appUpdateControls.status.textContent = `Pro${progress.version} 已校验，正在准备安装${destination}…`;
   }
 }
 
