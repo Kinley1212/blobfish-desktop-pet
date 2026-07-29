@@ -17,7 +17,6 @@ const { loadCharacterPack } = require('./core/pack-loader');
 const { loadAccessoryCatalog } = require('./core/accessory-loader');
 const { loadDialoguePackSafe } = require('./core/dialogue-loader');
 const { loadLanguagePack } = require('./core/language-pack-loader');
-const { calculateVerticalPlacement } = require('./core/pet-boundary');
 const {
   preparePetConfigForSave,
   repairLoadedPetConfigWithFallback,
@@ -29,6 +28,7 @@ const {
   PET_WINDOW_WIDTH,
   calculatePetMetrics,
   calculatePetRecoveryPlacement,
+  calculateVerticalRoamPlacement,
   getMaxPetScale,
 } = require('./core/pet-window-geometry');
 const { PhraseEngine } = require('./core/phrase-engine');
@@ -1652,7 +1652,7 @@ function createWindow() {
         basePetTop = nativePetTop;
       }
       let desiredPetTop = basePetTop + verticalDirection * config.pet.speed;
-      const probe = calculateVerticalPlacement(desiredPetTop, { minY, maxY }, petMetrics);
+      const probe = calculateVerticalRoamPlacement(desiredPetTop, { minY, maxY }, petMetrics);
       if (probe.hitTop) {
         desiredPetTop = probe.petTop;
         verticalDirection = 1;

@@ -59,6 +59,22 @@ function calculatePetMetrics(size, scale, windowGeometry = {}) {
   });
 }
 
+function calculateVerticalRoamPlacement(desiredPetTop, bounds, metrics) {
+  const height = requireFinite(metrics?.height, 'pet height');
+  const topMargin = requireFinite(metrics?.topMargin, 'pet top margin');
+
+  // The 400 px transparent window reserves generous room for stacked bubbles,
+  // but pinning that whole window to the menu bar made the pet travel almost
+  // 300 px inside a stationary window after touching the top. Keep only the
+  // bubble reserve above the roaming pet; as soon as that reserve is restored,
+  // the native window follows the pet again instead of feeling like a second
+  // invisible boundary that lasts until the bottom of the screen.
+  return calculateVerticalPlacement(desiredPetTop, bounds, {
+    height,
+    topMargin: Math.min(topMargin, BUBBLE_STACK_RESERVE),
+  });
+}
+
 function getMaxPetScale(size, windowGeometry = {}, options = {}) {
   const sourceWidth = requireFinite(size?.width, 'pet width');
   const sourceHeight = requireFinite(size?.height, 'pet height');
@@ -251,5 +267,6 @@ module.exports = {
   PET_WINDOW_WIDTH,
   calculatePetMetrics,
   calculatePetRecoveryPlacement,
+  calculateVerticalRoamPlacement,
   getMaxPetScale,
 };

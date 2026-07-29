@@ -12,6 +12,7 @@ const {
   PET_WINDOW_WIDTH,
   calculatePetMetrics,
   calculatePetRecoveryPlacement,
+  calculateVerticalRoamPlacement,
   getMaxPetScale,
 } = require('../src/core/pet-window-geometry');
 
@@ -122,6 +123,38 @@ test('a taller transparent window preserves the pet feet at the bottom of the wo
   const petBottom = windowY + metrics.topMargin + metrics.height;
 
   assert.equal(petBottom, workAreaBottom - PET_BOTTOM_MARGIN);
+});
+
+test('vertical roaming releases the native window soon after bouncing off the screen top', () => {
+  const metrics = {
+    width: 120,
+    height: 90,
+    offsetX: 110,
+    topMargin: 300,
+  };
+  const bounds = { minY: 25, maxY: 900 };
+
+  assert.deepEqual(calculateVerticalRoamPlacement(25, bounds, metrics), {
+    petTop: 25,
+    windowY: 25,
+    topOffset: 0,
+    hitTop: true,
+    hitBottom: false,
+  });
+  assert.deepEqual(calculateVerticalRoamPlacement(151, bounds, metrics), {
+    petTop: 151,
+    windowY: 25,
+    topOffset: BUBBLE_STACK_RESERVE,
+    hitTop: false,
+    hitBottom: false,
+  });
+  assert.deepEqual(calculateVerticalRoamPlacement(200, bounds, metrics), {
+    petTop: 200,
+    windowY: 74,
+    topOffset: BUBBLE_STACK_RESERVE,
+    hitTop: false,
+    hitBottom: false,
+  });
 });
 
 test('display recovery keeps an already visible pet on its current display', () => {
