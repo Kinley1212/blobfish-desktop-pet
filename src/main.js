@@ -42,6 +42,7 @@ const { RuntimeWarningStore } = require('./core/runtime-warning-store');
 const { SpeechQueue } = require('./core/speech-queue');
 const { SPEECH_DURATION_MS } = require('./core/speech-timing');
 const { StartupGreetingStore, getStartupGreeting } = require('./core/startup-greeting');
+const { bindGracefulWindowClose, isLiveWindow } = require('./core/window-lifecycle');
 const { formatProviderTaskSummary } = require('./core/task-menu-summary');
 const { advanceFractionalCoordinate, roundWindowCoordinate } = require('./core/fractional-position');
 const { getCurrentTaskStatus, getTerminalTaskStatus } = require('./core/task-status-presenter');
@@ -137,6 +138,7 @@ let currentX;
 let currentY;
 let petTopOffset = null;
 let flingIntervalId = null;
+let movementIntervalId = null;
 let speechQueue;
 let idleChatterTimer = null;
 let chatInviteTimer = null;
@@ -1110,6 +1112,13 @@ function setupDisplayMonitors() {
   screen.on('display-metrics-changed', scheduleDisplayRecovery);
 }
 
+function stopPetMotionTimers() {
+  clearInterval(movementIntervalId);
+  clearInterval(flingIntervalId);
+  movementIntervalId = null;
+  flingIntervalId = null;
+}
+
 function createWindow() {
   const { x: dispX, y: dispY, width: dispWidth, height: dispHeight } = screen.getPrimaryDisplay().workArea;
   currentX = Math.floor(dispX + dispWidth / 2);
@@ -1125,6 +1134,7 @@ function createWindow() {
     transparent: true,
     alwaysOnTop: true,
     resizable: false,
+    minimizable: false,
     movable: false,
     skipTaskbar: true,
     hasShadow: false,
@@ -1135,6 +1145,16 @@ function createWindow() {
     },
   });
 
+  const petWindow = win;
+  bindGracefulWindowClose(petWindow, {
+    canCloseImmediately: () => allowImmediateQuit,
+    requestQuit,
+    onClosed: () => {
+      stopPetMotionTimers();
+      if (win === petWindow) win = null;
+      if (!allowImmediateQuit && !quitRequested) requestQuit();
+    },
+  });
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   win.setIgnoreMouseEvents(true, { forward: true });
@@ -1275,8 +1295,8 @@ function createWindow() {
     startFling(vx, vy);
   });
 
-  setInterval(() => {
-    if (isMovementPaused() || flingIntervalId || !win || win.isDestroyed()) return;
+  movementIntervalId = setInterval(() => {
+    if (isMovementPaused() || flingIntervalId || !isLiveWindow(win)) return;
     const [wx, wy] = win.getPosition();
     const petMetrics = getPetMetrics();
     const nativePetTop = wy + (Number.isFinite(petTopOffset) ? petTopOffset : petMetrics.topMargin);
@@ -1362,7 +1382,7 @@ function startFling(vx, vy) {
   let flingVY = vy;
 
   flingIntervalId = setInterval(() => {
-    if (!win || win.isDestroyed()) {
+    if (!isLiveWindow(win)) {
       clearInterval(flingIntervalId);
       flingIntervalId = null;
       paused = false;
@@ -2258,6 +2278,7 @@ app.on('before-quit', (event) => {
   clearTimeout(reminderTimer);
   clearTimeout(displayRecoveryTimer);
   clearTimeout(contextMenuPauseTimer);
+  stopPetMotionTimers();
   clearInterval(batteryPollTimer);
   clearInterval(taskMaintenanceTimer);
   clearInterval(taskLeasePollTimer);
