@@ -1,7 +1,15 @@
+:root {
+  --pet-window-width: 340px;
+  --pet-window-height: 400px;
+  --pet-bottom-margin: 10px;
+  --pet-height: 90px;
+  --pet-top: calc(var(--pet-window-height) - var(--pet-bottom-margin) - var(--pet-height));
+}
+
 html,
 body {
-  width: 340px;
-  height: 210px;
+  width: var(--pet-window-width);
+  height: var(--pet-window-height);
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -11,7 +19,7 @@ body {
 
 #bubble {
   position: absolute;
-  top: calc(var(--pet-top, 110px) - 8px);
+  top: calc(var(--pet-top) - 8px);
   left: 50%;
   z-index: 2;
   max-width: 260px;
@@ -33,21 +41,21 @@ body {
 }
 
 body.has-task-bubble #bubble:not([data-placement="below"]) {
-  top: calc(var(--pet-top, 110px) - 62px);
+  top: calc(var(--pet-top) - 62px);
 }
 
 body.has-task-bubble #bubble[data-placement="below"] {
-  top: calc(var(--pet-top, 0px) + var(--pet-height, 90px) + 58px);
+  top: calc(var(--pet-top) + var(--pet-height) + 58px);
 }
 
 #bubble[data-placement="below"] {
-  top: calc(var(--pet-top, 0px) + var(--pet-height, 90px) + 8px);
+  top: calc(var(--pet-top) + var(--pet-height) + 8px);
   transform: translateX(-50%);
 }
 
 #task-bubble {
   position: absolute;
-  top: calc(var(--pet-top, 110px) - 8px);
+  top: calc(var(--pet-top) - 8px);
   left: 50%;
   z-index: 3;
   box-sizing: border-box;
@@ -67,7 +75,7 @@ body.has-task-bubble #bubble[data-placement="below"] {
 }
 
 #task-bubble[data-placement="below"] {
-  top: calc(var(--pet-top, 0px) + var(--pet-height, 90px) + 8px);
+  top: calc(var(--pet-top) + var(--pet-height) + 8px);
   transform: translateX(-50%);
 }
 
@@ -194,7 +202,7 @@ body.has-task-bubble #bubble[data-placement="below"] {
 #pet {
   --dir: 1;
   position: absolute;
-  top: var(--pet-top, calc(210px - 10px - var(--pet-height, 90px)));
+  top: var(--pet-top);
   left: 50%;
   cursor: grab;
   transform: translateX(-50%) scaleX(var(--dir));

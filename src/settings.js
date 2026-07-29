@@ -6,6 +6,7 @@ const speedInput = document.getElementById('pet-speed');
 const speedOutput = document.getElementById('speed-output');
 const scaleInput = document.getElementById('pet-scale');
 const scaleOutput = document.getElementById('scale-output');
+const defaultPetScaleMax = Number(scaleInput.max) || 1.5;
 const agentProviders = ['codex', 'claude'];
 const integrationControls = Object.fromEntries(agentProviders.map((provider) => [provider, {
   primary: document.getElementById(`connect-${provider}`),
@@ -297,10 +298,25 @@ function renderCharacters(characters, selectedId) {
     option.value = character.id;
     option.textContent = character.displayName;
     option.dataset.defaultLanguagePack = character.defaultLanguagePack || '';
+    option.dataset.maxScale = String(character.maxScale ?? defaultPetScaleMax);
     option.selected = character.id === selectedId;
     select.appendChild(option);
   }
   applyCharacterCopy(select.value);
+}
+
+function syncPetScaleLimit(packId, options = {}) {
+  const advertisedMax = Number(charactersById.get(packId)?.maxScale);
+  const minScale = Number(scaleInput.min) || 0.65;
+  const maxScale = Number.isFinite(advertisedMax) && advertisedMax >= minScale
+    ? Math.min(defaultPetScaleMax, advertisedMax)
+    : defaultPetScaleMax;
+  scaleInput.max = String(maxScale);
+
+  if (options.clamp !== false && Number(scaleInput.value) > maxScale) {
+    scaleInput.value = String(maxScale);
+  }
+  scaleOutput.value = `${Math.round(Number(scaleInput.value) * 100)}%`;
 }
 
 // --- 捏鱼 (DIY) ----------------------------------------------------------
@@ -948,8 +964,9 @@ function renderConfig(config, characters, languages, sounds, accessories) {
   setChecked('category-agents', config.language.categories.agents);
   setValue('pet-speed', config.pet.speed);
   speedOutput.value = `${config.pet.speed.toFixed(2)}×`;
+  syncPetScaleLimit(config.pet.characterPackId, { clamp: false });
   setValue('pet-scale', config.pet.scale);
-  scaleOutput.value = `${Math.round(config.pet.scale * 100)}%`;
+  syncPetScaleLimit(config.pet.characterPackId);
   setValue('pet-move-axis', config.pet.moveAxis || 'horizontal');
   setChecked('roam-without-tasks', config.pet.roamWhenNoTasks);
   setChecked('launch-at-login', config.startup.launchAtLogin);
@@ -1106,6 +1123,7 @@ byId('character-pack').addEventListener('change', (event) => {
   if (languagePackId && [...byId('language-pack').options].some((option) => option.value === languagePackId)) {
     setValue('language-pack', languagePackId);
   }
+  syncPetScaleLimit(event.target.value);
   applyCharacterCopy(event.target.value);
   loadDiy(event.target.value);
 });
