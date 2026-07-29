@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { TaskTracker } = require('../src/core/task-tracker');
+const { ProcessedAgentEvents, TaskTracker } = require('../src/core/task-tracker');
 
 function event(eventName, turnId, timestamp = 1000, sessionId = 'session') {
   return { version: 1, provider: 'codex', event: eventName, sessionId, turnId, timestamp };
@@ -31,6 +31,101 @@ test('ignores tool and permission events that have no explicit prompt start', ()
 
   assert.equal(tracker.snapshot().activeCount, 0);
   assert.deepEqual(transitions, []);
+});
+
+test('does not permanently deduplicate needs_input when it arrives before its task start', () => {
+  const transitions = [];
+  const tracker = new TaskTracker((transition) => transitions.push(transition.type));
+  const processed = new ProcessedAgentEvents();
+  const waiting = event('needs_input', 'out-of-order-turn', 2000);
+
+  const socketResult = tracker.handleWithResult(waiting);
+  if (socketResult.accepted) processed.remember(waiting);
+
+  assert.equal(socketResult.accepted, false);
+  assert.equal(processed.has(waiting), false);
+
+  tracker.handle(event('started', 'out-of-order-turn', 1000));
+  assert.deepEqual(tracker.snapshot(), { activeCount: 1, waitingCount: 1, runningCount: 0 });
+  assert.deepEqual(transitions, ['started', 'needsInput']);
+
+  tracker.handle(waiting);
+  assert.equal(transitions.filter((type) => type === 'needsInput').length, 1);
+});
+
+test('pending lifecycle is matched by turn and a late old start cannot consume a newer turn', () => {
+  const transitions = [];
+  const tracker = new TaskTracker((transition) => transitions.push(transition.type));
+
+  tracker.handle(event('needs_input', 'new-turn', 3000));
+  tracker.handle(event('started', 'old-turn', 1000));
+  assert.equal(tracker.getTasks()[0].state, 'running');
+  tracker.handle(event('started', 'new-turn', 2000));
+
+  assert.equal(tracker.getTasks()[0].turnId, 'new-turn');
+  assert.equal(tracker.getTasks()[0].state, 'waiting');
+  assert.deepEqual(transitions, ['started', 'started', 'needsInput']);
+
+  const another = new TaskTracker((transition) => transitions.push(`another:${transition.type}`));
+  another.handle(event('needs_input', 'old-turn', 2000));
+  another.handle(event('started', 'new-turn', 3000));
+  assert.equal(another.getTasks()[0].state, 'running');
+  assert.equal(transitions.includes('another:needsInput'), false);
+});
+
+test('pending lifecycle has a short TTL and a hard size bound', () => {
+  let now = 0;
+  const transitions = [];
+  const tracker = new TaskTracker(
+    (transition) => transitions.push(transition.type),
+    {
+      maxPendingLifecycleEvents: 2,
+      now: () => now,
+      pendingLifecycleMaxAgeMs: 100,
+    },
+  );
+
+  tracker.handle(event('needs_input', 'one', 1000, 'session-one'));
+  tracker.handle(event('needs_input', 'two', 1000, 'session-two'));
+  tracker.handle(event('needs_input', 'three', 1000, 'session-three'));
+  tracker.handle(event('started', 'one', 1100, 'session-one'));
+  tracker.handle(event('started', 'three', 1100, 'session-three'));
+
+  assert.equal(tracker.getTasks().find((task) => task.sessionId === 'session-one').state, 'running');
+  assert.equal(tracker.getTasks().find((task) => task.sessionId === 'session-three').state, 'waiting');
+  assert.equal(transitions.filter((type) => type === 'needsInput').length, 1);
+
+  tracker.handle(event('needs_input', 'four', 2000, 'session-four'));
+  now = 101;
+  tracker.pruneStale(10_000, 2_000);
+  tracker.handle(event('started', 'four', 2100, 'session-four'));
+  assert.equal(tracker.getTasks().find((task) => task.sessionId === 'session-four').state, 'running');
+  assert.equal(transitions.filter((type) => type === 'needsInput').length, 1);
+});
+
+test('terminal events and provider removal clear pending lifecycle', () => {
+  const transitions = [];
+  const tracker = new TaskTracker((transition) => transitions.push(transition.type));
+
+  tracker.handle(event('needs_input', 'terminal-turn', 1000, 'terminal-session'));
+  tracker.handle(event('ended', 'terminal-turn', 2000, 'terminal-session'));
+  tracker.handle(event('started', 'terminal-turn', 3000, 'terminal-session'));
+  assert.equal(tracker.getTasks().find((task) => task.sessionId === 'terminal-session').state, 'running');
+
+  const claudeWaiting = {
+    ...event('needs_input', 'claude-turn', 1000, 'claude-session'),
+    provider: 'claude-code',
+  };
+  const claudeStarted = {
+    ...event('started', 'claude-turn', 2000, 'claude-session'),
+    provider: 'claude-code',
+  };
+  tracker.handle(claudeWaiting);
+  tracker.removeProvider('claude-code');
+  tracker.handle(claudeStarted);
+
+  assert.equal(tracker.getTasks().find((task) => task.sessionId === 'claude-session').state, 'running');
+  assert.equal(transitions.includes('needsInput'), false);
 });
 
 test('uses one card per conversation and moves it to a newer turn', () => {
@@ -142,6 +237,20 @@ test('records an out-of-order terminal event before a task start arrives', () =>
   assert.equal(tracker.snapshot().activeCount, 1);
 });
 
+test('a different explicit turn can start in the same millisecond as the previous terminal event', () => {
+  const tracker = new TaskTracker();
+  tracker.handle(event('ended', 'old-turn', 3000));
+  tracker.handle(event('started', 'new-turn', 3000));
+
+  assert.equal(tracker.snapshot().activeCount, 1);
+  assert.equal(tracker.getTasks()[0].turnId, 'new-turn');
+
+  const sameTurn = new TaskTracker();
+  sameTurn.handle(event('ended', 'same-turn', 3000));
+  sameTurn.handle(event('started', 'same-turn', 3000));
+  assert.equal(sameTurn.snapshot().activeCount, 0);
+});
+
 test('older lifecycle events cannot regress a waiting task back to running', () => {
   const tracker = new TaskTracker();
   tracker.handle(event('started', 'waiting', 1000));
@@ -189,4 +298,36 @@ test('a newer restored lease supersedes an older terminal record', () => {
   assert.equal(tracker.snapshot().activeCount, 1);
   tracker.handle(event('needs_input', 'new-turn', 3000));
   assert.equal(tracker.getTasks()[0].state, 'waiting');
+});
+
+test('an authoritative active lease with a different turn survives a delayed terminal socket event', () => {
+  const tracker = new TaskTracker();
+  tracker.handle(event('ended', 'old-turn', 3000));
+  tracker.restore([event('running', 'new-turn', 2000)]);
+
+  assert.equal(tracker.snapshot().activeCount, 1);
+  assert.equal(tracker.getTasks()[0].turnId, 'new-turn');
+});
+
+test('forgetting one disabled provider allows its unchanged active lease to be restored when re-enabled', () => {
+  const tracker = new TaskTracker();
+  const processed = new ProcessedAgentEvents();
+  const codexLease = event('running', 'codex-turn', 2000, 'codex-session');
+  const claudeLease = {
+    ...event('running', 'claude-turn', 2000, 'claude-session'),
+    provider: 'claude-code',
+  };
+
+  tracker.restore([codexLease, claudeLease]);
+  processed.remember(codexLease);
+  processed.remember(claudeLease);
+  tracker.removeProvider('codex');
+  processed.forgetProvider('codex');
+
+  assert.equal(processed.has(codexLease), false);
+  assert.equal(processed.has(claudeLease), true);
+  if (!processed.has(codexLease)) tracker.restore([codexLease]);
+
+  assert.equal(tracker.getTasks().some((task) => task.key === 'codex:codex-session'), true);
+  assert.equal(tracker.getTasks().some((task) => task.key === 'claude-code:claude-session'), true);
 });

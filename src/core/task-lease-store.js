@@ -19,22 +19,6 @@ function removeLease(filePath) {
   }
 }
 
-function sameFile(left, right) {
-  return left.dev === right.dev
-    && left.ino === right.ino
-    && left.size === right.size
-    && left.mtimeMs === right.mtimeMs;
-}
-
-function removeLeaseIfUnchanged(filePath, expectedStat) {
-  try {
-    const currentStat = fs.lstatSync(filePath);
-    if (sameFile(currentStat, expectedStat)) removeLease(filePath);
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-  }
-}
-
 async function removeLeaseAsync(filePath) {
   try {
     await fs.promises.unlink(filePath);
@@ -43,20 +27,48 @@ async function removeLeaseAsync(filePath) {
   }
 }
 
-async function removeLeaseIfUnchangedAsync(filePath, expectedStat) {
-  try {
-    const currentStat = await fs.promises.lstat(filePath);
-    if (sameFile(currentStat, expectedStat)) await removeLeaseAsync(filePath);
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-  }
+function isMissingOrSymlinkRace(error) {
+  return error.code === 'ENOENT' || error.code === 'ELOOP';
 }
 
 function leaseNames(names) {
-  return names
-    .filter((name) => /^[a-f0-9]{64}\.json$/.test(name))
-    .sort()
-    .slice(0, MAX_LEASE_FILES);
+  return names.filter((name) => /^[a-f0-9]{64}\.json$/.test(name));
+}
+
+function sortNewestFirst(left, right) {
+  return right.mtimeMs - left.mtimeMs || left.name.localeCompare(right.name);
+}
+
+function listRecentLeaseFiles(directory) {
+  const files = [];
+  for (const name of leaseNames(fs.readdirSync(directory))) {
+    const filePath = path.join(directory, name);
+    try {
+      const stat = fs.lstatSync(filePath);
+      if (stat.isFile() && !stat.isSymbolicLink()) {
+        files.push({ filePath, mtimeMs: stat.mtimeMs, name });
+      }
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  return files.sort(sortNewestFirst);
+}
+
+async function listRecentLeaseFilesAsync(directory) {
+  const files = [];
+  for (const name of leaseNames(await fs.promises.readdir(directory))) {
+    const filePath = path.join(directory, name);
+    try {
+      const stat = await fs.promises.lstat(filePath);
+      if (stat.isFile() && !stat.isSymbolicLink()) {
+        files.push({ filePath, mtimeMs: stat.mtimeMs, name });
+      }
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  return files.sort(sortNewestFirst);
 }
 
 function normalizeLease(raw, filePath, options) {
@@ -91,42 +103,125 @@ function normalizeLease(raw, filePath, options) {
   });
 }
 
+function parseLease(contents, filePath, options) {
+  try {
+    return normalizeLease(JSON.parse(contents), filePath, options);
+  } catch {
+    return null;
+  }
+}
+
+function hasSameFileIdentity(left, right) {
+  return left.dev === right.dev
+    && left.ino === right.ino
+    && left.size === right.size
+    && left.mtimeMs === right.mtimeMs;
+}
+
+function readLeaseFile(filePath, options) {
+  let descriptor;
+  try {
+    const noFollow = fs.constants.O_NOFOLLOW || 0;
+    descriptor = fs.openSync(filePath, fs.constants.O_RDONLY | noFollow);
+  } catch (error) {
+    if (isMissingOrSymlinkRace(error)) return null;
+    throw error;
+  }
+
+  try {
+    const openedStat = fs.fstatSync(descriptor);
+    if (!openedStat.isFile() || openedStat.size > MAX_LEASE_BYTES) return null;
+    fs.fchmodSync(descriptor, 0o600);
+    const record = parseLease(fs.readFileSync(descriptor, 'utf8'), filePath, options);
+    if (!record) return null;
+
+    const finalDescriptorStat = fs.fstatSync(descriptor);
+    let currentPathStat;
+    try {
+      currentPathStat = fs.lstatSync(filePath);
+    } catch (error) {
+      if (isMissingOrSymlinkRace(error)) return null;
+      throw error;
+    }
+    if (!finalDescriptorStat.isFile()
+      || !currentPathStat.isFile()
+      || currentPathStat.isSymbolicLink()
+      || !hasSameFileIdentity(openedStat, finalDescriptorStat)
+      || !hasSameFileIdentity(finalDescriptorStat, currentPathStat)) {
+      return null;
+    }
+    return record;
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+async function readLeaseFileAsync(filePath, options) {
+  let file;
+  try {
+    const noFollow = fs.constants.O_NOFOLLOW || 0;
+    file = await fs.promises.open(filePath, fs.constants.O_RDONLY | noFollow);
+  } catch (error) {
+    if (isMissingOrSymlinkRace(error)) return null;
+    throw error;
+  }
+
+  try {
+    const openedStat = await file.stat();
+    if (!openedStat.isFile() || openedStat.size > MAX_LEASE_BYTES) return null;
+    await file.chmod(0o600);
+    const record = parseLease(await file.readFile({ encoding: 'utf8' }), filePath, options);
+    if (!record) return null;
+
+    const finalDescriptorStat = await file.stat();
+    let currentPathStat;
+    try {
+      currentPathStat = await fs.promises.lstat(filePath);
+    } catch (error) {
+      if (isMissingOrSymlinkRace(error)) return null;
+      throw error;
+    }
+    if (!finalDescriptorStat.isFile()
+      || !currentPathStat.isFile()
+      || currentPathStat.isSymbolicLink()
+      || !hasSameFileIdentity(openedStat, finalDescriptorStat)
+      || !hasSameFileIdentity(finalDescriptorStat, currentPathStat)) {
+      return null;
+    }
+    return record;
+  } finally {
+    await file.close();
+  }
+}
+
 function readTaskLeases(directory, options = {}) {
   const now = options.now ?? Date.now();
   const activeMaxAgeMs = options.activeMaxAgeMs ?? ACTIVE_LEASE_MAX_AGE_MS;
   const waitingMaxAgeMs = options.waitingMaxAgeMs ?? WAITING_LEASE_MAX_AGE_MS;
   const terminalMaxAgeMs = options.terminalMaxAgeMs ?? TERMINAL_LEASE_MAX_AGE_MS;
-  if (!fs.existsSync(directory)) return [];
-
-  const directoryStat = fs.lstatSync(directory);
+  let directoryStat;
+  try {
+    directoryStat = fs.lstatSync(directory);
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  }
   if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
     throw new Error('Task lease path is not a private directory');
   }
   fs.chmodSync(directory, 0o700);
 
-  const names = leaseNames(fs.readdirSync(directory));
   const records = [];
-
-  for (const name of names) {
-    const filePath = path.join(directory, name);
-    let stat = null;
-    try {
-      stat = fs.lstatSync(filePath);
-      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_LEASE_BYTES) {
-        removeLeaseIfUnchanged(filePath, stat);
-        continue;
-      }
-      fs.chmodSync(filePath, 0o600);
-      const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-      records.push(normalizeLease(raw, filePath, {
-        now,
-        activeMaxAgeMs,
-        waitingMaxAgeMs,
-        terminalMaxAgeMs,
-      }));
-    } catch {
-      if (stat) removeLeaseIfUnchanged(filePath, stat);
-    }
+  const normalizeOptions = {
+    now,
+    activeMaxAgeMs,
+    waitingMaxAgeMs,
+    terminalMaxAgeMs,
+  };
+  for (const { filePath } of listRecentLeaseFiles(directory)) {
+    const record = readLeaseFile(filePath, normalizeOptions);
+    if (record) records.push(record);
+    if (records.length >= MAX_LEASE_FILES) break;
   }
 
   return records.sort((left, right) => left.event.timestamp - right.event.timestamp);
@@ -149,28 +244,17 @@ async function readTaskLeasesAsync(directory, options = {}) {
   }
   await fs.promises.chmod(directory, 0o700);
 
-  const names = leaseNames(await fs.promises.readdir(directory));
   const records = [];
-  for (const name of names) {
-    const filePath = path.join(directory, name);
-    let stat = null;
-    try {
-      stat = await fs.promises.lstat(filePath);
-      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_LEASE_BYTES) {
-        await removeLeaseIfUnchangedAsync(filePath, stat);
-        continue;
-      }
-      await fs.promises.chmod(filePath, 0o600);
-      const raw = JSON.parse(await fs.promises.readFile(filePath, 'utf8'));
-      records.push(normalizeLease(raw, filePath, {
-        now,
-        activeMaxAgeMs,
-        waitingMaxAgeMs,
-        terminalMaxAgeMs,
-      }));
-    } catch {
-      if (stat) await removeLeaseIfUnchangedAsync(filePath, stat);
-    }
+  const normalizeOptions = {
+    now,
+    activeMaxAgeMs,
+    waitingMaxAgeMs,
+    terminalMaxAgeMs,
+  };
+  for (const { filePath } of await listRecentLeaseFilesAsync(directory)) {
+    const record = await readLeaseFileAsync(filePath, normalizeOptions);
+    if (record) records.push(record);
+    if (records.length >= MAX_LEASE_FILES) break;
   }
   return records.sort((left, right) => left.event.timestamp - right.event.timestamp);
 }

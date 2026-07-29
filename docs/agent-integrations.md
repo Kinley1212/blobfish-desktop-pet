@@ -61,8 +61,10 @@ not leave a task stuck.
 Duplicate waiting events do not repeat the message. Running leases older than
 2 hours and waiting-for-approval leases older than 8 hours are pruned. A
 terminal lease remains for 5 minutes only to prevent a missed or duplicated
-finish event. A long-running line becomes eligible after 20 minutes. Turning
-off one provider in Settings removes its live tasks.
+finish event, and terminal snapshots never retain a task title. Cleanup runs
+once at app startup and with the five-minute task-maintenance cycle, using the
+same per-session lock as the Hook sender. A long-running line becomes eligible
+after 20 minutes. Turning off one provider in Settings removes its live tasks.
 
 ## Codex plugin
 
@@ -104,7 +106,10 @@ Plugin source: `integrations/claude-code/blobfish-agent-bridge`.
 Claude Code adds `PostToolUseFailure` as a return-to-running signal and its
 dedicated `StopFailure` event maps to task failure. Notification types
 `agent_needs_input`, `permission_prompt` and `elicitation_dialog` map to waiting
-for approval, while `idle_prompt` maps to a neutral ended state. Validate and
+for approval. Claude Code 2.1.196 and newer supplies an official `prompt_id`
+that the bridge uses as the turn identity, so a late event from an older prompt
+cannot end a newer one. Older clients use a conservative fallback and never
+guess which synthetic turn a running or terminal event belongs to. Validate and
 install with:
 
 ```bash

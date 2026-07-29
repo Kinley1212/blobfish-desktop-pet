@@ -1,28 +1,132 @@
+const MAX_PENDING_LIFECYCLE_EVENTS = 128;
+const PENDING_LIFECYCLE_MAX_AGE_MS = 30 * 1000;
+
 class TaskTracker {
-  constructor(onTransition = () => {}) {
+  constructor(onTransition = () => {}, options = {}) {
     this.onTransition = onTransition;
     this.tasks = new Map();
     this.terminalEvents = new Map();
+    this.pendingLifecycle = new Map();
+    this.clock = typeof options.now === 'function' ? options.now : Date.now;
+    this.pendingLifecycleMaxAgeMs = options.pendingLifecycleMaxAgeMs
+      ?? PENDING_LIFECYCLE_MAX_AGE_MS;
+    this.maxPendingLifecycleEvents = options.maxPendingLifecycleEvents
+      ?? MAX_PENDING_LIFECYCLE_EVENTS;
   }
 
   taskKey(event) {
     return `${event.provider}:${event.sessionId}`;
   }
 
+  pendingKey(event) {
+    return JSON.stringify([event.provider, event.sessionId, event.turnId || '']);
+  }
+
+  prunePendingLifecycle(now = this.clock()) {
+    for (const [key, pending] of this.pendingLifecycle) {
+      if (now - pending.recordedAt > this.pendingLifecycleMaxAgeMs) {
+        this.pendingLifecycle.delete(key);
+      }
+    }
+  }
+
+  rememberPendingLifecycle(event) {
+    this.prunePendingLifecycle();
+    const key = this.pendingKey(event);
+    const existing = this.pendingLifecycle.get(key);
+    const eventAt = Number.isFinite(event.timestamp) ? event.timestamp : this.clock();
+    if (
+      existing
+      && (
+        eventAt < existing.eventAt
+        || (
+          eventAt === existing.eventAt
+          && existing.event.event === 'needs_input'
+          && event.event !== 'needs_input'
+        )
+      )
+    ) {
+      return;
+    }
+    this.pendingLifecycle.delete(key);
+    this.pendingLifecycle.set(key, {
+      event: { ...event },
+      eventAt,
+      recordedAt: this.clock(),
+    });
+    while (this.pendingLifecycle.size > this.maxPendingLifecycleEvents) {
+      this.pendingLifecycle.delete(this.pendingLifecycle.keys().next().value);
+    }
+  }
+
+  takePendingLifecycle(event) {
+    this.prunePendingLifecycle();
+    let matching = null;
+    const startedAt = Number.isFinite(event.timestamp) ? event.timestamp : this.clock();
+    for (const [key, pending] of this.pendingLifecycle) {
+      if (
+        pending.event.provider === event.provider
+        && pending.event.sessionId === event.sessionId
+      ) {
+        if ((pending.event.turnId || null) === (event.turnId || null)) {
+          this.pendingLifecycle.delete(key);
+          matching = pending.event;
+        } else if (startedAt >= pending.eventAt) {
+          this.pendingLifecycle.delete(key);
+        }
+      }
+    }
+    return matching;
+  }
+
+  clearPendingLifecycle(event) {
+    for (const [key, pending] of this.pendingLifecycle) {
+      if (
+        pending.event.provider === event.provider
+        && pending.event.sessionId === event.sessionId
+        && (
+          !event.turnId
+          || (pending.event.turnId || null) === event.turnId
+        )
+      ) {
+        this.pendingLifecycle.delete(key);
+      }
+    }
+  }
+
   handle(event) {
+    return this.handleWithResult(event).snapshot;
+  }
+
+  handleWithResult(event) {
     const key = this.taskKey(event);
     let existing = this.tasks.get(key);
-    const now = Number.isFinite(event.timestamp) ? event.timestamp : Date.now();
+    const now = Number.isFinite(event.timestamp) ? event.timestamp : this.clock();
     const terminalEvent = event.event === 'ended' || event.event === 'completed' || event.event === 'failed';
     const terminalRecord = this.terminalEvents.get(key);
+    const ignored = () => ({ accepted: false, snapshot: this.snapshot() });
+    let pendingLifecycle = null;
+
+    this.prunePendingLifecycle();
+    if (terminalEvent) this.clearPendingLifecycle(event);
 
     if (!terminalEvent && terminalRecord) {
-      if (event.event !== 'started' || now <= terminalRecord.eventAt) return this.snapshot();
+      const startsDifferentExplicitTurn = event.event === 'started'
+        && Boolean(event.turnId)
+        && Boolean(terminalRecord.turnId)
+        && event.turnId !== terminalRecord.turnId;
+      if (
+        event.event !== 'started'
+        || now < terminalRecord.eventAt
+        || (now === terminalRecord.eventAt && !startsDifferentExplicitTurn)
+      ) {
+        return ignored();
+      }
       this.terminalEvents.delete(key);
       existing = this.tasks.get(key);
     }
 
-    if (existing && now < existing.updatedAt) return this.snapshot();
+    if (existing && now < existing.updatedAt) return ignored();
     if (
       existing
       && event.event !== 'started'
@@ -30,7 +134,7 @@ class TaskTracker {
       && existing.turnId
       && event.turnId !== existing.turnId
     ) {
-      return this.snapshot();
+      return ignored();
     }
     let transition = null;
     let transitionTask = null;
@@ -44,6 +148,7 @@ class TaskTracker {
     };
 
     if (event.event === 'started') {
+      pendingLifecycle = this.takePendingLifecycle(event);
       if (!existing) {
         const task = { ...event, key, state: 'running', startedAt: now, updatedAt: now };
         this.tasks.set(key, task);
@@ -61,10 +166,16 @@ class TaskTracker {
         }
       }
     } else if (event.event === 'running') {
-      if (!existing) return this.snapshot();
+      if (!existing) {
+        this.rememberPendingLifecycle(event);
+        return ignored();
+      }
       transitionTask = updateTask(existing, 'running');
     } else if (event.event === 'needs_input') {
-      if (!existing) return this.snapshot();
+      if (!existing) {
+        this.rememberPendingLifecycle(event);
+        return ignored();
+      }
       if (existing.state !== 'waiting') transition = 'needsInput';
       transitionTask = updateTask(existing, 'waiting');
     } else if (terminalEvent) {
@@ -72,18 +183,19 @@ class TaskTracker {
         if (!terminalRecord || now > terminalRecord.eventAt) {
           this.terminalEvents.set(key, {
             eventAt: now,
-            recordedAt: Date.now(),
+            recordedAt: this.clock(),
             provider: event.provider,
             turnId: event.turnId || null,
           });
+          return { accepted: true, snapshot: this.snapshot() };
         }
-        return this.snapshot();
+        return ignored();
       }
       transitionTask = updateTask(existing, event.event);
       this.tasks.delete(key);
       this.terminalEvents.set(key, {
         eventAt: now,
-        recordedAt: Date.now(),
+        recordedAt: this.clock(),
         provider: event.provider,
         turnId: event.turnId || existing.turnId || null,
       });
@@ -97,7 +209,29 @@ class TaskTracker {
     const task = transitionTask ? { ...transitionTask } : null;
     if (transition) this.onTransition({ type: transition, event, task, snapshot });
     else this.onTransition({ type: 'state', event, task, snapshot });
-    return snapshot;
+
+    if (pendingLifecycle && transitionTask) {
+      const pendingAt = Number.isFinite(pendingLifecycle.timestamp)
+        ? pendingLifecycle.timestamp
+        : transitionTask.updatedAt;
+      transitionTask.updatedAt = Math.max(transitionTask.updatedAt, pendingAt);
+      if (pendingLifecycle.turnId) transitionTask.turnId = pendingLifecycle.turnId;
+      if (shouldReplaceTitle(transitionTask.title, pendingLifecycle.title, pendingLifecycle.provider)) {
+        transitionTask.title = pendingLifecycle.title;
+      }
+      if (pendingLifecycle.event === 'needs_input') {
+        transitionTask.state = 'waiting';
+        const waitingSnapshot = this.snapshot();
+        this.onTransition({
+          type: 'needsInput',
+          event: pendingLifecycle,
+          task: { ...transitionTask },
+          snapshot: waitingSnapshot,
+        });
+        return { accepted: true, snapshot: waitingSnapshot };
+      }
+    }
+    return { accepted: Boolean(transitionTask), snapshot: this.snapshot() };
   }
 
   restore(events) {
@@ -111,7 +245,11 @@ class TaskTracker {
       const now = Number.isFinite(event.timestamp) ? event.timestamp : Date.now();
       if (existing && now <= existing.updatedAt) continue;
       const terminalRecord = this.terminalEvents.get(key);
-      if (terminalRecord && now <= terminalRecord.eventAt) continue;
+      const differsFromTerminalTurn = terminalRecord
+        && Boolean(event.turnId)
+        && Boolean(terminalRecord.turnId)
+        && event.turnId !== terminalRecord.turnId;
+      if (terminalRecord && now <= terminalRecord.eventAt && !differsFromTerminalTurn) continue;
       if (terminalRecord) this.terminalEvents.delete(key);
       this.tasks.set(key, {
         ...event,
@@ -136,6 +274,9 @@ class TaskTracker {
     for (const [key, terminal] of this.terminalEvents) {
       if (terminal.provider === provider) this.terminalEvents.delete(key);
     }
+    for (const [key, pending] of this.pendingLifecycle) {
+      if (pending.event.provider === provider) this.pendingLifecycle.delete(key);
+    }
     if (changed) this.onTransition({ type: 'state', event: null, snapshot: this.snapshot() });
   }
 
@@ -151,6 +292,7 @@ class TaskTracker {
     for (const [key, terminal] of this.terminalEvents) {
       if (now - terminal.recordedAt > maxAgeMs) this.terminalEvents.delete(key);
     }
+    this.prunePendingLifecycle();
     if (removed) this.onTransition({ type: 'state', event: null, snapshot: this.snapshot() });
     return removed;
   }
@@ -166,6 +308,41 @@ class TaskTracker {
       waitingCount: tasks.filter((task) => task.state === 'waiting').length,
       runningCount: tasks.filter((task) => task.state === 'running').length,
     });
+  }
+}
+
+class ProcessedAgentEvents {
+  constructor(limit = 1024) {
+    this.limit = limit;
+    this.events = new Map();
+  }
+
+  signature(event) {
+    return JSON.stringify([
+      event.provider,
+      event.sessionId,
+      event.turnId || '',
+      event.event,
+      event.timestamp,
+    ]);
+  }
+
+  has(event) {
+    return this.events.has(this.signature(event));
+  }
+
+  remember(event) {
+    const signature = this.signature(event);
+    this.events.delete(signature);
+    this.events.set(signature, event.provider);
+    if (this.events.size <= this.limit) return;
+    this.events.delete(this.events.keys().next().value);
+  }
+
+  forgetProvider(provider) {
+    for (const [signature, eventProvider] of this.events) {
+      if (eventProvider === provider) this.events.delete(signature);
+    }
   }
 }
 
@@ -192,4 +369,9 @@ function shouldReplaceTitle(currentTitle, incomingTitle, provider) {
   return isGenericTitle(currentTitle, provider) && !isGenericTitle(incomingTitle, provider);
 }
 
-module.exports = { TaskTracker, isGenericTitle, shouldReplaceTitle };
+module.exports = {
+  ProcessedAgentEvents,
+  TaskTracker,
+  isGenericTitle,
+  shouldReplaceTitle,
+};

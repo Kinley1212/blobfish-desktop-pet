@@ -35,8 +35,9 @@ const {
   readTaskLeases,
   readTaskLeasesAsync,
 } = require('./core/task-lease-store');
+const { TaskLeasePollEpoch } = require('./core/task-lease-poll-epoch');
 const { getTaskSoundCue } = require('./core/task-transition-effects');
-const { TaskTracker } = require('./core/task-tracker');
+const { ProcessedAgentEvents, TaskTracker } = require('./core/task-tracker');
 const {
   LATEST_RELEASE_URL,
   LATEST_MANIFEST_URL,
@@ -147,6 +148,8 @@ let taskTracker;
 let taskMaintenanceTimer = null;
 let taskLeasePollTimer = null;
 let taskLeasePollInFlight = false;
+let taskLeasePruneInFlight = false;
+let taskLeaseDirectory = null;
 let quitTimer = null;
 let contextMenuPauseTimer = null;
 let contextMenuSession = 0;
@@ -157,7 +160,8 @@ let currentAgentSnapshot = Object.freeze({ activeCount: 0, waitingCount: 0, runn
 let runtimeErrorNotifier;
 const connectionHealth = new ConnectionHealthTracker();
 const longRunningNotified = new Set();
-const processedAgentEvents = new Set();
+const processedAgentEvents = new ProcessedAgentEvents();
+const taskLeasePollEpoch = new TaskLeasePollEpoch();
 
 const sessionStartedAt = Date.now();
 
@@ -760,6 +764,11 @@ function getAgentEventSenderPath() {
 function applyConfig(nextConfig) {
   const codexWasEnabled = config.integrations.codex;
   const claudeWasEnabled = config.integrations.claudeCode;
+  const agentProviderConfigChanged = (
+    codexWasEnabled !== nextConfig.integrations.codex
+    || claudeWasEnabled !== nextConfig.integrations.claudeCode
+  );
+  if (agentProviderConfigChanged) taskLeasePollEpoch.invalidate();
   const characterChanged = nextConfig.pet.characterPackId !== config.pet.characterPackId;
   const sizeChanged = characterChanged || nextConfig.pet.scale !== config.pet.scale;
   const languageChanged = !phraseEngine || nextConfig.language.packId !== config.language.packId;
@@ -790,6 +799,20 @@ function applyConfig(nextConfig) {
   if (taskTracker) {
     if (!config.integrations.codex) taskTracker.removeProvider('codex');
     if (!config.integrations.claudeCode) taskTracker.removeProvider('claude-code');
+    const reenabledProviders = [];
+    if (!codexWasEnabled && config.integrations.codex) reenabledProviders.push('codex');
+    if (!claudeWasEnabled && config.integrations.claudeCode) reenabledProviders.push('claude-code');
+    if (reenabledProviders.length > 0) {
+      for (const provider of reenabledProviders) processedAgentEvents.forgetProvider(provider);
+      try {
+        recoverTaskLeases(
+          path.join(app.getPath('userData'), 'agent-task-leases'),
+          new Set(reenabledProviders),
+        );
+      } catch (error) {
+        reportRuntimeError('Task lease recovery', error);
+      }
+    }
     updateAgentState(taskTracker.snapshot());
     emitTaskStatus();
   }
@@ -1569,7 +1592,9 @@ function handleTaskTransition(transition) {
 }
 
 function runTaskMaintenance() {
+  taskLeasePollEpoch.invalidate();
   taskTracker.pruneStale(2 * 60 * 60 * 1000, Date.now(), 8 * 60 * 60 * 1000);
+  if (taskLeaseDirectory) pruneTaskLeases(taskLeaseDirectory);
   const now = Date.now();
   const activeKeys = new Set();
   for (const task of taskTracker.getTasks()) {
@@ -1589,24 +1614,12 @@ function runTaskMaintenance() {
   }
 }
 
-function agentEventSignature(event) {
-  return JSON.stringify([
-    event.provider,
-    event.sessionId,
-    event.turnId || '',
-    event.event,
-    event.timestamp,
-  ]);
-}
-
 function rememberAgentEvent(event) {
-  processedAgentEvents.add(agentEventSignature(event));
-  if (processedAgentEvents.size <= 1024) return;
-  processedAgentEvents.delete(processedAgentEvents.values().next().value);
+  processedAgentEvents.remember(event);
 }
 
 function hasProcessedAgentEvent(event) {
-  return processedAgentEvents.has(agentEventSignature(event));
+  return processedAgentEvents.has(event);
 }
 
 function noteAgentConnection(event) {
@@ -1636,6 +1649,13 @@ function applyTaskLeaseRecords(records, initial = false) {
       const taskExists = taskTracker.getTasks().some((task) => task.key === taskTracker.taskKey(event));
       if (taskExists) {
         taskTracker.handle(event);
+      } else if (event.event === 'needs_input') {
+        taskTracker.restore([{
+          ...event,
+          event: 'started',
+          timestamp: Number.isFinite(event.startedAt) ? event.startedAt : event.timestamp,
+        }]);
+        taskTracker.handle(event);
       } else {
         const snapshot = taskTracker.restore([event]);
         updateAgentState(snapshot);
@@ -1647,24 +1667,49 @@ function applyTaskLeaseRecords(records, initial = false) {
   if (activeEvents.length > 0) taskTracker.restore(activeEvents);
 }
 
-function recoverTaskLeases(leaseDirectory) {
-  applyTaskLeaseRecords(readTaskLeases(leaseDirectory), true);
+function recoverTaskLeases(leaseDirectory, providers = null) {
+  const records = readTaskLeases(leaseDirectory);
+  applyTaskLeaseRecords(
+    providers
+      ? records.filter((record) => providers.has(record.event.provider))
+      : records,
+    true,
+  );
 }
 
 async function pollTaskLeases(leaseDirectory) {
   if (taskLeasePollInFlight) return;
   taskLeasePollInFlight = true;
   try {
-    const records = await readTaskLeasesAsync(leaseDirectory);
-    applyTaskLeaseRecords(records);
+    await taskLeasePollEpoch.scanAndApply(
+      () => readTaskLeasesAsync(leaseDirectory),
+      (records) => applyTaskLeaseRecords(records),
+    );
   } finally {
     taskLeasePollInFlight = false;
   }
 }
 
+function pruneTaskLeases(leaseDirectory) {
+  if (taskLeasePruneInFlight) return;
+  const senderPath = getAgentEventSenderPath();
+  if (!fs.existsSync(senderPath)) return;
+  taskLeasePruneInFlight = true;
+  execFile(
+    senderPath,
+    ['--prune', '--lease-directory', leaseDirectory],
+    { timeout: 2000, windowsHide: true },
+    (error) => {
+      taskLeasePruneInFlight = false;
+      if (error) reportRuntimeError('Task lease cleanup', error);
+    },
+  );
+}
+
 function setupAgentBridge() {
   taskTracker = new TaskTracker(handleTaskTransition);
   const leaseDirectory = path.join(app.getPath('userData'), 'agent-task-leases');
+  taskLeaseDirectory = leaseDirectory;
   try {
     recoverTaskLeases(leaseDirectory);
   } catch (error) {
@@ -1674,10 +1719,11 @@ function setupAgentBridge() {
   emitTaskStatus();
   agentBridge = new AgentBridge(path.join(app.getPath('userData'), 'agent-events.sock'), {
     onEvent: (event) => {
+      taskLeasePollEpoch.invalidate();
       if (!isProviderEnabled(event.provider)) return;
-      rememberAgentEvent(event);
       noteAgentConnection(event);
-      taskTracker.handle(event);
+      const result = taskTracker.handleWithResult(event);
+      if (result.accepted) rememberAgentEvent(event);
     },
     onError: (error) => reportRuntimeError('Agent bridge', error),
   });
@@ -1702,6 +1748,7 @@ function setupAgentBridge() {
       reportRuntimeError('Task lease recovery', error);
     });
   }, 1000);
+  pruneTaskLeases(leaseDirectory);
 }
 
 async function connectAgentIntegration(provider, force = false) {
