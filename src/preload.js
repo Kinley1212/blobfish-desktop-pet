@@ -32,4 +32,5 @@ contextBridge.exposeInMainWorld('petAPI', {
   dragStart: () => ipcRenderer.send('drag-start'),
   dragMove: (dx, dy) => ipcRenderer.send('drag-move', dx, dy),
   dragEnd: (vx, vy) => ipcRenderer.send('drag-end', vx, vy),
+  reportVisualBounds: (bounds) => ipcRenderer.send('pet-visual-bounds', bounds),
 });

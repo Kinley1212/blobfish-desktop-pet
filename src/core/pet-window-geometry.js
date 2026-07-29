@@ -62,6 +62,9 @@ function calculatePetMetrics(size, scale, windowGeometry = {}) {
 function calculateVerticalRoamPlacement(desiredPetTop, bounds, metrics) {
   const height = requireFinite(metrics?.height, 'pet height');
   const topMargin = requireFinite(metrics?.topMargin, 'pet top margin');
+  const visualTopOverflow = metrics?.visualTopOverflow === undefined
+    ? 0
+    : requireFinite(metrics.visualTopOverflow, 'pet visual top overflow');
 
   // The 400 px transparent window reserves generous room for stacked bubbles,
   // but pinning that whole window to the menu bar made the pet travel almost
@@ -69,9 +72,14 @@ function calculateVerticalRoamPlacement(desiredPetTop, bounds, metrics) {
   // bubble reserve above the roaming pet; as soon as that reserve is restored,
   // the native window follows the pet again instead of feeling like a second
   // invisible boundary that lasts until the bottom of the screen.
+  const roamingTopMargin = Math.min(
+    topMargin,
+    Math.max(BUBBLE_STACK_RESERVE, visualTopOverflow),
+  );
   return calculateVerticalPlacement(desiredPetTop, bounds, {
     height,
-    topMargin: Math.min(topMargin, BUBBLE_STACK_RESERVE),
+    topMargin: roamingTopMargin,
+    visualTopOverflow,
   });
 }
 
@@ -174,8 +182,17 @@ function calculatePetRecoveryPlacement(windowPosition, metrics, workAreas) {
   const height = requireFinite(metrics?.height, 'pet height');
   const offsetX = requireFinite(metrics?.offsetX, 'pet horizontal offset');
   const topMargin = requireFinite(metrics?.topMargin, 'pet top margin');
+  const visualTopOverflow = metrics?.visualTopOverflow === undefined
+    ? 0
+    : requireFinite(metrics.visualTopOverflow, 'pet visual top overflow');
 
-  if (width <= 0 || height <= 0 || topMargin < 0) {
+  if (
+    width <= 0
+    || height <= 0
+    || topMargin < 0
+    || visualTopOverflow < 0
+    || visualTopOverflow > topMargin
+  ) {
     throw new RangeError('Pet recovery metrics are invalid');
   }
   if (!Array.isArray(workAreas) || workAreas.length === 0 || workAreas.some((area) => !isValidWorkArea(area))) {
@@ -184,9 +201,11 @@ function calculatePetRecoveryPlacement(windowPosition, metrics, workAreas) {
 
   const originalPetLeft = windowX + offsetX;
   const originalPetTop = windowY + petTopOffset;
+  const originalVisibleTop = originalPetTop - visualTopOverflow;
+  const visibleHeight = height + visualTopOverflow;
   const petCenter = {
     x: originalPetLeft + width / 2,
-    y: originalPetTop + height / 2,
+    y: originalVisibleTop + visibleHeight / 2,
   };
 
   let displayIndex = 0;
@@ -200,10 +219,15 @@ function calculatePetRecoveryPlacement(windowPosition, metrics, workAreas) {
   }
 
   if (
-    petTopOffset >= 0
+    petTopOffset >= visualTopOverflow
     && petTopOffset <= topMargin
     && isRectCoveredByWorkAreas(
-      { x: originalPetLeft, y: originalPetTop, width, height },
+      {
+        x: originalPetLeft,
+        y: originalVisibleTop,
+        width,
+        height: visibleHeight,
+      },
       workAreas,
     )
   ) {
@@ -216,8 +240,8 @@ function calculatePetRecoveryPlacement(windowPosition, metrics, workAreas) {
     const anchor = workAreas.find((area) => (
       petCenter.x >= area.x
       && petCenter.x < area.x + area.width
-      && originalPetTop >= area.y
-      && originalPetTop < area.y + area.height
+      && originalVisibleTop >= area.y
+      && originalVisibleTop < area.y + area.height
     )) || workAreas[displayIndex];
     const reachableWindowY = Math.max(anchor.y, windowY);
     return Object.freeze({
@@ -232,11 +256,12 @@ function calculatePetRecoveryPlacement(windowPosition, metrics, workAreas) {
 
   const target = workAreas[displayIndex];
   const maxPetLeft = Math.max(target.x, target.x + target.width - width);
-  const maxPetTop = Math.max(target.y, target.y + target.height - height);
+  const minPetTop = target.y + visualTopOverflow;
+  const maxPetTop = Math.max(minPetTop, target.y + target.height - height);
   const petLeft = Math.min(Math.max(originalPetLeft, target.x), maxPetLeft);
-  const desiredPetTop = Math.min(Math.max(originalPetTop, target.y), maxPetTop);
+  const desiredPetTop = Math.min(Math.max(originalPetTop, minPetTop), maxPetTop);
   const canKeepVerticalWindow = desiredPetTop === originalPetTop
-    && petTopOffset >= 0
+    && petTopOffset >= visualTopOverflow
     && petTopOffset <= topMargin
     && windowY >= target.y;
   const vertical = canKeepVerticalWindow
@@ -244,7 +269,7 @@ function calculatePetRecoveryPlacement(windowPosition, metrics, workAreas) {
     : calculateVerticalPlacement(
       desiredPetTop,
       { minY: target.y, maxY: target.y + target.height },
-      { height, topMargin },
+      { height, topMargin, visualTopOverflow },
     );
 
   return Object.freeze({

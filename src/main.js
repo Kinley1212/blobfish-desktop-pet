@@ -112,8 +112,24 @@ const SPEECH_PRIORITY = Object.freeze({
 // (much larger) transparent window, which also has room for the speech
 // bubble. Boundary checks are done against the fish's own box, not the
 // window's, so dragging/walking can reach the true screen edges.
+let petVisualTopOverflow = 0;
 function getPetMetrics() {
-  return calculatePetMetrics(characterPack.manifest.size, config.pet.scale, PET_WINDOW_GEOMETRY);
+  const metrics = calculatePetMetrics(
+    characterPack.manifest.size,
+    config.pet.scale,
+    PET_WINDOW_GEOMETRY,
+  );
+  return Object.freeze({
+    ...metrics,
+    visualTopOverflow: Math.min(metrics.topMargin, Math.max(0, petVisualTopOverflow)),
+  });
+}
+
+function getMinimumPetTopOffset(metrics) {
+  return Math.min(
+    metrics.topMargin,
+    Math.max(0, Number(metrics.visualTopOverflow) || 0),
+  );
 }
 
 // Release velocity (px/tick, after THROW_POWER amplification) needed before
@@ -1163,12 +1179,15 @@ function applyConfig(nextConfig) {
   if (sizeChanged && win && !win.isDestroyed()) {
     const [x, y] = win.getPosition();
     const oldMetrics = getPetMetrics();
+    const oldTopOffset = Number.isFinite(petTopOffset) ? petTopOffset : oldMetrics.topMargin;
     previousPetPosition = {
       x,
-      top: y + (Number.isFinite(petTopOffset) ? petTopOffset : oldMetrics.topMargin),
-      topOffset: Number.isFinite(petTopOffset) ? petTopOffset : oldMetrics.topMargin,
+      visibleTop: y + oldTopOffset - oldMetrics.visualTopOverflow,
+      topOffset: oldTopOffset,
+      visualTopOverflow: oldMetrics.visualTopOverflow,
     };
   }
+  if (characterChanged) petVisualTopOverflow = 0;
   config = nextConfig;
   if (codexWasEnabled && !config.integrations.codex) {
     connectionHealth.clear('codex');
@@ -1209,11 +1228,17 @@ function applyConfig(nextConfig) {
       const metrics = getPetMetrics();
       const nextTopOffset = Math.min(
         metrics.topMargin,
-        Math.max(0, previousPetPosition.topOffset),
+        Math.max(
+          getMinimumPetTopOffset(metrics),
+          previousPetPosition.topOffset
+            + metrics.visualTopOverflow
+            - previousPetPosition.visualTopOverflow,
+        ),
       );
+      const nextPetTop = previousPetPosition.visibleTop + metrics.visualTopOverflow;
       applyProjectedPetPlacement(projectPetWindowPosition(
         previousPetPosition.x,
-        previousPetPosition.top - nextTopOffset,
+        nextPetTop - nextTopOffset,
         nextTopOffset,
         metrics,
       ));
@@ -1312,10 +1337,15 @@ function getPetConfigPayload() {
 function getPetLayoutPayload() {
   const metrics = getPetMetrics();
   const rawTopOffset = Number.isFinite(petTopOffset) ? petTopOffset : metrics.topMargin;
-  const topOffset = Math.min(metrics.topMargin, Math.max(0, rawTopOffset));
+  const topOffset = Math.min(
+    metrics.topMargin,
+    Math.max(getMinimumPetTopOffset(metrics), rawTopOffset),
+  );
   return {
     topOffset,
-    bubblePlacement: topOffset < BUBBLE_STACK_RESERVE ? 'below' : 'above',
+    bubblePlacement: topOffset - metrics.visualTopOverflow < BUBBLE_STACK_RESERVE
+      ? 'below'
+      : 'above',
   };
 }
 
@@ -1399,6 +1429,57 @@ function applyProjectedPetPlacement(placement) {
   currentY = roundWindowCoordinate(placement.windowY);
   safeSetPosition(placement.windowX, placement.windowY);
   syncPetLayout();
+  return true;
+}
+
+function applyReportedPetVisualBounds(payload) {
+  const reportedOverflow = payload?.topOverflow;
+  if (
+    typeof reportedOverflow !== 'number'
+    || !Number.isFinite(reportedOverflow)
+    || reportedOverflow < 0
+  ) return false;
+
+  const baseMetrics = calculatePetMetrics(
+    characterPack.manifest.size,
+    config.pet.scale,
+    PET_WINDOW_GEOMETRY,
+  );
+  const nextOverflow = Math.min(baseMetrics.topMargin, reportedOverflow);
+  if (Math.abs(nextOverflow - petVisualTopOverflow) < 0.25) return false;
+
+  if (!win || win.isDestroyed()) {
+    petVisualTopOverflow = nextOverflow;
+    return true;
+  }
+
+  const workAreas = getAvailableWorkAreas();
+  const [windowX, windowY] = win.getPosition();
+  const oldMetrics = getPetMetrics();
+  const oldTopOffset = Number.isFinite(petTopOffset) ? petTopOffset : oldMetrics.topMargin;
+  const oldPetTop = windowY + oldTopOffset;
+  const oldVisibleTop = oldPetTop - oldMetrics.visualTopOverflow;
+  const petCenterX = windowX + oldMetrics.offsetX + oldMetrics.width / 2;
+  const wasAnchoredAtTop = workAreas.some((area) => (
+    petCenterX >= area.x
+    && petCenterX < area.x + area.width
+    && Math.abs(oldVisibleTop - area.y) <= 1.5
+  ));
+
+  petVisualTopOverflow = nextOverflow;
+  const metrics = getPetMetrics();
+  const nextTopOffset = wasAnchoredAtTop
+    ? oldTopOffset + nextOverflow - oldMetrics.visualTopOverflow
+    : oldTopOffset;
+  const placement = projectPetWindowPosition(
+    windowX,
+    windowY,
+    nextTopOffset,
+    metrics,
+    workAreas,
+  );
+  applyProjectedPetPlacement(placement);
+  syncPetLayout(true);
   return true;
 }
 
@@ -1551,6 +1632,10 @@ function createWindow() {
 
   ipcMain.on('pet-context-menu', showPetContextMenu);
   ipcMain.on('pet-open-chat', () => createDialogueWindow());
+  ipcMain.on('pet-visual-bounds', (event, payload) => {
+    assertPetSender(event);
+    applyReportedPetVisualBounds(payload);
+  });
   ipcMain.handle('dialogue:get', (event) => (assertDialogueSender(event) ? dialoguePack : null));
   ipcMain.handle('dialogue:character', (event) => {
     if (!assertDialogueSender(event)) return null;

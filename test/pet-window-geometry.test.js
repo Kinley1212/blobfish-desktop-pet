@@ -157,6 +157,61 @@ test('vertical roaming releases the native window soon after bouncing off the sc
   });
 });
 
+test('vertical roaming keeps composed SVG pixels visible at the screen top', () => {
+  const metrics = {
+    width: 120,
+    height: 90,
+    offsetX: 110,
+    topMargin: 300,
+    visualTopOverflow: 32,
+  };
+  const bounds = { minY: 25, maxY: 900 };
+
+  assert.deepEqual(calculateVerticalRoamPlacement(25, bounds, metrics), {
+    petTop: 57,
+    windowY: 25,
+    topOffset: 32,
+    hitTop: true,
+    hitBottom: false,
+  });
+  assert.deepEqual(calculateVerticalRoamPlacement(183, bounds, metrics), {
+    petTop: 183,
+    windowY: 57,
+    topOffset: BUBBLE_STACK_RESERVE,
+    hitTop: false,
+    hitBottom: false,
+  });
+});
+
+test('display recovery moves clipped top accessories back inside the native window', () => {
+  const metrics = {
+    width: 120,
+    height: 90,
+    offsetX: 110,
+    topMargin: 300,
+    visualTopOverflow: 32,
+  };
+  const placement = calculatePetRecoveryPlacement(
+    { x: 500, y: 25, petTopOffset: 0 },
+    metrics,
+    [{ x: 0, y: 25, width: 1440, height: 875 }],
+  );
+
+  assert.deepEqual(placement, {
+    windowX: 500,
+    windowY: 25,
+    topOffset: 32,
+    petLeft: 610,
+    petTop: 57,
+    displayIndex: 0,
+  });
+  assert.equal(
+    placement.petTop - metrics.visualTopOverflow,
+    25,
+    'the first visible accessory pixel must align with the work-area top',
+  );
+});
+
 test('display recovery keeps an already visible pet on its current display', () => {
   const metrics = {
     width: 120,
@@ -461,4 +516,16 @@ test('drag, automatic movement, and fling project against real work areas', () =
   const flingSource = mainSource.slice(flingStart, flingEnd);
   assert.match(flingSource, /projectPetWindowPosition\(/);
   assert.doesNotMatch(flingSource, /getCombinedBounds\(/);
+});
+
+test('renderer visual-bound reports are restricted to the pet window', () => {
+  const mainSource = fs.readFileSync(path.join(__dirname, '../src/main.js'), 'utf8');
+  const preloadSource = fs.readFileSync(path.join(__dirname, '../src/preload.js'), 'utf8');
+
+  assert.match(preloadSource, /reportVisualBounds: \(bounds\) => ipcRenderer\.send\('pet-visual-bounds', bounds\)/);
+  assert.match(
+    mainSource,
+    /ipcMain\.on\('pet-visual-bounds', \(event, payload\) => \{\s*assertPetSender\(event\);/,
+  );
+  assert.match(mainSource, /applyReportedPetVisualBounds\(payload\)/);
 });
