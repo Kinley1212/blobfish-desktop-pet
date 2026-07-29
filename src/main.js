@@ -63,6 +63,7 @@ const {
   buildMacInstallerScript,
   cleanupStaleUpdateStaging,
   getInstalledAppBundle,
+  launchMacInstallerInBackground,
   selectManifestUpdate,
   selectReleaseUpdate,
   withUpdateTimeout,
@@ -1097,8 +1098,7 @@ async function installGithubUpdate() {
       processId: process.pid,
     }), { mode: 0o700 });
     fs.chmodSync(commandPath, 0o700);
-    const openError = await shell.openPath(commandPath);
-    if (openError) throw new Error(`无法打开更新安装器：${openError}`);
+    await launchMacInstallerInBackground(commandPath);
   } catch (error) {
     fs.rmSync(stagingDirectory, { recursive: true, force: true });
     throw error;

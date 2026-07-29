@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { spawn: spawnChildProcess } = require('child_process');
 
 const REPOSITORY = 'Kinley1212/blobfish-desktop-pet';
 const LATEST_RELEASE_URL = `https://api.github.com/repos/${REPOSITORY}/releases/latest`;
@@ -515,6 +516,43 @@ APPLESCRIPT
 `;
 }
 
+function launchMacInstallerInBackground(commandPath, options = {}) {
+  if (!path.isAbsolute(commandPath) || path.resolve(commandPath) !== commandPath) {
+    return Promise.reject(new Error('更新安装器路径无效'));
+  }
+  if (
+    path.extname(commandPath) !== '.command'
+    || !path.basename(path.dirname(commandPath)).startsWith('release-')
+  ) {
+    return Promise.reject(new Error('更新安装器不在受信任的暂存目录'));
+  }
+  const spawn = options.spawn || spawnChildProcess;
+  if (typeof spawn !== 'function') return Promise.reject(new TypeError('更新安装器启动方式无效'));
+
+  return new Promise((resolve, reject) => {
+    let child;
+    try {
+      // Invoke zsh directly instead of asking Finder to open a .command file.
+      // This keeps Terminal out of sight while preserving the constrained,
+      // auditable installer script and all of its validation/rollback checks.
+      child = spawn('/bin/zsh', [commandPath], {
+        detached: true,
+        shell: false,
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    child.once('error', reject);
+    child.once('spawn', () => {
+      child.unref();
+      resolve();
+    });
+  });
+}
+
 module.exports = {
   LATEST_RELEASE_URL,
   LATEST_MANIFEST_ASSET_NAME,
@@ -530,6 +568,7 @@ module.exports = {
   getInstalledAppBundle,
   isExpectedReleaseUrl,
   latestAssetDownloadUrl,
+  launchMacInstallerInBackground,
   normalizeVersion,
   parseSha256Digest,
   selectManifestUpdate,

@@ -229,6 +229,8 @@ Each command builds the matching-architecture calendar helper and task sender, p
 
 The “Check GitHub Updates” button in Settings only reads formal GitHub Releases. PRs, branches, Draft Releases and pre-releases are intentionally ignored.
 
+The updater downloads and verifies the matching package inside the app, then launches a constrained background helper directly. It does not open Terminal; SHA-256, bundle identity, version, architecture and code-signature checks still run before the new app is promoted, and a failed launch rolls the new copy back.
+
 When publishing `vX.Y.Z`, attach at least the complete macOS packages needed by the in-app updater:
 
 ```text
