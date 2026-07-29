@@ -47,6 +47,14 @@ test('uses one card per conversation and moves it to a newer turn', () => {
   assert.deepEqual(transitions, ['started', 'started']);
 });
 
+test('a meaningful title from a newer turn replaces the previous turn title', () => {
+  const tracker = new TaskTracker();
+  tracker.handle({ ...event('started', 'turn-one', 1000), title: '整理发布说明' });
+  tracker.handle({ ...event('started', 'turn-two', 2000), title: '修复任务恢复' });
+
+  assert.equal(tracker.getTasks()[0].title, '修复任务恢复');
+});
+
 test('a stale stop from the previous turn cannot close the current turn', () => {
   const tracker = new TaskTracker();
   tracker.handle(event('started', 'turn-one', 1000));
@@ -139,5 +147,46 @@ test('older lifecycle events cannot regress a waiting task back to running', () 
   tracker.handle(event('started', 'waiting', 1000));
   tracker.handle(event('needs_input', 'waiting', 3000));
   tracker.handle(event('running', 'waiting', 2000));
+  assert.equal(tracker.getTasks()[0].state, 'waiting');
+});
+
+test('restores trusted running and waiting snapshots without replaying start speech', () => {
+  const transitions = [];
+  const tracker = new TaskTracker((transition) => transitions.push(transition.type));
+  const snapshot = tracker.restore([
+    {
+      ...event('running', 'running-turn', 3000, 'running-session'),
+      title: '启动前已经开始',
+      startedAt: 1000,
+    },
+    {
+      ...event('needs_input', 'waiting-turn', 4000, 'waiting-session'),
+      startedAt: 2000,
+    },
+  ]);
+
+  assert.deepEqual(snapshot, { activeCount: 2, waitingCount: 1, runningCount: 1 });
+  assert.deepEqual(transitions, []);
+  assert.equal(tracker.getTasks().find((task) => task.key === 'codex:running-session').title, '启动前已经开始');
+  assert.equal(tracker.getTasks().find((task) => task.key === 'codex:running-session').startedAt, 1000);
+});
+
+test('terminal events close a restored task and keep unknown outcomes neutral', () => {
+  const transitions = [];
+  const tracker = new TaskTracker((transition) => transitions.push(transition.type));
+  tracker.restore([event('running', 'turn', 1000)]);
+  tracker.handle(event('ended', 'turn', 2000));
+
+  assert.deepEqual(transitions, ['allEnded']);
+  assert.deepEqual(tracker.snapshot(), { activeCount: 0, waitingCount: 0, runningCount: 0 });
+});
+
+test('a newer restored lease supersedes an older terminal record', () => {
+  const tracker = new TaskTracker();
+  tracker.handle(event('ended', 'old-turn', 1000));
+  tracker.restore([event('running', 'new-turn', 2000)]);
+
+  assert.equal(tracker.snapshot().activeCount, 1);
+  tracker.handle(event('needs_input', 'new-turn', 3000));
   assert.equal(tracker.getTasks()[0].state, 'waiting');
 });

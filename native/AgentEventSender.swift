@@ -1,8 +1,12 @@
 import Darwin
+import CryptoKit
 import Foundation
 
 private let maximumInputBytes = 2 * 1024 * 1024
+private let maximumLeaseBytes = 16 * 1024
 private let allowedProviders = Set(["codex", "claude-code"])
+private let activeEvents = Set(["started", "running", "needs_input"])
+private let terminalEvents = Set(["ended", "completed", "failed"])
 
 private func argument(after flag: String) -> String? {
     guard let index = CommandLine.arguments.firstIndex(of: flag),
@@ -29,7 +33,9 @@ private func mappedEvent(_ hookName: String, input: [String: Any], provider: Str
     case "Notification":
         guard provider == "claude-code",
               let notificationType = input["notification_type"] as? String else { return nil }
-        if notificationType == "agent_needs_input" { return "needs_input" }
+        if ["agent_needs_input", "permission_prompt", "elicitation_dialog"].contains(notificationType) {
+            return "needs_input"
+        }
         if notificationType == "idle_prompt" { return "ended" }
         return nil
     default: return nil
@@ -54,6 +60,14 @@ private func taskTitlesEnabled(settingsPath: String) -> Bool {
           let settings = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
           let privacy = settings["privacy"] as? [String: Any] else { return false }
     return privacy["includeTaskTitles"] as? Bool == true
+}
+
+private func validIdentifier(_ value: String) -> Bool {
+    guard !value.isEmpty, value.utf8.count <= 256 else { return false }
+    return value.range(
+        of: #"^[A-Za-z0-9._:@+\-]+$"#,
+        options: .regularExpression
+    ) != nil
 }
 
 private func replacingMatches(_ pattern: String, in source: String, with replacement: String = " ") -> String {
@@ -135,13 +149,128 @@ private func sanitizedTitle(from source: String, provider: String) -> String {
     return String(normalized.prefix(71)) + "…"
 }
 
-private func taskTitle(from input: [String: Any], settingsPath: String, provider: String) -> String? {
-    guard taskTitlesEnabled(settingsPath: settingsPath) else { return nil }
+private func taskTitle(from input: [String: Any], enabled: Bool, provider: String) -> String? {
+    guard enabled else { return nil }
     let candidates = [input["title"], input["task_title"], input["prompt"]]
     guard let source = candidates.compactMap({ $0 as? String }).first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
         return nil
     }
     return sanitizedTitle(from: source, provider: provider)
+}
+
+private func leaseURL(directoryPath: String, provider: String, sessionID: String) -> URL {
+    let key = Data("\(provider)\u{0}\(sessionID)".utf8)
+    let digest = SHA256.hash(data: key).map { String(format: "%02x", $0) }.joined()
+    return URL(fileURLWithPath: directoryPath, isDirectory: true)
+        .appendingPathComponent("\(digest).json", isDirectory: false)
+}
+
+private func readLease(at url: URL) -> [String: Any]? {
+    let manager = FileManager.default
+    guard let attributes = try? manager.attributesOfItem(atPath: url.path),
+          attributes[.type] as? FileAttributeType == .typeRegular,
+          let size = attributes[.size] as? NSNumber,
+          size.intValue <= maximumLeaseBytes,
+          let data = try? Data(contentsOf: url),
+          let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        return nil
+    }
+    return value
+}
+
+private func matchingTurn(existing: [String: Any], incoming: [String: Any]) -> Bool {
+    guard let incomingTurn = incoming["turnId"] as? String else { return true }
+    return existing["turnId"] as? String == incomingTurn
+}
+
+private func inheritedTurnID(
+    directoryPath: String,
+    provider: String,
+    sessionID: String
+) -> String? {
+    let url = leaseURL(directoryPath: directoryPath, provider: provider, sessionID: sessionID)
+    guard let existing = readLease(at: url),
+          activeEvents.contains(existing["event"] as? String ?? ""),
+          existing["provider"] as? String == provider,
+          existing["sessionId"] as? String == sessionID,
+          let turnID = existing["turnId"] as? String,
+          validIdentifier(turnID) else {
+        return nil
+    }
+    return turnID
+}
+
+private func writeLease(
+    directoryPath: String,
+    payload: [String: Any],
+    event: String,
+    includeTaskTitles: Bool
+) {
+    let manager = FileManager.default
+    let directoryURL = URL(fileURLWithPath: directoryPath, isDirectory: true)
+    do {
+        try manager.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: NSNumber(value: Int16(0o700))]
+        )
+        try manager.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o700))],
+            ofItemAtPath: directoryURL.path
+        )
+    } catch {
+        return
+    }
+
+    guard let provider = payload["provider"] as? String,
+          let sessionID = payload["sessionId"] as? String else { return }
+    let url = leaseURL(directoryPath: directoryPath, provider: provider, sessionID: sessionID)
+    let existing = readLease(at: url)
+
+    if terminalEvents.contains(event) {
+        if let existing, !matchingTurn(existing: existing, incoming: payload) { return }
+    }
+
+    guard activeEvents.contains(event) || terminalEvents.contains(event) else { return }
+    if event != "started" {
+        if activeEvents.contains(event) {
+            guard let existing,
+                  activeEvents.contains(existing["event"] as? String ?? ""),
+                  existing["provider"] as? String == provider,
+                  existing["sessionId"] as? String == sessionID,
+                  matchingTurn(existing: existing, incoming: payload) else {
+                return
+            }
+        }
+    }
+
+    var lease = payload
+    if event == "started" {
+        lease["startedAt"] = payload["timestamp"]
+    } else if let existing {
+        lease["startedAt"] = existing["startedAt"] ?? existing["timestamp"] ?? payload["timestamp"]
+        if lease["turnId"] == nil, let turnID = existing["turnId"] as? String {
+            lease["turnId"] = turnID
+        }
+        if includeTaskTitles, lease["title"] == nil, let title = existing["title"] as? String {
+            lease["title"] = title
+        }
+    }
+    if !includeTaskTitles { lease.removeValue(forKey: "title") }
+
+    guard let data = try? JSONSerialization.data(withJSONObject: lease),
+          data.count <= maximumLeaseBytes else { return }
+    do {
+        try data.write(to: url, options: .atomic)
+        try manager.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o600))],
+            ofItemAtPath: url.path
+        )
+    } catch {
+        // Another sender may already have atomically replaced this session's
+        // snapshot. Never delete the shared target after our own write fails.
+        return
+    }
 }
 
 private func sendToUnixSocket(path: String, data: Data) {
@@ -187,30 +316,60 @@ private func sendToUnixSocket(path: String, data: Data) {
 @main
 private struct AgentEventSender {
     static func main() {
+        _ = Darwin.umask(0o077)
         guard let provider = argument(after: "--provider"), allowedProviders.contains(provider) else { return }
         guard let inputData = readBoundedInput(), !inputData.isEmpty,
               let input = try? JSONSerialization.jsonObject(with: inputData) as? [String: Any],
               let hookName = input["hook_event_name"] as? String,
               let event = mappedEvent(hookName, input: input, provider: provider),
               let sessionID = input["session_id"] as? String,
-              !sessionID.isEmpty else { return }
+              validIdentifier(sessionID) else { return }
+        let inputTurnID = input["turn_id"] as? String
+        guard inputTurnID == nil || validIdentifier(inputTurnID!) else { return }
 
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let socketPath = ProcessInfo.processInfo.environment["BLOBFISH_SOCKET"]
             ?? home + "/Library/Application Support/BlobfishDesktopPet/agent-events.sock"
         let settingsPath = ProcessInfo.processInfo.environment["BLOBFISH_SETTINGS"]
             ?? URL(fileURLWithPath: socketPath).deletingLastPathComponent().appendingPathComponent("settings.json").path
+        let leaseDirectoryPath = ProcessInfo.processInfo.environment["BLOBFISH_TASK_LEASES"]
+            ?? URL(fileURLWithPath: socketPath).deletingLastPathComponent().appendingPathComponent("agent-task-leases").path
+        let includeTaskTitles = taskTitlesEnabled(settingsPath: settingsPath)
+        let timestamp = Int64(Date().timeIntervalSince1970 * 1000)
+        let turnID: String?
+        if let inputTurnID {
+            turnID = inputTurnID
+        } else if event == "started" {
+            turnID = "blobfish-\(UUID().uuidString.lowercased())"
+        } else {
+            turnID = inheritedTurnID(
+                directoryPath: leaseDirectoryPath,
+                provider: provider,
+                sessionID: sessionID
+            )
+        }
 
         var payload: [String: Any] = [
             "version": 1,
             "provider": provider,
             "event": event,
             "sessionId": sessionID,
-            "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+            "timestamp": timestamp,
         ]
-        if let turnID = input["turn_id"] as? String, !turnID.isEmpty { payload["turnId"] = turnID }
-        if let title = taskTitle(from: input, settingsPath: settingsPath, provider: provider) { payload["title"] = title }
+        if let turnID { payload["turnId"] = turnID }
+        if let title = taskTitle(from: input, enabled: includeTaskTitles, provider: provider) {
+            payload["title"] = title
+        }
+        writeLease(
+            directoryPath: leaseDirectoryPath,
+            payload: payload,
+            event: event,
+            includeTaskTitles: includeTaskTitles
+        )
         guard let encoded = try? JSONSerialization.data(withJSONObject: payload) else { return }
         sendToUnixSocket(path: socketPath, data: encoded)
+        if provider == "codex" && hookName == "Stop" {
+            FileHandle.standardOutput.write(Data("{}\n".utf8))
+        }
     }
 }

@@ -6,14 +6,16 @@ const os = require('os');
 const path = require('path');
 const { execFileSync, spawn } = require('child_process');
 const { AgentBridge } = require('../src/core/agent-bridge');
+const { readTaskLeases } = require('../src/core/task-lease-store');
 
 const senderPath = path.join(__dirname, '..', 'native', 'build', process.arch, 'blobfish-agent-event-sender');
-if (process.platform === 'darwin' && !fs.existsSync(senderPath)) {
+if (process.platform === 'darwin') {
   execFileSync(process.execPath, [path.join(__dirname, '..', 'scripts', 'build-agent-sender.js'), process.arch]);
 }
 
 function runSender(socketPath, input, provider = 'codex') {
   return new Promise((resolve, reject) => {
+    let stdout = '';
     const child = spawn(senderPath, ['--provider', provider], {
       env: {
         HOME: os.homedir(),
@@ -22,9 +24,11 @@ function runSender(socketPath, input, provider = 'codex') {
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
     child.stdin.end(JSON.stringify(input));
     child.on('error', reject);
-    child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`sender exited ${code}`)));
+    child.on('exit', (code) => code === 0 ? resolve(stdout) : reject(new Error(`sender exited ${code}`)));
   });
 }
 
@@ -92,14 +96,14 @@ test('native Codex hook sender forwards only whitelisted lifecycle metadata with
   const bridge = new AgentBridge(socketPath, { onEvent: (event) => received.push(event) });
   try {
     await bridge.start();
-    await runSender(socketPath, {
+    const startOutput = await runSender(socketPath, {
       hook_event_name: 'UserPromptSubmit',
       session_id: 'session-hook',
       turn_id: 'turn-hook',
       prompt: '整理发布说明',
       transcript_path: '/private/transcript.jsonl',
     });
-    await runSender(socketPath, {
+    const stopOutput = await runSender(socketPath, {
       hook_event_name: 'Stop',
       session_id: 'session-hook',
       turn_id: 'turn-hook',
@@ -117,6 +121,8 @@ test('native Codex hook sender forwards only whitelisted lifecycle metadata with
     assert.deepEqual(received.map((event) => event.event), ['started', 'ended']);
     assert.equal(received[0].title, '整理发布说明');
     assert.equal(received[1].title, null);
+    assert.equal(startOutput, '');
+    assert.deepEqual(JSON.parse(stopOutput), {});
   } finally {
     await bridge.stop();
     fs.rmSync(directory, { recursive: true, force: true });
@@ -140,6 +146,133 @@ test('native Codex hook sender keeps titles private unless the user opts in', as
     assert.equal(received[0].title, null);
   } finally {
     await bridge.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('native hook sender writes a private atomic lease while the pet is offline', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-hook-lease-'));
+  const socketPath = path.join(directory, 'missing.sock');
+  const leaseDirectory = path.join(directory, 'agent-task-leases');
+  try {
+    await runSender(socketPath, {
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'offline-session',
+      turn_id: 'offline-turn',
+      prompt: 'this title stays private',
+      transcript_path: '/private/transcript.jsonl',
+    });
+
+    assert.equal(fs.statSync(leaseDirectory).mode & 0o777, 0o700);
+    const files = fs.readdirSync(leaseDirectory);
+    assert.equal(files.length, 1);
+    assert.match(files[0], /^[a-f0-9]{64}\.json$/);
+    assert.equal(files[0].includes('offline-session'), false);
+    const filePath = path.join(leaseDirectory, files[0]);
+    assert.equal(fs.statSync(filePath).mode & 0o777, 0o600);
+
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    assert.equal(raw.event, 'started');
+    assert.equal(raw.sessionId, 'offline-session');
+    assert.equal(raw.turnId, 'offline-turn');
+    assert.equal(raw.startedAt, raw.timestamp);
+    assert.equal(Object.prototype.hasOwnProperty.call(raw, 'title'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(raw, 'prompt'), false);
+    assert.equal(Object.prototype.hasOwnProperty.call(raw, 'transcript_path'), false);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('native hook sender preserves an active snapshot and leaves a short terminal tombstone', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-hook-tombstone-'));
+  const socketPath = path.join(directory, 'missing.sock');
+  const settingsPath = path.join(directory, 'settings.json');
+  const leaseDirectory = path.join(directory, 'agent-task-leases');
+  fs.writeFileSync(settingsPath, JSON.stringify({ privacy: { includeTaskTitles: true } }));
+  try {
+    await runSender(socketPath, {
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'recover-session',
+      turn_id: 'recover-turn',
+      prompt: '恢复正在运行的任务',
+    });
+    await runSender(socketPath, {
+      hook_event_name: 'PostToolUse',
+      session_id: 'recover-session',
+      turn_id: 'recover-turn',
+    });
+
+    let records = readTaskLeases(leaseDirectory);
+    assert.equal(records.length, 1);
+    assert.equal(records[0].event.event, 'running');
+    assert.equal(records[0].event.title, '恢复正在运行的任务');
+    assert.ok(records[0].event.startedAt <= records[0].event.timestamp);
+
+    await runSender(socketPath, {
+      hook_event_name: 'SessionEnd',
+      session_id: 'recover-session',
+      turn_id: 'recover-turn',
+    });
+    records = readTaskLeases(leaseDirectory);
+    assert.equal(records.length, 1);
+    assert.equal(records[0].event.event, 'ended');
+    assert.equal(records[0].event.title, '恢复正在运行的任务');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('native Claude hook sender creates and carries a synthetic turn id across one prompt', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-hook-turn-'));
+  const socketPath = path.join(directory, 'events.sock');
+  const received = [];
+  const bridge = new AgentBridge(socketPath, { onEvent: (event) => received.push(event) });
+  try {
+    await bridge.start();
+    await runSender(socketPath, {
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'claude-turn-session',
+      prompt: '第一件事',
+    }, 'claude-code');
+    await runSender(socketPath, {
+      hook_event_name: 'PostToolUse',
+      session_id: 'claude-turn-session',
+    }, 'claude-code');
+    await runSender(socketPath, {
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'claude-turn-session',
+      prompt: '第二件事',
+    }, 'claude-code');
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(received.length, 3);
+    assert.match(received[0].turnId, /^blobfish-[a-f0-9-]+$/);
+    assert.equal(received[1].turnId, received[0].turnId);
+    assert.notEqual(received[2].turnId, received[0].turnId);
+  } finally {
+    await bridge.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('concurrent native senders leave one complete atomic lease instead of deleting a newer turn', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-hook-concurrent-'));
+  const socketPath = path.join(directory, 'missing.sock');
+  const leaseDirectory = path.join(directory, 'agent-task-leases');
+  try {
+    await Promise.all(Array.from({ length: 6 }, (_, index) => runSender(socketPath, {
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'shared-session',
+      prompt: `任务 ${index}`,
+    }, 'claude-code')));
+
+    const records = readTaskLeases(leaseDirectory);
+    assert.equal(records.length, 1);
+    assert.equal(records[0].event.event, 'started');
+    assert.equal(records[0].event.sessionId, 'shared-session');
+    assert.match(records[0].event.turnId, /^blobfish-[a-f0-9-]+$/);
+  } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
@@ -223,6 +356,16 @@ test('native Claude hook sender keeps active background work and cleans up idle 
     }, 'claude-code');
     await runSender(socketPath, {
       hook_event_name: 'Notification',
+      notification_type: 'permission_prompt',
+      session_id: 'claude-permission',
+    }, 'claude-code');
+    await runSender(socketPath, {
+      hook_event_name: 'Notification',
+      notification_type: 'elicitation_dialog',
+      session_id: 'claude-elicitation',
+    }, 'claude-code');
+    await runSender(socketPath, {
+      hook_event_name: 'Notification',
       notification_type: 'idle_prompt',
       session_id: 'claude-idle',
     }, 'claude-code');
@@ -236,6 +379,8 @@ test('native Claude hook sender keeps active background work and cleans up idle 
       [
         ['claude-background', 'running'],
         ['claude-waiting', 'needs_input'],
+        ['claude-permission', 'needs_input'],
+        ['claude-elicitation', 'needs_input'],
         ['claude-idle', 'ended'],
         ['claude-ended', 'ended'],
       ],

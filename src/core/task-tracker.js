@@ -53,6 +53,9 @@ class TaskTracker {
         const startsNewTurn = Boolean(event.turnId && event.turnId !== existing.turnId);
         transitionTask = updateTask(existing, 'running');
         if (startsNewTurn) {
+          if (event.title && !isGenericTitle(event.title, event.provider)) {
+            transitionTask.title = event.title;
+          }
           transitionTask.startedAt = now;
           transition = 'started';
         }
@@ -95,6 +98,31 @@ class TaskTracker {
     if (transition) this.onTransition({ type: transition, event, task, snapshot });
     else this.onTransition({ type: 'state', event, task, snapshot });
     return snapshot;
+  }
+
+  restore(events) {
+    const ordered = Array.isArray(events)
+      ? [...events].sort((left, right) => left.timestamp - right.timestamp)
+      : [];
+    for (const event of ordered) {
+      if (!['started', 'running', 'needs_input'].includes(event.event)) continue;
+      const key = this.taskKey(event);
+      const existing = this.tasks.get(key);
+      const now = Number.isFinite(event.timestamp) ? event.timestamp : Date.now();
+      if (existing && now <= existing.updatedAt) continue;
+      const terminalRecord = this.terminalEvents.get(key);
+      if (terminalRecord && now <= terminalRecord.eventAt) continue;
+      if (terminalRecord) this.terminalEvents.delete(key);
+      this.tasks.set(key, {
+        ...event,
+        key,
+        state: event.event === 'needs_input' ? 'waiting' : 'running',
+        startedAt: Number.isFinite(event.startedAt) ? event.startedAt : now,
+        updatedAt: now,
+        recovered: true,
+      });
+    }
+    return this.snapshot();
   }
 
   removeProvider(provider) {
@@ -151,6 +179,7 @@ function isGenericTitle(title, provider) {
     '继续',
     '继续吧',
     '继续执行',
+    '继续处理',
     '好的',
     '好',
     '确认',

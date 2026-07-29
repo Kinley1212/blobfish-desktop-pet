@@ -31,6 +31,11 @@ const { StartupGreetingStore, getStartupGreeting } = require('./core/startup-gre
 const { formatProviderTaskSummary } = require('./core/task-menu-summary');
 const { advanceFractionalCoordinate, roundWindowCoordinate } = require('./core/fractional-position');
 const { getCurrentTaskStatus, getTerminalTaskStatus } = require('./core/task-status-presenter');
+const {
+  readTaskLeases,
+  readTaskLeasesAsync,
+} = require('./core/task-lease-store');
+const { getTaskSoundCue } = require('./core/task-transition-effects');
 const { TaskTracker } = require('./core/task-tracker');
 const {
   LATEST_RELEASE_URL,
@@ -140,6 +145,8 @@ let agentBridgeStatus = 'stopped';
 let integrationManager;
 let taskTracker;
 let taskMaintenanceTimer = null;
+let taskLeasePollTimer = null;
+let taskLeasePollInFlight = false;
 let quitTimer = null;
 let contextMenuPauseTimer = null;
 let contextMenuSession = 0;
@@ -150,6 +157,7 @@ let currentAgentSnapshot = Object.freeze({ activeCount: 0, waitingCount: 0, runn
 let runtimeErrorNotifier;
 const connectionHealth = new ConnectionHealthTracker();
 const longRunningNotified = new Set();
+const processedAgentEvents = new Set();
 
 const sessionStartedAt = Date.now();
 
@@ -1520,11 +1528,13 @@ function handleTaskTransition(transition) {
     priority: SPEECH_PRIORITY.agent,
     durationMs: SPEECH_DURATION_MS.agentLifecycle,
   };
+  const soundCue = getTaskSoundCue(transition.type);
+  if (soundCue === 'needsInput') playTaskNotificationSound();
+  else if (soundCue === 'taskComplete') playTaskCompleteSound();
 
   if (transition.type === 'started') {
     speak('agent.started', context, { ...speechOptions, replaceKey: 'agent.started' });
   } else if (transition.type === 'needsInput') {
-    playTaskNotificationSound();
     speak('agent.needsInput', context, {
       priority: SPEECH_PRIORITY.urgent,
       durationMs: SPEECH_DURATION_MS.agentLifecycle,
@@ -1533,10 +1543,8 @@ function handleTaskTransition(transition) {
       action: 'waiting',
     });
   } else if (transition.type === 'completed') {
-    playTaskCompleteSound();
     speak('agent.completed', context, { ...speechOptions, replaceKey: 'agent.completed', action: 'success' });
   } else if (transition.type === 'allCompleted') {
-    playTaskCompleteSound();
     speak('agent.allCompleted', context, {
       ...speechOptions,
       replaceKey: 'agent.allCompleted',
@@ -1581,16 +1589,94 @@ function runTaskMaintenance() {
   }
 }
 
+function agentEventSignature(event) {
+  return JSON.stringify([
+    event.provider,
+    event.sessionId,
+    event.turnId || '',
+    event.event,
+    event.timestamp,
+  ]);
+}
+
+function rememberAgentEvent(event) {
+  processedAgentEvents.add(agentEventSignature(event));
+  if (processedAgentEvents.size <= 1024) return;
+  processedAgentEvents.delete(processedAgentEvents.values().next().value);
+}
+
+function hasProcessedAgentEvent(event) {
+  return processedAgentEvents.has(agentEventSignature(event));
+}
+
+function noteAgentConnection(event) {
+  const connectionProvider = getConnectionProvider(event.provider);
+  connectionHealth.noteEvent(connectionProvider);
+  emitConnectionHealth(connectionProvider);
+}
+
+function applyTaskLeaseRecords(records, initial = false) {
+  const activeEvents = [];
+  for (const record of records) {
+    const { event } = record;
+    if (!isProviderEnabled(event.provider)) continue;
+    if (['ended', 'completed', 'failed'].includes(event.event)) {
+      if (!hasProcessedAgentEvent(event)) {
+        noteAgentConnection(event);
+        taskTracker.handle(event);
+        rememberAgentEvent(event);
+      }
+      continue;
+    }
+    if (hasProcessedAgentEvent(event)) continue;
+    noteAgentConnection(event);
+    if (initial) {
+      activeEvents.push(event);
+    } else {
+      const taskExists = taskTracker.getTasks().some((task) => task.key === taskTracker.taskKey(event));
+      if (taskExists) {
+        taskTracker.handle(event);
+      } else {
+        const snapshot = taskTracker.restore([event]);
+        updateAgentState(snapshot);
+        emitTaskStatus();
+      }
+    }
+    rememberAgentEvent(event);
+  }
+  if (activeEvents.length > 0) taskTracker.restore(activeEvents);
+}
+
+function recoverTaskLeases(leaseDirectory) {
+  applyTaskLeaseRecords(readTaskLeases(leaseDirectory), true);
+}
+
+async function pollTaskLeases(leaseDirectory) {
+  if (taskLeasePollInFlight) return;
+  taskLeasePollInFlight = true;
+  try {
+    const records = await readTaskLeasesAsync(leaseDirectory);
+    applyTaskLeaseRecords(records);
+  } finally {
+    taskLeasePollInFlight = false;
+  }
+}
+
 function setupAgentBridge() {
   taskTracker = new TaskTracker(handleTaskTransition);
+  const leaseDirectory = path.join(app.getPath('userData'), 'agent-task-leases');
+  try {
+    recoverTaskLeases(leaseDirectory);
+  } catch (error) {
+    reportRuntimeError('Task lease recovery', error);
+  }
   updateAgentState(taskTracker.snapshot());
   emitTaskStatus();
   agentBridge = new AgentBridge(path.join(app.getPath('userData'), 'agent-events.sock'), {
     onEvent: (event) => {
       if (!isProviderEnabled(event.provider)) return;
-      const connectionProvider = getConnectionProvider(event.provider);
-      connectionHealth.noteEvent(connectionProvider);
-      emitConnectionHealth(connectionProvider);
+      rememberAgentEvent(event);
+      noteAgentConnection(event);
       taskTracker.handle(event);
     },
     onError: (error) => reportRuntimeError('Agent bridge', error),
@@ -1611,6 +1697,11 @@ function setupAgentBridge() {
       }
     });
   taskMaintenanceTimer = setInterval(runTaskMaintenance, 5 * 60 * 1000);
+  taskLeasePollTimer = setInterval(() => {
+    pollTaskLeases(leaseDirectory).catch((error) => {
+      reportRuntimeError('Task lease recovery', error);
+    });
+  }, 1000);
 }
 
 async function connectAgentIntegration(provider, force = false) {
@@ -1947,6 +2038,7 @@ app.on('before-quit', (event) => {
   clearTimeout(contextMenuPauseTimer);
   clearInterval(batteryPollTimer);
   clearInterval(taskMaintenanceTimer);
+  clearInterval(taskLeasePollTimer);
   if (calendarService) calendarService.stop();
   if (agentBridge) agentBridge.stop();
   if (speechQueue) speechQueue.clear();

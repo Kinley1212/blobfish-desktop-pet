@@ -29,8 +29,23 @@ privacy option in Settings.
 
 Hook commands call a small architecture-specific native sender bundled with
 the app and copied into the managed plugin. Recipients do not need to install
-Node.js. The sender is silent when the pet is not running and never opens a
-network connection.
+Node.js. The sender never opens a network connection.
+
+To recover work that started before the pet opened, the sender also keeps one
+small task lease per provider session under:
+
+```text
+~/Library/Application Support/BlobfishDesktopPet/agent-task-leases/
+```
+
+The directory is mode `0700`, each lease is mode `0600`, and the filename is a
+SHA-256 digest rather than a session identifier. A lease contains only the
+validated provider, lifecycle state, opaque IDs and timestamps described above.
+It contains a cleaned task title only when the user has enabled task titles in
+Settings. It never contains prompts, transcripts, file paths, tool input/output,
+model names, working directories or code. The app restores valid leases during
+startup and checks the directory once per second so a short socket outage does
+not leave a task stuck.
 
 ## Pet behavior
 
@@ -43,9 +58,11 @@ network connection.
 | A hook reports only that a turn ended | shows a neutral ended state without claiming success |
 | Task fails | uses `failed`, speaks, and stops if nothing else remains |
 
-Duplicate waiting events do not repeat the message. Tasks older than 12 hours
-without any lifecycle update are pruned. A long-running line becomes eligible
-after 20 minutes. Turning off one provider in Settings removes its live tasks.
+Duplicate waiting events do not repeat the message. Running leases older than
+2 hours and waiting-for-approval leases older than 8 hours are pruned. A
+terminal lease remains for 5 minutes only to prevent a missed or duplicated
+finish event. A long-running line becomes eligible after 20 minutes. Turning
+off one provider in Settings removes its live tasks.
 
 ## Codex plugin
 
@@ -54,8 +71,8 @@ Plugin source: `integrations/codex/plugins/blobfish-agent-bridge`.
 
 The plugin was scaffolded and validated with Codex `plugin-creator`. Its default
 `hooks/hooks.json` uses the documented `UserPromptSubmit`, `PermissionRequest`,
-`PostToolUse` and `Stop` events. Installed plugin hooks require review and trust
-inside Codex (`/hooks`) after a new task loads them.
+`PostToolUse`, `Stop` and `SessionEnd` events. Installed plugin hooks require
+review and trust inside Codex (`/hooks`) after a new task loads them.
 
 The packaged pet exposes **一键安装** in Settings. It copies this marketplace
 to the pet's private application-data directory, runs `codex plugin marketplace
@@ -85,7 +102,10 @@ Marketplace: `integrations/claude-code/.claude-plugin/marketplace.json`
 Plugin source: `integrations/claude-code/blobfish-agent-bridge`.
 
 Claude Code adds `PostToolUseFailure` as a return-to-running signal and its
-dedicated `StopFailure` event maps to task failure. Validate and install with:
+dedicated `StopFailure` event maps to task failure. Notification types
+`agent_needs_input`, `permission_prompt` and `elicitation_dialog` map to waiting
+for approval, while `idle_prompt` maps to a neutral ended state. Validate and
+install with:
 
 ```bash
 claude plugin validate integrations/claude-code/blobfish-agent-bridge --strict
@@ -109,5 +129,7 @@ documented local plugin state and updates automatically. It also detects the
 bridge when Claude was installed through another user marketplace and will not
 duplicate it. Restart the Claude Code session after a new install.
 
-Both hook senders exit successfully when the pet is not running, so they never
-block the coding agent. Set `BLOBFISH_SOCKET` only for isolated tests.
+Both hook senders exit successfully even when the pet is not running, so they
+never block the coding agent. In that case the lease above lets the pet recover
+the current task when it opens. Set `BLOBFISH_SOCKET`,
+`BLOBFISH_TASK_LEASES` or `BLOBFISH_SETTINGS` only for isolated tests.
