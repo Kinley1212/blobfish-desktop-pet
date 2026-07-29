@@ -6,10 +6,13 @@ const {
   ACCESSORY_SLOTS,
   DEFAULT_TUNING,
   accessoryTransform,
+  createLatestRequestGate,
   defaultAccessories,
   defaultTuning,
   getTuning,
+  isDangerousSvgElementName,
   isEmptyAccessories,
+  isSafeSvgAttribute,
   normalizeAccessories,
   normalizeAccessoryMap,
   supportsAccessories,
@@ -112,6 +115,43 @@ test('size scales both axes and width and height stretch on top of it', () => {
     accessoryTransform(anchor, art, { size: 1.2, width: 1, height: 0.5, offsetX: -4, offsetY: 2 }),
     'translate(66 22) scale(1.38 0.69) translate(-50 -76)',
   );
+});
+
+test('a late DIY art request cannot replace the newest character selection', async () => {
+  const gate = createLatestRequestGate();
+  const pending = new Map();
+  let visibleArt = null;
+
+  async function load(packId) {
+    const request = gate.begin(packId);
+    const art = await new Promise((resolve, reject) => pending.set(packId, { resolve, reject }));
+    if (gate.isCurrent(request, packId)) visibleArt = art;
+  }
+
+  const first = load('blobfish');
+  const second = load('grass-buddy');
+  pending.get('grass-buddy').resolve('grass art');
+  await second;
+  pending.get('blobfish').resolve('blobfish art');
+  await first;
+
+  assert.equal(visibleArt, 'grass art');
+});
+
+test('SVG safety rules reject active content and external references without removing presentation attributes', () => {
+  for (const name of ['script', 'foreignObject', 'iframe', 'object', 'embed']) {
+    assert.equal(isDangerousSvgElementName(name), true, `${name} must not enter the live document`);
+  }
+  assert.equal(isDangerousSvgElementName('linearGradient'), false);
+
+  assert.equal(isSafeSvgAttribute('onclick', 'run()'), false);
+  assert.equal(isSafeSvgAttribute('onLoad', 'run()'), false);
+  assert.equal(isSafeSvgAttribute('href', 'https://example.com/tracker.svg'), false);
+  assert.equal(isSafeSvgAttribute('xlink:href', 'data:image/svg+xml,...'), false);
+  assert.equal(isSafeSvgAttribute('href', '#local-gradient'), true);
+  assert.equal(isSafeSvgAttribute('fill', '#cadf9a'), true);
+  assert.equal(isSafeSvgAttribute('class', 'grass-fill'), true);
+  assert.equal(isSafeSvgAttribute('transform', 'translate(2 4)'), true);
 });
 
 test('every bundled accessory declares a slot, an anchor and real art', () => {

@@ -3,7 +3,7 @@ const bubble = document.getElementById('bubble');
 const taskBubble = document.getElementById('task-bubble');
 const { buildCarouselLayout, nextTaskKey } = globalThis.taskCarouselModel;
 const { applyDiyToSvg } = globalThis.diyModel;
-const { applyAccessoriesToSvg, normalizeAccessories } = globalThis.accessoryModel;
+const { applyAccessoriesToSvg, normalizeAccessories, sanitizeSvgTree } = globalThis.accessoryModel;
 const { pickExpression } = globalThis.expressionMoods;
 
 const VELOCITY_WINDOW_MS = 300;
@@ -115,20 +115,10 @@ function sanitizeSvg(svgText) {
     throw new Error('Character pack contains invalid SVG');
   }
 
-  documentNode.querySelectorAll('script, foreignObject, iframe, object, embed').forEach((node) => node.remove());
-  documentNode.querySelectorAll('*').forEach((node) => {
-    for (const attribute of [...node.attributes]) {
-      const name = attribute.name.toLowerCase();
-      const value = attribute.value.trim();
-      if (name.startsWith('on')) {
-        node.removeAttribute(attribute.name);
-      } else if ((name === 'href' || name === 'xlink:href') && !value.startsWith('#')) {
-        node.removeAttribute(attribute.name);
-      }
-    }
-  });
+  const svgRoot = sanitizeSvgTree(documentNode.documentElement);
+  if (!svgRoot) throw new Error('Character pack does not contain SVG art');
 
-  return documentNode.documentElement.outerHTML;
+  return svgRoot.outerHTML;
 }
 
 // The worn accessories, with a temporary mood expression standing in for the

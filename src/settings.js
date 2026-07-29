@@ -30,6 +30,7 @@ let accessoryMap = {};
 let accessoryCatalog = [];
 const diyModel = globalThis.diyModel;
 const accessoryModel = globalThis.accessoryModel;
+const diyLoadGate = accessoryModel.createLatestRequestGate();
 const panelTabs = [...document.querySelectorAll('.nav-item[data-panel]')];
 const panels = [...document.querySelectorAll('.settings-panel[data-panel-name]')];
 
@@ -571,7 +572,13 @@ function renderDiyPreview() {
     return;
   }
 
-  const svg = document.importNode(parsed.documentElement, true);
+  const safeRoot = accessoryModel.sanitizeSvgTree(parsed.documentElement);
+  if (!safeRoot) {
+    stage.replaceChildren();
+    return;
+  }
+
+  const svg = document.importNode(safeRoot, true);
   // Tears only belong to the "被揍" reaction; a resting portrait shouldn't cry.
   svg.querySelectorAll('.tears, .tear').forEach((node) => node.remove());
   stage.replaceChildren(svg);
@@ -587,23 +594,35 @@ function renderDiyPreview() {
 }
 
 async function loadDiy(packId) {
+  const request = diyLoadGate.begin(packId);
   const supported = Boolean(charactersById.get(packId)?.diy?.enabled);
   byId('diy-unsupported').hidden = supported;
   byId('diy-workspace').hidden = !supported;
+  diyArt = null;
+  byId('diy-controls').replaceChildren();
+  byId('accessory-controls').replaceChildren();
+  byId('diy-preview').replaceChildren();
   if (!supported) {
-    diyArt = null;
-    byId('diy-controls').replaceChildren();
-    byId('accessory-controls').replaceChildren();
-    byId('diy-preview').replaceChildren();
     return;
   }
 
-  diyArt = await window.settingsAPI.getCharacterArt(packId);
-  // The selection can change while the art request is in flight.
-  if (byId('character-pack').value !== packId) return;
-  renderDiyControls();
-  renderAccessoryControls();
-  renderDiyPreview();
+  try {
+    const art = await window.settingsAPI.getCharacterArt(packId);
+    // The selection can change while the art request is in flight. Assign the
+    // shared preview state only after proving this is still the newest request.
+    if (!diyLoadGate.isCurrent(request, packId) || byId('character-pack').value !== packId) return;
+    if (!art || typeof art.svg !== 'string') throw new Error('Character art is unavailable');
+    diyArt = art;
+    renderDiyControls();
+    renderAccessoryControls();
+    renderDiyPreview();
+  } catch (error) {
+    if (!diyLoadGate.isCurrent(request, packId) || byId('character-pack').value !== packId) return;
+    diyArt = null;
+    const displayName = charactersById.get(packId)?.displayName || packId;
+    showStatus(`无法加载“${displayName}”的形象预览，请重新选择角色后再试。`, true);
+    console.error(`Failed to load DIY art for ${packId}:`, error);
+  }
 }
 
 function renderIntegrationStatus(integrationStatus = {}) {
