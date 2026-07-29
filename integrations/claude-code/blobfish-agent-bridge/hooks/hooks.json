@@ -77,7 +77,7 @@
     ],
     "Notification": [
       {
-        "matcher": "idle_prompt|agent_needs_input",
+        "matcher": "agent_needs_input|permission_prompt|elicitation_dialog",
         "hooks": [
           {
             "type": "command",
