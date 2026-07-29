@@ -40,6 +40,15 @@ function describeAgentIntegration(provider, result = {}, options = {}) {
         primary: { action: 'details', label: '查看处理方法', disabled: false },
       };
     case 'error':
+      if (provider === 'claude' && result.repairable) {
+        return {
+          verdict: '需要修复',
+          verdictState: 'disconnected',
+          summary: '发现水滴鱼自己的陈旧连接记录',
+          instruction: '点击下面的按钮即可安全清理旧记录并重新连接；不会改动其他插件。',
+          primary: { action: 'update', label: '一键修复连接', disabled: false },
+        };
+      }
       return {
         verdict: '检测失败',
         verdictState: 'disconnected',

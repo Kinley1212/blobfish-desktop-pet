@@ -678,6 +678,7 @@ function renderAgentIntegration(provider, result) {
   const busy = Boolean(operation) || ['checking', 'opened', 'opened-disconnect', 'terminal-opened'].includes(result.state);
   const managedInstalled = result.state === 'connected'
     || result.state === 'disabled'
+    || result.repairable === true
     || (result.state === 'cli-missing' && live);
   const presentedResult = operation
     ? { ...result, operationBusy: true, operation }
@@ -719,7 +720,12 @@ function renderAgentIntegration(provider, result) {
   else if (result.state === 'legacy') setConnectionStep(provider, 'plugin', 'active', result.version ? `检测到旧版 v${result.version}` : '检测到可升级的旧版');
   else if (result.state === 'disabled') setConnectionStep(provider, 'plugin', 'error', '已安装，但被停用');
   else if (result.state === 'conflict') setConnectionStep(provider, 'plugin', 'error', '同名插件来源冲突');
-  else if (result.state === 'error') setConnectionStep(provider, 'plugin', 'error', '检测或操作失败');
+  else if (result.state === 'error') setConnectionStep(
+    provider,
+    'plugin',
+    'error',
+    result.repairable ? '连接记录陈旧，可以一键修复' : '检测或操作失败',
+  );
   else if (result.state === 'opened' || result.state === 'terminal-opened') setConnectionStep(provider, 'plugin', 'active', '等待安装结果');
   else if (result.state === 'opened-disconnect') setConnectionStep(provider, 'plugin', 'active', '等待手动移除');
   else if (live) setConnectionStep(provider, 'plugin', 'done', '已由真实任务事件确认工作');
@@ -777,7 +783,7 @@ async function pollTerminalOperation(provider, operation) {
   for (let attempt = 0; attempt < 30; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     const result = await refreshAgentIntegration(provider);
-    if (result.state === 'error') {
+    if (result.state === 'error' && (!result.repairable || result.operationFailed)) {
       showStatus(`连接操作失败：${result.error}`, true);
       return;
     }
