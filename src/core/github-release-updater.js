@@ -181,6 +181,58 @@ function getInstalledAppBundle(executablePath) {
   return bundlePath;
 }
 
+function resolveMacUpdateInstallTarget(options = {}) {
+  const currentAppPath = options.currentAppPath;
+  const bundleName = options.bundleName;
+  const userApplicationsDirectory = options.userApplicationsDirectory;
+  const fileSystem = options.fileSystem || fs;
+
+  if (!path.isAbsolute(currentAppPath) || path.resolve(currentAppPath) !== currentAppPath) {
+    throw new Error('无法确认当前应用位置');
+  }
+  if (
+    typeof bundleName !== 'string'
+    || path.basename(bundleName) !== bundleName
+    || path.extname(bundleName) !== '.app'
+  ) {
+    throw new Error('新版应用程序名称无效');
+  }
+
+  const currentDirectory = path.dirname(currentAppPath);
+  try {
+    fileSystem.accessSync(currentDirectory, fs.constants.W_OK);
+    return Object.freeze({
+      targetAppPath: path.join(currentDirectory, bundleName),
+      installLocation: 'current-directory',
+      removeOldApp: true,
+    });
+  } catch {
+    // A downloaded app can run from macOS App Translocation, and standard
+    // accounts cannot normally write to the system /Applications directory.
+    // In either case install the verified new bundle in the user's own
+    // Applications folder instead of asking for administrator privileges.
+  }
+
+  if (
+    !path.isAbsolute(userApplicationsDirectory)
+    || path.resolve(userApplicationsDirectory) !== userApplicationsDirectory
+  ) {
+    throw new Error('无法确认个人应用程序文件夹');
+  }
+  try {
+    fileSystem.mkdirSync(userApplicationsDirectory, { recursive: true, mode: 0o755 });
+    fileSystem.accessSync(userApplicationsDirectory, fs.constants.W_OK);
+  } catch {
+    throw new Error('当前安装位置不可写，也无法使用个人“应用程序”文件夹');
+  }
+
+  return Object.freeze({
+    targetAppPath: path.join(userApplicationsDirectory, bundleName),
+    installLocation: 'user-applications',
+    removeOldApp: false,
+  });
+}
+
 function cleanupStaleUpdateStaging(updateRoot, options = {}) {
   if (!path.isAbsolute(updateRoot)) throw new Error('更新暂存目录必须是绝对路径');
   const resolvedRoot = path.resolve(updateRoot);
@@ -302,8 +354,12 @@ function buildMacInstallerScript(options) {
     throw new Error('应用程序包路径无效');
   }
   if (options.currentAppPath === options.targetAppPath) throw new Error('新旧应用程序包路径不能相同');
-  if (path.dirname(options.currentAppPath) !== path.dirname(options.targetAppPath)) {
-    throw new Error('新旧应用必须安装到同一文件夹');
+  const sameInstallDirectory = path.dirname(options.currentAppPath) === path.dirname(options.targetAppPath);
+  const removeOldApp = options.removeOldApp === undefined
+    ? sameInstallDirectory
+    : Boolean(options.removeOldApp);
+  if (removeOldApp && !sameInstallDirectory) {
+    throw new Error('不能从其他文件夹自动移除旧版本');
   }
   if (path.dirname(options.zipPath) !== options.stagingDirectory) {
     throw new Error('更新压缩包必须位于暂存目录');
@@ -337,6 +393,7 @@ staging=${shellQuote(options.stagingDirectory)}
 source_app=${shellQuote(extractedAppPath)}
 expected_version=${shellQuote(expectedVersion)}
 old_pid=${options.processId}
+remove_old_app=${removeOldApp ? 1 : 0}
 install_app="\${new_app}.installing-\${old_pid}-$$"
 install_promoted=0
 install_succeeded=0
@@ -508,11 +565,13 @@ if ! run_with_timeout 30 /usr/bin/open "$new_app"; then
   exit 1
 fi
 install_succeeded=1
-run_with_timeout 30 /usr/bin/osascript - "$old_app" <<'APPLESCRIPT' || true
+if (( remove_old_app == 1 )); then
+  run_with_timeout 30 /usr/bin/osascript - "$old_app" <<'APPLESCRIPT' || true
 on run argv
   tell application "Finder" to delete POSIX file (item 1 of argv)
 end run
 APPLESCRIPT
+fi
 `;
 }
 
@@ -571,6 +630,7 @@ module.exports = {
   launchMacInstallerInBackground,
   normalizeVersion,
   parseSha256Digest,
+  resolveMacUpdateInstallTarget,
   selectManifestUpdate,
   selectReleaseUpdate,
   withUpdateTimeout,

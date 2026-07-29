@@ -12,7 +12,7 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 ![platform](https://img.shields.io/badge/platform-macOS-1f2328?style=flat-square)
 ![electron](https://img.shields.io/badge/Electron-43-47848F?style=flat-square)
 ![node](https://img.shields.io/badge/Node.js-%E2%89%A522.12-5FA04E?style=flat-square)
-![version](https://img.shields.io/badge/version-1.4.0-c87d95?style=flat-square)
+![version](https://img.shields.io/badge/version-1.4.1-c87d95?style=flat-square)
 
 </div>
 
@@ -89,6 +89,8 @@ npm run package:mac:x64     # Intel
 ### 发布可自动更新的版本
 
 设置里的“检查 GitHub 更新”只读取 GitHub 的正式 Release。PR、分支、Draft Release 和 Pre-release 都不会被当成可安装更新。
+
+更新器会在应用内完成下载和校验，再直接启动受约束的后台安装助手，不会打开终端。若当前应用目录不可写（例如普通账户使用系统“应用程序”目录，或应用正在 macOS 隔离路径中运行），新版会自动安装到当前用户的 `~/Applications` 文件夹，不要求管理员权限；旧版会保留。
 
 发布 `vX.Y.Z` 时，Release assets 至少要上传当前 Mac 自动安装需要的完整安装包：
 
@@ -229,7 +231,7 @@ Each command builds the matching-architecture calendar helper and task sender, p
 
 The “Check GitHub Updates” button in Settings only reads formal GitHub Releases. PRs, branches, Draft Releases and pre-releases are intentionally ignored.
 
-The updater downloads and verifies the matching package inside the app, then launches a constrained background helper directly. It does not open Terminal; SHA-256, bundle identity, version, architecture and code-signature checks still run before the new app is promoted, and a failed launch rolls the new copy back.
+The updater downloads and verifies the matching package inside the app, then launches a constrained background helper directly. It does not open Terminal; SHA-256, bundle identity, version, architecture and code-signature checks still run before the new app is promoted, and a failed launch rolls the new copy back. If the current app directory is read-only, the verified update is installed in the current user's `~/Applications` folder without requesting administrator access; the old copy is left untouched.
 
 When publishing `vX.Y.Z`, attach at least the complete macOS packages needed by the in-app updater:
 

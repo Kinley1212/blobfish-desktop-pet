@@ -17,7 +17,6 @@ const { loadCharacterPack } = require('./core/pack-loader');
 const { loadAccessoryCatalog } = require('./core/accessory-loader');
 const { loadDialoguePackSafe } = require('./core/dialogue-loader');
 const { loadLanguagePack } = require('./core/language-pack-loader');
-const { calculateVerticalPlacement } = require('./core/pet-boundary');
 const {
   preparePetConfigForSave,
   repairLoadedPetConfigWithFallback,
@@ -29,6 +28,7 @@ const {
   PET_WINDOW_WIDTH,
   calculatePetMetrics,
   calculatePetRecoveryPlacement,
+  calculateVerticalRoamPlacement,
   getMaxPetScale,
 } = require('./core/pet-window-geometry');
 const { PhraseEngine } = require('./core/phrase-engine');
@@ -64,6 +64,7 @@ const {
   cleanupStaleUpdateStaging,
   getInstalledAppBundle,
   launchMacInstallerInBackground,
+  resolveMacUpdateInstallTarget,
   selectManifestUpdate,
   selectReleaseUpdate,
   withUpdateTimeout,
@@ -1024,7 +1025,7 @@ async function writeAll(fileHandle, value) {
   }
 }
 
-async function downloadReleaseAsset(update, destination) {
+async function downloadReleaseAsset(update, destination, progressDetails = {}) {
   return withUpdateTimeout('下载更新包', 10 * 60 * 1000, async (signal) => {
     const response = await net.fetch(update.asset.url, {
       headers: { 'User-Agent': githubUserAgent },
@@ -1045,7 +1046,13 @@ async function downloadReleaseAsset(update, destination) {
         if (received > update.asset.size) throw new Error('下载文件超过 GitHub 声明的大小，已停止更新');
         checksum.update(value);
         await writeAll(fileHandle, value);
-        sendAppUpdateProgress({ state: 'downloading', version: update.version, received, total: update.asset.size });
+        sendAppUpdateProgress({
+          state: 'downloading',
+          version: update.version,
+          received,
+          total: update.asset.size,
+          ...progressDetails,
+        });
       }
     } finally {
       await fileHandle.close();
@@ -1073,29 +1080,45 @@ async function installGithubUpdate() {
   if (!app.isPackaged) throw new Error('开发模式不能安装更新');
 
   const currentAppPath = getInstalledAppBundle(process.execPath);
-  const targetAppPath = path.join(path.dirname(currentAppPath), update.asset.bundleName);
+  const installPlan = resolveMacUpdateInstallTarget({
+    currentAppPath,
+    bundleName: update.asset.bundleName,
+    userApplicationsDirectory: path.join(app.getPath('home'), 'Applications'),
+  });
+  const { targetAppPath } = installPlan;
   if (fs.existsSync(targetAppPath)) {
-    throw new Error(`Pro${update.version} 已经在这个文件夹里，请直接打开它`);
-  }
-  try {
-    fs.accessSync(path.dirname(currentAppPath), fs.constants.W_OK);
-  } catch {
-    throw new Error('当前应用所在文件夹没有写入权限，无法自动安装更新');
+    const locationLabel = installPlan.installLocation === 'user-applications'
+      ? '个人“应用程序”文件夹'
+      : '当前文件夹';
+    throw new Error(`Pro${update.version} 已经在${locationLabel}里，请直接打开它`);
   }
 
   const stagingDirectory = getUpdateStagingDirectory();
   const zipPath = path.join(stagingDirectory, update.asset.name);
   const commandPath = path.join(stagingDirectory, '安装水滴鱼更新.command');
   try {
-    sendAppUpdateProgress({ state: 'downloading', version: update.version, received: 0, total: update.asset.size });
-    await downloadReleaseAsset(update, zipPath);
-    sendAppUpdateProgress({ state: 'installing', version: update.version });
+    const progressDetails = { installLocation: installPlan.installLocation };
+    sendAppUpdateProgress({
+      state: 'preparing',
+      version: update.version,
+      ...progressDetails,
+    });
+    sendAppUpdateProgress({
+      state: 'downloading',
+      version: update.version,
+      received: 0,
+      total: update.asset.size,
+      ...progressDetails,
+    });
+    await downloadReleaseAsset(update, zipPath, progressDetails);
+    sendAppUpdateProgress({ state: 'installing', version: update.version, ...progressDetails });
     fs.writeFileSync(commandPath, buildMacInstallerScript({
       currentAppPath,
       targetAppPath,
       zipPath,
       stagingDirectory,
       processId: process.pid,
+      removeOldApp: installPlan.removeOldApp,
     }), { mode: 0o700 });
     fs.chmodSync(commandPath, 0o700);
     await launchMacInstallerInBackground(commandPath);
@@ -1108,7 +1131,11 @@ async function installGithubUpdate() {
     allowImmediateQuit = true;
     app.quit();
   }, 500);
-  return { state: 'installing', version: update.version };
+  return {
+    state: 'installing',
+    version: update.version,
+    installLocation: installPlan.installLocation,
+  };
 }
 
 function getIntegrationResourcesRoot() {
@@ -1625,7 +1652,7 @@ function createWindow() {
         basePetTop = nativePetTop;
       }
       let desiredPetTop = basePetTop + verticalDirection * config.pet.speed;
-      const probe = calculateVerticalPlacement(desiredPetTop, { minY, maxY }, petMetrics);
+      const probe = calculateVerticalRoamPlacement(desiredPetTop, { minY, maxY }, petMetrics);
       if (probe.hitTop) {
         desiredPetTop = probe.petTop;
         verticalDirection = 1;
@@ -2563,7 +2590,15 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   });
   ipcMain.handle('app-update:install', async (event) => {
     assertSettingsSender(event);
-    return installGithubUpdate();
+    try {
+      return await installGithubUpdate();
+    } catch (error) {
+      reportRuntimeError('App update install', error);
+      return {
+        state: 'error',
+        message: error?.message || '自动更新没有完成，请稍后重试',
+      };
+    }
   });
   ipcMain.handle('settings:save', (event, nextConfig) => {
     assertSettingsSender(event);

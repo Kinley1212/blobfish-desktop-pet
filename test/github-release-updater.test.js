@@ -12,6 +12,7 @@ const {
   getInstalledAppBundle,
   latestAssetDownloadUrl,
   launchMacInstallerInBackground,
+  resolveMacUpdateInstallTarget,
   selectManifestUpdate,
   selectReleaseUpdate,
   withUpdateTimeout,
@@ -151,6 +152,82 @@ test('derives an app bundle only from a normal macOS executable location', () =>
   assert.throws(() => getInstalledAppBundle('/tmp/waterfish'), /可自动更新/);
 });
 
+test('keeps updates beside the current app when that directory is writable', () => {
+  const calls = [];
+  const result = resolveMacUpdateInstallTarget({
+    currentAppPath: '/Applications/水滴鱼Pro1.4.0.app',
+    bundleName: '水滴鱼Pro1.4.1.app',
+    userApplicationsDirectory: '/Users/friend/Applications',
+    fileSystem: {
+      accessSync(directory) {
+        calls.push(['access', directory]);
+      },
+      mkdirSync(directory, options) {
+        calls.push(['mkdir', directory, options]);
+      },
+    },
+  });
+
+  assert.deepEqual(result, {
+    targetAppPath: '/Applications/水滴鱼Pro1.4.1.app',
+    installLocation: 'current-directory',
+    removeOldApp: true,
+  });
+  assert.deepEqual(calls, [['access', '/Applications']]);
+});
+
+test('falls back to the user Applications folder when the current app directory is read-only', () => {
+  const calls = [];
+  const result = resolveMacUpdateInstallTarget({
+    currentAppPath: '/private/var/folders/AppTranslocation/d/水滴鱼Pro1.4.0.app',
+    bundleName: '水滴鱼Pro1.4.1.app',
+    userApplicationsDirectory: '/Users/friend/Applications',
+    fileSystem: {
+      accessSync(directory) {
+        calls.push(['access', directory]);
+        if (directory !== '/Users/friend/Applications') {
+          const error = new Error('read only');
+          error.code = 'EACCES';
+          throw error;
+        }
+      },
+      mkdirSync(directory, options) {
+        calls.push(['mkdir', directory, options]);
+      },
+    },
+  });
+
+  assert.deepEqual(result, {
+    targetAppPath: '/Users/friend/Applications/水滴鱼Pro1.4.1.app',
+    installLocation: 'user-applications',
+    removeOldApp: false,
+  });
+  assert.deepEqual(calls, [
+    ['access', '/private/var/folders/AppTranslocation/d'],
+    ['mkdir', '/Users/friend/Applications', { recursive: true, mode: 0o755 }],
+    ['access', '/Users/friend/Applications'],
+  ]);
+});
+
+test('reports a friendly error when neither install directory is writable', () => {
+  assert.throws(
+    () => resolveMacUpdateInstallTarget({
+      currentAppPath: '/Applications/水滴鱼Pro1.4.0.app',
+      bundleName: '水滴鱼Pro1.4.1.app',
+      userApplicationsDirectory: '/Users/friend/Applications',
+      fileSystem: {
+        accessSync() {
+          const error = new Error('read only');
+          error.code = 'EACCES';
+          throw error;
+        },
+        mkdirSync() {},
+      },
+    }),
+    /无法使用个人“应用程序”文件夹/,
+  );
+});
+
 test('installer script bounds subprocesses and atomically promotes a verified app', () => {
   const oldApp = '/Applications/水滴鱼Pro1.2.0.app';
   const newApp = '/Applications/水滴鱼Pro1.2.1.app';
@@ -178,6 +255,33 @@ test('installer script bounds subprocesses and atomically promotes a verified ap
   assert.match(script, /\/bin\/rm -R "\$staging"/);
   assert.match(script, /tell application "Finder" to delete POSIX file/);
   assert.doesNotMatch(script, /\/bin\/cp -R/);
+});
+
+test('installer can use the personal Applications folder without trying to delete a read-only old app', () => {
+  const staging = '/tmp/updates/release-fallback';
+  const script = buildMacInstallerScript({
+    currentAppPath: '/private/var/folders/AppTranslocation/d/水滴鱼Pro1.4.0.app',
+    targetAppPath: '/Users/friend/Applications/水滴鱼Pro1.4.1.app',
+    zipPath: path.join(staging, 'BlobfishPro-1.4.1-macOS-arm64.zip'),
+    stagingDirectory: staging,
+    processId: 456,
+    removeOldApp: false,
+  });
+
+  assert.match(script, /new_app='\/Users\/friend\/Applications\/水滴鱼Pro1\.4\.1\.app'/);
+  assert.match(script, /remove_old_app=0/);
+  assert.match(script, /if \(\( remove_old_app == 1 \)\); then/);
+  assert.throws(
+    () => buildMacInstallerScript({
+      currentAppPath: '/Applications/水滴鱼Pro1.4.0.app',
+      targetAppPath: '/Users/friend/Applications/水滴鱼Pro1.4.1.app',
+      zipPath: path.join(staging, 'BlobfishPro-1.4.1-macOS-arm64.zip'),
+      stagingDirectory: staging,
+      processId: 456,
+      removeOldApp: true,
+    }),
+    /不能从其他文件夹自动移除旧版本/,
+  );
 });
 
 test('launches the verified installer as a hidden detached helper instead of opening Terminal', async () => {
