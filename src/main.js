@@ -7,6 +7,9 @@ const { shouldPauseIdleSpeech, shouldPauseMovement } = require('./core/activity-
 const { AgentBridge } = require('./core/agent-bridge');
 const { BatteryThresholdTracker, readMacBattery } = require('./core/battery-monitor');
 const { CalendarService } = require('./core/calendar-service');
+const { getNextAlarmOccurrence } = require('./core/clock-engine');
+const { ClockService } = require('./core/clock-service');
+const { ClockStore } = require('./core/clock-store');
 const { ConnectionHealthTracker } = require('./core/connection-health');
 const { ConfigStore, DEFAULT_CONFIG } = require('./core/config-store');
 const { comparePluginVersions, IntegrationManager, PLUGIN_NAME } = require('./core/integration-manager');
@@ -124,6 +127,7 @@ const THROW_POWER = 1.35;
 
 let win;
 let settingsWin;
+let clockWin;
 let dialogueWin;
 let tray;
 let direction = 1;
@@ -148,6 +152,8 @@ const reminderScheduler = new ReminderScheduler();
 let clickCount = 0;
 let configStore;
 let startupGreetingStore;
+let clockStore;
+let clockService;
 let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 let phraseEngine = null;
 const runtimeWarnings = new RuntimeWarningStore();
@@ -478,6 +484,88 @@ function setRoamWhenNoTasks(enabled) {
   }
 }
 
+function formatClockDuration(milliseconds) {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function runClockMenuAction(label, action) {
+  try {
+    action();
+  } catch (error) {
+    reportRuntimeError(label, error);
+  }
+}
+
+function buildClockMenuItems() {
+  if (!clockService) return [];
+  const state = clockService.getState();
+  const ringing = state.alerts.find((alert) => alert.state === 'ringing');
+  const items = [];
+  if (ringing) {
+    items.push(
+      {
+        label: `${ringing.sourceType === 'alarm' ? '⏰' : '⏱'} ${ringing.label || '时间到了'}`,
+        enabled: false,
+      },
+      {
+        label: '稍后 5 分钟',
+        click: () => runClockMenuAction('Clock snooze', () => clockService.snoozeAlert(ringing.id, 5)),
+      },
+      {
+        label: '知道了',
+        click: () => runClockMenuAction('Clock dismiss', () => clockService.dismissAlert(ringing.id)),
+      },
+      { type: 'separator' },
+    );
+  }
+  if (state.timer) {
+    const remainingMs = state.timer.state === 'running'
+      ? state.timer.dueAtMs - Date.now()
+      : state.timer.remainingMs;
+    items.push({
+      label: `计时器 · ${formatClockDuration(remainingMs)}`,
+      submenu: [
+        {
+          label: state.timer.state === 'running' ? '暂停计时' : '继续计时',
+          click: () => runClockMenuAction(
+            state.timer.state === 'running' ? 'Pause timer' : 'Resume timer',
+            () => (state.timer.state === 'running' ? clockService.pauseTimer() : clockService.resumeTimer()),
+          ),
+        },
+        {
+          label: '增加 5 分钟',
+          click: () => runClockMenuAction('Extend timer', () => clockService.extendTimer(5)),
+        },
+        {
+          label: '取消计时',
+          click: () => runClockMenuAction('Cancel timer', () => clockService.cancelTimer()),
+        },
+      ],
+    });
+  } else {
+    items.push({
+      label: '快速计时',
+      submenu: [5, 15, 25, 45].map((minutes) => ({
+        label: minutes === 25 ? '25 分钟专注' : `${minutes} 分钟`,
+        click: () => runClockMenuAction(
+          'Start timer',
+          () => clockService.startTimer({
+            durationMinutes: minutes,
+            label: minutes === 25 ? '专注' : '',
+          }),
+        ),
+      })),
+    });
+  }
+  items.push({ label: '闹钟与计时器…', click: () => createClockWindow() });
+  return items;
+}
+
 function buildPetMenuTemplate() {
   const tasks = taskTracker ? taskTracker.getTasks() : [];
   return [
@@ -490,6 +578,8 @@ function buildPetMenuTemplate() {
       label: formatProviderTaskSummary(tasks, 'claude-code', 'Claude', config.integrations.claudeCode),
       enabled: false,
     },
+    { type: 'separator' },
+    ...buildClockMenuItems(),
     { type: 'separator' },
     { label: '找水滴鱼聊天…', click: () => createDialogueWindow() },
     { label: '打开设置…', click: () => createSettingsWindow() },
@@ -548,6 +638,7 @@ function createApplicationMenu() {
       label: app.name,
       submenu: [
         { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => createSettingsWindow() },
+        { label: '闹钟与计时器…', accelerator: 'CmdOrCtrl+Shift+T', click: () => createClockWindow() },
         { type: 'separator' },
         { label: `退出${appDisplayName}`, accelerator: 'CmdOrCtrl+Q', click: () => requestQuit() },
       ],
@@ -580,6 +671,31 @@ function createSettingsWindow() {
   settingsWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   settingsWin.on('closed', () => { settingsWin = null; });
   settingsWin.loadFile(path.join(__dirname, 'settings.html'));
+}
+
+function createClockWindow() {
+  if (clockWin && !clockWin.isDestroyed()) {
+    clockWin.show();
+    clockWin.focus();
+    return;
+  }
+
+  clockWin = new BrowserWindow({
+    width: 460,
+    height: 700,
+    minWidth: 420,
+    minHeight: 560,
+    title: '闹钟与计时器',
+    backgroundColor: '#eef3f1',
+    webPreferences: {
+      preload: path.join(__dirname, 'clock-preload.js'),
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+  clockWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  clockWin.on('closed', () => { clockWin = null; });
+  clockWin.loadFile(path.join(__dirname, 'clock.html'));
 }
 
 // The chooser lives in its own small window rather than the click-through pet
@@ -629,6 +745,18 @@ function assertSettingsSender(event) {
   }
 }
 
+function assertClockSender(event) {
+  if (!clockWin || clockWin.isDestroyed() || event.sender.id !== clockWin.webContents.id) {
+    throw new Error('Clock request came from an untrusted window');
+  }
+}
+
+function assertPetSender(event) {
+  if (!win || win.isDestroyed() || event.sender.id !== win.webContents.id) {
+    throw new Error('Pet request came from an untrusted window');
+  }
+}
+
 function getSettingsPayload() {
   return {
     appVersion,
@@ -640,6 +768,128 @@ function getSettingsPayload() {
     warning: runtimeWarnings.getMessage(configStore.loadWarning),
     integrationStatus: { calendar: calendarStatus, agentBridge: agentBridgeStatus },
   };
+}
+
+function getClockWindowPayload(state = clockService?.getState()) {
+  return {
+    state: state || null,
+    sounds: TASK_COMPLETE_SOUNDS.map((sound) => ({ id: sound.id, label: sound.label })),
+    workdays: [...config.schedule.workdays],
+  };
+}
+
+function getClockSummaryPayload(state = clockService?.getState(), nowMs = Date.now()) {
+  if (!state) return { timer: null, nextAlarm: null, alerts: [], hasEnabledAlarm: false };
+  let nextAlarm = null;
+  for (const alarm of state.alarms) {
+    const occurrence = getNextAlarmOccurrence(alarm, nowMs, config.schedule.workdays);
+    if (!occurrence || (nextAlarm && nextAlarm.dueAtMs <= occurrence.dueAtMs)) continue;
+    nextAlarm = {
+      id: alarm.id,
+      label: alarm.label,
+      dueAtMs: occurrence.dueAtMs,
+      time: alarm.time,
+    };
+  }
+  return {
+    timer: state.timer ? { ...state.timer } : null,
+    nextAlarm,
+    alerts: state.alerts
+      .filter((alert) => alert.state === 'ringing')
+      .map((alert) => ({ ...alert })),
+    hasEnabledAlarm: state.alarms.some((alarm) => alarm.enabled),
+  };
+}
+
+function clockMenuSignature(state) {
+  return JSON.stringify({
+    timer: state.timer && {
+      id: state.timer.id,
+      state: state.timer.state,
+      dueAtMs: state.timer.dueAtMs,
+      remainingMs: state.timer.remainingMs,
+    },
+    alerts: state.alerts.map((alert) => [alert.id, alert.state, alert.dueAtMs]),
+    alarms: state.alarms.map((alarm) => [alarm.id, alarm.enabled, alarm.time, alarm.mode]),
+  });
+}
+
+function broadcastClockState(state) {
+  if (clockWin && !clockWin.isDestroyed()) {
+    clockWin.webContents.send('clock-state', getClockWindowPayload(state));
+  }
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('clock-state', getClockSummaryPayload(state));
+  }
+  const signature = clockMenuSignature(state);
+  if (signature !== broadcastClockState.lastMenuSignature) {
+    broadcastClockState.lastMenuSignature = signature;
+    rebuildTrayMenu();
+  }
+}
+
+function playClockAlertSound(alerts) {
+  if (!alerts.length || !clockService) return;
+  const state = clockService.getState();
+  const containsAlarm = alerts.some((alert) => alert.sourceType === 'alarm');
+  const setting = containsAlarm ? state.preferences.alarmSound : state.preferences.timerSound;
+  if (!setting.enabled) return;
+  if (
+    !state.preferences.allowSoundDuringQuietHours
+    && isInQuietHours(new Date(), config.quietHours)
+  ) return;
+  const soundPath = taskCompleteSoundPath(setting.soundId);
+  if (!soundPath) return;
+  playTaskSoundFile(soundPath, {
+    execFile,
+    beep: () => shell.beep(),
+    onError: (error) => reportRuntimeError('Clock alert sound', error),
+  });
+}
+
+function handleClockDue(alerts) {
+  playClockAlertSound(alerts);
+  const first = alerts[0];
+  const context = {
+    label: first?.label || undefined,
+    count: alerts.length,
+  };
+  speak(first?.sourceType === 'alarm' ? 'clock.alarmRinging' : 'clock.timerCompleted', context, {
+    priority: SPEECH_PRIORITY.urgent,
+    durationMs: 7000,
+    replaceKey: 'clock.ringing',
+    allowDuringQuiet: true,
+    action: 'attention',
+  });
+}
+
+function handleClockMissed(items) {
+  const first = items[0];
+  speak('clock.missedAfterWake', {
+    label: first?.label || undefined,
+    count: items.length,
+  }, {
+    priority: SPEECH_PRIORITY.schedule,
+    durationMs: 6000,
+    replaceKey: 'clock.missed',
+  });
+}
+
+function setupClockService() {
+  clockStore = new ClockStore(app.getPath('userData'));
+  clockStore.load();
+  const loadWarning = clockStore.loadWarning;
+  clockService = new ClockService(clockStore, {
+    getWorkdays: () => [...config.schedule.workdays],
+    onChange: (state) => broadcastClockState(state),
+    onDue: handleClockDue,
+    onMissed: handleClockMissed,
+  });
+  clockService.start();
+  if (loadWarning) {
+    runtimeWarnings.set('clock', loadWarning);
+    reportRuntimeError('Clock state', loadWarning);
+  }
 }
 
 function sendAppUpdateProgress(payload) {
@@ -1515,6 +1765,13 @@ function refreshRoutinesAfterWake(wakeDate, inactiveSince) {
   scheduleReminders();
   scheduleIdleChatter();
   scheduleChatInvite();
+  if (clockService) {
+    try {
+      clockService.refreshAfterWake();
+    } catch (error) {
+      reportRuntimeError('Clock wake refresh', error);
+    }
+  }
   if (calendarService) {
     calendarService.refreshAfterWake(wakeDate, inactiveSince).catch((error) => {
       reportRuntimeError('Calendar wake refresh', error);
@@ -2123,6 +2380,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     }
   }
   updateAgentState(currentAgentSnapshot);
+  setupClockService();
 
   ipcMain.handle('character-pack:get', () => getCharacterPayload());
   ipcMain.handle('pet-config:get', () => getPetConfigPayload());
@@ -2136,6 +2394,81 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('settings:get', (event) => {
     assertSettingsSender(event);
     return getSettingsPayload();
+  });
+  ipcMain.handle('settings:open-clock', (event) => {
+    assertSettingsSender(event);
+    createClockWindow();
+    return true;
+  });
+  ipcMain.handle('clock:get', (event) => {
+    assertClockSender(event);
+    return getClockWindowPayload();
+  });
+  ipcMain.handle('clock:alarm-create', (event, input) => {
+    assertClockSender(event);
+    return getClockWindowPayload(clockService.createAlarm(input));
+  });
+  ipcMain.handle('clock:alarm-update', (event, id, patch) => {
+    assertClockSender(event);
+    return getClockWindowPayload(clockService.updateAlarm(id, patch));
+  });
+  ipcMain.handle('clock:alarm-delete', (event, id) => {
+    assertClockSender(event);
+    return getClockWindowPayload(clockService.deleteAlarm(id));
+  });
+  ipcMain.handle('clock:timer-start', (event, input) => {
+    assertClockSender(event);
+    return getClockWindowPayload(clockService.startTimer(input));
+  });
+  ipcMain.handle('clock:timer-pause', (event) => {
+    assertClockSender(event);
+    return getClockWindowPayload(clockService.pauseTimer());
+  });
+  ipcMain.handle('clock:timer-resume', (event) => {
+    assertClockSender(event);
+    return getClockWindowPayload(clockService.resumeTimer());
+  });
+  ipcMain.handle('clock:timer-extend', (event, minutes) => {
+    assertClockSender(event);
+    return getClockWindowPayload(clockService.extendTimer(minutes));
+  });
+  ipcMain.handle('clock:timer-cancel', (event) => {
+    assertClockSender(event);
+    return getClockWindowPayload(clockService.cancelTimer());
+  });
+  ipcMain.handle('clock:alert-snooze', (event, id, minutes) => {
+    assertClockSender(event);
+    return getClockWindowPayload(clockService.snoozeAlert(id, minutes));
+  });
+  ipcMain.handle('clock:alert-dismiss', (event, id) => {
+    assertClockSender(event);
+    return getClockWindowPayload(clockService.dismissAlert(id));
+  });
+  ipcMain.handle('clock:preferences-update', (event, preferences) => {
+    assertClockSender(event);
+    return getClockWindowPayload(clockService.updatePreferences(preferences));
+  });
+  ipcMain.handle('clock:preview-sound', (event, soundId) => {
+    assertClockSender(event);
+    const soundPath = taskCompleteSoundPath(soundId);
+    if (!soundPath) return false;
+    return playTaskSoundFile(soundPath, {
+      execFile,
+      beep: () => shell.beep(),
+      onError: (error) => reportRuntimeError('Clock sound preview', error),
+    });
+  });
+  ipcMain.handle('clock-summary:get', (event) => {
+    assertPetSender(event);
+    return getClockSummaryPayload();
+  });
+  ipcMain.handle('clock-alert:snooze', (event, id, minutes) => {
+    assertPetSender(event);
+    return getClockSummaryPayload(clockService.snoozeAlert(id, minutes));
+  });
+  ipcMain.handle('clock-alert:dismiss', (event, id) => {
+    assertPetSender(event);
+    return getClockSummaryPayload(clockService.dismissAlert(id));
   });
   // The DIY editor draws a live preview, so it needs the pack's own art. Only
   // the settings window may ask, and only for a pack that actually exists.
@@ -2282,6 +2615,7 @@ app.on('before-quit', (event) => {
   clearInterval(batteryPollTimer);
   clearInterval(taskMaintenanceTimer);
   clearInterval(taskLeasePollTimer);
+  if (clockService) clockService.stop();
   if (calendarService) calendarService.stop();
   if (agentBridge) agentBridge.stop();
   if (speechQueue) speechQueue.clear();

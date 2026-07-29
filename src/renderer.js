@@ -1,6 +1,14 @@
 const pet = document.getElementById('pet');
 const bubble = document.getElementById('bubble');
 const taskBubble = document.getElementById('task-bubble');
+const clockAlert = document.getElementById('clock-alert');
+const clockDisplay = document.getElementById('clock-display');
+const clockDisplayLabel = document.getElementById('clock-display-label');
+const clockDisplayTime = document.getElementById('clock-display-time');
+const clockAlertKind = document.getElementById('clock-alert-kind');
+const clockAlertTitle = document.getElementById('clock-alert-title');
+const clockAlertSnooze = document.getElementById('clock-alert-snooze');
+const clockAlertDismiss = document.getElementById('clock-alert-dismiss');
 const { buildCarouselLayout, nextTaskKey } = globalThis.taskCarouselModel;
 const { applyDiyToSvg } = globalThis.diyModel;
 const { applyAccessoriesToSvg, normalizeAccessories, sanitizeSvgTree } = globalThis.accessoryModel;
@@ -59,6 +67,8 @@ let speechActionTimer = null;
 let characterManifest = null;
 let petScale = 1;
 let petTopOffset = null;
+let preferredBubblePlacement = 'above';
+let clockSummary = { timer: null, nextAlarm: null, alerts: [], hasEnabledAlarm: false };
 let diySpec = null;
 let accessorySpec = null;
 let accessoryCatalog = [];
@@ -82,9 +92,67 @@ function applyPetLayout(layout = {}) {
     document.documentElement.style.setProperty('--pet-top', `${petTopOffset}px`);
   }
   if (layout.bubblePlacement === 'below' || layout.bubblePlacement === 'above') {
-    bubble.dataset.placement = layout.bubblePlacement;
-    taskBubble.dataset.placement = layout.bubblePlacement;
+    preferredBubblePlacement = layout.bubblePlacement;
+    applyEffectiveBubblePlacement();
   }
+}
+
+function applyEffectiveBubblePlacement() {
+  const placement = clockSummary.timer ? 'above' : preferredBubblePlacement;
+  bubble.dataset.placement = placement;
+  taskBubble.dataset.placement = placement;
+}
+
+function formatClockDuration(milliseconds) {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function updateClockCountdown() {
+  const timer = clockSummary.timer;
+  if (!timer) return;
+  const remainingMs = timer.state === 'running' ? timer.dueAtMs - Date.now() : timer.remainingMs;
+  clockDisplayTime.textContent = formatClockDuration(remainingMs);
+}
+
+function renderClockState(summary = {}) {
+  clockSummary = {
+    timer: summary.timer || null,
+    nextAlarm: summary.nextAlarm || null,
+    alerts: Array.isArray(summary.alerts) ? summary.alerts : [],
+    hasEnabledAlarm: Boolean(summary.hasEnabledAlarm),
+  };
+  const timerAlert = clockSummary.alerts.find((alert) => alert.sourceType === 'timer');
+  const showDisplay = Boolean(clockSummary.timer || timerAlert);
+  document.body.classList.toggle('has-clock-display', showDisplay);
+  clockDisplay.dataset.visible = String(showDisplay);
+  if (clockSummary.timer) {
+    clockDisplayLabel.textContent = clockSummary.timer.label || (
+      clockSummary.timer.state === 'paused' ? 'PAUSED' : 'TIMER'
+    );
+    updateClockCountdown();
+  } else if (timerAlert) {
+    clockDisplayLabel.textContent = timerAlert.label || 'TIMER';
+    clockDisplayTime.textContent = '00:00';
+  }
+
+  const alert = clockSummary.alerts[0];
+  document.body.classList.toggle('has-clock-alert', Boolean(alert));
+  clockAlert.dataset.visible = String(Boolean(alert));
+  if (alert) {
+    clockAlertKind.textContent = alert.sourceType === 'alarm' ? '闹钟到了' : '计时结束';
+    clockAlertTitle.textContent = alert.label || '时间到了';
+    clockAlertSnooze.dataset.alertId = alert.id;
+    clockAlertDismiss.dataset.alertId = alert.id;
+  } else {
+    delete clockAlertSnooze.dataset.alertId;
+    delete clockAlertDismiss.dataset.alertId;
+  }
+  applyEffectiveBubblePlacement();
 }
 
 // Both the DIY spec and the equipped accessories change the SVG structurally,
@@ -527,7 +595,7 @@ function detectPetting(dx) {
 function applyHoverAt(x, y) {
   if (dragging) return;
   const el = document.elementFromPoint(x, y);
-  const hovering = !!(el && el.closest('#pet'));
+  const hovering = !!(el && el.closest('#pet, #clock-alert'));
   window.petAPI.setIgnoreMouse(!hovering);
   if (hovering !== isHoveringPet) {
     isHoveringPet = hovering;
@@ -546,6 +614,7 @@ window.petAPI.onSpeech((message) => {
 });
 window.petAPI.onAgentState((state) => applyAgentState(state));
 window.petAPI.onTaskStatus((state) => renderTaskStatus(state));
+window.petAPI.onClockState((state) => renderClockState(state));
 window.petAPI.onCharacterPack((pack) => applyCharacterPack(pack));
 window.petAPI.onPetLayout((layout) => applyPetLayout(layout));
 window.petAPI.onPetConfig((config) => {
@@ -574,11 +643,37 @@ void rendererAsyncGuard.run('bootstrap', () => bootstrapRenderer({
   petAPI: window.petAPI,
   renderTaskStatus,
 }));
+void rendererAsyncGuard.run(
+  'read clock state',
+  async () => renderClockState(await window.petAPI.getClockSummary()),
+);
 // The window can move on its own (autonomous swimming, flinging) without the
 // cursor ever moving, so mousemove alone isn't enough to keep click-through
 // in sync - the main process calls this after every such move with the
 // cursor's position in this window's own coordinates.
 window.petAPI.onCheckHover((x, y) => applyHoverAt(x, y));
+
+clockAlertSnooze.addEventListener('click', () => {
+  const id = clockAlertSnooze.dataset.alertId;
+  if (!id) return;
+  void rendererAsyncGuard.run(
+    'snooze clock alert',
+    async () => renderClockState(await window.petAPI.snoozeClockAlert(id, 5)),
+    { userMessage: '稍後提醒沒有設好……' },
+  );
+});
+
+clockAlertDismiss.addEventListener('click', () => {
+  const id = clockAlertDismiss.dataset.alertId;
+  if (!id) return;
+  void rendererAsyncGuard.run(
+    'dismiss clock alert',
+    async () => renderClockState(await window.petAPI.dismissClockAlert(id)),
+    { userMessage: '提醒沒有關掉……' },
+  );
+});
+
+setInterval(updateClockCountdown, 1000);
 
 pet.addEventListener('mousedown', (event) => {
   if (event.button !== 0) return;

@@ -9,6 +9,21 @@
 <body>
   <div id="bubble" role="status" aria-live="polite">痛痛痛!!</div>
   <div id="task-bubble" data-visible="false" data-placement="above" role="status" aria-live="polite"></div>
+  <div id="clock-alert" data-visible="false" role="alert" aria-live="assertive">
+    <div class="clock-alert-copy">
+      <span id="clock-alert-kind">时间到了</span>
+      <strong id="clock-alert-title">该抬头了</strong>
+    </div>
+    <div class="clock-alert-actions">
+      <button id="clock-alert-snooze" type="button">再等 5 分钟</button>
+      <button id="clock-alert-dismiss" type="button">知道了</button>
+    </div>
+  </div>
+  <div id="clock-display" data-visible="false" role="timer" aria-live="off">
+    <span class="clock-display-rings" aria-hidden="true"></span>
+    <span id="clock-display-label" class="clock-display-label">TIMER</span>
+    <strong id="clock-display-time">25:00</strong>
+  </div>
   <div id="pet" data-motion="roam" aria-label="水滴鱼桌宠"></div>
   <script src="core/task-carousel-model.js"></script>
   <script src="core/diy-model.js"></script>

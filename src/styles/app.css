@@ -83,6 +83,161 @@ body.has-task-bubble #bubble[data-placement="below"] {
   transform: translateX(-50%);
 }
 
+body.has-clock-alert #task-bubble {
+  opacity: 0;
+  visibility: hidden;
+}
+
+#clock-alert {
+  position: absolute;
+  top: calc(var(--pet-top) - 10px);
+  left: 50%;
+  z-index: 8;
+  box-sizing: border-box;
+  width: 276px;
+  padding: 9px 10px;
+  border: 1px solid rgba(157, 105, 56, 0.28);
+  border-radius: 16px;
+  background: rgba(255, 249, 237, 0.98);
+  box-shadow: 0 6px 18px rgba(51, 42, 28, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -100%) scale(0.96);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+#clock-alert[data-visible="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -100%) scale(1);
+}
+
+.clock-alert-copy {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 7px;
+  color: #594a35;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+}
+
+.clock-alert-copy span {
+  color: #9c6c36;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.clock-alert-copy strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clock-alert-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.clock-alert-actions button {
+  flex: 1;
+  min-height: 25px;
+  border: 1px solid rgba(125, 90, 52, 0.2);
+  border-radius: 9px;
+  background: white;
+  color: #69563f;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.clock-alert-actions button:last-child {
+  border-color: #7b674e;
+  background: #7b674e;
+  color: white;
+}
+
+#clock-display {
+  position: absolute;
+  top: calc(var(--pet-top) + var(--pet-height) - 38px);
+  left: 50%;
+  z-index: 4;
+  box-sizing: border-box;
+  display: grid;
+  width: 78px;
+  min-height: 39px;
+  padding: 10px 6px 4px;
+  border: 2px solid #536968;
+  border-radius: 5px 5px 9px 9px;
+  background: #f8f3e8;
+  box-shadow: 0 4px 7px rgba(31, 47, 48, 0.2);
+  color: #354a49;
+  opacity: 0;
+  pointer-events: none;
+  text-align: center;
+  transform: translateX(-50%) scale(0.9);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+#clock-display::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 8px;
+  border-radius: 3px 3px 0 0;
+  background: #6f9893;
+  content: "";
+}
+
+.clock-display-rings::before,
+.clock-display-rings::after {
+  position: absolute;
+  top: -5px;
+  width: 5px;
+  height: 10px;
+  border: 2px solid #536968;
+  border-radius: 5px;
+  background: #f8f3e8;
+  content: "";
+}
+
+.clock-display-rings::before {
+  left: 15px;
+}
+
+.clock-display-rings::after {
+  right: 15px;
+}
+
+#clock-display[data-visible="true"] {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+.clock-display-label {
+  overflow: hidden;
+  color: #6c7b78;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#clock-display strong {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+body.has-clock-display #pet {
+  top: calc(var(--pet-top) - 42px);
+}
+
+body.has-clock-display #clock-alert {
+  top: calc(var(--pet-top) - 50px);
+}
+
 .task-card {
   position: absolute;
   top: 0;

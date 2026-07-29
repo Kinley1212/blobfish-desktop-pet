@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('settingsAPI', {
   load: () => ipcRenderer.invoke('settings:get'),
   save: (config) => ipcRenderer.invoke('settings:save', config),
   reset: () => ipcRenderer.invoke('settings:reset'),
+  openClock: () => ipcRenderer.invoke('settings:open-clock'),
   previewSound: (soundId) => ipcRenderer.invoke('settings:preview-sound', soundId),
   getCharacterArt: (packId) => ipcRenderer.invoke('settings:character-art', packId),
   checkAppUpdate: () => ipcRenderer.invoke('app-update:check'),

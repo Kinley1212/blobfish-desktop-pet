@@ -19,6 +19,7 @@ const appUpdateControls = {
   install: document.getElementById('install-app-update'),
   status: document.getElementById('app-update-status'),
 };
+const openClockButton = document.getElementById('open-clock');
 const integrationResults = {};
 const connectionTestTimers = {};
 const integrationOperations = new Map();
@@ -1143,6 +1144,13 @@ for (const provider of agentProviders) {
   integrationControls[provider].disconnect.addEventListener('click', () => disconnectAgentIntegration(provider));
 }
 byId('refresh-integrations').addEventListener('click', refreshAgentIntegrations);
+openClockButton.addEventListener('click', async () => {
+  try {
+    await window.settingsAPI.openClock();
+  } catch (error) {
+    showStatus(`无法打开闹钟与计时器：${error.message}`, true);
+  }
+});
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
