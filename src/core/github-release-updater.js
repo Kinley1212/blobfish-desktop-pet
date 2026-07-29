@@ -1,3 +1,4 @@
+const fs = require('fs');
 const path = require('path');
 
 const REPOSITORY = 'Kinley1212/blobfish-desktop-pet';
@@ -5,6 +6,9 @@ const LATEST_RELEASE_URL = `https://api.github.com/repos/${REPOSITORY}/releases/
 const LATEST_MANIFEST_ASSET_NAME = 'blobfish-latest.json';
 const LATEST_MANIFEST_URL = `https://github.com/${REPOSITORY}/releases/latest/download/${LATEST_MANIFEST_ASSET_NAME}`;
 const MAX_RELEASE_ASSET_BYTES = 512 * 1024 * 1024;
+const DEFAULT_STAGING_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_INSTALLER_WAIT_TIMEOUT_SECONDS = 120;
+const DEFAULT_INSTALLER_COMMAND_TIMEOUT_SECONDS = 180;
 const USER_AGENT_PRODUCT = 'blobfish-desktop-pet';
 
 function parseVersion(value) {
@@ -176,18 +180,151 @@ function getInstalledAppBundle(executablePath) {
   return bundlePath;
 }
 
+function cleanupStaleUpdateStaging(updateRoot, options = {}) {
+  if (!path.isAbsolute(updateRoot)) throw new Error('更新暂存目录必须是绝对路径');
+  const resolvedRoot = path.resolve(updateRoot);
+  const now = Number.isFinite(options.now) ? options.now : Date.now();
+  const maxAgeMs = Number.isFinite(options.maxAgeMs)
+    ? options.maxAgeMs
+    : DEFAULT_STAGING_MAX_AGE_MS;
+  if (maxAgeMs < 0) throw new Error('更新暂存目录保留时间无效');
+
+  const activeDirectories = new Set((options.activeDirectories || []).map((directory) => {
+    if (!path.isAbsolute(directory)) throw new Error('活动更新暂存目录必须是绝对路径');
+    return path.resolve(directory);
+  }));
+  const result = {
+    removed: [],
+    skippedActive: [],
+    skippedFresh: [],
+    skippedUnsafe: [],
+    failed: [],
+  };
+  let entries;
+  try {
+    entries = fs.readdirSync(resolvedRoot, { withFileTypes: true });
+  } catch (error) {
+    if (error.code === 'ENOENT') return result;
+    throw error;
+  }
+
+  let claimSequence = 0;
+  for (const entry of entries) {
+    if (!entry.name.startsWith('release-') && !entry.name.startsWith('.cleanup-release-')) continue;
+    const candidate = path.join(resolvedRoot, entry.name);
+    if (activeDirectories.has(candidate)) {
+      result.skippedActive.push(candidate);
+      continue;
+    }
+
+    let stat;
+    try {
+      stat = fs.lstatSync(candidate);
+    } catch (error) {
+      if (error.code !== 'ENOENT') result.failed.push({ path: candidate, code: error.code || 'UNKNOWN' });
+      continue;
+    }
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      result.skippedUnsafe.push(candidate);
+      continue;
+    }
+    if ((now - stat.mtimeMs) < maxAgeMs) {
+      result.skippedFresh.push(candidate);
+      continue;
+    }
+
+    // Atomically claim the exact directory before deleting it. A concurrent
+    // updater can create a new directory at the original path without that new
+    // directory being caught by this cleanup pass.
+    claimSequence += 1;
+    const claimed = path.join(
+      resolvedRoot,
+      `.cleanup-${entry.name}-${process.pid}-${claimSequence}`,
+    );
+    try {
+      fs.renameSync(candidate, claimed);
+      const claimedStat = fs.lstatSync(claimed);
+      if (!claimedStat.isDirectory()
+        || claimedStat.isSymbolicLink()
+        || claimedStat.dev !== stat.dev
+        || claimedStat.ino !== stat.ino) {
+        result.skippedUnsafe.push(candidate);
+        continue;
+      }
+      fs.rmSync(claimed, { recursive: true, force: true, maxRetries: 2, retryDelay: 50 });
+      result.removed.push(candidate);
+    } catch (error) {
+      result.failed.push({ path: candidate, code: error.code || 'UNKNOWN' });
+    }
+  }
+  return result;
+}
+
+async function withUpdateTimeout(label, timeoutMs, operation) {
+  if (typeof operation !== 'function') throw new TypeError('更新操作无效');
+  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) throw new Error('更新操作超时时间无效');
+  const timeoutLabel = String(label || '更新操作').trim() || '更新操作';
+  const controller = new AbortController();
+  let timeoutHandle;
+  const timeoutPromise = new Promise((resolve, reject) => {
+    timeoutHandle = setTimeout(() => {
+      const error = new Error(`${timeoutLabel}超时，已取消。请检查网络后重试`);
+      controller.abort(error);
+      reject(error);
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([
+      Promise.resolve().then(() => operation(controller.signal)),
+      timeoutPromise,
+    ]);
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+}
+
+function validatePositiveInteger(value, fallback, label) {
+  const resolved = value === undefined ? fallback : value;
+  if (!Number.isInteger(resolved) || resolved <= 0) throw new Error(`${label}无效`);
+  return resolved;
+}
+
 function buildMacInstallerScript(options) {
   const requiredPaths = ['zipPath', 'stagingDirectory', 'currentAppPath', 'targetAppPath'];
   for (const key of requiredPaths) {
     if (!path.isAbsolute(options?.[key])) throw new Error(`安装路径无效：${key}`);
+    if (path.resolve(options[key]) !== options[key]) throw new Error(`安装路径必须是规范绝对路径：${key}`);
   }
   if (!Number.isInteger(options?.processId) || options.processId <= 0) throw new Error('安装进程信息无效');
   if (path.extname(options.currentAppPath) !== '.app' || path.extname(options.targetAppPath) !== '.app') {
     throw new Error('应用程序包路径无效');
   }
+  if (options.currentAppPath === options.targetAppPath) throw new Error('新旧应用程序包路径不能相同');
   if (path.dirname(options.currentAppPath) !== path.dirname(options.targetAppPath)) {
     throw new Error('新旧应用必须安装到同一文件夹');
   }
+  if (path.dirname(options.zipPath) !== options.stagingDirectory) {
+    throw new Error('更新压缩包必须位于暂存目录');
+  }
+  if (!path.basename(options.stagingDirectory).startsWith('release-')) {
+    throw new Error('更新暂存目录名称无效');
+  }
+  const versionMatch = /(\d+\.\d+\.\d+)$/.exec(path.basename(options.targetAppPath, '.app'));
+  const expectedVersion = normalizeVersion(options.expectedVersion || versionMatch?.[1]);
+  if (!expectedVersion || (versionMatch && expectedVersion !== versionMatch[1])) {
+    throw new Error('目标应用版本无效');
+  }
+  const waitTimeoutSeconds = validatePositiveInteger(
+    options.waitTimeoutSeconds,
+    DEFAULT_INSTALLER_WAIT_TIMEOUT_SECONDS,
+    '等待旧版本退出的超时时间',
+  );
+  const commandTimeoutSeconds = validatePositiveInteger(
+    options.commandTimeoutSeconds,
+    DEFAULT_INSTALLER_COMMAND_TIMEOUT_SECONDS,
+    '安装命令超时时间',
+  );
   const extractedAppPath = path.join(options.stagingDirectory, 'extracted', path.basename(options.targetAppPath));
   return `#!/bin/zsh
 set -eu
@@ -197,25 +334,180 @@ new_app=${shellQuote(options.targetAppPath)}
 archive=${shellQuote(options.zipPath)}
 staging=${shellQuote(options.stagingDirectory)}
 source_app=${shellQuote(extractedAppPath)}
+expected_version=${shellQuote(expectedVersion)}
 old_pid=${options.processId}
+install_app="\${new_app}.installing-\${old_pid}-$$"
+install_promoted=0
+install_succeeded=0
+RUN_WITH_TIMEOUT_TIMED_OUT=0
+active_command_pid=0
+active_watchdog_pid=0
 
+cleanup() {
+  local status=$?
+  trap - EXIT HUP INT TERM
+  if (( active_watchdog_pid > 0 )); then
+    /bin/kill -TERM "$active_watchdog_pid" 2>/dev/null || true
+    wait "$active_watchdog_pid" 2>/dev/null || true
+  fi
+  if (( active_command_pid > 0 )); then
+    /bin/kill -TERM "$active_command_pid" 2>/dev/null || true
+    /bin/sleep 0.2
+    /bin/kill -KILL "$active_command_pid" 2>/dev/null || true
+    wait "$active_command_pid" 2>/dev/null || true
+  fi
+  if [[ -e "$install_app" ]]; then
+    /bin/chmod -R u+w "$install_app" 2>/dev/null || true
+    /bin/rm -R "$install_app" 2>/dev/null || true
+  fi
+  if (( install_promoted == 1 && install_succeeded == 0 )) && [[ -e "$new_app" ]]; then
+    /bin/chmod -R u+w "$new_app" 2>/dev/null || true
+    /bin/rm -R "$new_app" 2>/dev/null || true
+  fi
+  if [[ -d "$staging" ]]; then
+    /bin/chmod -R u+w "$staging" 2>/dev/null || true
+    /bin/rm -R "$staging" 2>/dev/null || true
+  fi
+  exit "$status"
+}
+
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+run_with_timeout() {
+  local timeout_seconds=$1
+  shift
+  local timeout_marker="$staging/.command-timeout-$$"
+  local command_status=0
+  RUN_WITH_TIMEOUT_TIMED_OUT=0
+  /bin/rm -f "$timeout_marker"
+  "$@" &
+  active_command_pid=$!
+  local command_pid=$active_command_pid
+  (
+    /bin/sleep "$timeout_seconds"
+    if /bin/kill -0 "$command_pid" 2>/dev/null; then
+      : > "$timeout_marker"
+      /bin/kill -TERM "$command_pid" 2>/dev/null || true
+      /bin/sleep 2
+      /bin/kill -KILL "$command_pid" 2>/dev/null || true
+    fi
+  ) &
+  active_watchdog_pid=$!
+  local watchdog_pid=$active_watchdog_pid
+  wait "$command_pid" || command_status=$?
+  /bin/kill "$watchdog_pid" 2>/dev/null || true
+  wait "$watchdog_pid" 2>/dev/null || true
+  active_command_pid=0
+  active_watchdog_pid=0
+  if [[ -e "$timeout_marker" ]]; then
+    RUN_WITH_TIMEOUT_TIMED_OUT=1
+    /bin/rm -f "$timeout_marker"
+    return 124
+  fi
+  return "$command_status"
+}
+
+old_process_deadline=$((SECONDS + ${waitTimeoutSeconds}))
 while /bin/kill -0 "$old_pid" 2>/dev/null; do
+  if (( SECONDS >= old_process_deadline )); then
+    echo "等待旧版本退出超时，已取消安装。" >&2
+    exit 1
+  fi
   /bin/sleep 0.2
 done
 
 /bin/mkdir -p "$staging/extracted"
-/usr/bin/ditto -x -k --sequesterRsrc "$archive" "$staging/extracted"
+if ! run_with_timeout ${commandTimeoutSeconds} /usr/bin/ditto -x -k --sequesterRsrc "$archive" "$staging/extracted"; then
+  if (( RUN_WITH_TIMEOUT_TIMED_OUT == 1 )); then
+    echo "解压更新包超时，已取消安装。" >&2
+  else
+    echo "解压更新包失败，已取消安装。" >&2
+  fi
+  exit 1
+fi
 if [[ ! -d "$source_app" ]]; then
   echo "更新包内没有预期的应用程序：$source_app" >&2
+  exit 1
+fi
+old_info="$old_app/Contents/Info.plist"
+source_info="$source_app/Contents/Info.plist"
+if [[ ! -f "$old_info" || ! -f "$source_info" ]]; then
+  echo "更新包缺少应用信息，已取消安装。" >&2
+  exit 1
+fi
+old_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$old_info" 2>/dev/null || true)
+source_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$source_info" 2>/dev/null || true)
+source_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$source_info" 2>/dev/null || true)
+old_executable_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$old_info" 2>/dev/null || true)
+source_executable_name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$source_info" 2>/dev/null || true)
+old_executable="$old_app/Contents/MacOS/$old_executable_name"
+source_executable="$source_app/Contents/MacOS/$source_executable_name"
+if [[ -z "$old_bundle_id" || "$source_bundle_id" != "$old_bundle_id" ]]; then
+  echo "更新包的应用身份不匹配，已取消安装。" >&2
+  exit 1
+fi
+if [[ "$source_version" != "$expected_version" ]]; then
+  echo "更新包的版本不匹配，已取消安装。" >&2
+  exit 1
+fi
+if [[ ! -x "$old_executable" || ! -x "$source_executable" ]]; then
+  echo "更新包的主程序无效，已取消安装。" >&2
+  exit 1
+fi
+old_arches=$(/usr/bin/lipo -archs "$old_executable" 2>/dev/null || true)
+source_arches=$(/usr/bin/lipo -archs "$source_executable" 2>/dev/null || true)
+if [[ -z "$old_arches" || -z "$source_arches" ]]; then
+  echo "无法确认更新包的芯片架构，已取消安装。" >&2
+  exit 1
+fi
+for required_arch in \${(z)old_arches}; do
+  if [[ " $source_arches " != *" $required_arch "* ]]; then
+    echo "更新包的芯片架构不匹配，已取消安装。" >&2
+    exit 1
+  fi
+done
+if ! run_with_timeout ${commandTimeoutSeconds} /usr/bin/codesign --verify --deep --strict "$source_app"; then
+  echo "更新包签名验证失败或超时，已取消安装。" >&2
   exit 1
 fi
 if [[ -e "$new_app" ]]; then
   echo "目标版本已经存在：$new_app" >&2
   exit 1
 fi
-/usr/bin/ditto "$source_app" "$new_app"
-/usr/bin/open "$new_app"
-/usr/bin/osascript - "$old_app" <<'APPLESCRIPT' || true
+if ! run_with_timeout ${commandTimeoutSeconds} /usr/bin/ditto "$source_app" "$install_app"; then
+  if (( RUN_WITH_TIMEOUT_TIMED_OUT == 1 )); then
+    echo "复制新版本超时，已取消安装。" >&2
+  else
+    echo "复制新版本失败，已取消安装。" >&2
+  fi
+  exit 1
+fi
+if ! run_with_timeout ${commandTimeoutSeconds} /usr/bin/codesign --verify --deep --strict "$install_app"; then
+  echo "复制后的应用签名验证失败或超时，已取消安装。" >&2
+  exit 1
+fi
+if [[ -e "$new_app" ]]; then
+  echo "安装位置在更新期间发生变化，已取消安装。" >&2
+  exit 1
+fi
+if ! /bin/mv -n "$install_app" "$new_app"; then
+  echo "无法将新版本放入安装位置，已取消安装。" >&2
+  exit 1
+fi
+if [[ -e "$install_app" || ! -d "$new_app" ]]; then
+  echo "安装位置在更新期间被占用，已取消安装。" >&2
+  exit 1
+fi
+install_promoted=1
+if ! run_with_timeout 30 /usr/bin/open "$new_app"; then
+  echo "无法启动新版本，已回滚安装。" >&2
+  exit 1
+fi
+install_succeeded=1
+run_with_timeout 30 /usr/bin/osascript - "$old_app" <<'APPLESCRIPT' || true
 on run argv
   tell application "Finder" to delete POSIX file (item 1 of argv)
 end run
@@ -231,6 +523,7 @@ module.exports = {
   REPOSITORY,
   buildMacInstallerScript,
   buildGitHubUserAgent,
+  cleanupStaleUpdateStaging,
   compareVersions,
   expectedAssetName,
   expectedAssetNames,
@@ -241,4 +534,5 @@ module.exports = {
   parseSha256Digest,
   selectManifestUpdate,
   selectReleaseUpdate,
+  withUpdateTimeout,
 };

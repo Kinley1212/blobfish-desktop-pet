@@ -44,9 +44,11 @@ const {
   LATEST_MANIFEST_URL,
   buildGitHubUserAgent,
   buildMacInstallerScript,
+  cleanupStaleUpdateStaging,
   getInstalledAppBundle,
   selectManifestUpdate,
   selectReleaseUpdate,
+  withUpdateTimeout,
 } = require('./core/github-release-updater');
 const { version: appVersion } = require('../package.json');
 
@@ -642,35 +644,51 @@ async function checkForAppUpdate() {
   }
 
   try {
-    const manifestResponse = await net.fetch(LATEST_MANIFEST_URL, {
-      headers: { 'User-Agent': githubUserAgent },
+    const manifestResult = await withUpdateTimeout('检查 GitHub 更新', 15 * 1000, async (signal) => {
+      const response = await net.fetch(LATEST_MANIFEST_URL, {
+        headers: { 'User-Agent': githubUserAgent },
+        signal,
+      });
+      return {
+        ok: response.ok,
+        status: response.status,
+        manifest: response.ok ? await response.json() : null,
+      };
     });
-    if (manifestResponse.ok) {
-      return selectManifestUpdate(await manifestResponse.json(), {
+    if (manifestResult.ok) {
+      return selectManifestUpdate(manifestResult.manifest, {
         currentVersion: appVersion,
         architecture: process.arch,
       });
     }
-    if (manifestResponse.status !== 404) {
-      console.warn(`Cannot read GitHub update manifest: ${manifestResponse.status}`);
+    if (manifestResult.status !== 404) {
+      console.warn(`Cannot read GitHub update manifest: ${manifestResult.status}`);
     }
 
-    const response = await net.fetch(LATEST_RELEASE_URL, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': githubUserAgent,
-      },
+    const releaseResult = await withUpdateTimeout('检查 GitHub 更新', 15 * 1000, async (signal) => {
+      const response = await net.fetch(LATEST_RELEASE_URL, {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent': githubUserAgent,
+        },
+        signal,
+      });
+      return {
+        ok: response.ok,
+        status: response.status,
+        release: response.ok ? await response.json() : null,
+      };
     });
-    if (response.status === 404) {
+    if (releaseResult.status === 404) {
       return {
         state: 'no-release',
         currentVersion: appVersion,
         message: 'GitHub 还没有发布正式 Release；PR、分支和 Draft 不会被一键更新发现。',
       };
     }
-    if (!response.ok) throw new Error(`GitHub 返回了 ${response.status}`);
-    return selectReleaseUpdate(await response.json(), {
+    if (!releaseResult.ok) throw new Error(`GitHub 返回了 ${releaseResult.status}`);
+    return selectReleaseUpdate(releaseResult.release, {
       currentVersion: appVersion,
       architecture: process.arch,
     });
@@ -691,36 +709,43 @@ async function writeAll(fileHandle, value) {
 }
 
 async function downloadReleaseAsset(update, destination) {
-  const response = await net.fetch(update.asset.url, {
-    headers: { 'User-Agent': githubUserAgent },
-  });
-  if (!response.ok || !response.body) throw new Error(`GitHub 安装包下载失败（${response.status}）`);
+  return withUpdateTimeout('下载更新包', 10 * 60 * 1000, async (signal) => {
+    const response = await net.fetch(update.asset.url, {
+      headers: { 'User-Agent': githubUserAgent },
+      signal,
+    });
+    if (!response.ok || !response.body) throw new Error(`GitHub 安装包下载失败（${response.status}）`);
 
-  const fileHandle = await fs.promises.open(destination, 'wx', 0o600);
-  const checksum = crypto.createHash('sha256');
-  const reader = response.body.getReader();
-  let received = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value || value.length === 0) continue;
-      received += value.length;
-      if (received > update.asset.size) throw new Error('下载文件超过 GitHub 声明的大小，已停止更新');
-      checksum.update(value);
-      await writeAll(fileHandle, value);
-      sendAppUpdateProgress({ state: 'downloading', version: update.version, received, total: update.asset.size });
+    const fileHandle = await fs.promises.open(destination, 'wx', 0o600);
+    const checksum = crypto.createHash('sha256');
+    const reader = response.body.getReader();
+    let received = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value || value.length === 0) continue;
+        received += value.length;
+        if (received > update.asset.size) throw new Error('下载文件超过 GitHub 声明的大小，已停止更新');
+        checksum.update(value);
+        await writeAll(fileHandle, value);
+        sendAppUpdateProgress({ state: 'downloading', version: update.version, received, total: update.asset.size });
+      }
+    } finally {
+      await fileHandle.close();
     }
-  } finally {
-    await fileHandle.close();
-  }
-  if (received !== update.asset.size) throw new Error('下载文件大小与 GitHub 声明不一致，已停止更新');
-  if (checksum.digest('hex') !== update.asset.digest) throw new Error('下载文件校验失败，已停止更新');
+    if (received !== update.asset.size) throw new Error('下载文件大小与 GitHub 声明不一致，已停止更新');
+    if (checksum.digest('hex') !== update.asset.digest) throw new Error('下载文件校验失败，已停止更新');
+  });
 }
 
 function getUpdateStagingDirectory() {
   const updateRoot = path.join(app.getPath('userData'), 'updates');
   fs.mkdirSync(updateRoot, { recursive: true, mode: 0o700 });
+  const cleanup = cleanupStaleUpdateStaging(updateRoot);
+  if (cleanup.failed.length > 0) {
+    console.warn(`Could not clean ${cleanup.failed.length} stale update staging director${cleanup.failed.length === 1 ? 'y' : 'ies'}`);
+  }
   return fs.mkdtempSync(path.join(updateRoot, 'release-'));
 }
 
