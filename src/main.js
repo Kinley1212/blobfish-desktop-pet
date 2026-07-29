@@ -1434,17 +1434,23 @@ function pollBattery() {
     });
 }
 
-function refreshRoutinesAfterWake() {
+function refreshRoutinesAfterWake(wakeDate, inactiveSince) {
   scheduleReminders();
   scheduleIdleChatter();
   scheduleChatInvite();
+  if (calendarService) {
+    calendarService.refreshAfterWake(wakeDate, inactiveSince).catch((error) => {
+      reportRuntimeError('Calendar wake refresh', error);
+    });
+  }
 }
 
 function speakAfterWake() {
   const now = Date.now();
   if (now - lastWakeSpokenAt < 2000) return;
   lastWakeSpokenAt = now;
-  const lockedSeconds = lockedAt ? Math.max(0, Math.round((now - lockedAt) / 1000)) : 0;
+  const inactiveSince = lockedAt;
+  const lockedSeconds = inactiveSince ? Math.max(0, Math.round((now - inactiveSince) / 1000)) : 0;
   lockedAt = null;
   systemPaused = false;
   speak('system.unlocked', { lockedSeconds }, {
@@ -1459,7 +1465,10 @@ function speakAfterWake() {
       replaceKey: 'rare.returnAfterLongLock',
     });
   }
-  refreshRoutinesAfterWake();
+  refreshRoutinesAfterWake(
+    new Date(now),
+    inactiveSince ? new Date(inactiveSince) : null,
+  );
 }
 
 function setupSystemMonitors() {

@@ -1,6 +1,10 @@
 const { execFile } = require('child_process');
 
 const VALID_STATUSES = new Set(['authorized', 'notDetermined', 'restricted', 'denied', 'writeOnly', 'unknown']);
+const DEFAULT_MAX_NOTIFIED_ENTRIES = 12_000;
+const DEFAULT_NOTIFICATION_RETENTION_MS = 48 * 60 * 60 * 1000;
+const DEFAULT_WAKE_CATCH_UP_MS = 5 * 60 * 1000;
+const STARTING_GRACE_MS = 90 * 1000;
 
 function parseCalendarOutput(output) {
   let parsed;
@@ -75,16 +79,30 @@ class CalendarService {
     this.clearInterval = options.clearInterval || clearInterval;
     this.pollIntervalMs = options.pollIntervalMs || 5 * 60 * 1000;
     this.tickIntervalMs = options.tickIntervalMs || 30 * 1000;
+    this.maxNotifiedEntries = Number.isSafeInteger(options.maxNotifiedEntries)
+      && options.maxNotifiedEntries > 0
+      ? options.maxNotifiedEntries
+      : DEFAULT_MAX_NOTIFIED_ENTRIES;
+    this.notificationRetentionMs = Number.isFinite(options.notificationRetentionMs)
+      && options.notificationRetentionMs > 0
+      ? options.notificationRetentionMs
+      : DEFAULT_NOTIFICATION_RETENTION_MS;
+    this.wakeCatchUpMs = Number.isFinite(options.wakeCatchUpMs)
+      && options.wakeCatchUpMs > 0
+      ? options.wakeCatchUpMs
+      : DEFAULT_WAKE_CATCH_UP_MS;
     this.enabled = false;
     this.accessAttempted = false;
     this.inFlight = false;
     this.events = [];
-    this.notified = new Set();
+    this.notified = new Map();
     this.pollTimer = null;
     this.tickTimer = null;
     this.status = 'disabled';
     this.generation = 0;
     this.abortController = null;
+    this.lastEvaluatedAt = null;
+    this.pendingWakeCatchUpSinceMs = null;
   }
 
   setEnabled(enabled) {
@@ -123,8 +141,13 @@ class CalendarService {
       this.events = result.status === 'authorized' ? [...result.events] : [];
       this.onStatus(this.status, result.error);
       if (this.status === 'authorized') {
-        this.evaluate();
-        this.evaluateBusyDay();
+        const evaluationNow = this.now();
+        const startingSinceMs = this.pendingWakeCatchUpSinceMs;
+        this.pendingWakeCatchUpSinceMs = null;
+        this.evaluate(evaluationNow, { startingSinceMs });
+        this.evaluateBusyDay(evaluationNow);
+      } else {
+        this.pendingWakeCatchUpSinceMs = null;
       }
     } catch (error) {
       if (!this.enabled || generation !== this.generation) return;
@@ -138,37 +161,93 @@ class CalendarService {
     }
   }
 
-  evaluate(now = this.now()) {
+  pruneNotified(nowMs) {
+    const oldestAllowed = nowMs - this.notificationRetentionMs;
+    for (const [key, notifiedAt] of this.notified) {
+      if (Number.isFinite(notifiedAt) && notifiedAt >= oldestAllowed) continue;
+      this.notified.delete(key);
+    }
+    while (this.notified.size > this.maxNotifiedEntries) {
+      this.notified.delete(this.notified.keys().next().value);
+    }
+  }
+
+  rememberNotification(key, nowMs) {
+    if (this.notified.has(key)) return false;
+    this.notified.set(key, nowMs);
+    this.pruneNotified(nowMs);
+    return true;
+  }
+
+  evaluate(now = this.now(), options = {}) {
     const currentMs = now.getTime();
+    if (!Number.isFinite(currentMs)) throw new TypeError('Calendar evaluation requires a valid date');
+    this.pruneNotified(currentMs);
+    const requestedStartingSinceMs = options.startingSinceMs;
+    const startingSinceMs = Number.isFinite(requestedStartingSinceMs)
+      ? Math.max(currentMs - this.wakeCatchUpMs, Math.min(currentMs, requestedStartingSinceMs))
+      : currentMs - STARTING_GRACE_MS;
     for (const event of this.events) {
       if (event.allDay) continue;
       const deltaMs = event.start.getTime() - currentMs;
       const baseKey = `${event.id}:${event.start.toISOString()}`;
-      if (deltaMs <= 0 && deltaMs >= -90 * 1000) {
+      if (deltaMs <= 0 && event.start.getTime() >= startingSinceMs) {
         const key = `starting:${baseKey}`;
         if (!this.notified.has(key)) {
-          this.notified.add(key);
-          this.notified.add(`upcoming:${baseKey}`);
+          this.rememberNotification(`upcoming:${baseKey}`, currentMs);
+          this.rememberNotification(key, currentMs);
           this.onEvent({ type: 'starting', event });
         }
       } else if (deltaMs > 0 && deltaMs <= 10 * 60 * 1000) {
         const key = `upcoming:${baseKey}`;
-        if (!this.notified.has(key)) {
-          this.notified.add(key);
+        if (this.rememberNotification(key, currentMs)) {
           this.onEvent({ type: 'upcoming', event, minutes: Math.max(1, Math.ceil(deltaMs / 60000)) });
         }
       }
     }
+    this.lastEvaluatedAt = currentMs;
   }
 
   evaluateBusyDay(now = this.now()) {
+    const currentMs = now.getTime();
+    if (!Number.isFinite(currentMs)) throw new TypeError('Calendar evaluation requires a valid date');
+    this.pruneNotified(currentMs);
     const today = dateKey(now);
     const count = this.events.filter((event) => !event.allDay && dateKey(event.start) === today).length;
     const key = `busyDay:${today}`;
-    if (count >= 5 && !this.notified.has(key)) {
-      this.notified.add(key);
+    if (count >= 5 && this.rememberNotification(key, currentMs)) {
       this.onEvent({ type: 'busyDay', count });
     }
+  }
+
+  refreshAfterWake(now = this.now(), inactiveSince = null) {
+    if (!this.enabled) return Promise.resolve(false);
+    const currentMs = now.getTime();
+    if (!Number.isFinite(currentMs)) {
+      return Promise.reject(new TypeError('Calendar wake refresh requires a valid date'));
+    }
+    const inactiveSinceMs = inactiveSince instanceof Date
+      ? inactiveSince.getTime()
+      : (Number.isFinite(inactiveSince) ? inactiveSince : null);
+    const fallbackSinceMs = Number.isFinite(this.lastEvaluatedAt)
+      ? this.lastEvaluatedAt
+      : currentMs - STARTING_GRACE_MS;
+    const requestedSinceMs = Number.isFinite(inactiveSinceMs) ? inactiveSinceMs : fallbackSinceMs;
+    const startingSinceMs = Math.max(
+      currentMs - this.wakeCatchUpMs,
+      Math.min(currentMs, requestedSinceMs),
+    );
+    this.pendingWakeCatchUpSinceMs = Number.isFinite(this.pendingWakeCatchUpSinceMs)
+      ? Math.min(this.pendingWakeCatchUpSinceMs, startingSinceMs)
+      : startingSinceMs;
+
+    if (this.abortController) {
+      this.generation += 1;
+      this.abortController.abort();
+      this.abortController = null;
+      this.inFlight = false;
+    }
+    return this.poll().then(() => true);
   }
 
   stop() {
@@ -181,6 +260,8 @@ class CalendarService {
     this.events = [];
     this.inFlight = false;
     this.abortController = null;
+    this.lastEvaluatedAt = null;
+    this.pendingWakeCatchUpSinceMs = null;
     this.enabled = false;
   }
 }
