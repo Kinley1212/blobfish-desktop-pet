@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { shouldPauseIdleSpeech, shouldPauseMovement } = require('./core/activity-gates');
 const { AgentBridge } = require('./core/agent-bridge');
 const { BatteryThresholdTracker, readMacBattery } = require('./core/battery-monitor');
 const { CalendarService } = require('./core/calendar-service');
@@ -15,7 +16,7 @@ const { loadDialoguePackSafe } = require('./core/dialogue-loader');
 const { loadLanguagePack } = require('./core/language-pack-loader');
 const { calculateVerticalPlacement } = require('./core/pet-boundary');
 const { PhraseEngine } = require('./core/phrase-engine');
-const { getScheduleReminder, isInQuietHours } = require('./core/reminder-scheduler');
+const { ReminderScheduler, isInQuietHours } = require('./core/reminder-scheduler');
 const {
   DEFAULT_NEEDS_INPUT_SOUND_ID,
   DEFAULT_TASK_COMPLETE_SOUND_ID,
@@ -128,6 +129,8 @@ let flingIntervalId = null;
 let speechQueue;
 let idleChatterTimer = null;
 let chatInviteTimer = null;
+let reminderTimer = null;
+const reminderScheduler = new ReminderScheduler();
 let clickCount = 0;
 let configStore;
 let startupGreetingStore;
@@ -323,7 +326,7 @@ function scheduleChatInvite() {
 function maybeInviteToChat() {
   if (!win || win.isDestroyed()) return;
   if (dialogueWin && !dialogueWin.isDestroyed()) return; // already chatting
-  if (isMovementPaused() || flingIntervalId) return;
+  if (isIdleSpeechPaused() || flingIntervalId) return;
   if (isInQuietHours(new Date(), config.quietHours)) return;
   if (Math.random() >= CHAT_INVITE_CHANCE) return;
 
@@ -332,7 +335,24 @@ function maybeInviteToChat() {
 }
 
 function isMovementPaused() {
-  return paused || contextMenuPaused || systemPaused || agentPaused || hoverPaused;
+  return shouldPauseMovement(getActivityGateState());
+}
+
+function isIdleSpeechPaused() {
+  return shouldPauseIdleSpeech(getActivityGateState());
+}
+
+function getActivityGateState() {
+  const allTasksWaiting = currentAgentSnapshot.activeCount > 0
+    && currentAgentSnapshot.waitingCount === currentAgentSnapshot.activeCount;
+  return {
+    directlyPaused: paused,
+    contextMenuPaused,
+    systemPaused,
+    agentMovementPaused: agentPaused,
+    hoverPaused,
+    allTasksWaiting,
+  };
 }
 
 function isProviderEnabled(provider) {
@@ -829,6 +849,7 @@ function applyConfig(nextConfig) {
   }
   scheduleIdleChatter();
   scheduleChatInvite();
+  scheduleReminders();
   rebuildTrayMenu();
 }
 
@@ -1234,6 +1255,7 @@ function createWindow() {
     maybeSpeakStartupGreeting();
     scheduleReminders();
     scheduleIdleChatter();
+    scheduleChatInvite();
   });
 }
 
@@ -1317,35 +1339,43 @@ function startFling(vx, vy) {
 }
 
 function scheduleReminders() {
-  function tick() {
-    const now = new Date();
-    const reminder = getScheduleReminder(now, config.schedule);
-    if (reminder) {
-      speak(reminder.event, reminder.context, {
-        priority: SPEECH_PRIORITY.schedule,
-        durationMs: 9000,
-        replaceKey: reminder.event,
-      });
-    }
-  }
+  clearTimeout(reminderTimer);
 
-  const now = new Date();
-  const msUntilNextMinute = 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
-  setTimeout(() => {
-    tick();
-    setInterval(tick, 60000);
-  }, msUntilNextMinute);
+  const tick = () => {
+    const now = new Date();
+    maybeSpeakStartupGreeting(now);
+    const reminder = reminderScheduler.poll(now, config.schedule);
+    if (!reminder) return;
+    speak(reminder.event, reminder.context, {
+      priority: SPEECH_PRIORITY.schedule,
+      durationMs: 9000,
+      replaceKey: reminder.event,
+    });
+  };
+
+  const queueNextTick = () => {
+    const now = new Date();
+    const msUntilNextMinute = 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
+    reminderTimer = setTimeout(() => {
+      tick();
+      queueNextTick();
+    }, msUntilNextMinute);
+  };
+
+  tick();
+  queueNextTick();
 }
 
 function scheduleIdleChatter() {
   clearTimeout(idleChatterTimer);
-  clearTimeout(chatInviteTimer);
+  idleChatterTimer = null;
   if (!config.language.idleEnabled) return;
   const minMs = config.language.idleMinMinutes * 60 * 1000;
   const maxMs = config.language.idleMaxMinutes * 60 * 1000;
   const delay = minMs + Math.random() * (maxMs - minMs);
   idleChatterTimer = setTimeout(() => {
-    if (isMovementPaused() || flingIntervalId) {
+    idleChatterTimer = null;
+    if (isIdleSpeechPaused() || flingIntervalId) {
       scheduleIdleChatter();
       return;
     }
@@ -1379,6 +1409,12 @@ function pollBattery() {
     });
 }
 
+function refreshRoutinesAfterWake() {
+  scheduleReminders();
+  scheduleIdleChatter();
+  scheduleChatInvite();
+}
+
 function speakAfterWake() {
   const now = Date.now();
   if (now - lastWakeSpokenAt < 2000) return;
@@ -1398,6 +1434,7 @@ function speakAfterWake() {
       replaceKey: 'rare.returnAfterLongLock',
     });
   }
+  refreshRoutinesAfterWake();
 }
 
 function setupSystemMonitors() {
@@ -2082,6 +2119,8 @@ app.on('before-quit', (event) => {
   }
   clearTimeout(quitTimer);
   clearTimeout(idleChatterTimer);
+  clearTimeout(chatInviteTimer);
+  clearTimeout(reminderTimer);
   clearTimeout(contextMenuPauseTimer);
   clearInterval(batteryPollTimer);
   clearInterval(taskMaintenanceTimer);
