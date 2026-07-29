@@ -1,15 +1,19 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('path');
 const {
   buildMacInstallerScript,
   buildGitHubUserAgent,
+  cleanupStaleUpdateStaging,
   compareVersions,
   expectedAssetNames,
   getInstalledAppBundle,
   latestAssetDownloadUrl,
   selectManifestUpdate,
   selectReleaseUpdate,
+  withUpdateTimeout,
 } = require('../src/core/github-release-updater');
 
 const DIGEST = 'a'.repeat(64);
@@ -146,10 +150,10 @@ test('derives an app bundle only from a normal macOS executable location', () =>
   assert.throws(() => getInstalledAppBundle('/tmp/waterfish'), /可自动更新/);
 });
 
-test('installer script waits for the old process, extracts a precise bundle, then trashes only the old app', () => {
+test('installer script bounds subprocesses and atomically promotes a verified app', () => {
   const oldApp = '/Applications/水滴鱼Pro1.2.0.app';
   const newApp = '/Applications/水滴鱼Pro1.2.1.app';
-  const staging = '/tmp/blobfish-update-a';
+  const staging = '/tmp/updates/release-abc123';
   const script = buildMacInstallerScript({
     currentAppPath: oldApp,
     targetAppPath: newApp,
@@ -158,8 +162,81 @@ test('installer script waits for the old process, extracts a precise bundle, the
     processId: 123,
   });
   assert.match(script, /while \/bin\/kill -0/);
+  assert.match(script, /old_process_deadline=/);
+  assert.match(script, /run_with_timeout/);
   assert.match(script, /\/usr\/bin\/ditto -x -k --sequesterRsrc/);
-  assert.match(script, /source_app='\/tmp\/blobfish-update-a\/extracted\/水滴鱼Pro1\.2\.1\.app'/);
+  assert.match(script, /source_app='\/tmp\/updates\/release-abc123\/extracted\/水滴鱼Pro1\.2\.1\.app'/);
+  assert.match(script, /\/usr\/bin\/codesign --verify --deep --strict/);
+  assert.match(script, /\/usr\/bin\/lipo -archs/);
+  assert.match(script, /install_app=/);
+  assert.match(script, /active_command_pid=/);
+  assert.match(script, /\/bin\/kill -TERM "\$active_command_pid"/);
+  assert.match(script, /\/bin\/mv -n "\$install_app" "\$new_app"/);
+  assert.match(script, /if \[\[ -e "\$install_app" \]\]/);
+  assert.match(script, /trap cleanup EXIT/);
+  assert.match(script, /\/bin\/rm -R "\$staging"/);
   assert.match(script, /tell application "Finder" to delete POSIX file/);
-  assert.doesNotMatch(script, /rm -rf/);
+  assert.doesNotMatch(script, /\/bin\/cp -R/);
+});
+
+test('cleans only old release staging directories and leaves fresh, active and unsafe entries alone', () => {
+  const updateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-update-cleanup-'));
+  const oldDirectory = path.join(updateRoot, 'release-old');
+  const activeDirectory = path.join(updateRoot, 'release-active');
+  const freshDirectory = path.join(updateRoot, 'release-fresh');
+  const unrelatedDirectory = path.join(updateRoot, 'other-old');
+  const symlink = path.join(updateRoot, 'release-link');
+  const abandonedClaim = path.join(updateRoot, '.cleanup-release-abandoned');
+  fs.mkdirSync(oldDirectory);
+  fs.mkdirSync(activeDirectory);
+  fs.mkdirSync(freshDirectory);
+  fs.mkdirSync(unrelatedDirectory);
+  fs.mkdirSync(abandonedClaim);
+  fs.symlinkSync(oldDirectory, symlink);
+  const oldDate = new Date(Date.now() - (48 * 60 * 60 * 1000));
+  fs.utimesSync(oldDirectory, oldDate, oldDate);
+  fs.utimesSync(activeDirectory, oldDate, oldDate);
+  fs.utimesSync(unrelatedDirectory, oldDate, oldDate);
+  fs.utimesSync(abandonedClaim, oldDate, oldDate);
+
+  try {
+    const result = cleanupStaleUpdateStaging(updateRoot, {
+      now: Date.now(),
+      maxAgeMs: 24 * 60 * 60 * 1000,
+      activeDirectories: [activeDirectory],
+    });
+
+    assert.deepEqual([...result.removed].sort(), [abandonedClaim, oldDirectory].sort());
+    assert.equal(fs.existsSync(oldDirectory), false);
+    assert.equal(fs.existsSync(activeDirectory), true);
+    assert.equal(fs.existsSync(freshDirectory), true);
+    assert.equal(fs.existsSync(unrelatedDirectory), true);
+    assert.equal(fs.existsSync(abandonedClaim), false);
+    assert.equal(fs.lstatSync(symlink).isSymbolicLink(), true);
+    assert.equal(result.skippedUnsafe.includes(symlink), true);
+  } finally {
+    fs.rmSync(updateRoot, { recursive: true, force: true });
+  }
+});
+
+test('reports an explicit timeout and aborts the whole update operation', async () => {
+  let receivedSignal = null;
+  await assert.rejects(
+    withUpdateTimeout('下载更新包', 5, (signal) => {
+      receivedSignal = signal;
+      return new Promise((resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      });
+    }),
+    /下载更新包超时/,
+  );
+  assert.equal(receivedSignal.aborted, true);
+});
+
+test('clears the timeout when an update operation completes', async () => {
+  const result = await withUpdateTimeout('检查更新', 1000, async (signal) => {
+    assert.equal(signal.aborted, false);
+    return 'ok';
+  });
+  assert.equal(result, 'ok');
 });

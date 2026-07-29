@@ -3,8 +3,9 @@ const bubble = document.getElementById('bubble');
 const taskBubble = document.getElementById('task-bubble');
 const { buildCarouselLayout, nextTaskKey } = globalThis.taskCarouselModel;
 const { applyDiyToSvg } = globalThis.diyModel;
-const { applyAccessoriesToSvg, normalizeAccessories } = globalThis.accessoryModel;
+const { applyAccessoriesToSvg, normalizeAccessories, sanitizeSvgTree } = globalThis.accessoryModel;
 const { pickExpression } = globalThis.expressionMoods;
+const { bootstrapRenderer, createAsyncGuard, createChatInviteIntent } = globalThis.rendererRuntime;
 
 const VELOCITY_WINDOW_MS = 300;
 const BLINK_MIN_MS = 3500;
@@ -65,8 +66,14 @@ let accessoryCatalog = [];
 // the borrowed expression so the saved one can come back afterwards.
 let moodExpressionId = null;
 let moodExpressionTimer = null;
-let chatInviteUntil = 0; // while > now, a click opens the chat instead of punching
+const chatInviteIntent = createChatInviteIntent();
 let renderedLookSignature = null; // the specs the SVG currently in the DOM was built from
+const rendererAsyncGuard = createAsyncGuard({
+  reportError({ error, label, shouldNotify, userMessage }) {
+    console.error(`Renderer failed to ${label}`, error);
+    if (shouldNotify) showBubble(userMessage || '剛才沒有接上……', 6000);
+  },
+});
 
 function applyPetLayout(layout = {}) {
   const nextTopOffset = Number(layout.topOffset);
@@ -96,8 +103,7 @@ function applyPetConfig(config = {}) {
   if (config.accessories !== undefined) accessorySpec = config.accessories;
   if (config.customization !== undefined || config.accessories !== undefined) {
     if (characterManifest && lookSignature() !== renderedLookSignature) {
-      installCharacterPack();
-      return;
+      return installCharacterPack();
     }
   }
   if (!characterManifest) return;
@@ -115,20 +121,10 @@ function sanitizeSvg(svgText) {
     throw new Error('Character pack contains invalid SVG');
   }
 
-  documentNode.querySelectorAll('script, foreignObject, iframe, object, embed').forEach((node) => node.remove());
-  documentNode.querySelectorAll('*').forEach((node) => {
-    for (const attribute of [...node.attributes]) {
-      const name = attribute.name.toLowerCase();
-      const value = attribute.value.trim();
-      if (name.startsWith('on')) {
-        node.removeAttribute(attribute.name);
-      } else if ((name === 'href' || name === 'xlink:href') && !value.startsWith('#')) {
-        node.removeAttribute(attribute.name);
-      }
-    }
-  });
+  const svgRoot = sanitizeSvgTree(documentNode.documentElement);
+  if (!svgRoot) throw new Error('Character pack does not contain SVG art');
 
-  return documentNode.documentElement.outerHTML;
+  return svgRoot.outerHTML;
 }
 
 // The worn accessories, with a temporary mood expression standing in for the
@@ -235,12 +231,19 @@ function scheduleBlink(delayOverride) {
   }, delay);
 }
 
-function showBubble(text, duration) {
+function hideBubble() {
+  chatInviteIntent.invalidate();
+  bubble.style.opacity = '0';
+}
+
+function showBubble(text, duration, options = {}) {
+  chatInviteIntent.invalidate();
   bubble.textContent = text;
   bubble.style.opacity = '1';
   clearTimeout(bubbleTimer);
+  if (options.chatInvite) chatInviteIntent.activate(duration);
   bubbleTimer = setTimeout(() => {
-    bubble.style.opacity = '0';
+    hideBubble();
   }, duration);
 }
 
@@ -545,27 +548,32 @@ window.petAPI.onAgentState((state) => applyAgentState(state));
 window.petAPI.onTaskStatus((state) => renderTaskStatus(state));
 window.petAPI.onCharacterPack((pack) => applyCharacterPack(pack));
 window.petAPI.onPetLayout((layout) => applyPetLayout(layout));
-window.petAPI.onPetConfig((config) => applyPetConfig(config));
+window.petAPI.onPetConfig((config) => {
+  void rendererAsyncGuard.run(
+    'apply pet config',
+    () => applyPetConfig(config),
+    { userMessage: '形象設定沒有接上……' },
+  );
+});
 window.petAPI.onDialogueReaction((reaction) => {
   if (reaction.text) showBubble(reaction.text, reaction.durationMs);
   wearMoodExpression(reaction.face, reaction.durationMs);
 });
 window.petAPI.onChatInvite((invite) => {
-  showBubble(invite.text, invite.durationMs);
+  showBubble(invite.text, invite.durationMs, { chatInvite: true });
   // A hopeful little face while it waits to be clicked.
   wearMoodExpression('face-coy', invite.durationMs);
-  chatInviteUntil = performance.now() + invite.durationMs;
 });
 window.petAPI.onBump(() => triggerBump());
 window.petAPI.onPetAction((action) => triggerPetAction(action));
-window.petAPI.getAgentState().then((state) => applyAgentState(state));
-window.petAPI.getTaskStatus().then((state) => renderTaskStatus(state));
-window.petAPI.getPetConfig().then((config) => applyPetConfig(config));
-installCharacterPack()
-  .catch((error) => {
-    console.error('Failed to install character pack', error);
-    showBubble('形象包壞掉了……', 6000);
-  });
+void rendererAsyncGuard.run('bootstrap', () => bootstrapRenderer({
+  applyAgentState,
+  applyPetConfig,
+  guard: rendererAsyncGuard,
+  installCharacterPack,
+  petAPI: window.petAPI,
+  renderTaskStatus,
+}));
 // The window can move on its own (autonomous swimming, flinging) without the
 // cursor ever moving, so mousemove alone isn't enough to keep click-through
 // in sync - the main process calls this after every such move with the
@@ -594,10 +602,9 @@ pet.addEventListener('click', () => {
 
   // If the fish just asked to chat, a click takes it up on the offer rather
   // than punching it.
-  if (performance.now() < chatInviteUntil) {
-    chatInviteUntil = 0;
+  if (chatInviteIntent.consume()) {
     clearTimeout(bubbleTimer);
-    bubble.style.opacity = '0';
+    hideBubble();
     clearMoodExpression();
     window.petAPI.openChat();
     return;

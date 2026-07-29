@@ -6,6 +6,7 @@ const speedInput = document.getElementById('pet-speed');
 const speedOutput = document.getElementById('speed-output');
 const scaleInput = document.getElementById('pet-scale');
 const scaleOutput = document.getElementById('scale-output');
+const defaultPetScaleMax = Number(scaleInput.max) || 1.5;
 const agentProviders = ['codex', 'claude'];
 const integrationControls = Object.fromEntries(agentProviders.map((provider) => [provider, {
   primary: document.getElementById(`connect-${provider}`),
@@ -30,6 +31,7 @@ let accessoryMap = {};
 let accessoryCatalog = [];
 const diyModel = globalThis.diyModel;
 const accessoryModel = globalThis.accessoryModel;
+const diyLoadGate = accessoryModel.createLatestRequestGate();
 const panelTabs = [...document.querySelectorAll('.nav-item[data-panel]')];
 const panels = [...document.querySelectorAll('.settings-panel[data-panel-name]')];
 
@@ -296,10 +298,25 @@ function renderCharacters(characters, selectedId) {
     option.value = character.id;
     option.textContent = character.displayName;
     option.dataset.defaultLanguagePack = character.defaultLanguagePack || '';
+    option.dataset.maxScale = String(character.maxScale ?? defaultPetScaleMax);
     option.selected = character.id === selectedId;
     select.appendChild(option);
   }
   applyCharacterCopy(select.value);
+}
+
+function syncPetScaleLimit(packId, options = {}) {
+  const advertisedMax = Number(charactersById.get(packId)?.maxScale);
+  const minScale = Number(scaleInput.min) || 0.65;
+  const maxScale = Number.isFinite(advertisedMax) && advertisedMax >= minScale
+    ? Math.min(defaultPetScaleMax, advertisedMax)
+    : defaultPetScaleMax;
+  scaleInput.max = String(maxScale);
+
+  if (options.clamp !== false && Number(scaleInput.value) > maxScale) {
+    scaleInput.value = String(maxScale);
+  }
+  scaleOutput.value = `${Math.round(Number(scaleInput.value) * 100)}%`;
 }
 
 // --- 捏鱼 (DIY) ----------------------------------------------------------
@@ -571,7 +588,13 @@ function renderDiyPreview() {
     return;
   }
 
-  const svg = document.importNode(parsed.documentElement, true);
+  const safeRoot = accessoryModel.sanitizeSvgTree(parsed.documentElement);
+  if (!safeRoot) {
+    stage.replaceChildren();
+    return;
+  }
+
+  const svg = document.importNode(safeRoot, true);
   // Tears only belong to the "被揍" reaction; a resting portrait shouldn't cry.
   svg.querySelectorAll('.tears, .tear').forEach((node) => node.remove());
   stage.replaceChildren(svg);
@@ -587,23 +610,35 @@ function renderDiyPreview() {
 }
 
 async function loadDiy(packId) {
+  const request = diyLoadGate.begin(packId);
   const supported = Boolean(charactersById.get(packId)?.diy?.enabled);
   byId('diy-unsupported').hidden = supported;
   byId('diy-workspace').hidden = !supported;
+  diyArt = null;
+  byId('diy-controls').replaceChildren();
+  byId('accessory-controls').replaceChildren();
+  byId('diy-preview').replaceChildren();
   if (!supported) {
-    diyArt = null;
-    byId('diy-controls').replaceChildren();
-    byId('accessory-controls').replaceChildren();
-    byId('diy-preview').replaceChildren();
     return;
   }
 
-  diyArt = await window.settingsAPI.getCharacterArt(packId);
-  // The selection can change while the art request is in flight.
-  if (byId('character-pack').value !== packId) return;
-  renderDiyControls();
-  renderAccessoryControls();
-  renderDiyPreview();
+  try {
+    const art = await window.settingsAPI.getCharacterArt(packId);
+    // The selection can change while the art request is in flight. Assign the
+    // shared preview state only after proving this is still the newest request.
+    if (!diyLoadGate.isCurrent(request, packId) || byId('character-pack').value !== packId) return;
+    if (!art || typeof art.svg !== 'string') throw new Error('Character art is unavailable');
+    diyArt = art;
+    renderDiyControls();
+    renderAccessoryControls();
+    renderDiyPreview();
+  } catch (error) {
+    if (!diyLoadGate.isCurrent(request, packId) || byId('character-pack').value !== packId) return;
+    diyArt = null;
+    const displayName = charactersById.get(packId)?.displayName || packId;
+    showStatus(`无法加载“${displayName}”的形象预览，请重新选择角色后再试。`, true);
+    console.error(`Failed to load DIY art for ${packId}:`, error);
+  }
 }
 
 function renderIntegrationStatus(integrationStatus = {}) {
@@ -659,6 +694,7 @@ function renderAgentIntegration(provider, result) {
   const busy = Boolean(operation) || ['checking', 'opened', 'opened-disconnect', 'terminal-opened'].includes(result.state);
   const managedInstalled = result.state === 'connected'
     || result.state === 'disabled'
+    || result.repairable === true
     || (result.state === 'cli-missing' && live);
   const presentedResult = operation
     ? { ...result, operationBusy: true, operation }
@@ -700,7 +736,12 @@ function renderAgentIntegration(provider, result) {
   else if (result.state === 'legacy') setConnectionStep(provider, 'plugin', 'active', result.version ? `检测到旧版 v${result.version}` : '检测到可升级的旧版');
   else if (result.state === 'disabled') setConnectionStep(provider, 'plugin', 'error', '已安装，但被停用');
   else if (result.state === 'conflict') setConnectionStep(provider, 'plugin', 'error', '同名插件来源冲突');
-  else if (result.state === 'error') setConnectionStep(provider, 'plugin', 'error', '检测或操作失败');
+  else if (result.state === 'error') setConnectionStep(
+    provider,
+    'plugin',
+    'error',
+    result.repairable ? '连接记录陈旧，可以一键修复' : '检测或操作失败',
+  );
   else if (result.state === 'opened' || result.state === 'terminal-opened') setConnectionStep(provider, 'plugin', 'active', '等待安装结果');
   else if (result.state === 'opened-disconnect') setConnectionStep(provider, 'plugin', 'active', '等待手动移除');
   else if (live) setConnectionStep(provider, 'plugin', 'done', '已由真实任务事件确认工作');
@@ -758,7 +799,7 @@ async function pollTerminalOperation(provider, operation) {
   for (let attempt = 0; attempt < 30; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 1000));
     const result = await refreshAgentIntegration(provider);
-    if (result.state === 'error') {
+    if (result.state === 'error' && (!result.repairable || result.operationFailed)) {
       showStatus(`连接操作失败：${result.error}`, true);
       return;
     }
@@ -923,8 +964,9 @@ function renderConfig(config, characters, languages, sounds, accessories) {
   setChecked('category-agents', config.language.categories.agents);
   setValue('pet-speed', config.pet.speed);
   speedOutput.value = `${config.pet.speed.toFixed(2)}×`;
+  syncPetScaleLimit(config.pet.characterPackId, { clamp: false });
   setValue('pet-scale', config.pet.scale);
-  scaleOutput.value = `${Math.round(config.pet.scale * 100)}%`;
+  syncPetScaleLimit(config.pet.characterPackId);
   setValue('pet-move-axis', config.pet.moveAxis || 'horizontal');
   setChecked('roam-without-tasks', config.pet.roamWhenNoTasks);
   setChecked('launch-at-login', config.startup.launchAtLogin);
@@ -1081,6 +1123,7 @@ byId('character-pack').addEventListener('change', (event) => {
   if (languagePackId && [...byId('language-pack').options].some((option) => option.value === languagePackId)) {
     setValue('language-pack', languagePackId);
   }
+  syncPetScaleLimit(event.target.value);
   applyCharacterCopy(event.target.value);
   loadDiy(event.target.value);
 });

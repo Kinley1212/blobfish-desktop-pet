@@ -1,7 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
 const path = require('path');
-const { loadLanguagePack } = require('../src/core/language-pack-loader');
+const { loadLanguagePack, validatePhrase } = require('../src/core/language-pack-loader');
 
 const languagesRoot = path.join(__dirname, '..', 'src', 'packs', 'languages');
 
@@ -23,6 +24,43 @@ const ORIGINAL_SCHEDULE = [
   '主人還有半個鐘就下班啦，主人今天太棒啦！',
   '主人還有五分鐘就下班啦，可以開始關閉軟件啦，記得先關梯子再關Claude喲。主人{farewell}～',
 ];
+
+test('language pack rejects unknown condition keys and invalid values', () => {
+  const basePhrase = { id: 'condition-test', event: 'test.event', text: 'test' };
+  const invalidConditions = [
+    [{ batteryEqual: 3 }, /unsupported condition: batteryEqual/],
+    [{ requires: ['title', 3] }, /invalid condition: requires/],
+    [{ batteryEquals: '3' }, /invalid condition: batteryEquals/],
+    [{ batteryEquals: 101 }, /invalid condition: batteryEquals/],
+    [{ activeCountMin: -1 }, /invalid condition: activeCountMin/],
+    [{ remainingEquals: 1.5 }, /invalid condition: remainingEquals/],
+    [{ durationMinSeconds: Number.MAX_SAFE_INTEGER + 1 }, /invalid condition: durationMinSeconds/],
+    [{ provider: 'claude' }, /invalid condition: provider/],
+    [{ weekdays: [0, 7] }, /invalid condition: weekdays/],
+    [{ hourMin: -1 }, /invalid condition: hourMin/],
+    [{ hourMax: 24 }, /invalid condition: hourMax/],
+    [{ hourMin: 18, hourMax: 8 }, /hourMin cannot exceed hourMax/],
+  ];
+
+  for (const [conditions, errorPattern] of invalidConditions) {
+    assert.throws(
+      () => validatePhrase({ ...basePhrase, conditions }, 'test.json'),
+      errorPattern,
+      JSON.stringify(conditions),
+    );
+  }
+});
+
+test('every built-in language pack satisfies the shared condition schema', () => {
+  const packIds = fs.readdirSync(languagesRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+
+  assert.ok(packIds.length > 0);
+  for (const packId of packIds) {
+    assert.doesNotThrow(() => loadLanguagePack(languagesRoot, packId), packId);
+  }
+});
 
 test('language pack preserves every original phrase verbatim and keeps additions separate', () => {
   const pack = loadLanguagePack(languagesRoot, 'blobfish-zh-TW');

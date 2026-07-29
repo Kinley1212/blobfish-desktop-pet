@@ -65,7 +65,11 @@ test('Claude status is read locally without launching its CLI from the GUI app',
   const pluginRoot = path.join(homeDirectory, '.claude', 'plugins', 'cache', 'blobfish-pet', 'blobfish-agent-bridge', '0.2.0');
   fs.mkdirSync(path.join(pluginRoot, '.claude-plugin'), { recursive: true });
   fs.writeFileSync(path.join(homeDirectory, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { [pluginId]: true } }));
-  fs.writeFileSync(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'blobfish-agent-bridge', version: '0.2.0' }));
+  fs.writeFileSync(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({
+    name: 'blobfish-agent-bridge',
+    version: '0.2.0',
+    author: { name: 'Blobfish Desktop Pet' },
+  }));
   const manager = new IntegrationManager({
     resourcesRoot: '/unused',
     dataRoot: '/unused',
@@ -89,7 +93,11 @@ test('Claude local inspection reports a same-name plugin from another source as 
   const pluginRoot = path.join(homeDirectory, '.claude', 'plugins', 'cache', 'team-marketplace', 'blobfish-agent-bridge', '0.2.0');
   fs.mkdirSync(path.join(pluginRoot, '.claude-plugin'), { recursive: true });
   fs.writeFileSync(path.join(homeDirectory, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { [pluginId]: true } }));
-  fs.writeFileSync(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'blobfish-agent-bridge', version: '0.2.0' }));
+  fs.writeFileSync(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({
+    name: 'blobfish-agent-bridge',
+    version: '0.2.0',
+    author: { name: 'Blobfish Desktop Pet' },
+  }));
   const manager = new IntegrationManager({
     resourcesRoot: '/unused',
     dataRoot: '/unused',
@@ -100,8 +108,115 @@ test('Claude local inspection reports a same-name plugin from another source as 
     const result = await manager.inspect('claude');
     assert.equal(result.state, 'conflict');
     assert.equal(result.pluginId, pluginId);
+    assert.notEqual(result.repairable, true);
   } finally {
     fs.rmSync(homeDirectory, { recursive: true, force: true });
+  }
+});
+
+test('Claude local inspection offers repair when its managed selector has lost the cache', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-claude-stale-managed-'));
+  const homeDirectory = path.join(directory, 'home');
+  const dataRoot = path.join(directory, 'data');
+  const configRoot = path.join(homeDirectory, '.claude');
+  const pluginsRoot = path.join(configRoot, 'plugins');
+  const managedRoot = path.join(dataRoot, 'claude-code');
+  const pluginId = 'blobfish-agent-bridge@blobfish-pet';
+  fs.mkdirSync(pluginsRoot, { recursive: true });
+  fs.writeFileSync(path.join(configRoot, 'settings.json'), JSON.stringify({
+    enabledPlugins: { [pluginId]: true },
+  }));
+  fs.writeFileSync(path.join(pluginsRoot, 'known_marketplaces.json'), JSON.stringify({
+    'blobfish-pet': { source: { source: 'directory', path: managedRoot } },
+  }));
+  const manager = new IntegrationManager({
+    resourcesRoot: '/unused',
+    dataRoot,
+    homeDirectory,
+    locateCli: () => '/fake/claude',
+  });
+  try {
+    const result = await manager.inspect('claude');
+    assert.equal(result.state, 'error');
+    assert.equal(result.repairable, true);
+    assert.deepEqual(result.staleSelectors, [pluginId]);
+    assert.match(result.error, /缓存不完整/);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('Claude repairable status exposes a Terminal failure without losing its repair action', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-claude-stale-failed-'));
+  const homeDirectory = path.join(directory, 'home');
+  const dataRoot = path.join(directory, 'data');
+  const configRoot = path.join(homeDirectory, '.claude');
+  const pluginsRoot = path.join(configRoot, 'plugins');
+  const managedRoot = path.join(dataRoot, 'claude-code');
+  fs.mkdirSync(path.join(dataRoot, 'claude-code'), { recursive: true });
+  fs.mkdirSync(pluginsRoot, { recursive: true });
+  fs.writeFileSync(path.join(configRoot, 'settings.json'), JSON.stringify({
+    enabledPlugins: { 'blobfish-agent-bridge@blobfish-pet': true },
+  }));
+  fs.writeFileSync(path.join(pluginsRoot, 'known_marketplaces.json'), JSON.stringify({
+    'blobfish-pet': { installLocation: managedRoot },
+  }));
+  fs.writeFileSync(path.join(dataRoot, 'claude-code', 'install-result.json'), JSON.stringify({
+    state: 'error',
+    error: 'Claude Code 拒绝安装',
+  }));
+  const manager = new IntegrationManager({
+    resourcesRoot: '/unused',
+    dataRoot,
+    homeDirectory,
+    locateCli: () => '/fake/claude',
+  });
+  try {
+    const result = await manager.inspect('claude');
+    assert.equal(result.state, 'error');
+    assert.equal(result.repairable, true);
+    assert.equal(result.operationFailed, true);
+    assert.equal(result.error, 'Claude Code 拒绝安装');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('Claude local inspection can repair only fully verified managed and legacy selectors', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-claude-stale-pair-'));
+  const homeDirectory = path.join(directory, 'home');
+  const dataRoot = path.join(directory, 'data');
+  const configRoot = path.join(homeDirectory, '.claude');
+  const pluginsRoot = path.join(configRoot, 'plugins');
+  const managedRoot = path.join(dataRoot, 'claude-code');
+  const managedId = 'blobfish-agent-bridge@blobfish-pet';
+  const legacyId = 'blobfish-agent-bridge@blobfish-local';
+  const legacyRoot = path.join(pluginsRoot, 'cache', 'blobfish-local', 'blobfish-agent-bridge', '0.2.0');
+  fs.mkdirSync(path.join(legacyRoot, '.claude-plugin'), { recursive: true });
+  fs.writeFileSync(path.join(configRoot, 'settings.json'), JSON.stringify({
+    enabledPlugins: { [managedId]: true, [legacyId]: true },
+  }));
+  fs.writeFileSync(path.join(pluginsRoot, 'known_marketplaces.json'), JSON.stringify({
+    'blobfish-pet': { installLocation: managedRoot },
+  }));
+  fs.writeFileSync(path.join(legacyRoot, '.claude-plugin', 'plugin.json'), JSON.stringify({
+    name: 'blobfish-agent-bridge',
+    version: '0.2.0',
+    author: { name: 'Blobfish Desktop Pet' },
+  }));
+  const manager = new IntegrationManager({
+    resourcesRoot: '/unused',
+    dataRoot,
+    homeDirectory,
+    locateCli: () => '/fake/claude',
+  });
+  try {
+    const result = await manager.inspect('claude');
+    assert.equal(result.state, 'error');
+    assert.equal(result.repairable, true);
+    assert.deepEqual(result.ownedSelectors, [managedId, legacyId]);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
   }
 });
 
@@ -173,6 +288,34 @@ test('Claude disconnect result is read without launching its CLI from the GUI ap
     const result = await manager.inspect('claude');
     assert.equal(result.state, 'not-installed');
     assert.equal(result.cliFound, true);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('Claude Terminal failure remains directly retryable after stale selectors were cleaned', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-claude-retry-'));
+  const dataRoot = path.join(directory, 'data');
+  const resultDirectory = path.join(dataRoot, 'claude-code');
+  fs.mkdirSync(resultDirectory, { recursive: true });
+  fs.writeFileSync(path.join(resultDirectory, 'install-result.json'), JSON.stringify({
+    state: 'error',
+    error: '下载插件失败',
+  }));
+  const manager = new IntegrationManager({
+    resourcesRoot: '/unused',
+    dataRoot,
+    homeDirectory: directory,
+    locateCli: () => '/fake/claude',
+    run: async () => { throw new Error('CLI must not run while reading a Terminal result'); },
+  });
+
+  try {
+    const result = await manager.inspect('claude');
+    assert.equal(result.state, 'error');
+    assert.equal(result.repairable, true);
+    assert.equal(result.operationFailed, true);
+    assert.equal(result.error, '下载插件失败');
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

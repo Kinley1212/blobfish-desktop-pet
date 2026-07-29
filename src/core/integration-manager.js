@@ -150,11 +150,58 @@ function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
+function isOwnedPluginManifest(manifest) {
+  return manifest?.name === PLUGIN_NAME
+    && manifest?.author?.name === PLUGIN_AUTHOR
+    && /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(String(manifest?.version || ''));
+}
+
 function isOwnedLegacyPlugin(provider, pluginId, manifest) {
   return pluginId === LEGACY_PLUGIN_SELECTORS[provider]
-    && manifest?.name === PLUGIN_NAME
-    && manifest?.author?.name === PLUGIN_AUTHOR
+    && isOwnedPluginManifest(manifest)
     && /^0\.1(?:\.|$)/.test(String(manifest?.version || ''));
+}
+
+function getMarketplacePath(marketplace) {
+  return marketplace?.root
+    || marketplace?.path
+    || marketplace?.installLocation
+    || marketplace?.source?.path
+    || null;
+}
+
+function readLatestClaudeCache(pluginsRoot, pluginId) {
+  const marketplace = pluginId.slice(PLUGIN_NAME.length + 1);
+  if (!/^[A-Za-z0-9._-]+$/.test(marketplace)) return null;
+  const versionRoot = path.join(pluginsRoot, 'cache', marketplace, PLUGIN_NAME);
+  let candidates;
+  try {
+    candidates = fs.readdirSync(versionRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => {
+        const directory = path.join(versionRoot, entry.name);
+        return { directory, name: entry.name, modifiedAt: fs.statSync(directory).mtimeMs };
+      })
+      .sort((left, right) => right.modifiedAt - left.modifiedAt);
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+  if (candidates.length === 0) return null;
+  const latest = candidates[0];
+  let manifest = null;
+  try {
+    manifest = readOptionalJson(
+      path.join(latest.directory, '.claude-plugin', 'plugin.json'),
+      'Claude Code 插件清单',
+    );
+  } catch (error) {
+    if (error.message !== 'Claude Code 插件清单 格式无效') throw error;
+  }
+  return {
+    manifest,
+    version: manifest?.version || latest.name,
+  };
 }
 
 function readPluginManifest(provider, plugin) {
@@ -210,70 +257,94 @@ class IntegrationManager {
     if (!enabledPlugins || typeof enabledPlugins !== 'object' || Array.isArray(enabledPlugins)) return null;
 
     const matches = Object.entries(enabledPlugins)
-      .filter(([pluginId]) => pluginId.startsWith(`${PLUGIN_NAME}@`))
-      .sort((left, right) => Number(right[1] === true) - Number(left[1] === true));
+      .filter(([pluginId]) => pluginId.startsWith(`${PLUGIN_NAME}@`));
     if (matches.length === 0) return null;
 
-    const [pluginId, setting] = matches[0];
-    const marketplace = pluginId.slice(PLUGIN_NAME.length + 1);
-    if (!/^[A-Za-z0-9._-]+$/.test(marketplace)) throw new Error('Claude Code 插件来源名称无效');
-    const versionRoot = path.join(pluginsRoot, 'cache', marketplace, PLUGIN_NAME);
-    let manifest = null;
-    let version = null;
-    let installed = false;
-    try {
-      const candidates = fs.readdirSync(versionRoot, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => {
-          const directory = path.join(versionRoot, entry.name);
-          return { directory, name: entry.name, modifiedAt: fs.statSync(directory).mtimeMs };
-        })
-        .sort((left, right) => right.modifiedAt - left.modifiedAt);
-      if (candidates.length > 0) {
-        installed = true;
-        manifest = readOptionalJson(
-          path.join(candidates[0].directory, '.claude-plugin', 'plugin.json'),
-          'Claude Code 插件清单',
-        );
-        version = manifest?.version || candidates[0].name;
-      }
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
+    const knownMarketplaces = readOptionalJson(
+      path.join(pluginsRoot, 'known_marketplaces.json'),
+      'Claude Code marketplace 设置',
+    );
+    const managedMarketplace = knownMarketplaces?.[MARKETPLACE_NAME];
+    const managedMarketplacePath = getMarketplacePath(managedMarketplace);
+    const expectedManagedPath = path.join(this.dataRoot, PROVIDERS.claude.resourceDirectory);
+    const managedMarketplaceOwned = Boolean(managedMarketplacePath)
+      && path.resolve(managedMarketplacePath) === path.resolve(expectedManagedPath);
+    const records = matches.map(([pluginId, setting]) => {
+      const cache = readLatestClaudeCache(pluginsRoot, pluginId);
+      const manifestOwned = isOwnedPluginManifest(cache?.manifest);
+      const knownSelector = pluginId === PLUGIN_SELECTOR
+        || pluginId === LEGACY_PLUGIN_SELECTORS.claude;
+      return {
+        pluginId,
+        setting,
+        cache,
+        manifestOwned,
+        owned: knownSelector && (
+          manifestOwned || (pluginId === PLUGIN_SELECTOR && managedMarketplaceOwned)
+        ),
+      };
+    });
+    const unowned = records.find((record) => !record.owned);
+    if (unowned) {
+      return {
+        provider: 'claude',
+        state: 'conflict',
+        cliFound: Boolean(cliPath),
+        installed: Boolean(unowned.cache),
+        enabled: unowned.setting === true,
+        pluginId: unowned.pluginId,
+        version: unowned.cache?.version || null,
+        error: `发现同名插件 ${unowned.pluginId}，但无法验证它属于水滴鱼`,
+      };
     }
 
-    if (!installed) throw new Error('Claude Code 已记录这个插件，但本地插件缓存不存在');
-    const enabled = setting === true;
-    if (isOwnedLegacyPlugin('claude', pluginId, manifest)) {
+    const managed = records.find((record) => record.pluginId === PLUGIN_SELECTOR);
+    const legacy = records.find((record) => (
+      isOwnedLegacyPlugin('claude', record.pluginId, record.cache?.manifest)
+    ));
+    if (!managed && records.length === 1 && legacy) {
       return {
         provider: 'claude',
         state: 'legacy',
         cliFound: Boolean(cliPath),
         installed: true,
-        enabled,
-        pluginId,
-        version,
+        enabled: legacy.setting === true,
+        pluginId: legacy.pluginId,
+        version: legacy.cache.version,
       };
     }
-    if (pluginId !== PLUGIN_SELECTOR) {
+
+    const managedCacheUsable = Boolean(managed?.cache && managed.manifestOwned);
+    const staleOwnedSelectors = records
+      .filter((record) => record !== managed || !managedCacheUsable)
+      .map((record) => record.pluginId);
+    if (!managedCacheUsable || staleOwnedSelectors.length > 0) {
       return {
         provider: 'claude',
-        state: 'conflict',
+        state: 'error',
         cliFound: Boolean(cliPath),
-        installed: true,
-        enabled,
-        pluginId,
-        version,
-        error: `发现同名插件 ${pluginId}，但它不是水滴鱼管理的来源`,
+        installed: records.some((record) => Boolean(record.cache)),
+        enabled: records.some((record) => record.setting === true),
+        pluginId: managed?.pluginId || records[0].pluginId,
+        version: managed?.cache?.version || records[0].cache?.version || null,
+        repairable: true,
+        ownedSelectors: records.map((record) => record.pluginId),
+        staleSelectors: staleOwnedSelectors,
+        error: managedCacheUsable
+          ? '检测到水滴鱼遗留的 Claude Code 连接记录'
+          : 'Claude Code 已记录水滴鱼插件，但本地插件缓存不完整',
       };
     }
+
+    const enabled = managed.setting === true;
     return {
       provider: 'claude',
       state: enabled ? 'connected' : 'disabled',
       cliFound: Boolean(cliPath),
       installed: true,
       enabled,
-      pluginId,
-      version,
+      pluginId: managed.pluginId,
+      version: managed.cache.version,
     };
   }
 
@@ -283,11 +354,20 @@ class IntegrationManager {
     if (provider === 'claude') {
       try {
         const localStatus = this.inspectClaudeLocal(cliPath);
-        if (localStatus) return localStatus;
         const installResult = readOptionalJson(
           path.join(this.dataRoot, PROVIDERS.claude.resourceDirectory, 'install-result.json'),
           'Claude Code 安装结果',
         );
+        if (localStatus) {
+          if (localStatus.repairable && installResult?.state === 'error') {
+            return {
+              ...localStatus,
+              operationFailed: true,
+              error: installResult.error || 'Terminal 修复没有完成',
+            };
+          }
+          return localStatus;
+        }
         if (installResult?.state === 'error') {
           return {
             provider,
@@ -295,6 +375,8 @@ class IntegrationManager {
             cliFound: Boolean(cliPath),
             installed: false,
             enabled: false,
+            repairable: Boolean(cliPath),
+            operationFailed: true,
             error: installResult.error || 'Terminal 安装没有完成',
           };
         }

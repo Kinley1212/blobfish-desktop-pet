@@ -1,23 +1,102 @@
 const RARITY_FACTORS = Object.freeze({ common: 1, uncommon: 0.35, rare: 0.06 });
+const CONTEXT_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9]*$/;
+const KNOWN_PROVIDERS = new Set(['codex', 'claude-code']);
 
 function hasValue(context, key) {
   return Object.prototype.hasOwnProperty.call(context, key) && context[key] !== undefined && context[key] !== null;
 }
 
+function isNonNegativeSafeInteger(value) {
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
+function conditionRule(validate, matches) {
+  return Object.freeze({ validate, matches });
+}
+
+const CONDITION_RULES = Object.freeze({
+  requires: conditionRule(
+    (value) => Array.isArray(value)
+      && value.length <= 32
+      && value.every((key) => typeof key === 'string' && CONTEXT_KEY_PATTERN.test(key)),
+    (value, context) => value.every((key) => hasValue(context, key)),
+  ),
+  batteryEquals: conditionRule(
+    (value) => Number.isInteger(value) && value >= 0 && value <= 100,
+    (value, context) => context.battery === value,
+  ),
+  activeCountMin: conditionRule(
+    isNonNegativeSafeInteger,
+    (value, context) => context.activeCount >= value,
+  ),
+  remainingMin: conditionRule(
+    isNonNegativeSafeInteger,
+    (value, context) => context.remaining >= value,
+  ),
+  remainingEquals: conditionRule(
+    isNonNegativeSafeInteger,
+    (value, context) => context.remaining === value,
+  ),
+  durationMinSeconds: conditionRule(
+    isNonNegativeSafeInteger,
+    (value, context) => context.durationSeconds >= value,
+  ),
+  lockedMinSeconds: conditionRule(
+    isNonNegativeSafeInteger,
+    (value, context) => context.lockedSeconds >= value,
+  ),
+  clickCountMin: conditionRule(
+    isNonNegativeSafeInteger,
+    (value, context) => context.clickCount >= value,
+  ),
+  provider: conditionRule(
+    (value) => typeof value === 'string' && KNOWN_PROVIDERS.has(value),
+    (value, context) => context.provider === value,
+  ),
+  weekdays: conditionRule(
+    (value) => Array.isArray(value)
+      && value.length <= 7
+      && value.every((weekday) => Number.isInteger(weekday) && weekday >= 0 && weekday <= 6),
+    (value, context) => value.includes(context.weekday),
+  ),
+  hourMin: conditionRule(
+    (value) => Number.isInteger(value) && value >= 0 && value <= 23,
+    (value, context) => context.hour >= value,
+  ),
+  hourMax: conditionRule(
+    (value) => Number.isInteger(value) && value >= 0 && value <= 23,
+    (value, context) => context.hour <= value,
+  ),
+});
+
+function getConditionValidationError(conditions) {
+  if (conditions === undefined) return null;
+  if (conditions === null || typeof conditions !== 'object' || Array.isArray(conditions)) {
+    return 'conditions must be an object';
+  }
+
+  for (const [key, value] of Object.entries(conditions)) {
+    if (!Object.prototype.hasOwnProperty.call(CONDITION_RULES, key)) {
+      return `an unsupported condition: ${key}`;
+    }
+    if (!CONDITION_RULES[key].validate(value)) {
+      return `an invalid condition: ${key}`;
+    }
+  }
+
+  if (
+    conditions.hourMin !== undefined
+    && conditions.hourMax !== undefined
+    && conditions.hourMin > conditions.hourMax
+  ) {
+    return 'an invalid hour range: hourMin cannot exceed hourMax';
+  }
+  return null;
+}
+
 function matchesConditions(conditions = {}, context = {}) {
-  if (Array.isArray(conditions.requires) && conditions.requires.some((key) => !hasValue(context, key))) return false;
-  if (conditions.batteryEquals !== undefined && context.battery !== conditions.batteryEquals) return false;
-  if (conditions.activeCountMin !== undefined && !(context.activeCount >= conditions.activeCountMin)) return false;
-  if (conditions.remainingMin !== undefined && !(context.remaining >= conditions.remainingMin)) return false;
-  if (conditions.remainingEquals !== undefined && context.remaining !== conditions.remainingEquals) return false;
-  if (conditions.durationMinSeconds !== undefined && !(context.durationSeconds >= conditions.durationMinSeconds)) return false;
-  if (conditions.lockedMinSeconds !== undefined && !(context.lockedSeconds >= conditions.lockedMinSeconds)) return false;
-  if (conditions.clickCountMin !== undefined && !(context.clickCount >= conditions.clickCountMin)) return false;
-  if (conditions.provider !== undefined && context.provider !== conditions.provider) return false;
-  if (Array.isArray(conditions.weekdays) && !conditions.weekdays.includes(context.weekday)) return false;
-  if (conditions.hourMin !== undefined && !(context.hour >= conditions.hourMin)) return false;
-  if (conditions.hourMax !== undefined && !(context.hour <= conditions.hourMax)) return false;
-  return true;
+  if (getConditionValidationError(conditions) !== null) return false;
+  return Object.entries(conditions).every(([key, value]) => CONDITION_RULES[key].matches(value, context));
 }
 
 function renderTemplate(text, context) {
@@ -86,7 +165,9 @@ class PhraseEngine {
 }
 
 module.exports = {
+  CONDITION_RULES,
   PhraseEngine,
+  getConditionValidationError,
   matchesConditions,
   renderTemplate,
 };

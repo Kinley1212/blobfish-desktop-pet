@@ -33,6 +33,36 @@
   ]);
 
   const ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+  const DANGEROUS_SVG_ELEMENTS = new Set(['script', 'foreignobject', 'iframe', 'object', 'embed']);
+
+  function createLatestRequestGate() {
+    let generation = 0;
+    return Object.freeze({
+      begin(key) {
+        generation += 1;
+        return Object.freeze({ generation, key });
+      },
+      isCurrent(request, key) {
+        return Boolean(request)
+          && request.generation === generation
+          && request.key === key;
+      },
+    });
+  }
+
+  function isDangerousSvgElementName(name) {
+    return typeof name === 'string' && DANGEROUS_SVG_ELEMENTS.has(name.toLowerCase());
+  }
+
+  function isSafeSvgAttribute(name, value) {
+    if (typeof name !== 'string') return false;
+    const normalizedName = name.toLowerCase();
+    if (normalizedName.startsWith('on')) return false;
+    if (normalizedName === 'href' || normalizedName === 'xlink:href') {
+      return typeof value === 'string' && value.trim().startsWith('#');
+    }
+    return true;
+  }
 
   function defaultTuning() {
     const tuning = {};
@@ -169,14 +199,36 @@
 
   // --- DOM side -----------------------------------------------------------
 
+  function sanitizeSvgTree(svgRoot) {
+    if (!svgRoot || String(svgRoot.localName || '').toLowerCase() !== 'svg') return null;
+
+    const descendants = [...svgRoot.querySelectorAll('*')];
+    for (const node of descendants) {
+      if (isDangerousSvgElementName(node.localName)) node.remove();
+    }
+
+    for (const node of [svgRoot, ...descendants]) {
+      for (const attribute of [...node.attributes]) {
+        if (isSafeSvgAttribute(attribute.name, attribute.value)) continue;
+        if (attribute.namespaceURI && attribute.localName) {
+          node.removeAttributeNS(attribute.namespaceURI, attribute.localName);
+        } else {
+          node.removeAttribute(attribute.name);
+        }
+      }
+    }
+    return svgRoot;
+  }
+
   function parseAccessoryArt(svgText, ownerDocument) {
     const parsed = new DOMParser().parseFromString(svgText, 'image/svg+xml');
     if (parsed.querySelector('parsererror')) return null;
-    parsed.querySelectorAll('script, foreignObject, iframe, object, embed').forEach((node) => node.remove());
+    const svgRoot = sanitizeSvgTree(parsed.documentElement);
+    if (!svgRoot) return null;
 
     const namespace = 'http://www.w3.org/2000/svg';
     const group = ownerDocument.createElementNS(namespace, 'g');
-    for (const child of [...parsed.documentElement.childNodes]) {
+    for (const child of [...svgRoot.childNodes]) {
       group.appendChild(ownerDocument.importNode(child, true));
     }
     return group;
@@ -230,15 +282,19 @@
     DEFAULT_TUNING,
     accessoryTransform,
     applyAccessoriesToSvg,
+    createLatestRequestGate,
     defaultAccessories,
     defaultTuning,
     getCharacterSlots,
     getTuning,
+    isDangerousSvgElementName,
     isDefaultTuning,
     isEmptyAccessories,
+    isSafeSvgAttribute,
     normalizeAccessories,
     normalizeAccessoryMap,
     normalizeTuning,
+    sanitizeSvgTree,
     supportsAccessories,
   });
 }));

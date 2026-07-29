@@ -88,6 +88,17 @@ test('conflicts and errors cannot be hidden by a previously received event', () 
   }
 });
 
+test('a verified stale Claude connection gets an explicit one-click repair action', () => {
+  const result = describeAgentIntegration('claude', {
+    state: 'error',
+    repairable: true,
+    error: 'Claude Code 已记录水滴鱼插件，但本地插件缓存不完整',
+  });
+  assert.equal(result.verdict, '需要修复');
+  assert.deepEqual(result.primary, { action: 'update', label: '一键修复连接', disabled: false });
+  assert.match(result.instruction, /不会改动其他插件/);
+});
+
 test('turning off reception is distinct from uninstalling the plugin', () => {
   const result = describeAgentIntegration('codex', {
     state: 'connected',

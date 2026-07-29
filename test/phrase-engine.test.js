@@ -10,6 +10,13 @@ test('conditions and placeholders require the matching context', () => {
   assert.equal(renderTemplate('「{title}」要開始了。', {}), null);
 });
 
+test('invalid or unknown conditions fail closed instead of becoming unconditional', () => {
+  assert.equal(matchesConditions({ batteryEqual: 3 }, { battery: 2 }), false);
+  assert.equal(matchesConditions({ batteryEquals: '3' }, { battery: 3 }), false);
+  assert.equal(matchesConditions({ provider: 'unknown' }, { provider: 'unknown' }), false);
+  assert.equal(matchesConditions({ weekdays: [7] }, { weekday: 7 }), false);
+});
+
 test('selection respects conditions, cooldown and recent-history avoidance', () => {
   let now = 1000;
   const phrases = [

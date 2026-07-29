@@ -3,19 +3,33 @@ const crypto = require('crypto');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { shouldPauseIdleSpeech, shouldPauseMovement } = require('./core/activity-gates');
 const { AgentBridge } = require('./core/agent-bridge');
 const { BatteryThresholdTracker, readMacBattery } = require('./core/battery-monitor');
 const { CalendarService } = require('./core/calendar-service');
 const { ConnectionHealthTracker } = require('./core/connection-health');
-const { ConfigStore, DEFAULT_CONFIG, validateConfig } = require('./core/config-store');
+const { ConfigStore, DEFAULT_CONFIG } = require('./core/config-store');
 const { comparePluginVersions, IntegrationManager, PLUGIN_NAME } = require('./core/integration-manager');
 const { loadCharacterPack } = require('./core/pack-loader');
 const { loadAccessoryCatalog } = require('./core/accessory-loader');
 const { loadDialoguePackSafe } = require('./core/dialogue-loader');
 const { loadLanguagePack } = require('./core/language-pack-loader');
 const { calculateVerticalPlacement } = require('./core/pet-boundary');
+const {
+  preparePetConfigForSave,
+  repairLoadedPetConfigWithFallback,
+} = require('./core/pet-config-geometry');
+const {
+  BUBBLE_STACK_RESERVE,
+  PET_BOTTOM_MARGIN,
+  PET_WINDOW_HEIGHT,
+  PET_WINDOW_WIDTH,
+  calculatePetMetrics,
+  calculatePetRecoveryPlacement,
+  getMaxPetScale,
+} = require('./core/pet-window-geometry');
 const { PhraseEngine } = require('./core/phrase-engine');
-const { getScheduleReminder, isInQuietHours } = require('./core/reminder-scheduler');
+const { ReminderScheduler, isInQuietHours } = require('./core/reminder-scheduler');
 const {
   DEFAULT_NEEDS_INPUT_SOUND_ID,
   DEFAULT_TASK_COMPLETE_SOUND_ID,
@@ -28,6 +42,7 @@ const { RuntimeWarningStore } = require('./core/runtime-warning-store');
 const { SpeechQueue } = require('./core/speech-queue');
 const { SPEECH_DURATION_MS } = require('./core/speech-timing');
 const { StartupGreetingStore, getStartupGreeting } = require('./core/startup-greeting');
+const { bindGracefulWindowClose, isLiveWindow } = require('./core/window-lifecycle');
 const { formatProviderTaskSummary } = require('./core/task-menu-summary');
 const { advanceFractionalCoordinate, roundWindowCoordinate } = require('./core/fractional-position');
 const { getCurrentTaskStatus, getTerminalTaskStatus } = require('./core/task-status-presenter');
@@ -43,9 +58,11 @@ const {
   LATEST_MANIFEST_URL,
   buildGitHubUserAgent,
   buildMacInstallerScript,
+  cleanupStaleUpdateStaging,
   getInstalledAppBundle,
   selectManifestUpdate,
   selectReleaseUpdate,
+  withUpdateTimeout,
 } = require('./core/github-release-updater');
 const { version: appVersion } = require('../package.json');
 
@@ -58,8 +75,13 @@ app.setPath('userData', path.join(userDataRoot, 'BlobfishDesktopPet'));
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) app.quit();
 
-const WINDOW_WIDTH = 340;
-const WINDOW_HEIGHT = 210;
+const WINDOW_WIDTH = PET_WINDOW_WIDTH;
+const WINDOW_HEIGHT = PET_WINDOW_HEIGHT;
+const PET_WINDOW_GEOMETRY = Object.freeze({
+  width: WINDOW_WIDTH,
+  height: WINDOW_HEIGHT,
+  bottomMargin: PET_BOTTOM_MARGIN,
+});
 const TICK_MS = 30;
 const EXIT_ANIMATION_MS = 1700;
 const DEFAULT_CHARACTER_PACK_ID = 'blobfish';
@@ -85,17 +107,8 @@ const SPEECH_PRIORITY = Object.freeze({
 // (much larger) transparent window, which also has room for the speech
 // bubble. Boundary checks are done against the fish's own box, not the
 // window's, so dragging/walking can reach the true screen edges.
-const PET_BOTTOM_MARGIN = 10;
-
 function getPetMetrics() {
-  const width = characterPack.manifest.size.width * config.pet.scale;
-  const height = characterPack.manifest.size.height * config.pet.scale;
-  return {
-    width,
-    height,
-    offsetX: (WINDOW_WIDTH - width) / 2,
-    topMargin: WINDOW_HEIGHT - PET_BOTTOM_MARGIN - height,
-  };
+  return calculatePetMetrics(characterPack.manifest.size, config.pet.scale, PET_WINDOW_GEOMETRY);
 }
 
 // Release velocity (px/tick, after THROW_POWER amplification) needed before
@@ -125,9 +138,13 @@ let currentX;
 let currentY;
 let petTopOffset = null;
 let flingIntervalId = null;
+let movementIntervalId = null;
 let speechQueue;
 let idleChatterTimer = null;
 let chatInviteTimer = null;
+let reminderTimer = null;
+let displayRecoveryTimer = null;
+const reminderScheduler = new ReminderScheduler();
 let clickCount = 0;
 let configStore;
 let startupGreetingStore;
@@ -229,6 +246,7 @@ function listCharacterPacks() {
           defaultLanguagePack: pack.manifest.defaultLanguagePack,
           settingsCopy: pack.settingsCopy,
           diy: pack.manifest.diy || null,
+          maxScale: getMaxPetScale(pack.manifest.size, PET_WINDOW_GEOMETRY),
         };
       } catch (error) {
         console.error(`Ignoring invalid character pack ${entry.name}: ${error.message}`);
@@ -323,7 +341,7 @@ function scheduleChatInvite() {
 function maybeInviteToChat() {
   if (!win || win.isDestroyed()) return;
   if (dialogueWin && !dialogueWin.isDestroyed()) return; // already chatting
-  if (isMovementPaused() || flingIntervalId) return;
+  if (isIdleSpeechPaused() || flingIntervalId) return;
   if (isInQuietHours(new Date(), config.quietHours)) return;
   if (Math.random() >= CHAT_INVITE_CHANCE) return;
 
@@ -332,7 +350,24 @@ function maybeInviteToChat() {
 }
 
 function isMovementPaused() {
-  return paused || contextMenuPaused || systemPaused || agentPaused || hoverPaused;
+  return shouldPauseMovement(getActivityGateState());
+}
+
+function isIdleSpeechPaused() {
+  return shouldPauseIdleSpeech(getActivityGateState());
+}
+
+function getActivityGateState() {
+  const allTasksWaiting = currentAgentSnapshot.activeCount > 0
+    && currentAgentSnapshot.waitingCount === currentAgentSnapshot.activeCount;
+  return {
+    directlyPaused: paused,
+    contextMenuPaused,
+    systemPaused,
+    agentMovementPaused: agentPaused,
+    hoverPaused,
+    allTasksWaiting,
+  };
 }
 
 function isProviderEnabled(provider) {
@@ -622,35 +657,51 @@ async function checkForAppUpdate() {
   }
 
   try {
-    const manifestResponse = await net.fetch(LATEST_MANIFEST_URL, {
-      headers: { 'User-Agent': githubUserAgent },
+    const manifestResult = await withUpdateTimeout('检查 GitHub 更新', 15 * 1000, async (signal) => {
+      const response = await net.fetch(LATEST_MANIFEST_URL, {
+        headers: { 'User-Agent': githubUserAgent },
+        signal,
+      });
+      return {
+        ok: response.ok,
+        status: response.status,
+        manifest: response.ok ? await response.json() : null,
+      };
     });
-    if (manifestResponse.ok) {
-      return selectManifestUpdate(await manifestResponse.json(), {
+    if (manifestResult.ok) {
+      return selectManifestUpdate(manifestResult.manifest, {
         currentVersion: appVersion,
         architecture: process.arch,
       });
     }
-    if (manifestResponse.status !== 404) {
-      console.warn(`Cannot read GitHub update manifest: ${manifestResponse.status}`);
+    if (manifestResult.status !== 404) {
+      console.warn(`Cannot read GitHub update manifest: ${manifestResult.status}`);
     }
 
-    const response = await net.fetch(LATEST_RELEASE_URL, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent': githubUserAgent,
-      },
+    const releaseResult = await withUpdateTimeout('检查 GitHub 更新', 15 * 1000, async (signal) => {
+      const response = await net.fetch(LATEST_RELEASE_URL, {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent': githubUserAgent,
+        },
+        signal,
+      });
+      return {
+        ok: response.ok,
+        status: response.status,
+        release: response.ok ? await response.json() : null,
+      };
     });
-    if (response.status === 404) {
+    if (releaseResult.status === 404) {
       return {
         state: 'no-release',
         currentVersion: appVersion,
         message: 'GitHub 还没有发布正式 Release；PR、分支和 Draft 不会被一键更新发现。',
       };
     }
-    if (!response.ok) throw new Error(`GitHub 返回了 ${response.status}`);
-    return selectReleaseUpdate(await response.json(), {
+    if (!releaseResult.ok) throw new Error(`GitHub 返回了 ${releaseResult.status}`);
+    return selectReleaseUpdate(releaseResult.release, {
       currentVersion: appVersion,
       architecture: process.arch,
     });
@@ -671,36 +722,43 @@ async function writeAll(fileHandle, value) {
 }
 
 async function downloadReleaseAsset(update, destination) {
-  const response = await net.fetch(update.asset.url, {
-    headers: { 'User-Agent': githubUserAgent },
-  });
-  if (!response.ok || !response.body) throw new Error(`GitHub 安装包下载失败（${response.status}）`);
+  return withUpdateTimeout('下载更新包', 10 * 60 * 1000, async (signal) => {
+    const response = await net.fetch(update.asset.url, {
+      headers: { 'User-Agent': githubUserAgent },
+      signal,
+    });
+    if (!response.ok || !response.body) throw new Error(`GitHub 安装包下载失败（${response.status}）`);
 
-  const fileHandle = await fs.promises.open(destination, 'wx', 0o600);
-  const checksum = crypto.createHash('sha256');
-  const reader = response.body.getReader();
-  let received = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value || value.length === 0) continue;
-      received += value.length;
-      if (received > update.asset.size) throw new Error('下载文件超过 GitHub 声明的大小，已停止更新');
-      checksum.update(value);
-      await writeAll(fileHandle, value);
-      sendAppUpdateProgress({ state: 'downloading', version: update.version, received, total: update.asset.size });
+    const fileHandle = await fs.promises.open(destination, 'wx', 0o600);
+    const checksum = crypto.createHash('sha256');
+    const reader = response.body.getReader();
+    let received = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value || value.length === 0) continue;
+        received += value.length;
+        if (received > update.asset.size) throw new Error('下载文件超过 GitHub 声明的大小，已停止更新');
+        checksum.update(value);
+        await writeAll(fileHandle, value);
+        sendAppUpdateProgress({ state: 'downloading', version: update.version, received, total: update.asset.size });
+      }
+    } finally {
+      await fileHandle.close();
     }
-  } finally {
-    await fileHandle.close();
-  }
-  if (received !== update.asset.size) throw new Error('下载文件大小与 GitHub 声明不一致，已停止更新');
-  if (checksum.digest('hex') !== update.asset.digest) throw new Error('下载文件校验失败，已停止更新');
+    if (received !== update.asset.size) throw new Error('下载文件大小与 GitHub 声明不一致，已停止更新');
+    if (checksum.digest('hex') !== update.asset.digest) throw new Error('下载文件校验失败，已停止更新');
+  });
 }
 
 function getUpdateStagingDirectory() {
   const updateRoot = path.join(app.getPath('userData'), 'updates');
   fs.mkdirSync(updateRoot, { recursive: true, mode: 0o700 });
+  const cleanup = cleanupStaleUpdateStaging(updateRoot);
+  if (cleanup.failed.length > 0) {
+    console.warn(`Could not clean ${cleanup.failed.length} stale update staging director${cleanup.failed.length === 1 ? 'y' : 'ies'}`);
+  }
   return fs.mkdtempSync(path.join(updateRoot, 'release-'));
 }
 
@@ -779,6 +837,7 @@ function applyConfig(nextConfig) {
     previousPetPosition = {
       x,
       top: y + (Number.isFinite(petTopOffset) ? petTopOffset : oldMetrics.topMargin),
+      topOffset: Number.isFinite(petTopOffset) ? petTopOffset : oldMetrics.topMargin,
     };
   }
   config = nextConfig;
@@ -818,10 +877,17 @@ function applyConfig(nextConfig) {
   }
   if (win && !win.isDestroyed()) {
     if (previousPetPosition) {
-      const placement = calculateVerticalPlacement(previousPetPosition.top, getCombinedBounds(), getPetMetrics());
-      petTopOffset = placement.topOffset;
-      currentY = placement.windowY;
-      safeSetPosition(previousPetPosition.x, placement.windowY);
+      const metrics = getPetMetrics();
+      const nextTopOffset = Math.min(
+        metrics.topMargin,
+        Math.max(0, previousPetPosition.topOffset),
+      );
+      applyProjectedPetPlacement(projectPetWindowPosition(
+        previousPetPosition.x,
+        previousPetPosition.top - nextTopOffset,
+        nextTopOffset,
+        metrics,
+      ));
     }
     if (characterChanged) win.webContents.send('character-pack', getCharacterPayload());
     win.webContents.send('pet-config', getPetConfigPayload());
@@ -829,11 +895,14 @@ function applyConfig(nextConfig) {
   }
   scheduleIdleChatter();
   scheduleChatInvite();
+  scheduleReminders();
   rebuildTrayMenu();
 }
 
-function persistConfig(nextConfig) {
-  const validated = validateConfig(nextConfig);
+function persistConfig(nextConfig, characterSize = characterPack.manifest.size) {
+  // Geometry validation is deliberately completed before login-item changes
+  // or any disk write, so a character/scale mismatch cannot partially save.
+  const validated = preparePetConfigForSave(nextConfig, characterSize, PET_WINDOW_GEOMETRY);
   const previousLaunchAtLogin = config.startup.launchAtLogin;
   if (validated.startup.launchAtLogin !== previousLaunchAtLogin) {
     syncLaunchAtLogin(validated.startup.launchAtLogin);
@@ -917,7 +986,7 @@ function getPetLayoutPayload() {
   const topOffset = Math.min(metrics.topMargin, Math.max(0, rawTopOffset));
   return {
     topOffset,
-    bubblePlacement: topOffset < Math.min(64, metrics.topMargin * 0.62) ? 'below' : 'above',
+    bubblePlacement: topOffset < BUBBLE_STACK_RESERVE ? 'below' : 'above',
   };
 }
 
@@ -929,14 +998,6 @@ function syncPetLayout(force = false) {
   syncPetLayout.lastTopOffset = payload.topOffset;
   syncPetLayout.lastBubblePlacement = payload.bubblePlacement;
   win.webContents.send('pet-layout', payload);
-}
-
-function positionPetAt(x, desiredPetTop, bounds = getCombinedBounds()) {
-  const placement = calculateVerticalPlacement(desiredPetTop, bounds, getPetMetrics());
-  petTopOffset = placement.topOffset;
-  safeSetPosition(x, placement.windowY);
-  syncPetLayout();
-  return placement;
 }
 
 // The renderer normally toggles click-through by watching its own mousemove
@@ -976,39 +1037,86 @@ function isSaneRect(rect) {
   );
 }
 
-// Uses each display's workArea, not its full physical bounds: macOS silently
-// clamps any window's position back to workArea.y whenever it would overlap
-// the menu bar (confirmed experimentally - it ignores requests to go above
-// it, even at high window levels), so computing against the physical bounds
-// just makes our own tracked position disagree with where the window really
-// ends up. workArea is what's actually reachable.
-// Falls back to the primary display if the display list is empty or a
-// display briefly reports bogus bounds (e.g. mid display-reconfiguration).
-function getCombinedBounds() {
-  const primary = screen.getPrimaryDisplay().workArea;
-  const fallback = { minX: primary.x, minY: primary.y, maxX: primary.x + primary.width, maxY: primary.y + primary.height };
+function getAvailableWorkAreas() {
+  const workAreas = screen.getAllDisplays()
+    .map((display) => display.workArea)
+    .filter(isSaneRect);
+  if (workAreas.length > 0) return workAreas;
 
-  const displays = screen.getAllDisplays().filter((d) => isSaneRect(d.workArea));
-  if (displays.length === 0) return fallback;
+  const primary = screen.getPrimaryDisplay()?.workArea;
+  return isSaneRect(primary) ? [primary] : [];
+}
 
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
+function projectPetWindowPosition(
+  windowX,
+  windowY,
+  topOffset,
+  metrics = getPetMetrics(),
+  workAreas = getAvailableWorkAreas(),
+) {
+  if (workAreas.length === 0) return null;
+  return calculatePetRecoveryPlacement({
+    x: windowX,
+    y: windowY,
+    petTopOffset: topOffset,
+  }, metrics, workAreas);
+}
 
-  for (const display of displays) {
-    const { x, y, width, height } = display.workArea;
-    minX = Math.min(minX, x);
-    minY = Math.min(minY, y);
-    maxX = Math.max(maxX, x + width);
-    maxY = Math.max(maxY, y + height);
+function applyProjectedPetPlacement(placement) {
+  if (!placement) return false;
+  petTopOffset = placement.topOffset;
+  currentPetTopPrecise = placement.petTop;
+  currentX = placement.windowX;
+  currentY = roundWindowCoordinate(placement.windowY);
+  safeSetPosition(placement.windowX, placement.windowY);
+  syncPetLayout();
+  return true;
+}
+
+function recoverPetAfterDisplayChange() {
+  displayRecoveryTimer = null;
+  if (!win || win.isDestroyed()) return;
+
+  const workAreas = getAvailableWorkAreas();
+  if (workAreas.length === 0) return;
+
+  const [windowX, windowY] = win.getPosition();
+  const metrics = getPetMetrics();
+  const placement = calculatePetRecoveryPlacement({
+    x: windowX,
+    y: windowY,
+    petTopOffset: Number.isFinite(petTopOffset) ? petTopOffset : metrics.topMargin,
+  }, metrics, workAreas);
+
+  if (flingIntervalId) {
+    clearInterval(flingIntervalId);
+    flingIntervalId = null;
+    paused = false;
   }
 
-  if (!isSaneRect({ x: minX, y: minY, width: maxX - minX, height: maxY - minY })) {
-    return fallback;
-  }
+  applyProjectedPetPlacement(placement);
+  syncPetLayout(true);
+  syncHoverState();
+}
 
-  return { minX, minY, maxX, maxY };
+function scheduleDisplayRecovery() {
+  clearTimeout(displayRecoveryTimer);
+  // macOS can emit several topology and work-area events during one display
+  // transition. Wait for that short burst to settle before choosing a target.
+  displayRecoveryTimer = setTimeout(recoverPetAfterDisplayChange, 80);
+}
+
+function setupDisplayMonitors() {
+  screen.on('display-added', scheduleDisplayRecovery);
+  screen.on('display-removed', scheduleDisplayRecovery);
+  screen.on('display-metrics-changed', scheduleDisplayRecovery);
+}
+
+function stopPetMotionTimers() {
+  clearInterval(movementIntervalId);
+  clearInterval(flingIntervalId);
+  movementIntervalId = null;
+  flingIntervalId = null;
 }
 
 function createWindow() {
@@ -1026,6 +1134,7 @@ function createWindow() {
     transparent: true,
     alwaysOnTop: true,
     resizable: false,
+    minimizable: false,
     movable: false,
     skipTaskbar: true,
     hasShadow: false,
@@ -1036,6 +1145,16 @@ function createWindow() {
     },
   });
 
+  const petWindow = win;
+  bindGracefulWindowClose(petWindow, {
+    canCloseImmediately: () => allowImmediateQuit,
+    requestQuit,
+    onClosed: () => {
+      stopPetMotionTimers();
+      if (win === petWindow) win = null;
+      if (!allowImmediateQuit && !quitRequested) requestQuit();
+    },
+  });
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   win.setIgnoreMouseEvents(true, { forward: true });
@@ -1134,15 +1253,17 @@ function createWindow() {
   });
 
   ipcMain.on('drag-move', (_event, dx, dy) => {
-    if (!win) return;
+    if (!win || !Number.isFinite(dx) || !Number.isFinite(dy)) return;
     const [x, y] = win.getPosition();
-    const { minX, minY, maxX, maxY } = getCombinedBounds();
     const petMetrics = getPetMetrics();
-
-    const newX = Math.min(Math.max(x + dx, minX - petMetrics.offsetX), maxX - petMetrics.offsetX - petMetrics.width);
-    currentX = newX;
-    const currentPetTop = y + (Number.isFinite(petTopOffset) ? petTopOffset : petMetrics.topMargin);
-    positionPetAt(newX, currentPetTop + dy, { minY, maxY });
+    const currentTopOffset = Number.isFinite(petTopOffset) ? petTopOffset : petMetrics.topMargin;
+    const placement = projectPetWindowPosition(
+      x + dx,
+      y + dy,
+      currentTopOffset,
+      petMetrics,
+    );
+    applyProjectedPetPlacement(placement);
   });
 
   ipcMain.on('drag-end', (_event, vxPerMs, vyPerMs) => {
@@ -1153,7 +1274,14 @@ function createWindow() {
     const speed = Math.hypot(vx, vy);
 
     if (!Number.isFinite(speed) || speed < FLING_MIN_SPEED) {
-      [currentX, currentY] = win.getPosition();
+      const [x, y] = win.getPosition();
+      const metrics = getPetMetrics();
+      applyProjectedPetPlacement(projectPetWindowPosition(
+        x,
+        y,
+        Number.isFinite(petTopOffset) ? petTopOffset : metrics.topMargin,
+        metrics,
+      ));
       paused = false;
       return;
     }
@@ -1167,26 +1295,27 @@ function createWindow() {
     startFling(vx, vy);
   });
 
-  setInterval(() => {
-    if (isMovementPaused() || flingIntervalId || !win) return;
+  movementIntervalId = setInterval(() => {
+    if (isMovementPaused() || flingIntervalId || !isLiveWindow(win)) return;
     const [wx, wy] = win.getPosition();
-    let nearestBounds = screen.getDisplayNearestPoint({
-      x: wx + WINDOW_WIDTH / 2,
-      y: wy + WINDOW_HEIGHT / 2,
-    }).workArea;
-    if (!isSaneRect(nearestBounds)) {
-      nearestBounds = screen.getPrimaryDisplay().workArea;
-    }
-    const { x: areaX, width: areaWidth } = nearestBounds;
     const petMetrics = getPetMetrics();
+    const nativePetTop = wy + (Number.isFinite(petTopOffset) ? petTopOffset : petMetrics.topMargin);
+    const workAreas = getAvailableWorkAreas();
+    if (workAreas.length === 0) return;
 
     if (config.pet.moveAxis === 'vertical') {
+      let nearestBounds = screen.getDisplayNearestPoint({
+        x: wx + petMetrics.offsetX + petMetrics.width / 2,
+        y: nativePetTop + petMetrics.height / 2,
+      }).workArea;
+      if (!isSaneRect(nearestBounds)) {
+        nearestBounds = screen.getPrimaryDisplay().workArea;
+      }
       // Vertical roaming: drift the pet up and down between the top and bottom
       // of the current display, bouncing at each edge. The sprite keeps its
       // facing (no horizontal flip), so no 'direction' event is sent here.
       const minY = nearestBounds.y;
       const maxY = nearestBounds.y + nearestBounds.height;
-      const nativePetTop = wy + (Number.isFinite(petTopOffset) ? petTopOffset : petMetrics.topMargin);
       // Self-healing sub-pixel tracker: if our tracked value has drifted from
       // where the window actually is (a drag or fling moved it), resync.
       let basePetTop = currentPetTopPrecise;
@@ -1202,30 +1331,35 @@ function createWindow() {
         desiredPetTop = probe.petTop;
         verticalDirection = -1;
       }
-      currentPetTopPrecise = desiredPetTop;
-      const placement = positionPetAt(wx, desiredPetTop, { minY, maxY });
-      currentX = wx;
-      currentY = roundWindowCoordinate(placement.windowY);
+      const placement = projectPetWindowPosition(
+        wx,
+        probe.windowY,
+        probe.topOffset,
+        petMetrics,
+        workAreas,
+      );
+      applyProjectedPetPlacement(placement);
       syncAutomaticHoverState();
       return;
     }
 
-    let newX = advanceFractionalCoordinate(currentX, wx, direction * config.pet.speed);
-    const minWinX = areaX - petMetrics.offsetX;
-    const maxWinX = areaX + areaWidth - petMetrics.offsetX - petMetrics.width;
-
-    if (newX <= minWinX) {
-      newX = minWinX;
-      direction = 1;
-      win.webContents.send('direction', direction);
-    } else if (newX >= maxWinX) {
-      newX = maxWinX;
-      direction = -1;
+    const newX = advanceFractionalCoordinate(currentX, wx, direction * config.pet.speed);
+    const topOffset = Number.isFinite(petTopOffset) ? petTopOffset : petMetrics.topMargin;
+    const placement = projectPetWindowPosition(
+      newX,
+      wy,
+      topOffset,
+      petMetrics,
+      workAreas,
+    );
+    if (!placement) return;
+    const intendedPetLeft = newX + petMetrics.offsetX;
+    if (Math.abs(placement.petLeft - intendedPetLeft) > 1e-6) {
+      direction *= -1;
       win.webContents.send('direction', direction);
     }
 
-    currentX = newX;
-    safeSetPosition(newX, currentY);
+    applyProjectedPetPlacement(placement);
     syncAutomaticHoverState();
   }, TICK_MS);
 
@@ -1234,6 +1368,7 @@ function createWindow() {
     maybeSpeakStartupGreeting();
     scheduleReminders();
     scheduleIdleChatter();
+    scheduleChatInvite();
   });
 }
 
@@ -1247,45 +1382,34 @@ function startFling(vx, vy) {
   let flingVY = vy;
 
   flingIntervalId = setInterval(() => {
-    if (!win) {
+    if (!isLiveWindow(win)) {
       clearInterval(flingIntervalId);
       flingIntervalId = null;
+      paused = false;
       return;
     }
 
     const [x, y] = win.getPosition();
-    let newX = x + flingVX;
-    const currentPetTop = y + (Number.isFinite(petTopOffset) ? petTopOffset : getPetMetrics().topMargin);
-    let newPetTop = currentPetTop + flingVY;
+    const petMetrics = getPetMetrics();
+    const topOffset = Number.isFinite(petTopOffset) ? petTopOffset : petMetrics.topMargin;
+    const newX = x + flingVX;
+    const newY = y + flingVY;
+    const intendedPetLeft = newX + petMetrics.offsetX;
+    const intendedPetTop = newY + topOffset;
+    const placement = projectPetWindowPosition(newX, newY, topOffset, petMetrics);
+    if (!placement) return;
     let bounced = false;
 
-    const { minX, minY, maxX, maxY } = getCombinedBounds();
-    const petMetrics = getPetMetrics();
-    const minWinX = minX - petMetrics.offsetX;
-    const maxWinX = maxX - petMetrics.offsetX - petMetrics.width;
-
-    if (newX <= minWinX) {
-      newX = minWinX;
-      flingVX = -flingVX * FLING_BOUNCE_DAMPING;
-      bounced = true;
-    } else if (newX >= maxWinX) {
-      newX = maxWinX;
+    if (Math.abs(placement.petLeft - intendedPetLeft) > 1e-6) {
       flingVX = -flingVX * FLING_BOUNCE_DAMPING;
       bounced = true;
     }
-
-    const verticalPlacement = calculateVerticalPlacement(newPetTop, { minY, maxY }, petMetrics);
-    if (verticalPlacement.hitTop) {
-      newPetTop = verticalPlacement.petTop;
-      flingVY = -flingVY * FLING_BOUNCE_DAMPING;
-      bounced = true;
-    } else if (verticalPlacement.hitBottom) {
-      newPetTop = verticalPlacement.petTop;
+    if (Math.abs(placement.petTop - intendedPetTop) > 1e-6) {
       flingVY = -flingVY * FLING_BOUNCE_DAMPING;
       bounced = true;
     }
 
-    const positioned = positionPetAt(newX, newPetTop, { minY, maxY });
+    applyProjectedPetPlacement(placement);
     syncAutomaticHoverState();
 
     const newDirection = flingVX >= 0 ? 1 : -1;
@@ -1306,7 +1430,7 @@ function startFling(vx, vy) {
       clearInterval(flingIntervalId);
       flingIntervalId = null;
       [currentX, currentY] = win.getPosition();
-      if (Number.isFinite(positioned.windowY)) currentY = roundWindowCoordinate(positioned.windowY);
+      if (Number.isFinite(placement.windowY)) currentY = roundWindowCoordinate(placement.windowY);
       paused = false;
       // Only re-check hover once, right as it comes to rest - calling this
       // on every single tick churned setIgnoreMouseEvents 30+ times a
@@ -1317,35 +1441,43 @@ function startFling(vx, vy) {
 }
 
 function scheduleReminders() {
-  function tick() {
-    const now = new Date();
-    const reminder = getScheduleReminder(now, config.schedule);
-    if (reminder) {
-      speak(reminder.event, reminder.context, {
-        priority: SPEECH_PRIORITY.schedule,
-        durationMs: 9000,
-        replaceKey: reminder.event,
-      });
-    }
-  }
+  clearTimeout(reminderTimer);
 
-  const now = new Date();
-  const msUntilNextMinute = 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
-  setTimeout(() => {
-    tick();
-    setInterval(tick, 60000);
-  }, msUntilNextMinute);
+  const tick = () => {
+    const now = new Date();
+    maybeSpeakStartupGreeting(now);
+    const reminder = reminderScheduler.poll(now, config.schedule);
+    if (!reminder) return;
+    speak(reminder.event, reminder.context, {
+      priority: SPEECH_PRIORITY.schedule,
+      durationMs: 9000,
+      replaceKey: reminder.event,
+    });
+  };
+
+  const queueNextTick = () => {
+    const now = new Date();
+    const msUntilNextMinute = 60000 - (now.getSeconds() * 1000 + now.getMilliseconds());
+    reminderTimer = setTimeout(() => {
+      tick();
+      queueNextTick();
+    }, msUntilNextMinute);
+  };
+
+  tick();
+  queueNextTick();
 }
 
 function scheduleIdleChatter() {
   clearTimeout(idleChatterTimer);
-  clearTimeout(chatInviteTimer);
+  idleChatterTimer = null;
   if (!config.language.idleEnabled) return;
   const minMs = config.language.idleMinMinutes * 60 * 1000;
   const maxMs = config.language.idleMaxMinutes * 60 * 1000;
   const delay = minMs + Math.random() * (maxMs - minMs);
   idleChatterTimer = setTimeout(() => {
-    if (isMovementPaused() || flingIntervalId) {
+    idleChatterTimer = null;
+    if (isIdleSpeechPaused() || flingIntervalId) {
       scheduleIdleChatter();
       return;
     }
@@ -1379,11 +1511,23 @@ function pollBattery() {
     });
 }
 
+function refreshRoutinesAfterWake(wakeDate, inactiveSince) {
+  scheduleReminders();
+  scheduleIdleChatter();
+  scheduleChatInvite();
+  if (calendarService) {
+    calendarService.refreshAfterWake(wakeDate, inactiveSince).catch((error) => {
+      reportRuntimeError('Calendar wake refresh', error);
+    });
+  }
+}
+
 function speakAfterWake() {
   const now = Date.now();
   if (now - lastWakeSpokenAt < 2000) return;
   lastWakeSpokenAt = now;
-  const lockedSeconds = lockedAt ? Math.max(0, Math.round((now - lockedAt) / 1000)) : 0;
+  const inactiveSince = lockedAt;
+  const lockedSeconds = inactiveSince ? Math.max(0, Math.round((now - inactiveSince) / 1000)) : 0;
   lockedAt = null;
   systemPaused = false;
   speak('system.unlocked', { lockedSeconds }, {
@@ -1398,6 +1542,10 @@ function speakAfterWake() {
       replaceKey: 'rare.returnAfterLongLock',
     });
   }
+  refreshRoutinesAfterWake(
+    new Date(now),
+    inactiveSince ? new Date(inactiveSince) : null,
+  );
 }
 
 function setupSystemMonitors() {
@@ -1911,6 +2059,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   configStore = new ConfigStore(app.getPath('userData'));
   config = configStore.load();
   if (configStore.loadWarning) reportRuntimeError('Settings', configStore.loadWarning);
+  let startupConfigNeedsSave = false;
   startupGreetingStore = new StartupGreetingStore(app.getPath('userData'));
   startupGreetingStore.load();
   if (startupGreetingStore.loadWarning) {
@@ -1920,10 +2069,50 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   const activeCharacterId = loadConfiguredCharacter(config.pet.characterPackId);
   if (activeCharacterId !== config.pet.characterPackId) {
     config = { ...config, pet: { ...config.pet, characterPackId: activeCharacterId } };
+    startupConfigNeedsSave = true;
+  }
+  const selectedCharacterName = characterPack.manifest.displayName;
+  const fallbackCharacterPack = activeCharacterId === DEFAULT_CHARACTER_PACK_ID
+    ? characterPack
+    : loadCharacterPack(CHARACTERS_ROOT, DEFAULT_CHARACTER_PACK_ID);
+  const petGeometryRepair = repairLoadedPetConfigWithFallback(
+    config,
+    { id: activeCharacterId, size: characterPack.manifest.size },
+    {
+      id: fallbackCharacterPack.manifest.id,
+      size: fallbackCharacterPack.manifest.size,
+    },
+    PET_WINDOW_GEOMETRY,
+  );
+  if (petGeometryRepair.changed) {
+    config = petGeometryRepair.config;
+    startupConfigNeedsSave = true;
+    if (petGeometryRepair.characterChanged) {
+      characterPack = fallbackCharacterPack;
+      runtimeWarnings.set(
+        'petGeometry',
+        `形象“${selectedCharacterName}”无法同时容纳角色、任务气泡和台词，已改用默认形象“${characterPack.manifest.displayName}”。`,
+      );
+    } else {
+      runtimeWarnings.set(
+        'petGeometry',
+        `形象“${characterPack.manifest.displayName}”在 ${Math.round(petGeometryRepair.previousScale * 100)}% 时超出桌宠窗口，已自动调整为 ${Math.round(petGeometryRepair.maxScale * 100)}%。`,
+      );
+    }
   }
   const activeLanguageId = loadConfiguredLanguage(config.language.packId);
   if (activeLanguageId !== config.language.packId) {
     config = { ...config, language: { ...config.language, packId: activeLanguageId } };
+    startupConfigNeedsSave = true;
+  }
+  if (startupConfigNeedsSave) {
+    try {
+      config = configStore.save(config);
+      runtimeWarnings.clear('petGeometrySave');
+    } catch (error) {
+      runtimeWarnings.set('petGeometrySave', `自动修正后的设置无法保存，下次启动会再尝试：${error.message}`);
+      reportRuntimeError('Startup settings repair', error);
+    }
   }
   if (config.startup.launchAtLogin) {
     try {
@@ -1997,7 +2186,8 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
       if (!availableCharacterIds.has(nextConfig.pet?.characterPackId)) {
         throw new Error('Selected character pack is not installed or is invalid');
       }
-      const saved = persistConfig(nextConfig);
+      const selectedCharacter = loadCharacterPack(CHARACTERS_ROOT, nextConfig.pet.characterPackId);
+      const saved = persistConfig(nextConfig, selectedCharacter.manifest.size);
       applyConfig(saved);
       return getSettingsPayload();
     } catch (error) {
@@ -2008,7 +2198,8 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   ipcMain.handle('settings:reset', (event) => {
     assertSettingsSender(event);
     try {
-      const reset = persistConfig(DEFAULT_CONFIG);
+      const defaultCharacter = loadCharacterPack(CHARACTERS_ROOT, DEFAULT_CONFIG.pet.characterPackId);
+      const reset = persistConfig(DEFAULT_CONFIG, defaultCharacter.manifest.size);
       applyConfig(reset);
       return getSettingsPayload();
     } catch (error) {
@@ -2059,6 +2250,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   createApplicationMenu();
   createTray();
   createWindow();
+  setupDisplayMonitors();
   setupSystemMonitors();
   setupCalendarService();
   integrationManager = new IntegrationManager({
@@ -2082,7 +2274,11 @@ app.on('before-quit', (event) => {
   }
   clearTimeout(quitTimer);
   clearTimeout(idleChatterTimer);
+  clearTimeout(chatInviteTimer);
+  clearTimeout(reminderTimer);
+  clearTimeout(displayRecoveryTimer);
   clearTimeout(contextMenuPauseTimer);
+  stopPetMotionTimers();
   clearInterval(batteryPollTimer);
   clearInterval(taskMaintenanceTimer);
   clearInterval(taskLeasePollTimer);

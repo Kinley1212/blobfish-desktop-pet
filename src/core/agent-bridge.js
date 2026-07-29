@@ -4,13 +4,19 @@ const path = require('path');
 const { validateAgentEvent } = require('./agent-event-schema');
 
 const MAX_MESSAGE_BYTES = 16 * 1024;
+const DEFAULT_CONNECTION_IDLE_TIMEOUT_MS = 5_000;
 
 class AgentBridge {
   constructor(socketPath, options = {}) {
     this.socketPath = socketPath;
     this.onEvent = options.onEvent || (() => {});
     this.onError = options.onError || (() => {});
+    this.connectionIdleTimeoutMs = Number.isFinite(options.connectionIdleTimeoutMs)
+      && options.connectionIdleTimeoutMs > 0
+      ? Math.floor(options.connectionIdleTimeoutMs)
+      : DEFAULT_CONNECTION_IDLE_TIMEOUT_MS;
     this.server = null;
+    this.connections = new Set();
   }
 
   start() {
@@ -46,27 +52,44 @@ class AgentBridge {
   }
 
   handleConnection(socket) {
-    socket.setEncoding('utf8');
-    let buffer = '';
+    this.connections.add(socket);
+    socket.setTimeout(this.connectionIdleTimeoutMs, () => socket.destroy());
+    socket.on('error', () => {});
+    socket.on('close', () => this.connections.delete(socket));
+
+    let buffer = Buffer.alloc(0);
+    let receivedBytes = 0;
+    const processFrame = (frame) => {
+      const line = frame.toString('utf8');
+      if (!line.trim()) return;
+      try {
+        this.onEvent(validateAgentEvent(JSON.parse(line)));
+      } catch (error) {
+        this.onError(new Error(`Rejected local agent event: ${error.message}`));
+      }
+    };
+
     socket.on('data', (chunk) => {
-      buffer += chunk;
-      if (Buffer.byteLength(buffer) > MAX_MESSAGE_BYTES) {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, 'utf8');
+      receivedBytes += bytes.length;
+      if (receivedBytes > MAX_MESSAGE_BYTES) {
+        buffer = Buffer.alloc(0);
         socket.destroy();
         return;
       }
-      let newlineIndex = buffer.indexOf('\n');
+      buffer = Buffer.concat([buffer, bytes], buffer.length + bytes.length);
+      let newlineIndex = buffer.indexOf(0x0a);
       while (newlineIndex >= 0) {
-        const line = buffer.slice(0, newlineIndex);
-        buffer = buffer.slice(newlineIndex + 1);
-        if (line.trim()) {
-          try {
-            this.onEvent(validateAgentEvent(JSON.parse(line)));
-          } catch (error) {
-            this.onError(new Error(`Rejected local agent event: ${error.message}`));
-          }
-        }
-        newlineIndex = buffer.indexOf('\n');
+        processFrame(buffer.subarray(0, newlineIndex));
+        buffer = buffer.subarray(newlineIndex + 1);
+        newlineIndex = buffer.indexOf(0x0a);
       }
+    });
+    socket.on('end', () => {
+      if (buffer.length === 0) return;
+      const tail = buffer;
+      buffer = Buffer.alloc(0);
+      processFrame(tail);
     });
   }
 
@@ -82,6 +105,7 @@ class AgentBridge {
         this.removeSocketFile();
         resolve();
       });
+      for (const socket of this.connections) socket.destroy();
     });
   }
 
@@ -94,5 +118,6 @@ class AgentBridge {
 
 module.exports = {
   AgentBridge,
+  DEFAULT_CONNECTION_IDLE_TIMEOUT_MS,
   MAX_MESSAGE_BYTES,
 };

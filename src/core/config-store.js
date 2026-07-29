@@ -5,6 +5,7 @@ const {
   DEFAULT_TASK_COMPLETE_SOUND_ID,
   isValidTaskCompleteSoundId,
 } = require('./sound-catalog');
+const { PET_SCALE_MAX, PET_SCALE_MIN } = require('./pet-window-geometry');
 const { normalizeDiyMap } = require('./diy-model');
 const { normalizeAccessoryMap } = require('./accessory-model');
 
@@ -188,7 +189,7 @@ function validateConfig(input) {
       speed: requireNumber(input.pet.speed, 'pet.speed', 0.25, 4),
       scale: input.pet.scale === undefined
         ? DEFAULT_CONFIG.pet.scale
-        : requireNumber(input.pet.scale, 'pet.scale', 0.65, 1.5),
+        : requireNumber(input.pet.scale, 'pet.scale', PET_SCALE_MIN, PET_SCALE_MAX),
       roamWhenNoTasks: input.pet.roamWhenNoTasks === undefined
         ? !requireBoolean(input.pet.stopWhenAllTasksComplete, 'pet.stopWhenAllTasksComplete')
         : requireBoolean(input.pet.roamWhenNoTasks, 'pet.roamWhenNoTasks'),

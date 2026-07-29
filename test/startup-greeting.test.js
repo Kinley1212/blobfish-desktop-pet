@@ -36,6 +36,16 @@ test('disabled or out-of-range greetings remain silent', () => {
   assert.equal(getStartupGreeting(new Date(2026, 6, 19, 6, 59), schedule, greetings, { lastGreetingDate: null }), null);
 });
 
+test('custom workdays choose the matching greeting family', () => {
+  const weekendSchedule = { workdays: [0, 6] };
+  const saturday = new Date(2026, 6, 18, 9, 0);
+  const monday = new Date(2026, 6, 20, 9, 0);
+  const fresh = { version: 1, lastGreetingDate: null };
+
+  assert.equal(getStartupGreeting(saturday, weekendSchedule, greetings, fresh).event, 'startup.workdayMorning');
+  assert.equal(getStartupGreeting(monday, weekendSchedule, greetings, fresh).event, 'startup.dayOff');
+});
+
 test('state validation rejects impossible calendar dates', () => {
   assert.throws(
     () => validateState({ version: 1, lastGreetingDate: '2026-02-30' }),

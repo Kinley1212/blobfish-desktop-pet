@@ -1,12 +1,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('crypto');
+const { EventEmitter } = require('events');
 const fs = require('fs');
 const net = require('net');
 const os = require('os');
 const path = require('path');
 const { execFileSync, spawn } = require('child_process');
-const { AgentBridge } = require('../src/core/agent-bridge');
+const { AgentBridge, MAX_MESSAGE_BYTES } = require('../src/core/agent-bridge');
 const { readTaskLeases } = require('../src/core/task-lease-store');
 
 const senderPath = path.join(__dirname, '..', 'native', 'build', process.arch, 'blobfish-agent-event-sender');
@@ -195,6 +196,176 @@ test('accepts validated status-only events over a private Unix socket', async ()
     await bridge.stop();
     fs.rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('accepts one complete validated tail frame when the client ends without a newline', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-bridge-tail-'));
+  const socketPath = path.join(directory, 'events.sock');
+  const received = [];
+  const errors = [];
+  const bridge = new AgentBridge(socketPath, {
+    onEvent: (event) => received.push(event),
+    onError: (error) => errors.push(error),
+  });
+  try {
+    await bridge.start();
+    await new Promise((resolve, reject) => {
+      const socket = net.createConnection(socketPath, () => {
+        socket.end(JSON.stringify({
+          version: 1,
+          provider: 'codex',
+          event: 'running',
+          sessionId: 'tail-session',
+          turnId: 'tail-turn',
+        }));
+      });
+      socket.on('close', resolve);
+      socket.on('error', reject);
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(received.length, 1);
+    assert.equal(received[0].sessionId, 'tail-session');
+    assert.deepEqual(errors, []);
+  } finally {
+    await bridge.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('rejects an incomplete non-empty tail frame instead of treating it as an event', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-bridge-broken-tail-'));
+  const socketPath = path.join(directory, 'events.sock');
+  const received = [];
+  const errors = [];
+  const bridge = new AgentBridge(socketPath, {
+    onEvent: (event) => received.push(event),
+    onError: (error) => errors.push(error),
+  });
+  try {
+    await bridge.start();
+    await new Promise((resolve, reject) => {
+      const socket = net.createConnection(socketPath, () => socket.end('{"version":1'));
+      socket.on('close', resolve);
+      socket.on('error', reject);
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(received, []);
+    assert.equal(errors.length, 1);
+    assert.match(errors[0].message, /Rejected local agent event/);
+  } finally {
+    await bridge.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('closes an idle local client after the configured connection deadline', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-bridge-idle-'));
+  const socketPath = path.join(directory, 'events.sock');
+  const bridge = new AgentBridge(socketPath, { connectionIdleTimeoutMs: 40 });
+  let socket = null;
+  try {
+    await bridge.start();
+    socket = await new Promise((resolve, reject) => {
+      const client = net.createConnection(socketPath, () => resolve(client));
+      client.once('error', reject);
+    });
+    socket.on('error', () => {});
+    const closedPromptly = await Promise.race([
+      new Promise((resolve) => socket.once('close', () => resolve(true))),
+      new Promise((resolve) => setTimeout(() => resolve(false), 500)),
+    ]);
+    assert.equal(closedPromptly, true);
+  } finally {
+    socket?.destroy();
+    await bridge.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('stop destroys half-open clients and resolves promptly', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-bridge-stop-'));
+  const socketPath = path.join(directory, 'events.sock');
+  const bridge = new AgentBridge(socketPath, { connectionIdleTimeoutMs: 60_000 });
+  let socket = null;
+  let stopPromise = null;
+  try {
+    await bridge.start();
+    socket = await new Promise((resolve, reject) => {
+      const client = net.createConnection(socketPath, () => resolve(client));
+      client.once('error', reject);
+    });
+    socket.on('error', () => {});
+    stopPromise = bridge.stop();
+    const stoppedPromptly = await Promise.race([
+      stopPromise.then(() => true),
+      new Promise((resolve) => setTimeout(() => resolve(false), 500)),
+    ]);
+    assert.equal(stoppedPromptly, true);
+  } finally {
+    socket?.destroy();
+    if (stopPromise) await stopPromise;
+    else await bridge.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('bounds total bytes accepted from each connection even across newline-delimited frames', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'blobfish-bridge-byte-limit-'));
+  const socketPath = path.join(directory, 'events.sock');
+  const received = [];
+  const bridge = new AgentBridge(socketPath, { onEvent: (event) => received.push(event) });
+  let socket = null;
+  try {
+    await bridge.start();
+    socket = await new Promise((resolve, reject) => {
+      const client = net.createConnection(socketPath, () => resolve(client));
+      client.once('error', reject);
+    });
+    let closed = false;
+    socket.on('error', () => {});
+    socket.on('close', () => { closed = true; });
+    const frames = Array.from({ length: 180 }, (_, index) => `${JSON.stringify({
+      version: 1,
+      provider: 'codex',
+      event: 'running',
+      sessionId: `byte-limit-session-${index}`,
+      turnId: `byte-limit-turn-${index}`,
+    })}\n`);
+    assert.ok(Buffer.byteLength(frames.join('')) > MAX_MESSAGE_BYTES);
+    for (const frame of frames) {
+      if (closed) break;
+      socket.write(frame);
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    if (!closed) socket.end();
+    if (!closed) {
+      await Promise.race([
+        new Promise((resolve) => socket.once('close', resolve)),
+        new Promise((resolve) => setTimeout(resolve, 500)),
+      ]);
+    }
+    assert.ok(received.length < frames.length);
+  } finally {
+    socket?.destroy();
+    await bridge.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('handles client socket errors locally without surfacing bridge noise', () => {
+  const errors = [];
+  const bridge = new AgentBridge('/tmp/blobfish-unused.sock', {
+    onError: (error) => errors.push(error),
+  });
+  const socket = new EventEmitter();
+  socket.setEncoding = () => {};
+  socket.setTimeout = () => {};
+  socket.destroy = () => socket.emit('close');
+
+  bridge.handleConnection(socket);
+  assert.doesNotThrow(() => socket.emit('error', new Error('client reset')));
+  assert.deepEqual(errors, []);
+  socket.destroy();
 });
 
 test('rejects unsupported providers and oversized identifiers', async () => {
