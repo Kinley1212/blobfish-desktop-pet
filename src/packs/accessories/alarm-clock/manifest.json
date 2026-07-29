@@ -1,0 +1,8 @@
+{
+  "id": "alarm-clock",
+  "displayName": "小闹钟",
+  "version": 1,
+  "slot": "clock",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 82 }
+}

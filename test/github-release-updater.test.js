@@ -11,6 +11,7 @@ const {
   expectedAssetNames,
   getInstalledAppBundle,
   latestAssetDownloadUrl,
+  launchMacInstallerInBackground,
   selectManifestUpdate,
   selectReleaseUpdate,
   withUpdateTimeout,
@@ -177,6 +178,52 @@ test('installer script bounds subprocesses and atomically promotes a verified ap
   assert.match(script, /\/bin\/rm -R "\$staging"/);
   assert.match(script, /tell application "Finder" to delete POSIX file/);
   assert.doesNotMatch(script, /\/bin\/cp -R/);
+});
+
+test('launches the verified installer as a hidden detached helper instead of opening Terminal', async () => {
+  const commandPath = '/tmp/updates/release-abc123/安装水滴鱼更新.command';
+  const calls = [];
+  let unrefCount = 0;
+  const listeners = {};
+  const child = {
+    once(event, callback) {
+      listeners[event] = callback;
+      return this;
+    },
+    unref() {
+      unrefCount += 1;
+    },
+  };
+  const spawn = (...args) => {
+    calls.push(args);
+    queueMicrotask(() => listeners.spawn());
+    return child;
+  };
+
+  await launchMacInstallerInBackground(commandPath, { spawn });
+
+  assert.deepEqual(calls, [[
+    '/bin/zsh',
+    [commandPath],
+    {
+      detached: true,
+      shell: false,
+      stdio: 'ignore',
+      windowsHide: true,
+    },
+  ]]);
+  assert.equal(unrefCount, 1);
+});
+
+test('rejects an installer outside the private release staging directory', async () => {
+  await assert.rejects(
+    launchMacInstallerInBackground('/tmp/installer.command', {
+      spawn: () => {
+        throw new Error('must not spawn');
+      },
+    }),
+    /不在受信任的暂存目录/,
+  );
 });
 
 test('cleans only old release staging directories and leaves fresh, active and unsafe entries alone', () => {

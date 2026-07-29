@@ -28,6 +28,7 @@ function classList() {
 
 function element() {
   return {
+    addEventListener() {},
     append() {},
     classList: classList(),
     dataset: {},
@@ -67,6 +68,17 @@ function createRendererHarness() {
   const pet = element();
   const bubble = element();
   const taskBubble = element();
+  const clockElements = Object.fromEntries([
+    'clock-alert',
+    'clock-display',
+    'clock-display-label',
+    'clock-display-time',
+    'clock-alert-kind',
+    'clock-alert-title',
+    'clock-alert-snooze',
+    'clock-alert-dismiss',
+    'completion-effect',
+  ].map((id) => [id, element()]));
   const body = element();
   const svgRoot = { outerHTML: '<svg></svg>' };
   pet.querySelector = (selector) => (selector === 'svg' ? svgRoot : null);
@@ -101,6 +113,7 @@ function createRendererHarness() {
       if (id === 'pet') return pet;
       if (id === 'bubble') return bubble;
       if (id === 'task-bubble') return taskBubble;
+      if (clockElements[id]) return clockElements[id];
       return null;
     },
     querySelectorAll: () => [],
@@ -112,9 +125,11 @@ function createRendererHarness() {
     'onCharacterPack',
     'onChatInvite',
     'onCheckHover',
+    'onClockState',
     'onDialogueReaction',
     'onDirection',
     'onPetAction',
+    'onPetEffect',
     'onPetConfig',
     'onPetLayout',
     'onSpeech',
@@ -123,6 +138,12 @@ function createRendererHarness() {
   const petAPI = {
     getAgentState: () => bootstrapRejections.agent,
     getCharacterPack: () => getCharacterPack(),
+    getClockSummary: () => Promise.resolve({
+      timer: null,
+      nextAlarm: null,
+      alerts: [],
+      hasEnabledAlarm: false,
+    }),
     getPetConfig: () => bootstrapRejections.config,
     getTaskStatus: () => bootstrapRejections.status,
     openChat: () => {
@@ -131,6 +152,18 @@ function createRendererHarness() {
     petClicked: () => {
       petClickedCount += 1;
     },
+    dismissClockAlert: () => Promise.resolve({
+      timer: null,
+      nextAlarm: null,
+      alerts: [],
+      hasEnabledAlarm: false,
+    }),
+    snoozeClockAlert: () => Promise.resolve({
+      timer: null,
+      nextAlarm: null,
+      alerts: [],
+      hasEnabledAlarm: false,
+    }),
     setPaused() {},
   };
   for (const method of callbackMethods) {
@@ -144,6 +177,7 @@ function createRendererHarness() {
       applyAccessoriesToSvg() {},
       normalizeAccessories: () => ({ equipped: {} }),
       sanitizeSvgTree: (root) => root,
+      withAccessoryEquipped: (spec) => spec,
     },
     clearTimeout(id) {
       timers.delete(id);
@@ -168,6 +202,10 @@ function createRendererHarness() {
       bootstrapRenderer,
       createAsyncGuard,
       createChatInviteIntent,
+    },
+    setInterval() {
+      timerId += 1;
+      return timerId;
     },
     setTimeout(callback) {
       timerId += 1;

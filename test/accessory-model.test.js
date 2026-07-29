@@ -16,6 +16,7 @@ const {
   normalizeAccessories,
   normalizeAccessoryMap,
   supportsAccessories,
+  withAccessoryEquipped,
 } = require('../src/core/accessory-model');
 const { loadAccessory, loadAccessoryCatalog, validateAccessoryManifest } = require('../src/core/accessory-loader');
 const { loadCharacterPack } = require('../src/core/pack-loader');
@@ -26,7 +27,7 @@ const charactersRoot = path.join(__dirname, '..', 'src', 'packs', 'characters');
 test('a fresh wardrobe wears nothing and has no tuning', () => {
   const spec = defaultAccessories();
 
-  assert.deepEqual(Object.keys(spec.equipped), ['face', 'hat', 'eyewear', 'hand']);
+  assert.deepEqual(Object.keys(spec.equipped), ['face', 'hat', 'eyewear', 'hand', 'clock']);
   for (const slot of ACCESSORY_SLOTS) assert.equal(spec.equipped[slot.key], null);
   assert.deepEqual(spec.tuning, {});
   assert.deepEqual(defaultTuning(), { size: 1, width: 1, height: 1, offsetX: 0, offsetY: 0 });
@@ -48,6 +49,19 @@ test('each accessory keeps its own fit, so swapping never loses the other one', 
   assert.equal(getTuning(spec, 'beanie').size, 0.8, 'the hat that is not worn keeps its numbers');
   assert.equal(getTuning(spec, 'beanie').width, 1.4);
   assert.deepEqual(getTuning(spec, 'crown'), DEFAULT_TUNING, 'an untouched piece starts at the defaults');
+});
+
+test('a system prop can be equipped temporarily without mutating the saved spec', () => {
+  const saved = normalizeAccessories({
+    equipped: { hand: 'coffee' },
+    tuning: { 'alarm-clock': { offsetX: 4, size: 1.2 } },
+  });
+  const runtime = withAccessoryEquipped(saved, 'clock', 'alarm-clock');
+
+  assert.equal(saved.equipped.clock, null);
+  assert.equal(runtime.equipped.clock, 'alarm-clock');
+  assert.equal(runtime.equipped.hand, 'coffee');
+  assert.equal(getTuning(runtime, 'alarm-clock').offsetX, 4);
 });
 
 test('out-of-range and unreadable values are clamped instead of rejected', () => {
@@ -157,10 +171,10 @@ test('SVG safety rules reject active content and external references without rem
 test('every bundled accessory declares a slot, an anchor and real art', () => {
   const catalog = loadAccessoryCatalog(accessoriesRoot);
 
-  assert.equal(catalog.length, 88);
+  assert.equal(catalog.length, 89);
   const counts = {};
   for (const item of catalog) counts[item.slot] = (counts[item.slot] || 0) + 1;
-  assert.deepEqual(counts, { face: 31, hat: 30, eyewear: 10, hand: 17 });
+  assert.deepEqual(counts, { face: 31, hat: 30, eyewear: 10, hand: 17, clock: 1 });
   assert.equal(new Set(catalog.map((item) => item.id)).size, catalog.length, 'ids must be unique');
   for (const item of catalog) {
     assert.match(item.svg, /^<svg viewBox="0 0 100 100"/, `${item.id} must be drawn in the shared 100x100 box`);

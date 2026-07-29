@@ -19,6 +19,7 @@ const appUpdateControls = {
   install: document.getElementById('install-app-update'),
   status: document.getElementById('app-update-status'),
 };
+const openClockButton = document.getElementById('open-clock');
 const integrationResults = {};
 const connectionTestTimers = {};
 const integrationOperations = new Map();
@@ -525,6 +526,25 @@ function renderAccessoryControls() {
   for (const slot of accessoryModel.ACCESSORY_SLOTS) {
     if (!slots[slot.key]) continue;
 
+    if (slot.systemAccessoryId) {
+      const systemField = document.createElement('div');
+      systemField.className = 'field accessory-system-field';
+      const systemTitle = document.createElement('strong');
+      systemTitle.textContent = slot.label;
+      const systemHint = document.createElement('span');
+      systemHint.textContent = '设好闹钟后自动出现；这里只调整它在角色手边的位置。';
+      systemField.append(systemTitle, systemHint);
+      container.appendChild(systemField);
+
+      const sliders = document.createElement('div');
+      sliders.className = 'range-stack accessory-sliders';
+      for (const sliderField of accessoryModel.ACCESSORY_FIELDS) {
+        sliders.appendChild(buildAccessorySlider(() => slot.systemAccessoryId, sliderField));
+      }
+      container.appendChild(sliders);
+      continue;
+    }
+
     const field = document.createElement('label');
     field.className = 'field';
     field.append(slot.label);
@@ -605,7 +625,7 @@ function renderDiyPreview() {
     svg,
     { accessories: diyArt.accessories },
     accessoryCatalog,
-    currentAccessorySpec(),
+    accessoryModel.withAccessoryEquipped(currentAccessorySpec(), 'clock', 'alarm-clock'),
   );
 }
 
@@ -962,6 +982,7 @@ function renderConfig(config, characters, languages, sounds, accessories) {
   setChecked('category-system', config.language.categories.system);
   setChecked('category-calendar', config.language.categories.calendar);
   setChecked('category-agents', config.language.categories.agents);
+  setChecked('category-clock', config.language.categories.clock);
   setValue('pet-speed', config.pet.speed);
   speedOutput.value = `${config.pet.speed.toFixed(2)}×`;
   syncPetScaleLimit(config.pet.characterPackId, { clamp: false });
@@ -1028,6 +1049,7 @@ function readConfig() {
         system: byId('category-system').checked,
         calendar: byId('category-calendar').checked,
         agents: byId('category-agents').checked,
+        clock: byId('category-clock').checked,
       },
     },
     pet: {
@@ -1143,6 +1165,13 @@ for (const provider of agentProviders) {
   integrationControls[provider].disconnect.addEventListener('click', () => disconnectAgentIntegration(provider));
 }
 byId('refresh-integrations').addEventListener('click', refreshAgentIntegrations);
+openClockButton.addEventListener('click', async () => {
+  try {
+    await window.settingsAPI.openClock();
+  } catch (error) {
+    showStatus(`无法打开闹钟与计时器：${error.message}`, true);
+  }
+});
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
