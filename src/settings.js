@@ -205,25 +205,37 @@ function renderAppUpdate(result) {
   install.hidden = true;
   install.disabled = false;
   if (!result || result.state === 'idle') {
-    updateStatus.textContent = `当前是 Pro${result?.currentVersion || '…'}。需要时可以检查 GitHub 的正式版本。`;
+    updateStatus.textContent = currentUiLocale === 'en'
+      ? `Current version: Pro${result?.currentVersion || '…'}. Check GitHub releases whenever you need.`
+      : `当前是 Pro${result?.currentVersion || '…'}。需要时可以检查 GitHub 的正式版本。`;
     return;
   }
   if (result.state === 'checking') {
     check.disabled = true;
-    updateStatus.textContent = '正在检查 GitHub 的最新正式版本…';
+    updateStatus.textContent = currentUiLocale === 'en'
+      ? 'Checking the latest GitHub release…'
+      : '正在检查 GitHub 的最新正式版本…';
     return;
   }
   if (result.state === 'available') {
-    updateStatus.textContent = `发现 Pro${result.version}（${formatBytes(result.asset.size)}）。下载完成后会自动替换并重新打开。`;
+    updateStatus.textContent = currentUiLocale === 'en'
+      ? `Pro${result.version} is available (${formatBytes(result.asset.size)}). The app will replace itself and reopen after download.`
+      : `发现 Pro${result.version}（${formatBytes(result.asset.size)}）。下载完成后会自动替换并重新打开。`;
     install.hidden = false;
-    install.textContent = `下载并更新到 Pro${result.version}`;
+    install.textContent = currentUiLocale === 'en'
+      ? `Download and update to Pro${result.version}`
+      : `下载并更新到 Pro${result.version}`;
     return;
   }
   if (result.state === 'up-to-date') {
-    updateStatus.textContent = `已是最新版本 Pro${result.currentVersion}。`;
+    updateStatus.textContent = currentUiLocale === 'en'
+      ? `Pro${result.currentVersion} is up to date.`
+      : `已是最新版本 Pro${result.currentVersion}。`;
     return;
   }
-  updateStatus.textContent = result.message || '暂时无法检查 GitHub 更新。';
+  updateStatus.textContent = result.message || (
+    currentUiLocale === 'en' ? 'Unable to check GitHub updates right now.' : '暂时无法检查 GitHub 更新。'
+  );
 }
 
 async function checkAppUpdate() {
@@ -231,11 +243,18 @@ async function checkAppUpdate() {
   try {
     const result = await window.settingsAPI.checkAppUpdate();
     renderAppUpdate(result);
-    if (result.state === 'available') showStatus(`发现 Pro${result.version}，可以直接下载并更新。`);
+    if (result.state === 'available') showStatus(currentUiLocale === 'en'
+      ? `Pro${result.version} is ready to download and install.`
+      : `发现 Pro${result.version}，可以直接下载并更新。`);
     else if (result.state === 'error') showStatus(result.message, true);
     return result;
   } catch (error) {
-    const result = { state: 'error', message: `无法检查 GitHub 更新：${error.message}` };
+    const result = {
+      state: 'error',
+      message: currentUiLocale === 'en'
+        ? `Unable to check GitHub updates: ${error.message}`
+        : `无法检查 GitHub 更新：${error.message}`,
+    };
     renderAppUpdate(result);
     showStatus(result.message, true);
     return result;
@@ -246,32 +265,42 @@ async function installAppUpdate() {
   let update = appUpdateResult;
   if (!update || update.state !== 'available') update = await checkAppUpdate();
   if (!update || update.state !== 'available') return;
-  const confirmed = window.confirm(
-    `下载并安装 Pro${update.version} 吗？\n\n将下载 ${formatBytes(update.asset.size)} 的 ${update.architecture === 'arm64' ? 'Apple 芯片' : 'Intel'} 版本。下载后水滴鱼会退出、安装新版本并自动重新打开。\n\n如果当前位置不可写，新版会自动安装到你个人的“应用程序”文件夹，不需要管理员权限；这种情况下旧版会保留。`,
-  );
+  const confirmed = window.confirm(currentUiLocale === 'en'
+    ? `Download and install Pro${update.version}?\n\nThis downloads the ${formatBytes(update.asset.size)} ${update.architecture === 'arm64' ? 'Apple silicon' : 'Intel'} build. The pet will quit, install the new version, and reopen automatically.\n\nIf the current location is read-only, the new version will be installed in your personal Applications folder without administrator access; the old copy will remain.`
+    : `下载并安装 Pro${update.version} 吗？\n\n将下载 ${formatBytes(update.asset.size)} 的 ${update.architecture === 'arm64' ? 'Apple 芯片' : 'Intel'} 版本。下载后水滴鱼会退出、安装新版本并自动重新打开。\n\n如果当前位置不可写，新版会自动安装到你个人的“应用程序”文件夹，不需要管理员权限；这种情况下旧版会保留。`);
   if (!confirmed) return;
 
   appUpdateControls.check.disabled = true;
   appUpdateControls.install.disabled = true;
-  appUpdateControls.status.textContent = `准备下载 Pro${update.version}…`;
+  appUpdateControls.status.textContent = currentUiLocale === 'en'
+    ? `Preparing to download Pro${update.version}…`
+    : `准备下载 Pro${update.version}…`;
   try {
     const result = await window.settingsAPI.installAppUpdate();
     if (result.state === 'installing') {
       const destination = result.installLocation === 'user-applications'
-        ? '个人“应用程序”文件夹'
-        : '当前文件夹';
-      appUpdateControls.status.textContent = `Pro${result.version} 已校验，正在退出并安装到${destination}…`;
+        ? (currentUiLocale === 'en' ? 'your personal Applications folder' : '个人“应用程序”文件夹')
+        : (currentUiLocale === 'en' ? 'the current folder' : '当前文件夹');
+      appUpdateControls.status.textContent = currentUiLocale === 'en'
+        ? `Pro${result.version} verified. Quitting and installing to ${destination}…`
+        : `Pro${result.version} 已校验，正在退出并安装到${destination}…`;
     } else if (result.state === 'error') {
       appUpdateControls.check.disabled = false;
       appUpdateControls.install.disabled = false;
-      appUpdateControls.status.textContent = `更新没有完成：${result.message}`;
-      showStatus(`更新没有完成：${result.message}`, true);
+      const message = currentUiLocale === 'en'
+        ? `Update did not complete: ${result.message}`
+        : `更新没有完成：${result.message}`;
+      appUpdateControls.status.textContent = message;
+      showStatus(message, true);
     }
   } catch (error) {
     appUpdateControls.check.disabled = false;
     appUpdateControls.install.disabled = false;
-    appUpdateControls.status.textContent = '更新没有完成，请重新检查后再试。';
-    showStatus('更新没有完成，请重新检查后再试。', true);
+    const message = currentUiLocale === 'en'
+      ? 'Update did not complete. Check again and retry.'
+      : '更新没有完成，请重新检查后再试。';
+    appUpdateControls.status.textContent = message;
+    showStatus(message, true);
   }
 }
 
@@ -279,18 +308,28 @@ function renderAppUpdateProgress(progress) {
   if (!progress || typeof progress !== 'object') return;
   const personalApplications = progress.installLocation === 'user-applications';
   if (progress.state === 'preparing' && personalApplications) {
-    appUpdateControls.status.textContent = '当前位置不可写，将把新版安装到你个人的“应用程序”文件夹…';
+    appUpdateControls.status.textContent = currentUiLocale === 'en'
+      ? 'The current location is read-only. The new version will use your personal Applications folder…'
+      : '当前位置不可写，将把新版安装到你个人的“应用程序”文件夹…';
   } else if (progress.state === 'downloading') {
     const total = Number(progress.total);
     const received = Number(progress.received);
     const suffix = Number.isFinite(total) && total > 0
-      ? `（${Math.min(100, Math.round((received / total) * 100))}%）`
+      ? `${currentUiLocale === 'en' ? '(' : '（'}${Math.min(100, Math.round((received / total) * 100))}%${currentUiLocale === 'en' ? ')' : '）'}`
       : '';
-    const destination = personalApplications ? '，稍后安装到个人“应用程序”文件夹' : '';
-    appUpdateControls.status.textContent = `正在下载 Pro${progress.version} ${suffix}${destination}…`;
+    const destination = personalApplications
+      ? (currentUiLocale === 'en' ? ', then install to your personal Applications folder' : '，稍后安装到个人“应用程序”文件夹')
+      : '';
+    appUpdateControls.status.textContent = currentUiLocale === 'en'
+      ? `Downloading Pro${progress.version} ${suffix}${destination}…`
+      : `正在下载 Pro${progress.version} ${suffix}${destination}…`;
   } else if (progress.state === 'installing') {
-    const destination = personalApplications ? '到个人“应用程序”文件夹' : '';
-    appUpdateControls.status.textContent = `Pro${progress.version} 已校验，正在准备安装${destination}…`;
+    const destination = personalApplications
+      ? (currentUiLocale === 'en' ? ' in your personal Applications folder' : '到个人“应用程序”文件夹')
+      : '';
+    appUpdateControls.status.textContent = currentUiLocale === 'en'
+      ? `Pro${progress.version} verified. Preparing installation${destination}…`
+      : `Pro${progress.version} 已校验，正在准备安装${destination}…`;
   }
 }
 
@@ -692,7 +731,17 @@ async function loadDiy(packId) {
 }
 
 function renderIntegrationStatus(integrationStatus = {}) {
-  const labels = {
+  const labels = currentUiLocale === 'en' ? {
+    disabled: 'disabled',
+    requesting: 'requesting calendar permission…',
+    authorized: 'authorized · read locally',
+    notDetermined: 'permission not decided',
+    denied: 'permission denied',
+    restricted: 'restricted by the system',
+    writeOnly: 'write-only permission · cannot read',
+    unknown: 'unknown permission state',
+    error: 'connection failed · see logs',
+  } : {
     disabled: '未启用',
     requesting: '正在请求日历权限…',
     authorized: '已授权，只在本机读取',
@@ -704,8 +753,15 @@ function renderIntegrationStatus(integrationStatus = {}) {
     error: '连接失败，请查看日志',
   };
   const statusName = integrationStatus.calendar || 'disabled';
-  byId('calendar-status').textContent = `日历：${labels[statusName] || labels.unknown}`;
-  const bridgeLabels = {
+  byId('calendar-status').textContent = currentUiLocale === 'en'
+    ? `Calendar: ${labels[statusName] || labels.unknown}`
+    : `日历：${labels[statusName] || labels.unknown}`;
+  const bridgeLabels = currentUiLocale === 'en' ? {
+    starting: 'Starting…',
+    listening: 'Local receiver ready (platform connection not yet verified)',
+    stopped: 'Not started',
+    error: 'Failed to start · see logs',
+  } : {
     starting: '正在启动…',
     listening: '本地接收器已就绪（不代表平台已连接）',
     stopped: '未启动',
@@ -716,8 +772,8 @@ function renderIntegrationStatus(integrationStatus = {}) {
 }
 
 function formatLastEvent(timestamp) {
-  if (!timestamp) return '尚未收到';
-  return new Intl.DateTimeFormat('zh-CN', {
+  if (!timestamp) return currentUiLocale === 'en' ? 'not received yet' : '尚未收到';
+  return new Intl.DateTimeFormat(currentUiLocale === 'en' ? 'en' : 'zh-CN', {
     month: 'numeric',
     day: 'numeric',
     hour: '2-digit',
@@ -725,10 +781,48 @@ function formatLastEvent(timestamp) {
   }).format(new Date(timestamp));
 }
 
+function localizeConnectionDetail(detail) {
+  if (currentUiLocale !== 'en') return detail;
+  const exact = {
+    '正在检测…': 'Checking…',
+    '已找到命令行工具': 'Command-line tool found',
+    '已打开 Codex App 插件页': 'Codex App plugin page opened',
+    '已由真实任务事件确认': 'Confirmed by a real task event',
+    '未找到命令行工具': 'Command-line tool not found',
+    '检测未完成': 'Check incomplete',
+    '尚未确认': 'Not confirmed',
+    '已安装并启用': 'Installed and enabled',
+    '检测到可升级的旧版': 'Older version can be upgraded',
+    '已安装，但被停用': 'Installed but disabled',
+    '同名插件来源冲突': 'Same-name plugin source conflict',
+    '连接记录陈旧，可以一键修复': 'Stale connection record · one-click repair available',
+    '检测或操作失败': 'Check or operation failed',
+    '等待安装结果': 'Waiting for installation',
+    '等待手动移除': 'Waiting for manual removal',
+    '已由真实任务事件确认工作': 'Verified by a real task event',
+    '尚未安装': 'Not installed',
+    '任务状态接收已暂停': 'Task status reception paused',
+    'Hook 已通过真实事件验证': 'Hook verified by a real event',
+    '插件已在会话中生效': 'Plugin active in the session',
+    '请检查 /hooks 是否已允许': 'Check that the pet is allowed in /hooks',
+    '请重新打开 Claude Code 会话': 'Reopen the Claude Code session',
+    '请在 /hooks 中允许水滴鱼': 'Allow the pet in /hooks',
+    '安装后需要授权': 'Authorization required after installation',
+    '安装后需要新会话': 'A new session is required after installation',
+    '接收已暂停': 'Reception paused',
+    '尚未验证': 'Not verified',
+  };
+  if (exact[detail]) return exact[detail];
+  if (/^已安装 v/.test(detail)) return detail.replace(/^已安装/, 'Installed');
+  if (/^检测到旧版 v/.test(detail)) return detail.replace(/^检测到旧版/, 'Older version found');
+  if (/^最近收到：/.test(detail)) return detail.replace(/^最近收到：/, 'Last received: ');
+  return tr(detail);
+}
+
 function setConnectionStep(provider, stage, state, detail) {
   const element = byId(`${provider}-stage-${stage}`);
   element.dataset.state = state;
-  element.querySelector('small').textContent = tr(detail);
+  element.querySelector('small').textContent = localizeConnectionDetail(detail);
 }
 
 function renderAgentIntegration(provider, result) {
@@ -764,16 +858,22 @@ function renderAgentIntegration(provider, result) {
   verdictElement.dataset.state = presentation.verdictState;
   byId(`${provider}-next-step`).textContent = presentation.instruction;
   const conflictHelp = result.state === 'conflict'
-    ? (provider === 'codex'
-      ? `处理：在 Codex 插件页面移除“${result.pluginId || '同名插件'}”，然后点“重新检测连接状态”。`
-      : `处理：在 Claude Code 插件管理中移除“${result.pluginId || '同名插件'}”，然后点“重新检测连接状态”。`)
+    ? (currentUiLocale === 'en'
+      ? (provider === 'codex'
+        ? `Action: remove “${result.pluginId || 'the same-name plugin'}” on the Codex plugin page, then check the connection again.`
+        : `Action: remove “${result.pluginId || 'the same-name plugin'}” in Claude Code plugin management, then check the connection again.`)
+      : (provider === 'codex'
+        ? `处理：在 Codex 插件页面移除“${result.pluginId || '同名插件'}”，然后点“重新检测连接状态”。`
+        : `处理：在 Claude Code 插件管理中移除“${result.pluginId || '同名插件'}”，然后点“重新检测连接状态”。`))
     : null;
   technicalDetails.textContent = [
-    result.pluginId ? `插件：${result.pluginId}` : null,
-    result.version ? `版本：${result.version}` : null,
-    result.error ? `详情：${result.error}` : null,
+    result.pluginId ? `${currentUiLocale === 'en' ? 'Plugin' : '插件'}：${result.pluginId}` : null,
+    result.version ? `${currentUiLocale === 'en' ? 'Version' : '版本'}：${result.version}` : null,
+    result.error ? `${currentUiLocale === 'en' ? 'Details' : '详情'}：${result.error}` : null,
     conflictHelp,
-  ].filter(Boolean).join(' · ') || '未检测到插件标识。';
+  ].filter(Boolean).join(' · ') || (
+    currentUiLocale === 'en' ? 'No plugin identifier detected.' : '未检测到插件标识。'
+  );
 
   if (result.state === 'checking') setConnectionStep(provider, 'cli', 'pending', '正在检测…');
   else if (result.cliFound) setConnectionStep(provider, 'cli', 'done', '已找到命令行工具');
