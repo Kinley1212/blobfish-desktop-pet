@@ -1,0 +1,15 @@
+{
+  "category": "system",
+  "phrases": [
+    { "id": "grass-en-workday-hello-01", "event": "startup.workdayMorning", "text": "Morning. We can start slowly." },
+    { "id": "grass-en-dayoff-hello-01", "event": "startup.dayOff", "text": "A day off. Good for roots." },
+    { "id": "grass-en-ready-01", "event": "system.integrationReady", "text": "The task connection is ready." },
+    { "id": "grass-en-unlocked-01", "event": "system.unlocked", "text": "You came back. Hello again." },
+    { "id": "grass-en-battery-20", "event": "system.battery", "text": "Twenty percent battery.", "conditions": { "batteryEquals": 20 } },
+    { "id": "grass-en-battery-10", "event": "system.battery", "text": "Ten percent. A charger would help.", "conditions": { "batteryEquals": 10 } },
+    { "id": "grass-en-battery-5", "event": "system.battery", "text": "Five percent. That is quite low.", "conditions": { "batteryEquals": 5 } },
+    { "id": "grass-en-battery-3", "event": "system.battery", "text": "Three percent. Please plug it in.", "conditions": { "batteryEquals": 3 } },
+    { "id": "grass-en-battery-2", "event": "system.battery", "text": "Two percent. Charger. Quickly.", "conditions": { "batteryEquals": 2 } },
+    { "id": "grass-en-error-01", "event": "system.error", "text": "Something failed to connect. It happens." }
+  ]
+}

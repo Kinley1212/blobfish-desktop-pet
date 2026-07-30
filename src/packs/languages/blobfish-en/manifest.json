@@ -1,0 +1,21 @@
+{
+  "id": "blobfish-en",
+  "displayName": "Blobfish English",
+  "locale": "en",
+  "characterPackIds": ["blobfish", "blobfish-wotou"],
+  "version": 1,
+  "style": "style.json",
+  "files": {
+    "original": [
+      "core/basics.json"
+    ],
+    "additions": [
+      "additions/interactions.json",
+      "additions/system.json",
+      "additions/calendar.json",
+      "additions/agents.json",
+      "additions/clock.json",
+      "additions/rare.json"
+    ]
+  }
+}

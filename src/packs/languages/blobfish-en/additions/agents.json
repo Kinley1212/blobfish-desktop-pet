@@ -1,0 +1,13 @@
+{
+  "category": "agents",
+  "phrases": [
+    { "id": "en-agent-started-01", "event": "agent.started", "text": "A task started. I will swim about it." },
+    { "id": "en-agent-input-01", "event": "agent.needsInput", "text": "It needs your approval. I cannot click it for you." },
+    { "id": "en-agent-completed-01", "event": "agent.completed", "text": "That one finished. Nicely done." },
+    { "id": "en-agent-ended-01", "event": "agent.ended", "text": "That task has ended." },
+    { "id": "en-agent-failed-01", "event": "agent.failed", "text": "That task failed. Unpleasant, but visible." },
+    { "id": "en-agent-all-completed-01", "event": "agent.allCompleted", "text": "Everything finished. We may both stop moving now." },
+    { "id": "en-agent-all-ended-01", "event": "agent.allEnded", "text": "All tasks have ended. Quiet at last." },
+    { "id": "en-agent-long-01", "event": "agent.longRunning", "text": "That task has been running for a while. I am still watching." }
+  ]
+}

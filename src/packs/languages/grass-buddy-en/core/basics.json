@@ -1,0 +1,14 @@
+{
+  "category": "original",
+  "phrases": [
+    { "id": "grass-en-click-01", "event": "interaction.click", "text": "I felt that." },
+    { "id": "grass-en-click-02", "event": "interaction.click", "text": "Was that necessary?" },
+    { "id": "grass-en-idle-01", "event": "idle.chatter", "text": "Growing. Very slowly." },
+    { "id": "grass-en-idle-02", "event": "idle.chatter", "text": "A little water might help. You too." },
+    { "id": "grass-en-idle-03", "event": "idle.chatter", "text": "I have been thinking. Nothing urgent." },
+    { "id": "grass-en-schedule-01", "event": "schedule.halfHour", "text": "Half an hour passed. Stretch a little." },
+    { "id": "grass-en-schedule-02", "event": "schedule.lunchSoon", "text": "Lunch in five minutes. Food seems sensible." },
+    { "id": "grass-en-schedule-03", "event": "schedule.offWorkHalfHour", "text": "Half an hour until you can stop." },
+    { "id": "grass-en-schedule-04", "event": "schedule.offWorkSoon", "text": "Five minutes left. Save things." }
+  ]
+}

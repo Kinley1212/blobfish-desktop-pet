@@ -1,0 +1,13 @@
+{
+  "category": "agents",
+  "phrases": [
+    { "id": "grass-en-agent-started-01", "event": "agent.started", "text": "A task started. I will keep moving." },
+    { "id": "grass-en-agent-input-01", "event": "agent.needsInput", "text": "It needs your approval." },
+    { "id": "grass-en-agent-completed-01", "event": "agent.completed", "text": "That task finished. Good." },
+    { "id": "grass-en-agent-ended-01", "event": "agent.ended", "text": "That task has ended." },
+    { "id": "grass-en-agent-failed-01", "event": "agent.failed", "text": "That task failed. We can look again." },
+    { "id": "grass-en-agent-all-completed-01", "event": "agent.allCompleted", "text": "Everything finished. We can be still." },
+    { "id": "grass-en-agent-all-ended-01", "event": "agent.allEnded", "text": "All tasks ended. It is quiet now." },
+    { "id": "grass-en-agent-long-01", "event": "agent.longRunning", "text": "That task is taking its time. I understand." }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "category": "system",
+  "phrases": [
+    { "id": "en-workday-hello-01", "event": "startup.workdayMorning", "text": "Morning. We appear to be doing this again." },
+    { "id": "en-dayoff-hello-01", "event": "startup.dayOff", "text": "A day off. Please do less." },
+    { "id": "en-ready-01", "event": "system.integrationReady", "text": "The task connection is awake. I suppose I am too." },
+    { "id": "en-unlocked-01", "event": "system.unlocked", "text": "You are back. I guarded the desktop." },
+    { "id": "en-battery-20", "event": "system.battery", "text": "Battery is at twenty percent. Just mentioning it.", "conditions": { "batteryEquals": 20 } },
+    { "id": "en-battery-10", "event": "system.battery", "text": "Ten percent. The charger would be useful now.", "conditions": { "batteryEquals": 10 } },
+    { "id": "en-battery-5", "event": "system.battery", "text": "Five percent. This is becoming a situation.", "conditions": { "batteryEquals": 5 } },
+    { "id": "en-battery-3", "event": "system.battery", "text": "Three percent. Please plug it in.", "conditions": { "batteryEquals": 3 } },
+    { "id": "en-battery-2", "event": "system.battery", "text": "Two percent. Charger. Now.", "conditions": { "batteryEquals": 2 } },
+    { "id": "en-error-01", "event": "system.error", "text": "Something did not connect. I am as disappointed as you are." }
+  ]
+}

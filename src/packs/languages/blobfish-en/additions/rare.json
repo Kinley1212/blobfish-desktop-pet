@@ -1,0 +1,11 @@
+{
+  "category": "rare",
+  "phrases": [
+    { "id": "en-rare-late-01", "event": "rare.lateNight", "text": "At this hour, even the cursor should be asleep.", "rarity": "rare", "conditions": { "hourMin": 0, "hourMax": 4 } },
+    { "id": "en-rare-friday-01", "event": "rare.friday", "text": "Friday. We almost survived the week.", "rarity": "rare", "conditions": { "weekdays": [5] } },
+    { "id": "en-rare-followup-01", "event": "rare.allCompletedFollowUp", "text": "Still here after finishing everything? Interesting choice.", "rarity": "rare" },
+    { "id": "en-rare-return-01", "event": "rare.returnAfterLongLock", "text": "You were gone a long time. I did not count the minutes.", "rarity": "rare", "conditions": { "lockedMinSeconds": 7200 } },
+    { "id": "en-rare-many-01", "event": "rare.manyTasks", "text": "That is a lot of tasks. I only have two fins.", "rarity": "rare", "conditions": { "activeCountMin": 5 } },
+    { "id": "en-rare-clicks-01", "event": "rare.tooManyClicks", "text": "Ten clicks. Was there a scientific purpose?", "rarity": "rare", "conditions": { "clickCountMin": 10 } }
+  ]
+}

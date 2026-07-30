@@ -126,3 +126,17 @@ test('a missing or invalid dialogue pack is treated as no chat rather than a cra
   assert.equal(loadDialoguePackSafe(dialoguesRoot, 'does-not-exist'), null);
   assert.throws(() => loadDialoguePack(dialoguesRoot, '../secret'), /Invalid dialogue pack id/);
 });
+
+test('both English character dialogue packs load and contain only English copy', () => {
+  for (const packId of ['blobfish-en', 'grass-buddy-en']) {
+    const pack = loadDialoguePack(dialoguesRoot, packId);
+    assert.ok(listOpeners(pack).length >= 3);
+    for (const node of Object.values(pack.nodes)) {
+      assert.doesNotMatch(node.prompt, /[\u3400-\u9fff]/u);
+      for (const option of node.options) {
+        assert.doesNotMatch(option.label, /[\u3400-\u9fff]/u);
+        if (option.reply) assert.doesNotMatch(option.reply, /[\u3400-\u9fff]/u);
+      }
+    }
+  }
+});
