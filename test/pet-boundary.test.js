@@ -40,7 +40,33 @@ test('pet uses its normal bottom anchor away from the top and still stops above 
   });
 });
 
+test('visible art above the SVG viewBox reaches the top without being clipped', () => {
+  const overflowMetrics = { ...metrics, visualTopOverflow: 32 };
+  assert.deepEqual(calculateVerticalPlacement(25, bounds, overflowMetrics), {
+    petTop: 57,
+    windowY: 25,
+    topOffset: 32,
+    hitTop: true,
+    hitBottom: false,
+  });
+  assert.deepEqual(calculateVerticalPlacement(80, bounds, overflowMetrics), {
+    petTop: 80,
+    windowY: 25,
+    topOffset: 55,
+    hitTop: false,
+    hitBottom: false,
+  });
+});
+
 test('pet boundary calculations reject invalid geometry', () => {
   assert.throws(() => calculateVerticalPlacement(Number.NaN, bounds, metrics), /finite/);
   assert.throws(() => calculateVerticalPlacement(100, { minY: 10, maxY: 10 }, metrics), /invalid/);
+  assert.throws(
+    () => calculateVerticalPlacement(
+      100,
+      bounds,
+      { ...metrics, visualTopOverflow: metrics.topMargin + 1 },
+    ),
+    /invalid/,
+  );
 });

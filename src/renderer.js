@@ -19,6 +19,7 @@ const {
   withAccessoryEquipped,
 } = globalThis.accessoryModel;
 const { pickExpression } = globalThis.expressionMoods;
+const { calculateVisualTopOverflow } = globalThis.petVisualBounds;
 const { bootstrapRenderer, createAsyncGuard, createChatInviteIntent } = globalThis.rendererRuntime;
 
 const VELOCITY_WINDOW_MS = 300;
@@ -90,6 +91,8 @@ let moodExpressionId = null;
 let moodExpressionTimer = null;
 const chatInviteIntent = createChatInviteIntent();
 let renderedLookSignature = null; // the specs the SVG currently in the DOM was built from
+let visualBoundsFrame = null;
+let lastReportedVisualTopOverflow = null;
 const rendererAsyncGuard = createAsyncGuard({
   reportError({ error, label, shouldNotify, userMessage }) {
     console.error(`Renderer failed to ${label}`, error);
@@ -205,6 +208,7 @@ function renderClockState(summary = {}) {
   }
   applyEffectiveBubblePlacement();
   updateAlarmProp();
+  scheduleVisualBoundsMeasurement();
 }
 
 // Both the DIY spec and the equipped accessories change the SVG structurally,
@@ -232,6 +236,7 @@ function applyPetConfig(config = {}) {
   pet.style.width = `${width}px`;
   pet.style.height = `${height}px`;
   document.documentElement.style.setProperty('--pet-height', `${height}px`);
+  scheduleVisualBoundsMeasurement();
 }
 
 function sanitizeSvg(svgText) {
@@ -260,6 +265,49 @@ function renderAccessories() {
   const svgRoot = pet.querySelector('svg');
   if (!svgRoot || !characterManifest) return;
   applyAccessoriesToSvg(svgRoot, characterManifest, accessoryCatalog, accessorySpecWithMood());
+  scheduleVisualBoundsMeasurement();
+}
+
+function scheduleVisualBoundsMeasurement() {
+  if (visualBoundsFrame !== null) {
+    if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(visualBoundsFrame);
+    else clearTimeout(visualBoundsFrame);
+  }
+  const scheduleFrame = typeof requestAnimationFrame === 'function'
+    ? requestAnimationFrame
+    : (callback) => setTimeout(callback, 0);
+  visualBoundsFrame = scheduleFrame(() => {
+    visualBoundsFrame = null;
+    const svgRoot = pet.querySelector('svg');
+    const viewBox = svgRoot?.viewBox?.baseVal;
+    if (!svgRoot || typeof svgRoot.getBBox !== 'function' || !viewBox) return;
+
+    try {
+      const contentBounds = svgRoot.getBBox();
+      const width = pet.clientWidth || characterManifest?.size?.width * petScale;
+      const height = pet.clientHeight || characterManifest?.size?.height * petScale;
+      const layoutTop = Number(pet.offsetTop);
+      const topShift = Number.isFinite(layoutTop) && Number.isFinite(petTopOffset)
+        ? layoutTop - petTopOffset
+        : 0;
+      const measured = calculateVisualTopOverflow(
+        viewBox,
+        contentBounds,
+        { width, height, topShift },
+      );
+      // Round upward to half a pixel: this avoids sub-pixel clipping while
+      // keeping repeated Chromium layout measurements stable.
+      const topOverflow = Math.ceil(measured * 2) / 2;
+      if (
+        Number.isFinite(lastReportedVisualTopOverflow)
+        && Math.abs(topOverflow - lastReportedVisualTopOverflow) < 0.25
+      ) return;
+      lastReportedVisualTopOverflow = topOverflow;
+      window.petAPI.reportVisualBounds({ topOverflow });
+    } catch (error) {
+      console.error('Renderer failed to measure the visible pet bounds', error);
+    }
+  });
 }
 
 function clearMoodExpression() {
@@ -312,7 +360,8 @@ function applyCharacterPack(pack) {
   pet.innerHTML = svg;
   const svgRoot = pet.querySelector('svg');
   applyDiyToSvg(svgRoot, diySpec, pack.manifest);
-  applyAccessoriesToSvg(svgRoot, pack.manifest, accessoryCatalog, accessorySpecWithMood());
+  lastReportedVisualTopOverflow = null;
+  renderAccessories();
   renderedLookSignature = lookSignature();
   applyPetConfig({ scale: petScale });
   scheduleBlink(300);

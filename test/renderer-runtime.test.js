@@ -152,6 +152,7 @@ function createRendererHarness() {
     petClicked: () => {
       petClickedCount += 1;
     },
+    reportVisualBounds() {},
     dismissClockAlert: () => Promise.resolve({
       timer: null,
       nextAlarm: null,
@@ -195,6 +196,7 @@ function createRendererHarness() {
     },
     expressionMoods: { pickExpression: () => null },
     Math,
+    petVisualBounds: { calculateVisualTopOverflow: () => 0 },
     performance: { now: () => clock },
     Promise,
     queueMicrotask,
@@ -256,9 +258,12 @@ test('a non-invite bubble immediately invalidates the previous chat invitation',
 
 test('the renderer runtime helper loads before the renderer entry point', () => {
   const helperIndex = indexSource.indexOf('core/renderer-runtime.js');
+  const visualBoundsIndex = indexSource.indexOf('core/pet-visual-bounds.js');
   const rendererIndex = indexSource.indexOf('renderer.js');
   assert.ok(helperIndex >= 0);
+  assert.ok(visualBoundsIndex >= 0);
   assert.ok(rendererIndex > helperIndex);
+  assert.ok(rendererIndex > visualBoundsIndex);
 });
 
 test('hiding an invitation bubble immediately invalidates its click intent', async () => {
