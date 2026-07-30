@@ -79,6 +79,52 @@
     '捏鱼': 'Shape fish',
     '身体、鱼鳍、五官': 'Body, fins, features',
     '恢复原样': 'Reset appearance',
+    '身体': 'Body',
+    '草团': 'Grass body',
+    '鱼鳍': 'Fins',
+    '小手': 'Hands',
+    '眼睛': 'Eyes',
+    '嘴巴': 'Mouth',
+    '鼻子': 'Nose',
+    '胖瘦': 'Width',
+    '高矮': 'Height',
+    '大小': 'Size',
+    '宽度': 'Width',
+    '高度': 'Height',
+    '左右': 'Horizontal position',
+    '上下': 'Vertical position',
+    '间距': 'Spacing',
+    '身体形状': 'Body shape',
+    '草团形状': 'Grass shape',
+    '鱼鳍形状': 'Fin shape',
+    '手形': 'Hand shape',
+    '圆润': 'Rounded',
+    '窝窝头': 'Wotou',
+    '水滴': 'Droplet',
+    '扁圆': 'Wide oval',
+    '圆团': 'Round',
+    '收腰': 'Tapered',
+    '椭圆': 'Oval',
+    '双凸': 'Double curve',
+    '单弧': 'Single arc',
+    '小鳍': 'Small fins',
+    '圆鳍': 'Round fins',
+    '长鳍': 'Long fins',
+    '尖鳍': 'Pointed fins',
+    '垂手': 'Lowered hands',
+    '短手': 'Short hands',
+    '圆手': 'Round hands',
+    '举手': 'Raised hands',
+    '表情与饰品': 'Expressions & accessories',
+    '表情': 'Expression',
+    '原本的': 'Original',
+    '头顶': 'Head',
+    '眼镜': 'Eyewear',
+    '手边': 'Hand',
+    '闹钟位置': 'Alarm position',
+    '不戴': 'None',
+    '不拿': 'None',
+    '设好闹钟后自动出现；这里只调整它在角色手边的位置。': 'Appears automatically when an alarm is set; adjust only its position beside the character here.',
     '每天第一次见面': 'First hello of the day',
     '在设定时段内当天第一次打开，角色会说一句早安。': 'The pet greets you the first time it opens during the chosen window.',
     '工作日早晨': 'Workday morning',
@@ -347,6 +393,45 @@
     return normalizeLocale(locale) === 'en' ? { ...copy, ...englishCharacterCopy(characterId) } : copy;
   }
 
+  function titleCaseId(id) {
+    return String(id || '')
+      .replace(/^face-/, '')
+      .split('-')
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+
+  function localizeCharacterName(characterId, fallback, locale) {
+    if (normalizeLocale(locale) !== 'en') return fallback;
+    return {
+      blobfish: 'Blobfish',
+      'blobfish-wotou': 'Blobfish (Wotou)',
+      'grass-buddy': 'Grass Buddy',
+    }[characterId] || titleCaseId(characterId) || fallback;
+  }
+
+  function localizeAccessoryName(accessoryId, fallback, locale) {
+    if (normalizeLocale(locale) !== 'en') return fallback;
+    return titleCaseId(accessoryId) || fallback;
+  }
+
+  function localizeSoundName(soundId, fallback, locale) {
+    if (normalizeLocale(locale) !== 'en') return fallback;
+    const descriptions = {
+      Glass: 'bright chime',
+      Ping: 'clear ping',
+      Hero: 'heroic',
+      Submarine: 'low tone',
+      Tink: 'light chime',
+      Pop: 'bubble pop',
+      Purr: 'soft purr',
+      Bottle: 'bottle tap',
+      Funk: 'funk',
+    };
+    return descriptions[soundId] ? `${soundId} (${descriptions[soundId]})` : (soundId || fallback);
+  }
+
   return Object.freeze({
     DEFAULT_LOCALE,
     SUPPORTED_LOCALES,
@@ -354,5 +439,8 @@
     t,
     applyDocument,
     localizeCharacterCopy,
+    localizeCharacterName,
+    localizeAccessoryName,
+    localizeSoundName,
   });
 }));

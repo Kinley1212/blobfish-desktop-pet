@@ -47,6 +47,26 @@ function applyUiLocale(locale) {
   currentUiLocale = uiI18n.applyDocument(document, locale);
   setValue('ui-locale', currentUiLocale);
   applyCharacterCopy(byId('character-pack').value);
+  for (const option of byId('character-pack').options) {
+    option.textContent = uiI18n.localizeCharacterName(
+      option.value,
+      option.dataset.displayName,
+      currentUiLocale,
+    );
+  }
+  for (const selectId of ['sound-needs-input-id', 'sound-task-complete-id']) {
+    for (const option of byId(selectId).options) {
+      option.textContent = uiI18n.localizeSoundName(
+        option.value,
+        option.dataset.displayName,
+        currentUiLocale,
+      );
+    }
+  }
+  if (diyArt) {
+    renderDiyControls();
+    renderAccessoryControls();
+  }
   if (Object.keys(integrationResults).length) {
     for (const provider of agentProviders) {
       if (integrationResults[provider]) renderAgentIntegration(provider, integrationResults[provider]);
@@ -353,7 +373,8 @@ function renderSoundSelect(selectId, sounds, selectedId) {
   for (const sound of sounds) {
     const option = document.createElement('option');
     option.value = sound.id;
-    option.textContent = sound.label;
+    option.dataset.displayName = sound.label;
+    option.textContent = uiI18n.localizeSoundName(sound.id, sound.label, currentUiLocale);
     option.selected = sound.id === selectedId;
     select.appendChild(option);
   }
@@ -366,7 +387,8 @@ function renderCharacters(characters, selectedId) {
   for (const character of characters) {
     const option = document.createElement('option');
     option.value = character.id;
-    option.textContent = character.displayName;
+    option.dataset.displayName = character.displayName;
+    option.textContent = uiI18n.localizeCharacterName(character.id, character.displayName, currentUiLocale);
     option.dataset.defaultLanguagePack = character.defaultLanguagePack || '';
     option.dataset.maxScale = String(character.maxScale ?? defaultPetScaleMax);
     option.selected = character.id === selectedId;
@@ -412,7 +434,7 @@ function diyControlLabel(part, fallback) {
     mouth: 'diyMouthLabel',
     nose: 'diyNoseLabel',
   }[part];
-  return (copyKey && activeSettingsCopy?.[copyKey]) || fallback;
+  return tr((copyKey && activeSettingsCopy?.[copyKey]) || fallback);
 }
 
 function diyShapeLabel(part, fallback) {
@@ -420,7 +442,7 @@ function diyShapeLabel(part, fallback) {
     body: 'diyBodyShapeLabel',
     fins: 'diyFinsShapeLabel',
   }[part];
-  return (copyKey && activeSettingsCopy?.[copyKey]) || fallback;
+  return tr((copyKey && activeSettingsCopy?.[copyKey]) || fallback);
 }
 
 function diyPartExists(part) {
@@ -453,7 +475,7 @@ function buildDiyShapeField(groupName, group, spec) {
   for (const option of options) {
     const element = document.createElement('option');
     element.value = option.id;
-    element.textContent = option.label;
+    element.textContent = tr(option.label);
     select.appendChild(element);
   }
   // An id from another pack won't exist here; fall back to the first preset.
@@ -476,7 +498,7 @@ function buildDiySlider(part, field, spec) {
 
   const heading = document.createElement('span');
   const name = document.createElement('span');
-  name.textContent = field.label;
+  name.textContent = tr(field.label);
   const output = document.createElement('output');
   output.textContent = formatDiyValue(field, spec[part][field.key]);
   heading.append(name, output);
@@ -546,7 +568,7 @@ function buildAccessorySlider(getAccessoryId, field) {
 
   const heading = document.createElement('span');
   const name = document.createElement('span');
-  name.textContent = field.label;
+  name.textContent = tr(field.label);
   const output = document.createElement('output');
   heading.append(name, output);
 
@@ -599,9 +621,9 @@ function renderAccessoryControls() {
       const systemField = document.createElement('div');
       systemField.className = 'field accessory-system-field';
       const systemTitle = document.createElement('strong');
-      systemTitle.textContent = slot.label;
+      systemTitle.textContent = tr(slot.label);
       const systemHint = document.createElement('span');
-      systemHint.textContent = '设好闹钟后自动出现；这里只调整它在角色手边的位置。';
+      systemHint.textContent = tr('设好闹钟后自动出现；这里只调整它在角色手边的位置。');
       systemField.append(systemTitle, systemHint);
       container.appendChild(systemField);
 
@@ -616,18 +638,18 @@ function renderAccessoryControls() {
 
     const field = document.createElement('label');
     field.className = 'field';
-    field.append(slot.label);
+    field.append(tr(slot.label));
 
     const select = document.createElement('select');
     select.dataset.accessorySlot = slot.key;
     const none = document.createElement('option');
     none.value = '';
-    none.textContent = slot.empty;
+    none.textContent = tr(slot.empty);
     select.appendChild(none);
     for (const item of accessoryCatalog.filter((entry) => entry.slot === slot.key)) {
       const option = document.createElement('option');
       option.value = item.id;
-      option.textContent = item.displayName;
+      option.textContent = uiI18n.localizeAccessoryName(item.id, item.displayName, currentUiLocale);
       select.appendChild(option);
     }
     const worn = spec.equipped[slot.key];
