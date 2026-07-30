@@ -1,0 +1,17 @@
+{
+  "category": "interaction",
+  "phrases": [
+    { "id": "grass-en-menu-01", "event": "interaction.menuOpen", "text": "Options. Take your time." },
+    { "id": "grass-en-pause-01", "event": "interaction.paused", "text": "I can stay still." },
+    { "id": "grass-en-resume-01", "event": "interaction.resumed", "text": "Moving again. Slowly." },
+    { "id": "grass-en-roam-off-01", "event": "interaction.idleRoamOff", "text": "I will wait here." },
+    { "id": "grass-en-roam-on-01", "event": "interaction.idleRoamOn", "text": "I will wander a little." },
+    { "id": "grass-en-pet-01", "event": "interaction.petting", "text": "…That is nice." },
+    { "id": "grass-en-pet-more-01", "event": "interaction.pettingMore", "text": "Still nice." },
+    { "id": "grass-en-pet-lots-01", "event": "interaction.pettingLots", "text": "All right. I am happy now." },
+    { "id": "grass-en-goodbye-01", "event": "interaction.goodbye", "text": "Going? I will be here." },
+    { "id": "grass-en-late-01", "event": "idle.lateNight", "text": "It is late. Roots need rest too." },
+    { "id": "grass-en-weekend-01", "event": "idle.weekend", "text": "Weekend. Growing can wait." },
+    { "id": "grass-en-long-session-01", "event": "idle.longSession", "text": "You have been sitting a long time." }
+  ]
+}

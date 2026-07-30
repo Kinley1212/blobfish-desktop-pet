@@ -187,3 +187,19 @@ test('grass buddy warns separately at 3% and 2% battery', () => {
   assert.equal(batteryPhrases.filter((phrase) => phrase.conditions.batteryEquals === 3).length, 2);
   assert.equal(batteryPhrases.filter((phrase) => phrase.conditions.batteryEquals === 2).length, 2);
 });
+
+test('both English speech packs cover the complete runtime event set', () => {
+  const expectedEvents = new Set(loadLanguagePack(languagesRoot, 'blobfish-zh-TW').phrases.map((phrase) => phrase.event));
+  for (const packId of ['blobfish-en', 'grass-buddy-en']) {
+    const pack = loadLanguagePack(languagesRoot, packId);
+    const events = new Set(pack.phrases.map((phrase) => phrase.event));
+    assert.equal(pack.manifest.locale, 'en');
+    for (const eventName of expectedEvents) assert.ok(events.has(eventName), `${packId} missing ${eventName}`);
+    assert.ok(pack.phrases.every((phrase) => !/[\u3400-\u9fff]/u.test(phrase.text)), `${packId} contains Chinese speech`);
+    for (const level of [3, 2]) {
+      assert.ok(pack.phrases.some((phrase) => (
+        phrase.event === 'system.battery' && phrase.conditions?.batteryEquals === level
+      )), `${packId} missing ${level}% battery warning`);
+    }
+  }
+});

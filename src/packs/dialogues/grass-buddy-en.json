@@ -1,0 +1,31 @@
+{
+  "nodes": {
+    "growing": {
+      "prompt": "Hello. I have been growing. Barely.",
+      "options": [
+        { "label": "You look good", "reply": "Thank you. I will process that slowly.", "face": "face-shy" },
+        { "label": "Need water?", "reply": "Probably. You might too.", "face": "face-satisfied" },
+        { "label": "Just checking in", "reply": "I am still grass. This is reassuring.", "face": "face-blank" }
+      ],
+      "opener": true
+    },
+    "pace": {
+      "prompt": "Everything seems to be moving quickly today.",
+      "options": [
+        { "label": "Too quickly", "reply": "We can do one thing slowly.", "face": "face-coy" },
+        { "label": "I can handle it", "reply": "Good. Remember to breathe anyway.", "face": "face-satisfied" },
+        { "label": "I want to stop", "reply": "Stopping is allowed. Even plants have quiet seasons.", "face": "face-sleepy" }
+      ],
+      "opener": true
+    },
+    "break": {
+      "prompt": "Do you need a small break?",
+      "options": [
+        { "label": "Yes", "reply": "Then look away from the screen for a minute.", "face": "face-satisfied" },
+        { "label": "Not yet", "reply": "All right. I will wait here.", "face": "face-blank" },
+        { "label": "Stay with me", "reply": "I can do that. Quietly.", "face": "face-coy" }
+      ],
+      "opener": true
+    }
+  }
+}

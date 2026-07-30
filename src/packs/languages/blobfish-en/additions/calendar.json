@@ -1,0 +1,9 @@
+{
+  "category": "calendar",
+  "phrases": [
+    { "id": "en-calendar-upcoming-01", "event": "calendar.upcoming", "text": "Something is coming up on your calendar." },
+    { "id": "en-calendar-starting-01", "event": "calendar.starting", "text": "Your calendar says it is time." },
+    { "id": "en-calendar-busy-01", "event": "calendar.busyDay", "text": "That calendar is crowded. Leave yourself a gap." },
+    { "id": "en-calendar-free-01", "event": "calendar.freeGap", "text": "There is a gap. Try not to fill it immediately." }
+  ]
+}

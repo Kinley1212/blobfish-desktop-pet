@@ -2,6 +2,7 @@ const { getNode, pickOpenerId, resolveChoice } = globalThis.dialogueModel;
 const miniGames = globalThis.miniGames;
 const { applyDiyToSvg } = globalThis.diyModel;
 const { applyAccessoriesToSvg, normalizeAccessories } = globalThis.accessoryModel;
+const uiI18n = globalThis.uiI18n;
 
 const promptEl = document.getElementById('prompt');
 const optionsEl = document.getElementById('options');
@@ -13,6 +14,7 @@ const NEXT_TOPIC_DELAY_MS = 1400;
 
 let pack = null;
 let currentNodeId = null;
+let uiLocale = uiI18n.DEFAULT_LOCALE;
 
 // The fish drawn inside the window: the user's own character, shaped and
 // dressed as they left it, whose expression follows the conversation.
@@ -53,7 +55,7 @@ function buildAvatar() {
 }
 
 function noPack() {
-  promptEl.textContent = '……我现在不太想说话。';
+  promptEl.textContent = uiLocale === 'en' ? '…I do not feel like talking right now.' : '……我现在不太想说话。';
   optionsEl.replaceChildren();
   currentNodeId = null;
 }
@@ -184,10 +186,11 @@ closeEl.addEventListener('click', () => window.dialogueAPI.close());
 Promise.all([window.dialogueAPI.getPack(), window.dialogueAPI.getCharacter()])
   .then(([loadedPack, loadedCharacter]) => {
     character = loadedCharacter;
+    uiLocale = uiI18n.applyDocument(document, character?.uiLocale);
     buildAvatar();
     pack = loadedPack;
     startFresh();
   })
   .catch(() => {
-    promptEl.textContent = '……出了点问题，改天聊。';
+    promptEl.textContent = uiLocale === 'en' ? '…Something went wrong. Another time.' : '……出了点问题，改天聊。';
   });

@@ -218,6 +218,11 @@ function createRendererHarness() {
       buildCarouselLayout: () => ({ entries: [], frontIndex: 0, frontTaskKey: null, position: 0, total: 0 }),
       nextTaskKey: () => null,
     },
+    uiI18n: {
+      DEFAULT_LOCALE: 'zh-CN',
+      applyDocument: (_document, locale) => (locale === 'en' ? 'en' : 'zh-CN'),
+      t: (_locale, key) => key,
+    },
     window: { petAPI },
   };
 

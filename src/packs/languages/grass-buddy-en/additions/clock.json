@@ -1,0 +1,17 @@
+{
+  "category": "clock",
+  "phrases": [
+    { "id": "grass-en-clock-appeared-01", "event": "clock.alarmClockAppeared", "text": "I am holding the clock now." },
+    { "id": "grass-en-clock-gone-01", "event": "clock.alarmClockDisappeared", "text": "The clock is put away." },
+    { "id": "grass-en-alarm-ring-01", "event": "clock.alarmRinging", "text": "The alarm is ringing." },
+    { "id": "grass-en-timer-start-01", "event": "clock.timerStarted", "text": "Timer started. I will watch it." },
+    { "id": "grass-en-timer-pause-01", "event": "clock.timerPaused", "text": "Timer paused." },
+    { "id": "grass-en-timer-resume-01", "event": "clock.timerResumed", "text": "Timer moving again." },
+    { "id": "grass-en-timer-extend-01", "event": "clock.timerExtended", "text": "Five more minutes." },
+    { "id": "grass-en-timer-cancel-01", "event": "clock.timerCancelled", "text": "Timer cancelled." },
+    { "id": "grass-en-timer-done-01", "event": "clock.timerCompleted", "text": "Time is up. You can stop now." },
+    { "id": "grass-en-alert-snooze-01", "event": "clock.alertSnoozed", "text": "I will remind you again in five minutes." },
+    { "id": "grass-en-alert-dismiss-01", "event": "clock.alertDismissed", "text": "Reminder closed." },
+    { "id": "grass-en-alert-missed-01", "event": "clock.missedAfterWake", "text": "A reminder passed while the Mac slept." }
+  ]
+}

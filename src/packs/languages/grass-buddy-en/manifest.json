@@ -1,0 +1,21 @@
+{
+  "id": "grass-buddy-en",
+  "displayName": "Grass Buddy English",
+  "locale": "en",
+  "characterPackIds": ["grass-buddy"],
+  "version": 1,
+  "style": "style.json",
+  "files": {
+    "original": [
+      "core/basics.json"
+    ],
+    "additions": [
+      "additions/interactions.json",
+      "additions/system.json",
+      "additions/calendar.json",
+      "additions/agents.json",
+      "additions/clock.json",
+      "additions/rare.json"
+    ]
+  }
+}

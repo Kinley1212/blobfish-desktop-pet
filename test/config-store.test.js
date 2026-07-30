@@ -20,6 +20,7 @@ test('config store writes validated settings atomically and reloads them', () =>
     next.pet.characterPackId = 'grass-buddy';
     next.pet.roamWhenNoTasks = true;
     next.startup.launchAtLogin = true;
+    next.ui.locale = 'en';
     store.save(next);
 
     const reloaded = new ConfigStore(directory);
@@ -30,6 +31,7 @@ test('config store writes validated settings atomically and reloads them', () =>
     assert.equal(reloaded.get().pet.characterPackId, 'grass-buddy');
     assert.equal(reloaded.get().pet.roamWhenNoTasks, true);
     assert.equal(reloaded.get().startup.launchAtLogin, true);
+    assert.equal(reloaded.get().ui.locale, 'en');
     assert.equal(fs.statSync(reloaded.filePath).mode & 0o777, 0o600);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
@@ -44,6 +46,7 @@ test('legacy stop-after-task setting migrates without losing user intent', () =>
   legacy.pet.stopWhenAllTasksComplete = true;
   delete legacy.startup;
   delete legacy.greetings;
+  delete legacy.ui;
   assert.deepEqual(validateConfig(legacy).pet, {
     characterPackId: 'blobfish',
     speed: 1.5,
@@ -55,6 +58,19 @@ test('legacy stop-after-task setting migrates without losing user intent', () =>
   });
   assert.deepEqual(validateConfig(legacy).startup, { launchAtLogin: false });
   assert.deepEqual(validateConfig(legacy).greetings, DEFAULT_CONFIG.greetings);
+  assert.deepEqual(validateConfig(legacy).ui, { locale: 'zh-CN' });
+});
+
+test('interface locale is normalized without affecting the speech pack choice', () => {
+  const english = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  english.ui.locale = 'en';
+  english.language.packId = 'grass-buddy-en';
+  assert.equal(validateConfig(english).ui.locale, 'en');
+  assert.equal(validateConfig(english).language.packId, 'grass-buddy-en');
+
+  const unsupported = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  unsupported.ui.locale = 'fr';
+  assert.equal(validateConfig(unsupported).ui.locale, 'zh-CN');
 });
 
 test('agent sound settings round-trip, migrate and defend against bad input', () => {

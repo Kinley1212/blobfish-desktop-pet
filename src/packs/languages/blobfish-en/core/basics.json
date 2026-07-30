@@ -1,0 +1,16 @@
+{
+  "category": "original",
+  "phrases": [
+    { "id": "en-click-01", "event": "interaction.click", "text": "Ow. What was that for?" },
+    { "id": "en-click-02", "event": "interaction.click", "text": "Yes, I am still here." },
+    { "id": "en-click-03", "event": "interaction.click", "text": "You could ask first." },
+    { "id": "en-idle-01", "event": "idle.chatter", "text": "Swimming in place. Very productive." },
+    { "id": "en-idle-02", "event": "idle.chatter", "text": "Have you had water lately?" },
+    { "id": "en-idle-03", "event": "idle.chatter", "text": "I miss the deep sea. Fewer notifications." },
+    { "id": "en-idle-04", "event": "idle.chatter", "text": "I am resting my fins. Quietly." },
+    { "id": "en-schedule-01", "event": "schedule.halfHour", "text": "Another half hour. Maybe move your shoulders." },
+    { "id": "en-schedule-02", "event": "schedule.lunchSoon", "text": "Lunch in five minutes. Try not to forget again." },
+    { "id": "en-schedule-03", "event": "schedule.offWorkHalfHour", "text": "Half an hour to go. I can almost feel freedom." },
+    { "id": "en-schedule-04", "event": "schedule.offWorkSoon", "text": "Five minutes left. Save your work before hope gets involved." }
+  ]
+}

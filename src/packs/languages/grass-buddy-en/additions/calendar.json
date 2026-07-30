@@ -1,0 +1,9 @@
+{
+  "category": "calendar",
+  "phrases": [
+    { "id": "grass-en-calendar-upcoming-01", "event": "calendar.upcoming", "text": "There is something on your calendar soon." },
+    { "id": "grass-en-calendar-starting-01", "event": "calendar.starting", "text": "Your calendar says it is starting." },
+    { "id": "grass-en-calendar-busy-01", "event": "calendar.busyDay", "text": "That is a crowded day. Leave a little space." },
+    { "id": "grass-en-calendar-free-01", "event": "calendar.freeGap", "text": "There is a quiet gap. Keep some of it." }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "nodes": {
+    "check-in": {
+      "prompt": "You are still here. How is it going?",
+      "options": [
+        { "label": "Pretty well", "reply": "Good. Keep a little energy for yourself.", "face": "face-satisfied" },
+        { "label": "I am tired", "reply": "Then rest. The world can wait for five minutes.", "face": "face-sleepy" },
+        { "label": "Not great", "reply": "…Stay here for a moment. You do not have to solve it all now.", "face": "face-coy" }
+      ],
+      "opener": true
+    },
+    "work": {
+      "prompt": "Still working? Of course you are.",
+      "options": [
+        { "label": "Almost done", "reply": "Finish the small part, then stop.", "face": "face-determined" },
+        { "label": "There is too much", "reply": "Choose one thing. The rest can be tomorrow's problem.", "face": "face-blank" },
+        { "label": "I am procrastinating", "reply": "Reasonable. Just do one tiny step before we continue.", "face": "face-side-eye" }
+      ],
+      "opener": true
+    },
+    "food": {
+      "prompt": "Have you eaten? I cannot keep reminding you forever.",
+      "options": [
+        { "label": "Yes", "reply": "Good. One less concern.", "face": "face-satisfied" },
+        { "label": "Not yet", "reply": "Go eat something. I will guard the cursor.", "face": "face-annoyed" },
+        { "label": "Later", "reply": "Later has a habit of becoming never.", "face": "face-side-eye" }
+      ],
+      "opener": true
+    },
+    "fish": {
+      "prompt": "You opened a whole window just to talk to a fish.",
+      "options": [
+        { "label": "Worth it", "reply": "…That was almost nice.", "face": "face-shy" },
+        { "label": "I needed a break", "reply": "Then take one. We can stare at nothing together.", "face": "face-blank" },
+        { "label": "I was curious", "reply": "Curiosity confirmed. Still a fish.", "face": "face-smug" }
+      ],
+      "opener": true
+    }
+  }
+}

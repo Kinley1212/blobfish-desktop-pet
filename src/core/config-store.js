@@ -8,10 +8,12 @@ const {
 const { PET_SCALE_MAX, PET_SCALE_MIN } = require('./pet-window-geometry');
 const { normalizeDiyMap } = require('./diy-model');
 const { normalizeAccessoryMap } = require('./accessory-model');
+const { normalizeLocale } = require('./ui-i18n');
 
 const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const DEFAULT_CONFIG = Object.freeze({
   version: 1,
+  ui: Object.freeze({ locale: 'zh-CN' }),
   schedule: Object.freeze({
     workdays: Object.freeze([1, 2, 3, 4, 5]),
     lunchTime: '13:00',
@@ -112,6 +114,8 @@ function normalizeSoundSetting(value, fallback, label) {
 
 function validateConfig(input) {
   assertObject(input, 'config');
+  const ui = input.ui === undefined ? DEFAULT_CONFIG.ui : input.ui;
+  assertObject(ui, 'ui');
   assertObject(input.schedule, 'schedule');
   const greetings = input.greetings === undefined ? DEFAULT_CONFIG.greetings : input.greetings;
   assertObject(greetings, 'greetings');
@@ -150,6 +154,9 @@ function validateConfig(input) {
 
   const config = {
     version: 1,
+    ui: {
+      locale: normalizeLocale(ui.locale),
+    },
     schedule: {
       workdays: workdays.sort((a, b) => a - b),
       lunchTime: requireTime(input.schedule.lunchTime, 'schedule.lunchTime'),

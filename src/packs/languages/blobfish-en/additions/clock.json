@@ -1,0 +1,17 @@
+{
+  "category": "clock",
+  "phrases": [
+    { "id": "en-clock-appeared-01", "event": "clock.alarmClockAppeared", "text": "I have the alarm clock. It is heavier than it looks." },
+    { "id": "en-clock-gone-01", "event": "clock.alarmClockDisappeared", "text": "Clock put away. My fin is grateful." },
+    { "id": "en-alarm-ring-01", "event": "clock.alarmRinging", "text": "The alarm is ringing. I did my part." },
+    { "id": "en-timer-start-01", "event": "clock.timerStarted", "text": "Timer started. Time remains undefeated." },
+    { "id": "en-timer-pause-01", "event": "clock.timerPaused", "text": "Timer paused. Time, briefly negotiated." },
+    { "id": "en-timer-resume-01", "event": "clock.timerResumed", "text": "Timer resumed." },
+    { "id": "en-timer-extend-01", "event": "clock.timerExtended", "text": "Five more minutes. Naturally." },
+    { "id": "en-timer-cancel-01", "event": "clock.timerCancelled", "text": "Timer cancelled. It happens." },
+    { "id": "en-timer-done-01", "event": "clock.timerCompleted", "text": "Time is up. Please look away from the screen." },
+    { "id": "en-alert-snooze-01", "event": "clock.alertSnoozed", "text": "Five more minutes. I will remember." },
+    { "id": "en-alert-dismiss-01", "event": "clock.alertDismissed", "text": "Alert dismissed." },
+    { "id": "en-alert-missed-01", "event": "clock.missedAfterWake", "text": "An alert passed while the Mac was asleep. Here it is, late." }
+  ]
+}

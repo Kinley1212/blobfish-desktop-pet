@@ -1,0 +1,11 @@
+{
+  "category": "rare",
+  "phrases": [
+    { "id": "grass-en-rare-late-01", "event": "rare.lateNight", "text": "Nothing grows well at three in the morning.", "rarity": "rare", "conditions": { "hourMin": 0, "hourMax": 4 } },
+    { "id": "grass-en-rare-friday-01", "event": "rare.friday", "text": "Friday. Almost time to photosynthesize less.", "rarity": "rare", "conditions": { "weekdays": [5] } },
+    { "id": "grass-en-rare-followup-01", "event": "rare.allCompletedFollowUp", "text": "Everything is done. You may leave the screen.", "rarity": "rare" },
+    { "id": "grass-en-rare-return-01", "event": "rare.returnAfterLongLock", "text": "You were away a long time. The light changed.", "rarity": "rare", "conditions": { "lockedMinSeconds": 7200 } },
+    { "id": "grass-en-rare-many-01", "event": "rare.manyTasks", "text": "Many tasks. We may need more leaves.", "rarity": "rare", "conditions": { "activeCountMin": 5 } },
+    { "id": "grass-en-rare-clicks-01", "event": "rare.tooManyClicks", "text": "That was many clicks. I remain grass.", "rarity": "rare", "conditions": { "clickCountMin": 10 } }
+  ]
+}
