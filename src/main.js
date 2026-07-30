@@ -47,6 +47,7 @@ const { SPEECH_DURATION_MS } = require('./core/speech-timing');
 const { StartupGreetingStore, getStartupGreeting } = require('./core/startup-greeting');
 const { bindGracefulWindowClose, isLiveWindow } = require('./core/window-lifecycle');
 const { formatProviderTaskSummary } = require('./core/task-menu-summary');
+const { t: translateUi } = require('./core/ui-i18n');
 const { advanceFractionalCoordinate, roundWindowCoordinate } = require('./core/fractional-position');
 const { getCurrentTaskStatus, getTerminalTaskStatus } = require('./core/task-status-presenter');
 const {
@@ -78,6 +79,14 @@ const isMacOS = process.platform === 'darwin';
 app.setName(appDisplayName);
 app.setPath('userData', path.join(userDataRoot, 'BlobfishDesktopPet'));
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+function uiLocale() {
+  return config?.ui?.locale || DEFAULT_CONFIG.ui.locale;
+}
+
+function uiText(chinese, english, values) {
+  return translateUi(uiLocale(), uiLocale() === 'en' ? english : chinese, values);
+}
 if (!hasSingleInstanceLock) app.quit();
 
 const WINDOW_WIDTH = PET_WINDOW_WIDTH;
@@ -247,6 +256,9 @@ function listLanguagePacks() {
           displayName: pack.manifest.displayName,
           locale: pack.manifest.locale,
           version: pack.manifest.version,
+          characterPackIds: Array.isArray(pack.manifest.characterPackIds)
+            ? [...pack.manifest.characterPackIds]
+            : [],
         };
       } catch (error) {
         console.error(`Ignoring invalid language pack ${entry.name}: ${error.message}`);
@@ -529,15 +541,15 @@ function buildClockMenuItems() {
   if (ringing) {
     items.push(
       {
-        label: `${ringing.sourceType === 'alarm' ? '⏰' : '⏱'} ${ringing.label || '时间到了'}`,
+        label: `${ringing.sourceType === 'alarm' ? '⏰' : '⏱'} ${ringing.label || uiText('时间到了', 'Time is up')}`,
         enabled: false,
       },
       {
-        label: '稍后 5 分钟',
+        label: uiText('稍后 5 分钟', 'Snooze 5 minutes'),
         click: () => runClockMenuAction('Clock snooze', () => clockService.snoozeAlert(ringing.id, 5)),
       },
       {
-        label: '知道了',
+        label: uiText('知道了', 'Dismiss'),
         click: () => runClockMenuAction('Clock dismiss', () => clockService.dismissAlert(ringing.id)),
       },
       { type: 'separator' },
@@ -548,63 +560,69 @@ function buildClockMenuItems() {
       ? state.timer.dueAtMs - Date.now()
       : state.timer.remainingMs;
     items.push({
-      label: `计时器 · ${formatClockDuration(remainingMs)}`,
+      label: `${uiText('计时器', 'Timer')} · ${formatClockDuration(remainingMs)}`,
       submenu: [
         {
-          label: state.timer.state === 'running' ? '暂停计时' : '继续计时',
+          label: state.timer.state === 'running'
+            ? uiText('暂停计时', 'Pause timer')
+            : uiText('继续计时', 'Resume timer'),
           click: () => runClockMenuAction(
             state.timer.state === 'running' ? 'Pause timer' : 'Resume timer',
             () => (state.timer.state === 'running' ? clockService.pauseTimer() : clockService.resumeTimer()),
           ),
         },
         {
-          label: '增加 5 分钟',
+          label: uiText('增加 5 分钟', 'Add 5 minutes'),
           click: () => runClockMenuAction('Extend timer', () => clockService.extendTimer(5)),
         },
         {
-          label: '取消计时',
+          label: uiText('取消计时', 'Cancel timer'),
           click: () => runClockMenuAction('Cancel timer', () => clockService.cancelTimer()),
         },
       ],
     });
   } else {
     items.push({
-      label: '快速计时',
+      label: uiText('快速计时', 'Quick timer'),
       submenu: [5, 15, 25, 45].map((minutes) => ({
-        label: minutes === 25 ? '25 分钟专注' : `${minutes} 分钟`,
+        label: minutes === 25
+          ? uiText('25 分钟专注', '25-minute focus')
+          : uiText(`${minutes} 分钟`, `${minutes} minutes`),
         click: () => runClockMenuAction(
           'Start timer',
           () => clockService.startTimer({
             durationMinutes: minutes,
-            label: minutes === 25 ? '专注' : '',
+            label: minutes === 25 ? uiText('专注', 'Focus') : '',
           }),
         ),
       })),
     });
   }
-  items.push({ label: '闹钟与计时器…', click: () => createClockWindow() });
+  items.push({ label: uiText('闹钟与计时器…', 'Alarms & timers…'), click: () => createClockWindow() });
   return items;
 }
 
 function buildPetMenuTemplate() {
   const tasks = taskTracker ? taskTracker.getTasks() : [];
   return [
-    { label: '任务状态', enabled: false },
+    { label: uiText('任务状态', 'Task status'), enabled: false },
     {
-      label: formatProviderTaskSummary(tasks, 'codex', 'Codex', config.integrations.codex),
+      label: formatProviderTaskSummary(tasks, 'codex', 'Codex', config.integrations.codex, uiLocale()),
       enabled: false,
     },
     {
-      label: formatProviderTaskSummary(tasks, 'claude-code', 'Claude', config.integrations.claudeCode),
+      label: formatProviderTaskSummary(tasks, 'claude-code', 'Claude', config.integrations.claudeCode, uiLocale()),
       enabled: false,
     },
     { type: 'separator' },
     ...buildClockMenuItems(),
     { type: 'separator' },
-    { label: '找水滴鱼聊天…', click: () => createDialogueWindow() },
-    { label: '打开设置…', click: () => createSettingsWindow() },
+    { label: uiText('找水滴鱼聊天…', 'Chat with the pet…'), click: () => createDialogueWindow() },
+    { label: uiText('打开设置…', 'Open settings…'), click: () => createSettingsWindow() },
     {
-      label: characterPack?.settingsCopy?.roamWithoutTasksLabel || '没有任务时也继续游动',
+      label: uiLocale() === 'en'
+        ? uiText('没有任务时也继续游动', 'Keep moving without tasks')
+        : (characterPack?.settingsCopy?.roamWithoutTasksLabel || '没有任务时也继续游动'),
       type: 'checkbox',
       checked: config.pet.roamWhenNoTasks,
       click: (item) => {
@@ -617,7 +635,7 @@ function buildPetMenuTemplate() {
       },
     },
     {
-      label: '登录后自动启动',
+      label: uiText('登录后自动启动', 'Open at login'),
       type: 'checkbox',
       checked: config.startup.launchAtLogin,
       click: (item) => {
@@ -636,7 +654,7 @@ function buildPetMenuTemplate() {
       },
     },
     { type: 'separator' },
-    { label: `退出${appDisplayName}`, click: () => requestQuit() },
+    { label: uiText(`退出${appDisplayName}`, `Quit ${appDisplayName}`), click: () => requestQuit() },
   ];
 }
 
@@ -657,10 +675,10 @@ function createApplicationMenu() {
     {
       label: app.name,
       submenu: [
-        { label: '设置…', accelerator: 'CmdOrCtrl+,', click: () => createSettingsWindow() },
-        { label: '闹钟与计时器…', accelerator: 'CmdOrCtrl+Shift+T', click: () => createClockWindow() },
+        { label: uiText('设置…', 'Settings…'), accelerator: 'CmdOrCtrl+,', click: () => createSettingsWindow() },
+        { label: uiText('闹钟与计时器…', 'Alarms & timers…'), accelerator: 'CmdOrCtrl+Shift+T', click: () => createClockWindow() },
         { type: 'separator' },
-        { label: `退出${appDisplayName}`, accelerator: 'CmdOrCtrl+Q', click: () => requestQuit() },
+        { label: uiText(`退出${appDisplayName}`, `Quit ${appDisplayName}`), accelerator: 'CmdOrCtrl+Q', click: () => requestQuit() },
       ],
     },
     { role: 'editMenu' },
@@ -680,7 +698,7 @@ function createSettingsWindow() {
     height: 720,
     minWidth: 720,
     minHeight: 560,
-    title: '水滴鱼设置',
+    title: uiText('水滴鱼设置', 'Blobfish Settings'),
     backgroundColor: '#eef1ef',
     webPreferences: {
       preload: path.join(__dirname, 'settings-preload.js'),
@@ -705,7 +723,7 @@ function createClockWindow() {
     height: 700,
     minWidth: 420,
     minHeight: 560,
-    title: '闹钟与计时器',
+    title: uiText('闹钟与计时器', 'Alarms & Timers'),
     backgroundColor: '#eef3f1',
     webPreferences: {
       preload: path.join(__dirname, 'clock-preload.js'),
@@ -731,7 +749,7 @@ function createDialogueWindow() {
     height: 340,
     resizable: false,
     fullscreenable: false,
-    title: '和水滴鱼聊天',
+    title: uiText('和水滴鱼聊天', 'Chat with your pet'),
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -793,6 +811,7 @@ function getSettingsPayload() {
 function getClockWindowPayload(state = clockService?.getState()) {
   return {
     state: state || null,
+    uiLocale: uiLocale(),
     sounds: TASK_COMPLETE_SOUNDS.map((sound) => ({ id: sound.id, label: sound.label })),
     workdays: [...config.schedule.workdays],
   };
@@ -1167,6 +1186,7 @@ function getAgentEventSenderPath() {
 function applyConfig(nextConfig) {
   const codexWasEnabled = config.integrations.codex;
   const claudeWasEnabled = config.integrations.claudeCode;
+  const uiLocaleChanged = nextConfig.ui.locale !== config.ui.locale;
   const agentProviderConfigChanged = (
     codexWasEnabled !== nextConfig.integrations.codex
     || claudeWasEnabled !== nextConfig.integrations.claudeCode
@@ -1251,6 +1271,7 @@ function applyConfig(nextConfig) {
   scheduleChatInvite();
   scheduleReminders();
   rebuildTrayMenu();
+  if (uiLocaleChanged) createApplicationMenu();
 }
 
 function persistConfig(nextConfig, characterSize = characterPack.manifest.size) {
@@ -1327,6 +1348,7 @@ function getCharacterPayload() {
 
 function getPetConfigPayload() {
   return {
+    uiLocale: uiLocale(),
     scale: config.pet.scale,
     customization: getCharacterDiy(config.pet.characterPackId),
     accessories: getCharacterAccessories(config.pet.characterPackId),
@@ -1641,6 +1663,7 @@ function createWindow() {
     if (!assertDialogueSender(event)) return null;
     return {
       manifest: characterPack.manifest,
+      uiLocale: uiLocale(),
       svg: characterPack.svg,
       accessories: accessoryCatalog,
       worn: getCharacterAccessories(config.pet.characterPackId),

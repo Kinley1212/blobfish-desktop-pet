@@ -35,10 +35,24 @@ const accessoryModel = globalThis.accessoryModel;
 const diyLoadGate = accessoryModel.createLatestRequestGate();
 const panelTabs = [...document.querySelectorAll('.nav-item[data-panel]')];
 const panels = [...document.querySelectorAll('.settings-panel[data-panel-name]')];
+const uiI18n = globalThis.uiI18n;
+let currentUiLocale = uiI18n.DEFAULT_LOCALE;
 
 function byId(id) { return document.getElementById(id); }
 function setChecked(id, value) { byId(id).checked = value; }
 function setValue(id, value) { byId(id).value = value; }
+function tr(key, values) { return uiI18n.t(currentUiLocale, key, values); }
+
+function applyUiLocale(locale) {
+  currentUiLocale = uiI18n.applyDocument(document, locale);
+  setValue('ui-locale', currentUiLocale);
+  applyCharacterCopy(byId('character-pack').value);
+  if (Object.keys(integrationResults).length) {
+    for (const provider of agentProviders) {
+      if (integrationResults[provider]) renderAgentIntegration(provider, integrationResults[provider]);
+    }
+  }
+}
 
 function renderAppVersion(version) {
   if (typeof version !== 'string') return;
@@ -137,8 +151,9 @@ function validateVisibleForm() {
 }
 
 function applyCharacterCopy(characterId) {
-  const copy = charactersById.get(characterId)?.settingsCopy;
-  if (!copy) return;
+  const originalCopy = charactersById.get(characterId)?.settingsCopy;
+  if (!originalCopy) return;
+  const copy = uiI18n.localizeCharacterCopy(characterId, originalCopy, currentUiLocale);
   activeSettingsCopy = copy;
   document.title = copy.windowTitle;
   byId('settings-title').textContent = copy.pageTitle;
@@ -286,6 +301,8 @@ function renderLanguages(languages, selectedId) {
     const option = document.createElement('option');
     option.value = language.id;
     option.textContent = `${language.displayName} · ${language.locale}`;
+    option.dataset.locale = language.locale;
+    option.dataset.characterPackIds = (language.characterPackIds || []).join(',');
     option.selected = language.id === selectedId;
     select.appendChild(option);
   }
@@ -711,7 +728,7 @@ function formatLastEvent(timestamp) {
 function setConnectionStep(provider, stage, state, detail) {
   const element = byId(`${provider}-stage-${stage}`);
   element.dataset.state = state;
-  element.querySelector('small').textContent = detail;
+  element.querySelector('small').textContent = tr(detail);
 }
 
 function renderAgentIntegration(provider, result) {
@@ -734,6 +751,7 @@ function renderAgentIntegration(provider, result) {
     : result;
   const presentation = window.integrationUI.describeAgentIntegration(provider, presentedResult, {
     lastEventLabel: formatLastEvent(result.lastEventAt),
+    locale: currentUiLocale,
   });
 
   if (typeof result.receiveEnabled === 'boolean') {
@@ -968,6 +986,9 @@ async function runPrimaryAgentAction(provider) {
 }
 
 function renderConfig(config, characters, languages, sounds, accessories) {
+  currentUiLocale = uiI18n.normalizeLocale(config.ui?.locale);
+  uiI18n.applyDocument(document, currentUiLocale);
+  setValue('ui-locale', currentUiLocale);
   document.querySelectorAll('input[name="workday"]').forEach((input) => {
     input.checked = config.schedule.workdays.includes(Number(input.value));
   });
@@ -1026,6 +1047,9 @@ function renderConfig(config, characters, languages, sounds, accessories) {
 function readConfig() {
   return {
     version: 1,
+    ui: {
+      locale: byId('ui-locale').value,
+    },
     schedule: {
       workdays: [...document.querySelectorAll('input[name="workday"]:checked')].map((input) => Number(input.value)),
       lunchTime: byId('lunch-time').value,
@@ -1154,13 +1178,23 @@ for (const inputId of [
 }
 
 byId('character-pack').addEventListener('change', (event) => {
-  const languagePackId = event.target.selectedOptions[0]?.dataset.defaultLanguagePack;
+  const currentSpeechLocale = byId('language-pack').selectedOptions[0]?.dataset.locale;
+  const matchingLanguage = [...byId('language-pack').options].find((option) => (
+    option.dataset.locale === currentSpeechLocale
+    && option.dataset.characterPackIds.split(',').includes(event.target.value)
+  ));
+  const languagePackId = matchingLanguage?.value
+    || event.target.selectedOptions[0]?.dataset.defaultLanguagePack;
   if (languagePackId && [...byId('language-pack').options].some((option) => option.value === languagePackId)) {
     setValue('language-pack', languagePackId);
   }
   syncPetScaleLimit(event.target.value);
   applyCharacterCopy(event.target.value);
   loadDiy(event.target.value);
+});
+
+byId('ui-locale').addEventListener('change', (event) => {
+  applyUiLocale(event.target.value);
 });
 
 byId('diy-reset').addEventListener('click', () => {

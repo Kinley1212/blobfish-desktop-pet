@@ -3,7 +3,157 @@ const PROVIDER_NAMES = Object.freeze({
   claude: 'Claude Code',
 });
 
+function describeAgentIntegrationEnglish(provider, result = {}, options = {}) {
+  const name = PROVIDER_NAMES[provider];
+  if (!name) throw new Error('Unsupported connection type');
+  const health = result.health || 'unavailable';
+  const version = result.version ? ` v${result.version}` : '';
+  const primary = (action, label, disabled = false) => ({ action, label, disabled });
+
+  if (result.operationBusy || result.state === 'terminal-opened') {
+    const disconnecting = result.operation === 'disconnect';
+    return {
+      verdict: disconnecting ? 'Disconnecting' : 'Connecting',
+      verdictState: 'waiting',
+      summary: provider === 'claude'
+        ? `Terminal is ${disconnecting ? 'disconnecting' : 'finishing the connection'}`
+        : `Handling the ${name} connection`,
+      instruction: 'No need to click again. This card updates automatically.',
+      primary: primary('none', 'Working…', true),
+    };
+  }
+
+  const statePresentations = {
+    checking: ['Checking', 'checking', `Checking ${name} automatically…`, 'No action is needed yet. The next step will appear here.', 'none', 'Checking…', true],
+    conflict: ['Action required', 'disconnected', 'A same-name plugin from an unknown source was found', 'For safety, the pet will not delete it. Open the instructions below.', 'details', 'View instructions', false],
+    legacy: ['Update required', 'disconnected', `An older pet plugin${version} was found`, 'Use the button below to upgrade and reconnect without removing other plugins.', 'manage', 'Upgrade and connect', false],
+    disabled: ['Not connected', 'disconnected', 'The pet plugin is installed but disabled', 'Use the button below to enable it and reconnect.', 'manage', 'Enable and connect', false],
+    'not-installed': ['Not connected', 'disconnected', `${name} was found, but the pet plugin is not installed`, 'Use the button below to install and connect automatically.', 'manage', 'Install and connect', false],
+    opened: ['Waiting for install', 'waiting', 'The Codex plugin page is open', 'Confirm the installation in Codex, then return here and check again.', 'refresh', 'Installed — check again', false],
+    'opened-disconnect': ['Disconnecting', 'waiting', 'The Codex plugin page is open', 'Remove the pet plugin in Codex, then return here and check again.', 'refresh', 'Removed — check again', false],
+  };
+
+  if (result.state === 'error') {
+    if (provider === 'claude' && result.repairable) {
+      return {
+        verdict: 'Repair required',
+        verdictState: 'disconnected',
+        summary: 'A stale connection record created by the pet was found',
+        instruction: 'Repairing reconnects safely and does not change other plugins.',
+        primary: primary('update', 'Repair connection', false),
+      };
+    }
+    return {
+      verdict: 'Check failed',
+      verdictState: 'disconnected',
+      summary: 'The connection status could not be checked',
+      instruction: 'Check again. If it still fails, open Connection details for the exact reason.',
+      primary: primary('refresh', 'Check again', false),
+    };
+  }
+
+  if (result.state === 'cli-missing' && health !== 'active') {
+    return provider === 'codex'
+      ? {
+        verdict: 'Not connected',
+        verdictState: 'disconnected',
+        summary: 'Codex command-line tools were not found',
+        instruction: 'Open the Codex plugin page and confirm installation there.',
+        primary: primary('manage', 'Install in Codex', false),
+      }
+      : {
+        verdict: 'Not connected',
+        verdictState: 'disconnected',
+        summary: 'Claude Code command-line tools were not found',
+        instruction: 'Install Claude Code first, then check again.',
+        primary: primary('refresh', 'Check again', false),
+      };
+  }
+
+  const statePresentation = statePresentations[result.state];
+  if (statePresentation) {
+    const [verdict, verdictState, summary, instruction, action, label, disabled] = statePresentation;
+    return { verdict, verdictState, summary, instruction, primary: primary(action, label, disabled) };
+  }
+
+  if (result.updateAvailable) {
+    const target = result.bundledVersion ? ` v${result.bundledVersion}` : ' the latest version';
+    return {
+      verdict: 'Update available',
+      verdictState: 'disconnected',
+      summary: `Connection plugin${version} can update to${target}`,
+      instruction: 'Update with one click. New tasks can show titles when task titles are enabled.',
+      primary: primary('update', 'Update connection', false),
+    };
+  }
+  if (result.receiveEnabled === false) {
+    return {
+      verdict: 'Paused',
+      verdictState: 'waiting',
+      summary: 'The plugin remains installed, but task status reception is paused',
+      instruction: 'Resume reception without reinstalling the plugin.',
+      primary: primary('enable', 'Resume task status', false),
+    };
+  }
+  if (health === 'active') {
+    return {
+      verdict: 'Verified',
+      verdictState: 'connected',
+      summary: `A real task event was received · last event ${options.lastEventLabel || 'just now'}`,
+      instruction: 'The connection is verified. No action is needed.',
+      primary: primary('none', 'Verified — no action needed', true),
+    };
+  }
+  if (health === 'awaiting-event') {
+    return {
+      verdict: 'Waiting to verify',
+      verdictState: 'waiting',
+      summary: 'Waiting for a real task event',
+      instruction: provider === 'codex'
+        ? 'Create or continue a Codex task. Allow the pet if a Hook prompt appears.'
+        : 'Reopen Claude Code and submit a task.',
+      primary: primary('none', 'Waiting for task status…', true),
+    };
+  }
+  if (health === 'test-timeout') {
+    return {
+      verdict: 'Not verified',
+      verdictState: 'disconnected',
+      summary: 'No task status arrived within 60 seconds',
+      instruction: provider === 'codex'
+        ? 'Allow the pet in Codex /hooks, then verify again and continue a task.'
+        : 'Reopen Claude Code, verify again, and submit a task.',
+      primary: primary('verify', 'Verify again', false),
+    };
+  }
+  if (result.state === 'connected') {
+    return provider === 'codex'
+      ? {
+        verdict: 'Authorization required',
+        verdictState: 'waiting',
+        summary: `Plugin installed${version}; Hook authorization still needs verification`,
+        instruction: 'Enter /hooks in a Codex task, allow the pet, then use the button below.',
+        primary: primary('verify', 'Authorized — verify now', false),
+      }
+      : {
+        verdict: 'Waiting to verify',
+        verdictState: 'waiting',
+        summary: `Plugin installed${version}; no real task event has arrived yet`,
+        instruction: 'Reopen Claude Code, then start verification and submit a task.',
+        primary: primary('verify', 'Start verification', false),
+      };
+  }
+  return {
+    verdict: 'Unknown status',
+    verdictState: 'disconnected',
+    summary: 'The connection status is not clear yet',
+    instruction: 'Check again and the pet will inspect it once more.',
+    primary: primary('refresh', 'Check again', false),
+  };
+}
+
 function describeAgentIntegration(provider, result = {}, options = {}) {
+  if (options.locale === 'en') return describeAgentIntegrationEnglish(provider, result, options);
   const name = PROVIDER_NAMES[provider];
   if (!name) throw new Error('不支持的连接类型');
   const health = result.health || 'unavailable';

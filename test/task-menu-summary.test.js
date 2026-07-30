@@ -23,3 +23,12 @@ test('formats mixed running and waiting tasks without counting another provider'
   assert.equal(formatProviderTaskSummary(tasks, 'codex', 'Codex'), 'Codex：运行 1 · 等待 1');
   assert.equal(formatProviderTaskSummary(tasks, 'claude-code', 'Claude'), 'Claude：等待确认 1');
 });
+
+test('formats the same task summary in English when the interface locale is English', () => {
+  const tasks = [
+    { provider: 'codex', state: 'running' },
+    { provider: 'codex', state: 'waiting' },
+  ];
+  assert.equal(formatProviderTaskSummary([], 'codex', 'Codex', false, 'en'), 'Codex: disabled');
+  assert.equal(formatProviderTaskSummary(tasks, 'codex', 'Codex', true, 'en'), 'Codex: running 1 · waiting 1');
+});

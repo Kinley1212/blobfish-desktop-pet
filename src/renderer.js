@@ -10,6 +10,7 @@ const clockAlertTitle = document.getElementById('clock-alert-title');
 const clockAlertSnooze = document.getElementById('clock-alert-snooze');
 const clockAlertDismiss = document.getElementById('clock-alert-dismiss');
 const completionEffect = document.getElementById('completion-effect');
+const uiI18n = globalThis.uiI18n;
 const { buildCarouselLayout, nextTaskKey } = globalThis.taskCarouselModel;
 const { applyDiyToSvg } = globalThis.diyModel;
 const {
@@ -93,6 +94,7 @@ const chatInviteIntent = createChatInviteIntent();
 let renderedLookSignature = null; // the specs the SVG currently in the DOM was built from
 let visualBoundsFrame = null;
 let lastReportedVisualTopOverflow = null;
+let uiLocale = uiI18n.DEFAULT_LOCALE;
 const rendererAsyncGuard = createAsyncGuard({
   reportError({ error, label, shouldNotify, userMessage }) {
     console.error(`Renderer failed to ${label}`, error);
@@ -198,8 +200,10 @@ function renderClockState(summary = {}) {
   document.body.classList.toggle('has-clock-alert', Boolean(alert));
   clockAlert.dataset.visible = String(Boolean(alert));
   if (alert) {
-    clockAlertKind.textContent = alert.sourceType === 'alarm' ? '闹钟到了' : '计时结束';
-    clockAlertTitle.textContent = alert.label || '时间到了';
+    clockAlertKind.textContent = alert.sourceType === 'alarm'
+      ? uiI18n.t(uiLocale, '闹钟到了')
+      : uiI18n.t(uiLocale, '计时结束');
+    clockAlertTitle.textContent = alert.label || uiI18n.t(uiLocale, '时间到了');
     clockAlertSnooze.dataset.alertId = alert.id;
     clockAlertDismiss.dataset.alertId = alert.id;
   } else {
@@ -218,6 +222,7 @@ function lookSignature() {
 }
 
 function applyPetConfig(config = {}) {
+  uiLocale = uiI18n.applyDocument(document, config.uiLocale);
   const nextScale = Number(config.scale);
   petScale = Number.isFinite(nextScale) ? Math.min(1.5, Math.max(0.65, nextScale)) : 1;
   applyPetLayout(config);
@@ -534,18 +539,20 @@ function renderTaskCarousel() {
 
   const front = taskCarouselItems[frontIndex];
   const stateLabel = front.state === 'running'
-    ? '进行中'
+    ? (uiLocale === 'en' ? 'Running' : '进行中')
     : front.state === 'waiting'
-      ? '等待确认'
+      ? (uiLocale === 'en' ? 'Awaiting approval' : '等待确认')
       : front.state === 'completed'
-        ? '已完成'
+        ? (uiLocale === 'en' ? 'Completed' : '已完成')
         : front.state === 'ended'
-          ? '已结束'
-          : '失败';
+          ? (uiLocale === 'en' ? 'Ended' : '已结束')
+          : (uiLocale === 'en' ? 'Failed' : '失败');
   taskBubble.dataset.visible = 'true';
   taskBubble.setAttribute(
     'aria-label',
-    `${front.title}：${stateLabel}${layout.total > 1 ? `，第 ${layout.position} 个，共 ${layout.total} 个任务` : ''}`,
+    uiLocale === 'en'
+      ? `${front.title}: ${stateLabel}${layout.total > 1 ? `, task ${layout.position} of ${layout.total}` : ''}`
+      : `${front.title}：${stateLabel}${layout.total > 1 ? `，第 ${layout.position} 个，共 ${layout.total} 个任务` : ''}`,
   );
   document.body.classList.add('has-task-bubble');
 

@@ -128,3 +128,17 @@ test('timed-out verification tells the user to retry before creating another eve
   assert.equal(result.primary.label, '重新验证');
   assert.match(result.instruction, /\/hooks.*重新验证/);
 });
+
+test('English interface locale returns a complete English connection action', () => {
+  const result = describeAgentIntegration('codex', {
+    state: 'connected',
+    health: 'active',
+  }, { locale: 'en', lastEventLabel: 'today at 09:30' });
+  assert.equal(result.verdict, 'Verified');
+  assert.match(result.summary, /today at 09:30/);
+  assert.deepEqual(result.primary, {
+    action: 'none',
+    label: 'Verified — no action needed',
+    disabled: true,
+  });
+});
