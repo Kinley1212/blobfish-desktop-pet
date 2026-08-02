@@ -248,6 +248,7 @@ h1 {
 }
 
 .compact-card { padding-block: 16px; }
+#performance-memory-limit-fields { margin-top: 14px; }
 .card:last-child { margin-bottom: 0; }
 
 .card-heading {

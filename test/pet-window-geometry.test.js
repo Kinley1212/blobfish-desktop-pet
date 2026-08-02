@@ -503,8 +503,8 @@ test('drag, automatic movement, and fling project against real work areas', () =
   assert.match(dragSource, /projectPetWindowPosition\(/);
   assert.doesNotMatch(dragSource, /getCombinedBounds\(/);
 
-  const movementStart = mainSource.indexOf('setInterval(() => {', dragEnd);
-  const movementEnd = mainSource.indexOf("win.webContents.once('did-finish-load'", movementStart);
+  const movementStart = mainSource.indexOf('function runMovementTick()');
+  const movementEnd = mainSource.indexOf('\nfunction createWindow()', movementStart);
   assert.ok(movementStart >= 0 && movementEnd > movementStart);
   const movementSource = mainSource.slice(movementStart, movementEnd);
   assert.match(movementSource, /projectPetWindowPosition\(/);

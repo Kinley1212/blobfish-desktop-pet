@@ -23,6 +23,7 @@
     { "id": "battery-3-01", "event": "system.battery", "text": "只剩 3% 了……真的要插電了。", "weight": 1, "conditions": { "batteryEquals": 3 } },
     { "id": "battery-3-02", "event": "system.battery", "text": "3%……我不想陪你一起黑掉。", "weight": 1, "conditions": { "batteryEquals": 3 } },
     { "id": "battery-2-01", "event": "system.battery", "text": "2%……我快陪你一起停了。", "weight": 1, "conditions": { "batteryEquals": 2 } },
-    { "id": "battery-2-02", "event": "system.battery", "text": "真的只剩 2% 了。現在就插電。", "weight": 1, "conditions": { "batteryEquals": 2 } }
+    { "id": "battery-2-02", "event": "system.battery", "text": "真的只剩 2% 了。現在就插電。", "weight": 1, "conditions": { "batteryEquals": 2 } },
+    { "id": "memory-exit-01", "event": "system.memoryExit", "text": "記憶體一直太高。我先沉下去。", "weight": 1 }
   ]
 }

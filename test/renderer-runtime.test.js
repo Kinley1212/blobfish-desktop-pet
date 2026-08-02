@@ -78,6 +78,9 @@ function createRendererHarness() {
     'clock-alert-snooze',
     'clock-alert-dismiss',
     'completion-effect',
+    'performance-panel',
+    'performance-system',
+    'performance-app',
   ].map((id) => [id, element()]));
   const body = element();
   const svgRoot = { outerHTML: '<svg></svg>' };
@@ -132,6 +135,7 @@ function createRendererHarness() {
     'onPetEffect',
     'onPetConfig',
     'onPetLayout',
+    'onPerformanceSample',
     'onSpeech',
     'onTaskStatus',
   ];
@@ -145,6 +149,7 @@ function createRendererHarness() {
       hasEnabledAlarm: false,
     }),
     getPetConfig: () => bootstrapRejections.config,
+    getPerformanceSample: () => Promise.resolve(null),
     getTaskStatus: () => bootstrapRejections.status,
     openChat: () => {
       openChatCount += 1;

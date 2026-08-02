@@ -82,9 +82,10 @@ test('the main pet window cannot be minimized and owns its motion timer cleanup'
   assert.ok(windowStart >= 0 && windowEnd > windowStart);
   assert.match(windowOptions, /minimizable:\s*false/);
   assert.match(source, /bindGracefulWindowClose\(petWindow,/);
-  assert.match(source, /movementIntervalId = setInterval\(/);
+  assert.match(source, /movementIntervalId = setTimeout\(runMovementTick, delayMs\)/);
+  assert.match(source, /isMovementPaused\(\) \|\| flingIntervalId \? 500 : TICK_MS/);
   assert.match(source, /function stopPetMotionTimers\(\)/);
-  assert.match(source, /clearInterval\(movementIntervalId\)/);
+  assert.match(source, /clearTimeout\(movementIntervalId\)/);
   assert.match(source, /if \(win === petWindow\) win = null/);
   assert.match(source, /!isLiveWindow\(win\)/);
 });

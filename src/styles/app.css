@@ -443,6 +443,41 @@ body.has-clock-display #clock-alert {
   transform: translateX(-50%) scaleX(var(--dir));
 }
 
+#performance-panel {
+  position: absolute;
+  top: calc(var(--pet-top) + var(--pet-height) - 40px);
+  left: 8px;
+  z-index: 6;
+  box-sizing: border-box;
+  display: grid;
+  gap: 2px;
+  min-width: 116px;
+  padding: 6px 8px;
+  border: 1px solid rgba(83, 105, 104, 0.18);
+  border-radius: 10px;
+  background: rgba(248, 251, 250, 0.9);
+  box-shadow: 0 3px 12px rgba(38, 53, 50, 0.1);
+  color: #536968;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+#performance-panel[data-visible="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#performance-panel strong {
+  font-size: 10px;
+  font-weight: 700;
+}
+
 #pet svg {
   display: block;
   width: 100%;

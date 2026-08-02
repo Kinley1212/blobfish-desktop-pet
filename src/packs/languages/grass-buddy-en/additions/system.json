@@ -10,6 +10,7 @@
     { "id": "grass-en-battery-5", "event": "system.battery", "text": "Five percent. That is quite low.", "conditions": { "batteryEquals": 5 } },
     { "id": "grass-en-battery-3", "event": "system.battery", "text": "Three percent. Please plug it in.", "conditions": { "batteryEquals": 3 } },
     { "id": "grass-en-battery-2", "event": "system.battery", "text": "Two percent. Charger. Quickly.", "conditions": { "batteryEquals": 2 } },
-    { "id": "grass-en-error-01", "event": "system.error", "text": "Something failed to connect. It happens." }
+    { "id": "grass-en-error-01", "event": "system.error", "text": "Something failed to connect. It happens." },
+    { "id": "grass-en-memory-exit-01", "event": "system.memoryExit", "text": "Memory stayed too high. I will fold my leaves for now." }
   ]
 }

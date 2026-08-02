@@ -34,6 +34,7 @@
     { "id": "grass-error-02", "event": "system.error", "text": "刚才那一步折了。", "weight": 4 },
     { "id": "grass-error-03", "event": "system.error", "text": "这里出错了。你看一下。", "weight": 4 },
     { "id": "grass-error-04", "event": "system.error", "text": "不是沉默。是没接上。", "weight": 3 },
-    { "id": "grass-error-05", "event": "system.error", "text": "风向不对。再看一次。", "weight": 2 }
+    { "id": "grass-error-05", "event": "system.error", "text": "风向不对。再看一次。", "weight": 2 },
+    { "id": "grass-memory-exit-01", "event": "system.memoryExit", "text": "内存一直太高。我先把叶子收起来。", "weight": 1 }
   ]
 }

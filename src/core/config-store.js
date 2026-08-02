@@ -52,6 +52,11 @@ const DEFAULT_CONFIG = Object.freeze({
     accessories: Object.freeze({}),
   }),
   startup: Object.freeze({ launchAtLogin: false }),
+  performance: Object.freeze({
+    panelEnabled: false,
+    autoQuitEnabled: false,
+    memoryLimitMb: 1024,
+  }),
   integrations: Object.freeze({ calendar: false, codex: true, claudeCode: true }),
   privacy: Object.freeze({ includeTaskTitles: false, includeCalendarTitles: true }),
   sound: Object.freeze({
@@ -128,6 +133,8 @@ function validateConfig(input) {
   assertObject(input.pet, 'pet');
   const startup = input.startup === undefined ? DEFAULT_CONFIG.startup : input.startup;
   assertObject(startup, 'startup');
+  const performance = input.performance === undefined ? DEFAULT_CONFIG.performance : input.performance;
+  assertObject(performance, 'performance');
   assertObject(input.integrations, 'integrations');
   assertObject(input.privacy, 'privacy');
   const sound = input.sound === undefined ? DEFAULT_CONFIG.sound : input.sound;
@@ -225,6 +232,11 @@ function validateConfig(input) {
     },
     startup: {
       launchAtLogin: requireBoolean(startup.launchAtLogin, 'startup.launchAtLogin'),
+    },
+    performance: {
+      panelEnabled: requireBoolean(performance.panelEnabled, 'performance.panelEnabled'),
+      autoQuitEnabled: requireBoolean(performance.autoQuitEnabled, 'performance.autoQuitEnabled'),
+      memoryLimitMb: requireNumber(performance.memoryLimitMb, 'performance.memoryLimitMb', 800, 1536),
     },
     integrations: {
       calendar: requireBoolean(input.integrations.calendar, 'integrations.calendar'),
