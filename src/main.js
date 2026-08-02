@@ -2,8 +2,13 @@ const { app, BrowserWindow, screen, ipcMain, Tray, Menu, nativeImage, powerMonit
 const crypto = require('crypto');
 const { execFile } = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
-const { shouldPauseIdleSpeech, shouldPauseMovement } = require('./core/activity-gates');
+const {
+  shouldPauseAgentMovement,
+  shouldPauseIdleSpeech,
+  shouldPauseMovement,
+} = require('./core/activity-gates');
 const { AgentBridge } = require('./core/agent-bridge');
 const { BatteryThresholdTracker, readMacBattery } = require('./core/battery-monitor');
 const { CalendarService } = require('./core/calendar-service');
@@ -42,6 +47,8 @@ const {
 const { playTaskSoundFile } = require('./core/sound-player');
 const { RuntimeErrorNotifier } = require('./core/runtime-error-notifier');
 const { RuntimeWarningStore } = require('./core/runtime-warning-store');
+const { MemoryGuard } = require('./core/memory-guard');
+const { buildPerformanceSample } = require('./core/performance-monitor');
 const { SpeechQueue } = require('./core/speech-queue');
 const { SPEECH_DURATION_MS } = require('./core/speech-timing');
 const { StartupGreetingStore, getStartupGreeting } = require('./core/startup-greeting');
@@ -207,6 +214,12 @@ let contextMenuSession = 0;
 let lastContextMenuSpokenAt = 0;
 let quitRequested = false;
 let allowImmediateQuit = false;
+let updateInstallInProgress = false;
+let performanceSampleTimer = null;
+let previousCpuTimes = null;
+let latestPerformanceSample = null;
+let memoryGuardQuitRequested = false;
+const memoryGuard = new MemoryGuard();
 let currentAgentSnapshot = Object.freeze({ activeCount: 0, waitingCount: 0, runningCount: 0 });
 let runtimeErrorNotifier;
 const connectionHealth = new ConnectionHealthTracker();
@@ -475,7 +488,7 @@ function syncLaunchAtLogin(enabled) {
   runtimeWarnings.clear('startup');
 }
 
-function requestQuit() {
+function requestQuit(options = {}) {
   if (quitRequested) return;
   quitRequested = true;
   paused = true;
@@ -483,16 +496,32 @@ function requestQuit() {
   if (win && !win.isDestroyed()) {
     win.webContents.send('pet-action', { action: 'exit', durationMs: EXIT_ANIMATION_MS });
   }
-  const spoken = speak('interaction.goodbye', {}, {
+  const speechEvent = options.speechEvent || 'interaction.goodbye';
+  const spoken = speak(speechEvent, {}, {
     priority: SPEECH_PRIORITY.urgent,
     durationMs: 1800,
-    replaceKey: 'interaction.goodbye',
+    replaceKey: speechEvent,
     allowDuringQuiet: true,
   });
   quitTimer = setTimeout(() => {
     allowImmediateQuit = true;
     app.quit();
   }, Math.max(EXIT_ANIMATION_MS + 150, spoken ? 1900 : 0));
+}
+
+function setPerformancePanelEnabled(enabled) {
+  if (config.performance.panelEnabled === enabled) return;
+  const saved = persistConfig({
+    ...config,
+    performance: { ...config.performance, panelEnabled: enabled },
+  });
+  applyConfig(saved);
+  if (settingsWin && !settingsWin.isDestroyed()) {
+    settingsWin.webContents.send('setting-changed', {
+      path: 'performance.panelEnabled',
+      value: enabled,
+    });
+  }
 }
 
 function setRoamWhenNoTasks(enabled) {
@@ -511,6 +540,27 @@ function setRoamWhenNoTasks(enabled) {
   if (settingsWin && !settingsWin.isDestroyed()) {
     settingsWin.webContents.send('setting-changed', {
       path: 'pet.roamWhenNoTasks',
+      value: enabled,
+    });
+  }
+}
+
+function setRoamWhenTasks(enabled) {
+  if (config.pet.roamWhenTasks === enabled) return;
+  const saved = persistConfig({
+    ...config,
+    pet: { ...config.pet, roamWhenTasks: enabled },
+  });
+  applyConfig(saved);
+  speak(enabled ? 'interaction.taskRoamOn' : 'interaction.taskRoamOff', {}, {
+    priority: SPEECH_PRIORITY.interaction,
+    durationMs: 2800,
+    replaceKey: 'interaction.taskRoamToggle',
+    allowDuringQuiet: true,
+  });
+  if (settingsWin && !settingsWin.isDestroyed()) {
+    settingsWin.webContents.send('setting-changed', {
+      path: 'pet.roamWhenTasks',
       value: enabled,
     });
   }
@@ -620,6 +670,19 @@ function buildPetMenuTemplate() {
     { label: uiText('找水滴鱼聊天…', 'Chat with the pet…'), click: () => createDialogueWindow() },
     { label: uiText('打开设置…', 'Open settings…'), click: () => createSettingsWindow() },
     {
+      label: uiText('任务进行时游动', 'Move while tasks are running'),
+      type: 'checkbox',
+      checked: config.pet.roamWhenTasks,
+      click: (item) => {
+        try {
+          setRoamWhenTasks(item.checked);
+        } catch (error) {
+          reportRuntimeError('Task roaming setting', error);
+          rebuildTrayMenu();
+        }
+      },
+    },
+    {
       label: uiLocale() === 'en'
         ? uiText('没有任务时也继续游动', 'Keep moving without tasks')
         : (characterPack?.settingsCopy?.roamWithoutTasksLabel || '没有任务时也继续游动'),
@@ -630,6 +693,19 @@ function buildPetMenuTemplate() {
           setRoamWhenNoTasks(item.checked);
         } catch (error) {
           reportRuntimeError('Idle roaming setting', error);
+          rebuildTrayMenu();
+        }
+      },
+    },
+    {
+      label: uiText('显示性能面板', 'Show performance panel'),
+      type: 'checkbox',
+      checked: config.performance.panelEnabled,
+      click: (item) => {
+        try {
+          setPerformancePanelEnabled(item.checked);
+        } catch (error) {
+          reportRuntimeError('Performance panel setting', error);
           rebuildTrayMenu();
         }
       },
@@ -1132,6 +1208,7 @@ async function installGithubUpdate() {
   const zipPath = path.join(stagingDirectory, update.asset.name);
   const commandPath = path.join(stagingDirectory, '安装水滴鱼更新.command');
   try {
+    updateInstallInProgress = true;
     const progressDetails = { installLocation: installPlan.installLocation };
     sendAppUpdateProgress({
       state: 'preparing',
@@ -1158,6 +1235,7 @@ async function installGithubUpdate() {
     fs.chmodSync(commandPath, 0o700);
     await launchMacInstallerInBackground(commandPath);
   } catch (error) {
+    updateInstallInProgress = false;
     fs.rmSync(stagingDirectory, { recursive: true, force: true });
     throw error;
   }
@@ -1270,6 +1348,7 @@ function applyConfig(nextConfig) {
   scheduleIdleChatter();
   scheduleChatInvite();
   scheduleReminders();
+  syncPerformanceMonitoring();
   rebuildTrayMenu();
   if (uiLocaleChanged) createApplicationMenu();
 }
@@ -1352,8 +1431,90 @@ function getPetConfigPayload() {
     scale: config.pet.scale,
     customization: getCharacterDiy(config.pet.characterPackId),
     accessories: getCharacterAccessories(config.pet.characterPackId),
+    performancePanelEnabled: config.performance.panelEnabled,
     ...getPetLayoutPayload(),
   };
+}
+
+function isWindowVisible(window) {
+  return Boolean(window && !window.isDestroyed() && window.isVisible());
+}
+
+function getMemoryGuardBlockers() {
+  const clockState = clockService?.getState();
+  return {
+    settingsOpen: isWindowVisible(settingsWin),
+    clockOpen: isWindowVisible(clockWin),
+    dialogueOpen: isWindowVisible(dialogueWin),
+    alarmRinging: Boolean(clockState?.alerts?.some((alert) => alert.state === 'ringing')),
+    updateInstalling: updateInstallInProgress,
+  };
+}
+
+function writeMemoryGuardDiagnostic(decision, sample) {
+  const diagnosticsDirectory = path.join(app.getPath('userData'), 'diagnostics');
+  const diagnosticPath = path.join(diagnosticsDirectory, 'last-memory-exit.json');
+  const tempPath = `${diagnosticPath}.${process.pid}.tmp`;
+  const payload = {
+    timestamp: new Date().toISOString(),
+    version: appVersion,
+    reason: decision.reason,
+    limitMb: decision.limitMb,
+    appMemoryMb: Math.round(sample.appMemoryMb),
+    processes: sample.processes.map((metric) => ({
+      type: metric.type,
+      memoryMb: Math.round(metric.memoryMb),
+    })),
+  };
+  fs.mkdirSync(diagnosticsDirectory, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(tempPath, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 });
+  fs.renameSync(tempPath, diagnosticPath);
+}
+
+function samplePerformance() {
+  try {
+    const result = buildPerformanceSample({
+      previousCpuTimes,
+      cpus: os.cpus(),
+      systemMemory: process.getSystemMemoryInfo(),
+      appMetrics: app.getAppMetrics(),
+    });
+    previousCpuTimes = result.cpuTimes;
+    latestPerformanceSample = result.sample;
+    if (config.performance.panelEnabled && win && !win.isDestroyed()) {
+      win.webContents.send('performance-sample', latestPerformanceSample);
+    }
+    const decision = memoryGuard.evaluate(latestPerformanceSample, {
+      enabled: config.performance.autoQuitEnabled,
+      limitMb: config.performance.memoryLimitMb,
+    }, getMemoryGuardBlockers());
+    if (decision.action === 'quit' && !memoryGuardQuitRequested) {
+      memoryGuardQuitRequested = true;
+      try {
+        writeMemoryGuardDiagnostic(decision, latestPerformanceSample);
+      } catch (error) {
+        console.error(`Could not write memory exit diagnostic: ${error.message}`);
+      }
+      requestQuit({ speechEvent: 'system.memoryExit' });
+    }
+  } catch (error) {
+    console.error(`Performance sampling failed: ${error.message}`);
+  }
+}
+
+function syncPerformanceMonitoring() {
+  clearInterval(performanceSampleTimer);
+  performanceSampleTimer = null;
+  if (!config.performance.panelEnabled && !config.performance.autoQuitEnabled) {
+    previousCpuTimes = null;
+    latestPerformanceSample = null;
+    memoryGuard.resetPressure();
+    if (win && !win.isDestroyed()) win.webContents.send('performance-sample', null);
+    return;
+  }
+  samplePerformance();
+  const intervalMs = config.performance.panelEnabled ? 3000 : 15000;
+  performanceSampleTimer = setInterval(samplePerformance, intervalMs);
 }
 
 function getPetLayoutPayload() {
@@ -1545,10 +1706,83 @@ function setupDisplayMonitors() {
 }
 
 function stopPetMotionTimers() {
-  clearInterval(movementIntervalId);
+  clearTimeout(movementIntervalId);
   clearInterval(flingIntervalId);
   movementIntervalId = null;
   flingIntervalId = null;
+}
+
+function scheduleMovementTick(delayMs = TICK_MS) {
+  clearTimeout(movementIntervalId);
+  movementIntervalId = setTimeout(runMovementTick, delayMs);
+}
+
+function runMovementTick() {
+  movementIntervalId = null;
+  try {
+    if (isMovementPaused() || flingIntervalId || !isLiveWindow(win)) return;
+    const [wx, wy] = win.getPosition();
+    const petMetrics = getPetMetrics();
+    const nativePetTop = wy + (Number.isFinite(petTopOffset) ? petTopOffset : petMetrics.topMargin);
+    const workAreas = getAvailableWorkAreas();
+    if (workAreas.length === 0) return;
+
+    if (config.pet.moveAxis === 'vertical') {
+      let nearestBounds = screen.getDisplayNearestPoint({
+        x: wx + petMetrics.offsetX + petMetrics.width / 2,
+        y: nativePetTop + petMetrics.height / 2,
+      }).workArea;
+      if (!isSaneRect(nearestBounds)) {
+        nearestBounds = screen.getPrimaryDisplay().workArea;
+      }
+      const minY = nearestBounds.y;
+      const maxY = nearestBounds.y + nearestBounds.height;
+      let basePetTop = currentPetTopPrecise;
+      if (!Number.isFinite(basePetTop) || Math.abs(basePetTop - nativePetTop) > 1.5) {
+        basePetTop = nativePetTop;
+      }
+      let desiredPetTop = basePetTop + verticalDirection * config.pet.speed;
+      const probe = calculateVerticalRoamPlacement(desiredPetTop, { minY, maxY }, petMetrics);
+      if (probe.hitTop) {
+        desiredPetTop = probe.petTop;
+        verticalDirection = 1;
+      } else if (probe.hitBottom) {
+        desiredPetTop = probe.petTop;
+        verticalDirection = -1;
+      }
+      const placement = projectPetWindowPosition(
+        wx,
+        probe.windowY,
+        probe.topOffset,
+        petMetrics,
+        workAreas,
+      );
+      applyProjectedPetPlacement(placement);
+      syncAutomaticHoverState();
+      return;
+    }
+
+    const newX = advanceFractionalCoordinate(currentX, wx, direction * config.pet.speed);
+    const topOffset = Number.isFinite(petTopOffset) ? petTopOffset : petMetrics.topMargin;
+    const placement = projectPetWindowPosition(
+      newX,
+      wy,
+      topOffset,
+      petMetrics,
+      workAreas,
+    );
+    if (!placement) return;
+    const intendedPetLeft = newX + petMetrics.offsetX;
+    if (Math.abs(placement.petLeft - intendedPetLeft) > 1e-6) {
+      direction *= -1;
+      win.webContents.send('direction', direction);
+    }
+
+    applyProjectedPetPlacement(placement);
+    syncAutomaticHoverState();
+  } finally {
+    if (isLiveWindow(win)) scheduleMovementTick(isMovementPaused() || flingIntervalId ? 500 : TICK_MS);
+  }
 }
 
 function createWindow() {
@@ -1732,73 +1966,7 @@ function createWindow() {
     startFling(vx, vy);
   });
 
-  movementIntervalId = setInterval(() => {
-    if (isMovementPaused() || flingIntervalId || !isLiveWindow(win)) return;
-    const [wx, wy] = win.getPosition();
-    const petMetrics = getPetMetrics();
-    const nativePetTop = wy + (Number.isFinite(petTopOffset) ? petTopOffset : petMetrics.topMargin);
-    const workAreas = getAvailableWorkAreas();
-    if (workAreas.length === 0) return;
-
-    if (config.pet.moveAxis === 'vertical') {
-      let nearestBounds = screen.getDisplayNearestPoint({
-        x: wx + petMetrics.offsetX + petMetrics.width / 2,
-        y: nativePetTop + petMetrics.height / 2,
-      }).workArea;
-      if (!isSaneRect(nearestBounds)) {
-        nearestBounds = screen.getPrimaryDisplay().workArea;
-      }
-      // Vertical roaming: drift the pet up and down between the top and bottom
-      // of the current display, bouncing at each edge. The sprite keeps its
-      // facing (no horizontal flip), so no 'direction' event is sent here.
-      const minY = nearestBounds.y;
-      const maxY = nearestBounds.y + nearestBounds.height;
-      // Self-healing sub-pixel tracker: if our tracked value has drifted from
-      // where the window actually is (a drag or fling moved it), resync.
-      let basePetTop = currentPetTopPrecise;
-      if (!Number.isFinite(basePetTop) || Math.abs(basePetTop - nativePetTop) > 1.5) {
-        basePetTop = nativePetTop;
-      }
-      let desiredPetTop = basePetTop + verticalDirection * config.pet.speed;
-      const probe = calculateVerticalRoamPlacement(desiredPetTop, { minY, maxY }, petMetrics);
-      if (probe.hitTop) {
-        desiredPetTop = probe.petTop;
-        verticalDirection = 1;
-      } else if (probe.hitBottom) {
-        desiredPetTop = probe.petTop;
-        verticalDirection = -1;
-      }
-      const placement = projectPetWindowPosition(
-        wx,
-        probe.windowY,
-        probe.topOffset,
-        petMetrics,
-        workAreas,
-      );
-      applyProjectedPetPlacement(placement);
-      syncAutomaticHoverState();
-      return;
-    }
-
-    const newX = advanceFractionalCoordinate(currentX, wx, direction * config.pet.speed);
-    const topOffset = Number.isFinite(petTopOffset) ? petTopOffset : petMetrics.topMargin;
-    const placement = projectPetWindowPosition(
-      newX,
-      wy,
-      topOffset,
-      petMetrics,
-      workAreas,
-    );
-    if (!placement) return;
-    const intendedPetLeft = newX + petMetrics.offsetX;
-    if (Math.abs(placement.petLeft - intendedPetLeft) > 1e-6) {
-      direction *= -1;
-      win.webContents.send('direction', direction);
-    }
-
-    applyProjectedPetPlacement(placement);
-    syncAutomaticHoverState();
-  }, TICK_MS);
+  scheduleMovementTick();
 
   win.webContents.once('did-finish-load', () => {
     runtimeErrorNotifier.setReady();
@@ -1806,6 +1974,9 @@ function createWindow() {
     scheduleReminders();
     scheduleIdleChatter();
     scheduleChatInvite();
+    if (config.performance.panelEnabled && latestPerformanceSample) {
+      win.webContents.send('performance-sample', latestPerformanceSample);
+    }
   });
 }
 
@@ -2063,7 +2234,7 @@ function updateAgentState(snapshot) {
   currentAgentSnapshot = snapshot;
   rebuildTrayMenu();
   const allWaiting = snapshot.activeCount > 0 && snapshot.waitingCount === snapshot.activeCount;
-  agentPaused = allWaiting || (snapshot.activeCount === 0 && !config.pet.roamWhenNoTasks);
+  agentPaused = shouldPauseAgentMovement(snapshot, config.pet);
   const motion = snapshot.activeCount > 0
     ? (allWaiting ? 'waiting' : 'working')
     : (agentPaused ? 'idle' : 'roam');
@@ -2576,6 +2747,10 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
 
   ipcMain.handle('character-pack:get', () => getCharacterPayload());
   ipcMain.handle('pet-config:get', () => getPetConfigPayload());
+  ipcMain.handle('performance-sample:get', (event) => {
+    assertPetSender(event);
+    return config.performance.panelEnabled ? latestPerformanceSample : null;
+  });
   ipcMain.handle('agent-state:get', () => ({
     ...currentAgentSnapshot,
     motion: currentAgentSnapshot.activeCount > 0
@@ -2783,6 +2958,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   createApplicationMenu();
   createTray();
   createWindow();
+  syncPerformanceMonitoring();
   setupDisplayMonitors();
   setupSystemMonitors();
   setupCalendarService();
@@ -2815,6 +2991,7 @@ app.on('before-quit', (event) => {
   clearInterval(batteryPollTimer);
   clearInterval(taskMaintenanceTimer);
   clearInterval(taskLeasePollTimer);
+  clearInterval(performanceSampleTimer);
   if (clockService) clockService.stop();
   if (calendarService) calendarService.stop();
   if (agentBridge) agentBridge.stop();

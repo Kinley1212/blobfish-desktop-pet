@@ -6,6 +6,8 @@
     { "id": "en-resume-01", "event": "interaction.resumed", "text": "Back to swimming, apparently." },
     { "id": "en-roam-off-01", "event": "interaction.idleRoamOff", "text": "No task, no swimming. Fair." },
     { "id": "en-roam-on-01", "event": "interaction.idleRoamOn", "text": "I will keep moving. For morale." },
+    { "id": "en-task-roam-off-01", "event": "interaction.taskRoamOff", "text": "The task can move. I will stay here." },
+    { "id": "en-task-roam-on-01", "event": "interaction.taskRoamOn", "text": "Working and swimming. Apparently." },
     { "id": "en-pet-01", "event": "interaction.petting", "text": "…That is acceptable." },
     { "id": "en-pet-more-01", "event": "interaction.pettingMore", "text": "You are still doing that." },
     { "id": "en-pet-lots-01", "event": "interaction.pettingLots", "text": "All right. I noticed." },

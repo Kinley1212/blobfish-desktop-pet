@@ -102,6 +102,7 @@ function syncDependentControls() {
     ['idle-enabled', 'idle-time-fields'],
     ['sound-needs-input-enabled', 'sound-needs-input-fields'],
     ['sound-task-complete-enabled', 'sound-task-complete-fields'],
+    ['performance-auto-quit-enabled', 'performance-memory-limit-fields'],
   ];
   for (const [toggleId, groupId] of dependencies) {
     const enabled = byId(toggleId).checked;
@@ -1145,8 +1146,12 @@ function renderConfig(config, characters, languages, sounds, accessories) {
   setValue('pet-scale', config.pet.scale);
   syncPetScaleLimit(config.pet.characterPackId);
   setValue('pet-move-axis', config.pet.moveAxis || 'horizontal');
+  setChecked('roam-with-tasks', config.pet.roamWhenTasks !== false);
   setChecked('roam-without-tasks', config.pet.roamWhenNoTasks);
   setChecked('launch-at-login', config.startup.launchAtLogin);
+  setChecked('performance-panel-enabled', config.performance?.panelEnabled === true);
+  setChecked('performance-auto-quit-enabled', config.performance?.autoQuitEnabled === true);
+  setValue('performance-memory-limit', config.performance?.memoryLimitMb || 1024);
   setChecked('integration-codex', config.integrations.codex);
   setChecked('integration-claude', config.integrations.claudeCode);
   setChecked('integration-calendar', config.integrations.calendar);
@@ -1215,6 +1220,7 @@ function readConfig() {
       characterPackId: byId('character-pack').value,
       speed: Number(speedInput.value),
       scale: Number(scaleInput.value),
+      roamWhenTasks: byId('roam-with-tasks').checked,
       roamWhenNoTasks: byId('roam-without-tasks').checked,
       moveAxis: byId('pet-move-axis').value,
       customization: diyMap,
@@ -1222,6 +1228,11 @@ function readConfig() {
     },
     startup: {
       launchAtLogin: byId('launch-at-login').checked,
+    },
+    performance: {
+      panelEnabled: byId('performance-panel-enabled').checked,
+      autoQuitEnabled: byId('performance-auto-quit-enabled').checked,
+      memoryLimitMb: Number(byId('performance-memory-limit').value || 1024),
     },
     integrations: {
       codex: byId('integration-codex').checked,
@@ -1268,7 +1279,7 @@ for (const tab of panelTabs) {
   });
 }
 
-for (const toggleId of ['workday-greeting-enabled', 'dayoff-greeting-enabled', 'quiet-enabled', 'idle-enabled', 'sound-needs-input-enabled', 'sound-task-complete-enabled']) {
+for (const toggleId of ['workday-greeting-enabled', 'dayoff-greeting-enabled', 'quiet-enabled', 'idle-enabled', 'sound-needs-input-enabled', 'sound-task-complete-enabled', 'performance-auto-quit-enabled']) {
   byId(toggleId).addEventListener('change', syncDependentControls);
 }
 
@@ -1403,7 +1414,13 @@ window.settingsAPI.onAgentConnectionHealth((health) => {
   });
 });
 window.settingsAPI.onSettingChanged((setting) => {
+  if (setting?.path === 'pet.roamWhenTasks' && typeof setting.value === 'boolean') {
+    setChecked('roam-with-tasks', setting.value);
+  }
   if (setting?.path === 'pet.roamWhenNoTasks' && typeof setting.value === 'boolean') {
     setChecked('roam-without-tasks', setting.value);
+  }
+  if (setting?.path === 'performance.panelEnabled' && typeof setting.value === 'boolean') {
+    setChecked('performance-panel-enabled', setting.value);
   }
 });

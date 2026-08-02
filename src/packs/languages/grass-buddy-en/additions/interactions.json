@@ -6,6 +6,8 @@
     { "id": "grass-en-resume-01", "event": "interaction.resumed", "text": "Moving again. Slowly." },
     { "id": "grass-en-roam-off-01", "event": "interaction.idleRoamOff", "text": "I will wait here." },
     { "id": "grass-en-roam-on-01", "event": "interaction.idleRoamOn", "text": "I will wander a little." },
+    { "id": "grass-en-task-roam-off-01", "event": "interaction.taskRoamOff", "text": "I will stay rooted while work is running." },
+    { "id": "grass-en-task-roam-on-01", "event": "interaction.taskRoamOn", "text": "I will walk while the work grows." },
     { "id": "grass-en-pet-01", "event": "interaction.petting", "text": "…That is nice." },
     { "id": "grass-en-pet-more-01", "event": "interaction.pettingMore", "text": "Still nice." },
     { "id": "grass-en-pet-lots-01", "event": "interaction.pettingLots", "text": "All right. I am happy now." },

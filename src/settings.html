@@ -79,6 +79,10 @@
               <option value="vertical">垂直（沿边缘上下游动）</option>
             </select></label>
             <label class="toggle-row">
+              <span><strong>任务进行时游动</strong><small>关闭后仍显示任务状态，只是不再在桌面上移动。</small></span>
+              <input id="roam-with-tasks" type="checkbox" />
+            </label>
+            <label class="toggle-row">
               <span><strong id="roam-without-tasks-label">没有任务时也继续游动</strong><small>关闭后，所有任务结束时角色会停下来。</small></span>
               <input id="roam-without-tasks" type="checkbox" />
             </label>
@@ -89,6 +93,27 @@
               <span><strong>登录后自动打开</strong><small>在后台启动，仍然不会占用程序坞。</small></span>
               <input id="launch-at-login" type="checkbox" />
             </label>
+          </div>
+
+          <div class="card">
+            <div class="card-heading">
+              <div><h3>性能与内存</h3><p>默认不采样；打开功能后才会读取本机 CPU 和内存占用。</p></div>
+            </div>
+            <label class="toggle-row">
+              <span><strong>显示性能面板</strong><small>在桌面角色旁显示系统 CPU、内存和本程序占用。</small></span>
+              <input id="performance-panel-enabled" type="checkbox" />
+            </label>
+            <label class="toggle-row separated-toggle">
+              <span><strong>内存过高时自动退出</strong><small>连续超限 3 分钟才退出；设置、闹钟和更新期间会等待。</small></span>
+              <input id="performance-auto-quit-enabled" type="checkbox" />
+            </label>
+            <div id="performance-memory-limit-fields">
+              <label class="field">内存上限<select id="performance-memory-limit">
+                <option value="800">800 MB</option>
+                <option value="1024">1 GB</option>
+                <option value="1536">1.5 GB</option>
+              </select></label>
+            </div>
           </div>
         </section>
 

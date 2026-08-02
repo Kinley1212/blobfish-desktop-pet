@@ -10,6 +10,7 @@
     { "id": "en-battery-5", "event": "system.battery", "text": "Five percent. This is becoming a situation.", "conditions": { "batteryEquals": 5 } },
     { "id": "en-battery-3", "event": "system.battery", "text": "Three percent. Please plug it in.", "conditions": { "batteryEquals": 3 } },
     { "id": "en-battery-2", "event": "system.battery", "text": "Two percent. Charger. Now.", "conditions": { "batteryEquals": 2 } },
-    { "id": "en-error-01", "event": "system.error", "text": "Something did not connect. I am as disappointed as you are." }
+    { "id": "en-error-01", "event": "system.error", "text": "Something did not connect. I am as disappointed as you are." },
+    { "id": "en-memory-exit-01", "event": "system.memoryExit", "text": "Memory stayed too high. I am sinking for now." }
   ]
 }

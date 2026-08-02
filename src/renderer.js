@@ -10,6 +10,9 @@ const clockAlertTitle = document.getElementById('clock-alert-title');
 const clockAlertSnooze = document.getElementById('clock-alert-snooze');
 const clockAlertDismiss = document.getElementById('clock-alert-dismiss');
 const completionEffect = document.getElementById('completion-effect');
+const performancePanel = document.getElementById('performance-panel');
+const performanceSystem = document.getElementById('performance-system');
+const performanceApp = document.getElementById('performance-app');
 const uiI18n = globalThis.uiI18n;
 const { buildCarouselLayout, nextTaskKey } = globalThis.taskCarouselModel;
 const { applyDiyToSvg } = globalThis.diyModel;
@@ -95,6 +98,7 @@ let renderedLookSignature = null; // the specs the SVG currently in the DOM was 
 let visualBoundsFrame = null;
 let lastReportedVisualTopOverflow = null;
 let uiLocale = uiI18n.DEFAULT_LOCALE;
+let performancePanelEnabled = false;
 const rendererAsyncGuard = createAsyncGuard({
   reportError({ error, label, shouldNotify, userMessage }) {
     console.error(`Renderer failed to ${label}`, error);
@@ -223,6 +227,8 @@ function lookSignature() {
 
 function applyPetConfig(config = {}) {
   uiLocale = uiI18n.applyDocument(document, config.uiLocale);
+  performancePanelEnabled = config.performancePanelEnabled === true;
+  performancePanel.dataset.visible = String(performancePanelEnabled);
   const nextScale = Number(config.scale);
   petScale = Number.isFinite(nextScale) ? Math.min(1.5, Math.max(0.65, nextScale)) : 1;
   applyPetLayout(config);
@@ -242,6 +248,22 @@ function applyPetConfig(config = {}) {
   pet.style.height = `${height}px`;
   document.documentElement.style.setProperty('--pet-height', `${height}px`);
   scheduleVisualBoundsMeasurement();
+}
+
+function formatPerformancePercent(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${Math.round(Math.max(0, Math.min(100, number)))}%` : '--';
+}
+
+function renderPerformanceSample(sample) {
+  if (!performancePanelEnabled || !sample) {
+    performancePanel.dataset.visible = 'false';
+    return;
+  }
+  performanceSystem.textContent = `CPU ${formatPerformancePercent(sample.systemCpuPercent)} · RAM ${formatPerformancePercent(sample.systemMemoryPercent)}`;
+  const memoryMb = Number(sample.appMemoryMb);
+  performanceApp.textContent = `${uiLocale === 'en' ? 'Pet' : '水滴鱼'} ${Number.isFinite(memoryMb) ? Math.round(Math.max(0, memoryMb)) : '--'} MB`;
+  performancePanel.dataset.visible = 'true';
 }
 
 function sanitizeSvg(svgText) {
@@ -738,6 +760,7 @@ window.petAPI.onSpeech((message) => {
 window.petAPI.onAgentState((state) => applyAgentState(state));
 window.petAPI.onTaskStatus((state) => renderTaskStatus(state));
 window.petAPI.onClockState((state) => renderClockState(state));
+window.petAPI.onPerformanceSample((sample) => renderPerformanceSample(sample));
 window.petAPI.onCharacterPack((pack) => applyCharacterPack(pack));
 window.petAPI.onPetLayout((layout) => applyPetLayout(layout));
 window.petAPI.onPetConfig((config) => {
@@ -770,6 +793,10 @@ void rendererAsyncGuard.run('bootstrap', () => bootstrapRenderer({
 void rendererAsyncGuard.run(
   'read clock state',
   async () => renderClockState(await window.petAPI.getClockSummary()),
+);
+void rendererAsyncGuard.run(
+  'read performance sample',
+  async () => renderPerformanceSample(await window.petAPI.getPerformanceSample()),
 );
 // The window can move on its own (autonomous swimming, flinging) without the
 // cursor ever moving, so mousemove alone isn't enough to keep click-through

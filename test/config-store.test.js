@@ -18,8 +18,12 @@ test('config store writes validated settings atomically and reloads them', () =>
     next.language.idleMaxMinutes = 45;
     next.pet.scale = 1.25;
     next.pet.characterPackId = 'grass-buddy';
+    next.pet.roamWhenTasks = false;
     next.pet.roamWhenNoTasks = true;
     next.startup.launchAtLogin = true;
+    next.performance.panelEnabled = true;
+    next.performance.autoQuitEnabled = true;
+    next.performance.memoryLimitMb = 1536;
     next.ui.locale = 'en';
     store.save(next);
 
@@ -29,8 +33,14 @@ test('config store writes validated settings atomically and reloads them', () =>
     assert.deepEqual(reloaded.get().greetings.workday, { enabled: true, start: '06:45', end: '10:30' });
     assert.equal(reloaded.get().pet.scale, 1.25);
     assert.equal(reloaded.get().pet.characterPackId, 'grass-buddy');
+    assert.equal(reloaded.get().pet.roamWhenTasks, false);
     assert.equal(reloaded.get().pet.roamWhenNoTasks, true);
     assert.equal(reloaded.get().startup.launchAtLogin, true);
+    assert.deepEqual(reloaded.get().performance, {
+      panelEnabled: true,
+      autoQuitEnabled: true,
+      memoryLimitMb: 1536,
+    });
     assert.equal(reloaded.get().ui.locale, 'en');
     assert.equal(fs.statSync(reloaded.filePath).mode & 0o777, 0o600);
   } finally {
@@ -45,18 +55,21 @@ test('legacy stop-after-task setting migrates without losing user intent', () =>
   delete legacy.pet.roamWhenNoTasks;
   legacy.pet.stopWhenAllTasksComplete = true;
   delete legacy.startup;
+  delete legacy.performance;
   delete legacy.greetings;
   delete legacy.ui;
   assert.deepEqual(validateConfig(legacy).pet, {
     characterPackId: 'blobfish',
     speed: 1.5,
     scale: 1,
+    roamWhenTasks: true,
     roamWhenNoTasks: false,
     moveAxis: 'horizontal',
     customization: {},
     accessories: {},
   });
   assert.deepEqual(validateConfig(legacy).startup, { launchAtLogin: false });
+  assert.deepEqual(validateConfig(legacy).performance, DEFAULT_CONFIG.performance);
   assert.deepEqual(validateConfig(legacy).greetings, DEFAULT_CONFIG.greetings);
   assert.deepEqual(validateConfig(legacy).ui, { locale: 'zh-CN' });
 });
@@ -138,4 +151,9 @@ test('invalid config is rejected without weakening validation', () => {
   invalid.greetings.workday.start = '11:00';
   invalid.greetings.workday.end = '07:00';
   assert.throws(() => validateConfig(invalid), /must be earlier/);
+
+  invalid.greetings.workday.start = '07:00';
+  invalid.greetings.workday.end = '11:00';
+  invalid.performance.memoryLimitMb = 200;
+  assert.throws(() => validateConfig(invalid), /between 800 and 1536/);
 });
