@@ -3,7 +3,11 @@ const crypto = require('crypto');
 const { execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { shouldPauseIdleSpeech, shouldPauseMovement } = require('./core/activity-gates');
+const {
+  shouldPauseAgentMovement,
+  shouldPauseIdleSpeech,
+  shouldPauseMovement,
+} = require('./core/activity-gates');
 const { AgentBridge } = require('./core/agent-bridge');
 const { BatteryThresholdTracker, readMacBattery } = require('./core/battery-monitor');
 const { CalendarService } = require('./core/calendar-service');
@@ -516,6 +520,27 @@ function setRoamWhenNoTasks(enabled) {
   }
 }
 
+function setRoamWhenTasks(enabled) {
+  if (config.pet.roamWhenTasks === enabled) return;
+  const saved = persistConfig({
+    ...config,
+    pet: { ...config.pet, roamWhenTasks: enabled },
+  });
+  applyConfig(saved);
+  speak(enabled ? 'interaction.taskRoamOn' : 'interaction.taskRoamOff', {}, {
+    priority: SPEECH_PRIORITY.interaction,
+    durationMs: 2800,
+    replaceKey: 'interaction.taskRoamToggle',
+    allowDuringQuiet: true,
+  });
+  if (settingsWin && !settingsWin.isDestroyed()) {
+    settingsWin.webContents.send('setting-changed', {
+      path: 'pet.roamWhenTasks',
+      value: enabled,
+    });
+  }
+}
+
 function formatClockDuration(milliseconds) {
   const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
   const hours = Math.floor(totalSeconds / 3600);
@@ -619,6 +644,19 @@ function buildPetMenuTemplate() {
     { type: 'separator' },
     { label: uiText('找水滴鱼聊天…', 'Chat with the pet…'), click: () => createDialogueWindow() },
     { label: uiText('打开设置…', 'Open settings…'), click: () => createSettingsWindow() },
+    {
+      label: uiText('任务进行时游动', 'Move while tasks are running'),
+      type: 'checkbox',
+      checked: config.pet.roamWhenTasks,
+      click: (item) => {
+        try {
+          setRoamWhenTasks(item.checked);
+        } catch (error) {
+          reportRuntimeError('Task roaming setting', error);
+          rebuildTrayMenu();
+        }
+      },
+    },
     {
       label: uiLocale() === 'en'
         ? uiText('没有任务时也继续游动', 'Keep moving without tasks')
@@ -2063,7 +2101,7 @@ function updateAgentState(snapshot) {
   currentAgentSnapshot = snapshot;
   rebuildTrayMenu();
   const allWaiting = snapshot.activeCount > 0 && snapshot.waitingCount === snapshot.activeCount;
-  agentPaused = allWaiting || (snapshot.activeCount === 0 && !config.pet.roamWhenNoTasks);
+  agentPaused = shouldPauseAgentMovement(snapshot, config.pet);
   const motion = snapshot.activeCount > 0
     ? (allWaiting ? 'waiting' : 'working')
     : (agentPaused ? 'idle' : 'roam');

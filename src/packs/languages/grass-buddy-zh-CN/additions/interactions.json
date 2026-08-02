@@ -19,6 +19,8 @@
     { "id": "grass-idle-roam-on-01", "event": "interaction.idleRoamOn", "text": "没事也走两步。", "weight": 5 },
     { "id": "grass-idle-roam-on-02", "event": "interaction.idleRoamOn", "text": "风又吹起来了。", "weight": 4 },
     { "id": "grass-idle-roam-on-03", "event": "interaction.idleRoamOn", "text": "好。腿继续用。", "weight": 3 },
+    { "id": "grass-task-roam-off-01", "event": "interaction.taskRoamOff", "text": "工作时就扎在这里。", "weight": 5 },
+    { "id": "grass-task-roam-on-01", "event": "interaction.taskRoamOn", "text": "有任务也走两步。", "weight": 5 },
     { "id": "grass-petting-01", "event": "interaction.petting", "text": "……嗯，风一样的手法。", "weight": 5 },
     { "id": "grass-petting-02", "event": "interaction.petting", "text": "唔……顺毛，舒服。", "weight": 5 },
     { "id": "grass-petting-03", "event": "interaction.petting", "text": "有机养生草，摸摸更健康。", "weight": 4 },

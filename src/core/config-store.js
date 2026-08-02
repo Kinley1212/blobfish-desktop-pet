@@ -45,6 +45,7 @@ const DEFAULT_CONFIG = Object.freeze({
     characterPackId: 'blobfish',
     speed: 1.5,
     scale: 1,
+    roamWhenTasks: true,
     roamWhenNoTasks: false,
     moveAxis: 'horizontal',
     customization: Object.freeze({}),
@@ -206,6 +207,9 @@ function validateConfig(input) {
       scale: input.pet.scale === undefined
         ? DEFAULT_CONFIG.pet.scale
         : requireNumber(input.pet.scale, 'pet.scale', PET_SCALE_MIN, PET_SCALE_MAX),
+      roamWhenTasks: input.pet.roamWhenTasks === undefined
+        ? DEFAULT_CONFIG.pet.roamWhenTasks
+        : requireBoolean(input.pet.roamWhenTasks, 'pet.roamWhenTasks'),
       roamWhenNoTasks: input.pet.roamWhenNoTasks === undefined
         ? !requireBoolean(input.pet.stopWhenAllTasksComplete, 'pet.stopWhenAllTasksComplete')
         : requireBoolean(input.pet.roamWhenNoTasks, 'pet.roamWhenNoTasks'),

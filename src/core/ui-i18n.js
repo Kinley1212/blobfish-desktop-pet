@@ -73,6 +73,8 @@
     '上下移动': 'Vertical',
     '没有任务时也继续游动': 'Keep moving without tasks',
     '关闭后，所有任务结束时角色会停下来。': 'When off, the pet stops after all tasks finish.',
+    '任务进行时游动': 'Move while tasks are running',
+    '关闭后仍显示任务状态，只是不再在桌面上移动。': 'Task status stays visible, but the pet no longer moves around the desktop.',
     '登录后自动打开': 'Open at login',
     '在后台启动，仍然不会占用程序坞。': 'Starts in the background without taking up Dock space.',
     '自己动手': 'MAKE IT YOURS',

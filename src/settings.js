@@ -1145,6 +1145,7 @@ function renderConfig(config, characters, languages, sounds, accessories) {
   setValue('pet-scale', config.pet.scale);
   syncPetScaleLimit(config.pet.characterPackId);
   setValue('pet-move-axis', config.pet.moveAxis || 'horizontal');
+  setChecked('roam-with-tasks', config.pet.roamWhenTasks !== false);
   setChecked('roam-without-tasks', config.pet.roamWhenNoTasks);
   setChecked('launch-at-login', config.startup.launchAtLogin);
   setChecked('integration-codex', config.integrations.codex);
@@ -1215,6 +1216,7 @@ function readConfig() {
       characterPackId: byId('character-pack').value,
       speed: Number(speedInput.value),
       scale: Number(scaleInput.value),
+      roamWhenTasks: byId('roam-with-tasks').checked,
       roamWhenNoTasks: byId('roam-without-tasks').checked,
       moveAxis: byId('pet-move-axis').value,
       customization: diyMap,
@@ -1403,6 +1405,9 @@ window.settingsAPI.onAgentConnectionHealth((health) => {
   });
 });
 window.settingsAPI.onSettingChanged((setting) => {
+  if (setting?.path === 'pet.roamWhenTasks' && typeof setting.value === 'boolean') {
+    setChecked('roam-with-tasks', setting.value);
+  }
   if (setting?.path === 'pet.roamWhenNoTasks' && typeof setting.value === 'boolean') {
     setChecked('roam-without-tasks', setting.value);
   }

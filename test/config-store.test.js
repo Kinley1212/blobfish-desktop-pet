@@ -18,6 +18,7 @@ test('config store writes validated settings atomically and reloads them', () =>
     next.language.idleMaxMinutes = 45;
     next.pet.scale = 1.25;
     next.pet.characterPackId = 'grass-buddy';
+    next.pet.roamWhenTasks = false;
     next.pet.roamWhenNoTasks = true;
     next.startup.launchAtLogin = true;
     next.ui.locale = 'en';
@@ -29,6 +30,7 @@ test('config store writes validated settings atomically and reloads them', () =>
     assert.deepEqual(reloaded.get().greetings.workday, { enabled: true, start: '06:45', end: '10:30' });
     assert.equal(reloaded.get().pet.scale, 1.25);
     assert.equal(reloaded.get().pet.characterPackId, 'grass-buddy');
+    assert.equal(reloaded.get().pet.roamWhenTasks, false);
     assert.equal(reloaded.get().pet.roamWhenNoTasks, true);
     assert.equal(reloaded.get().startup.launchAtLogin, true);
     assert.equal(reloaded.get().ui.locale, 'en');
@@ -51,6 +53,7 @@ test('legacy stop-after-task setting migrates without losing user intent', () =>
     characterPackId: 'blobfish',
     speed: 1.5,
     scale: 1,
+    roamWhenTasks: true,
     roamWhenNoTasks: false,
     moveAxis: 'horizontal',
     customization: {},
