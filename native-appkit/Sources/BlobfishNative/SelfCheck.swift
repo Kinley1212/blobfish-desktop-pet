@@ -32,6 +32,8 @@ enum SelfCheck {
             ("pet reaction geometry", petReactionGeometry),
             ("task carousel geometry", taskCarouselGeometry),
             ("continuous task spinner timeline", continuousTaskSpinnerTimeline),
+            ("inactive preview releases without lazy weak crash", inactivePreviewReleasesWithoutLazyWeakCrash),
+            ("early app termination tolerates incomplete launch", earlyAppTerminationToleratesIncompleteLaunch),
             ("speech priority and mood restore", speechPriorityAndMoodRestore),
         ]
         var passed = 0
@@ -532,6 +534,23 @@ enum SelfCheck {
             && midpoint.downwardOffset == 5
             && abs(midpoint.opacity - 0.91) < 0.0001
             && TaskCarouselGeometry.visibleIndices(total: 0, frontIndex: 0).isEmpty
+    }
+
+    private static func inactivePreviewReleasesWithoutLazyWeakCrash() -> Bool {
+        weak var releasedView: PetView?
+        autoreleasepool {
+            let view = PetView(frame: NSRect(x: 0, y: 0, width: 300, height: 190))
+            releasedView = view
+        }
+        return releasedView == nil
+    }
+
+    private static func earlyAppTerminationToleratesIncompleteLaunch() -> Bool {
+        let delegate = AppDelegate()
+        delegate.applicationWillTerminate(
+            Notification(name: NSApplication.willTerminateNotification)
+        )
+        return true
     }
 
     private static func speechPriorityAndMoodRestore() -> Bool {

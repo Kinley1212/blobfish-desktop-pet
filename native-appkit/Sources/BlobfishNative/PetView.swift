@@ -313,9 +313,7 @@ final class PetView: NSView, CALayerDelegate {
     private var blinking = false
     private static let bobDistance: CGFloat = 5
     private var blinkTimer: Timer?
-    private lazy var animationDisplayLink = DisplayLinkDriver { [weak self] uptime in
-        self?.advanceDisplayAnimations(uptime: uptime)
-    }
+    private var animationDisplayLink: DisplayLinkDriver?
     private var spinnerStartedAt: TimeInterval?
     private var spinnerPhase: CGFloat = 90
     private var carouselIndex = 0
@@ -479,7 +477,7 @@ final class PetView: NSView, CALayerDelegate {
 
     deinit {
         blinkTimer?.invalidate()
-        animationDisplayLink.stop()
+        animationDisplayLink?.stop()
         carouselTimer?.invalidate()
         effectTimer?.invalidate()
         completionTimer?.invalidate()
@@ -1352,9 +1350,14 @@ final class PetView: NSView, CALayerDelegate {
 
     private func syncAnimationDisplayLink() {
         if spinnerStartedAt != nil || carouselStartedAt != nil {
-            animationDisplayLink.start()
+            if animationDisplayLink == nil {
+                animationDisplayLink = DisplayLinkDriver { [weak self] uptime in
+                    self?.advanceDisplayAnimations(uptime: uptime)
+                }
+            }
+            animationDisplayLink?.start()
         } else {
-            animationDisplayLink.stop()
+            animationDisplayLink?.stop()
         }
     }
 
