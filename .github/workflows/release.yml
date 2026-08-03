@@ -73,12 +73,12 @@ jobs:
         shell: bash
         run: |
           cat > release-notes.md <<'NOTES'
-          ## 水滴鱼 2.1.1
+          ## 水滴鱼 2.1.2
 
-          本次更新修复异常中断后残留的“幽灵任务”，并让性能面板与当前角色严格等高、随角色大小同步缩放，同时缩窄柱体和卡片宽度。
+          修复窝窝头版水滴鱼的头顶 / 眼镜 / 手边饰品与身体不对齐的问题。表情插槽此前已修正过 viewBox 原点偏移（窝窝头的画布从 x = -16 开始），但同一处理没有同步到其他饰品插槽，导致这些饰品整体偏移。现在所有插槽统一走同一套坐标换算，并新增自检用例防止再次回归。
 
-          - `BlobfishNative-2.1.1-macOS-arm64.zip`：Apple Silicon Mac 原生安装包
-          - `BlobfishNative-2.1.1-macOS-x64.zip`：Intel Mac 原生安装包
+          - `BlobfishNative-2.1.2-macOS-arm64.zip`：Apple Silicon Mac 原生安装包
+          - `BlobfishNative-2.1.2-macOS-x64.zip`：Intel Mac 原生安装包
           - `blobfish-native-latest.json`：原生版一键更新清单
           - 两个安装包均为纯 Swift / AppKit，不包含 Electron
 

@@ -839,25 +839,19 @@ final class PetView: NSView, CALayerDelegate {
             let tuning = accessorySpec.tuning[pack.id] ?? AccessoryTuning(nil)
             let unitX = scaleX * slot.scale * tuning.size * tuning.width
             let unitY = scaleY * slot.scale * tuning.size * tuning.height
-            // Expressions replace eyes that are authored inside the character's
-            // SVG coordinate space. A non-zero viewBox origin (the wotou fish
+            // Every slot anchor is authored inside the character's own SVG
+            // coordinate space. A non-zero viewBox origin (the wotou fish
             // starts at x = -16) must therefore be removed before projecting
-            // the face anchor into the AppKit target rectangle. Tunable props
-            // keep their existing offset contract and remain independent.
-            let targetAnchor: CGPoint
-            if pack.manifest.slot == "face" {
-                targetAnchor = ExpressionCanvasGeometry.targetAnchor(
-                    slotX: slot.x + tuning.offsetX,
-                    slotY: slot.y + tuning.offsetY,
-                    canvas: canvas,
-                    target: target
-                )
-            } else {
-                targetAnchor = CGPoint(
-                    x: target.minX + (slot.x + tuning.offsetX) * scaleX,
-                    y: target.maxY - (slot.y + tuning.offsetY) * scaleY
-                )
-            }
+            // any slot anchor into the AppKit target rectangle - not just the
+            // face's, or accessories on that origin end up shifted relative
+            // to the body. Tunable props keep their existing offset contract
+            // and remain independent.
+            let targetAnchor = ExpressionCanvasGeometry.targetAnchor(
+                slotX: slot.x + tuning.offsetX,
+                slotY: slot.y + tuning.offsetY,
+                canvas: canvas,
+                target: target
+            )
             let targetX = targetAnchor.x
             let targetY = targetAnchor.y
             let imageSize = image.size

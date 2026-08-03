@@ -29,6 +29,7 @@ enum SelfCheck {
             ("expressions stay below independent eyewear", expressionsStayBelowIndependentEyewear),
             ("expression anchors follow authored eye lines", expressionAnchorsFollowEyeLines),
             ("expression respects character viewBox origin", expressionRespectsCharacterViewBoxOrigin),
+            ("non-face accessories respect character viewBox origin", nonFaceAccessoryRespectsCharacterViewBoxOrigin),
             ("performance percentages share system capacity", performancePercentagesShareSystemCapacity),
             ("system RAM excludes reclaimable cache", systemRAMExcludesReclaimableCache),
             ("performance panel stays on canvas", performancePanelStaysOnCanvas),
@@ -548,6 +549,29 @@ enum SelfCheck {
         return canvas == CGRect(x: -16, y: 0, width: 172, height: 120)
             && abs(point.x - target.midX) < 0.001
             && abs(point.y - 65.75) < 0.001
+    }
+
+    // Regression guard for a bug where hat/eyewear/hand accessories were
+    // placed with a call site that skipped the viewBox-origin subtraction
+    // that the face slot already applied, leaving every non-face accessory
+    // on the wotou fish (viewBox minX = -16) visibly offset from the body.
+    // The "hand" slot's anchor (134, 86) isn't the canvas midpoint, so unlike
+    // the face check above this one fails clearly if that subtraction is
+    // ever dropped again.
+    private static func nonFaceAccessoryRespectsCharacterViewBoxOrigin() throws -> Bool {
+        let character = try PackCatalog().character(id: "blobfish-wotou")
+        guard let canvas = SVGAppearanceRenderer.viewBox(for: character),
+              let hand = character.manifest.accessories?.slots["hand"] else { return false }
+        let target = CGRect(x: 10, y: 20, width: 129, height: 90)
+        let point = ExpressionCanvasGeometry.targetAnchor(
+            slotX: hand.x,
+            slotY: hand.y,
+            canvas: canvas,
+            target: target
+        )
+        return canvas == CGRect(x: -16, y: 0, width: 172, height: 120)
+            && abs(point.x - 122.5) < 0.001
+            && abs(point.y - 45.5) < 0.001
     }
 
     private static func performancePercentagesShareSystemCapacity() -> Bool {
