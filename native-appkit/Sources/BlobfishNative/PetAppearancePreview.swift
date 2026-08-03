@@ -8,6 +8,7 @@ struct PetAppearancePreview: NSViewRepresentable {
     let accessorySpec: CharacterAccessories
     let customization: JSONValue?
     var moodFaceID: String? = nil
+    var showsAlarmClock = true
 
     func makeNSView(context: Context) -> PetView {
         PetView(frame: NSRect(x: 0, y: 0, width: 300, height: 190))
@@ -20,5 +21,6 @@ struct PetAppearancePreview: NSViewRepresentable {
         view.accessorySpec = accessorySpec
         view.customization = customization
         view.setMoodFace(moodFaceID)
+        view.alarmClockVisible = showsAlarmClock
     }
 }
