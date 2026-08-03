@@ -73,12 +73,12 @@ jobs:
         shell: bash
         run: |
           cat > release-notes.md <<'NOTES'
-          ## 水滴鱼 2.0.1
+          ## 水滴鱼 2.0.2
 
-          本次更新修复了设置栏目切换导致的闪退与第二实例提前退出崩溃，并让侧边栏整块色块都可以点击。
+          本次更新让原生版「水滴魚（窝窝头）」的脸红腮红恢复 Electron 版的柔和径向渐变、颜色、透明度与专属位置。
 
-          - `BlobfishNative-2.0.1-macOS-arm64.zip`：Apple Silicon Mac 原生安装包
-          - `BlobfishNative-2.0.1-macOS-x64.zip`：Intel Mac 原生安装包
+          - `BlobfishNative-2.0.2-macOS-arm64.zip`：Apple Silicon Mac 原生安装包
+          - `BlobfishNative-2.0.2-macOS-x64.zip`：Intel Mac 原生安装包
           - `blobfish-native-latest.json`：原生版一键更新清单
           - 两个安装包均为纯 Swift / AppKit，不包含 Electron
 

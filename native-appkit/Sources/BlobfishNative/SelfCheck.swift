@@ -24,6 +24,7 @@ enum SelfCheck {
             ("display-paced pet motion", displayPacedPetMotion),
             ("display-timed carousel easing", displayTimedCarouselEasing),
             ("unclipped CSS-matched pet shadow", unclippedCSSMatchedPetShadow),
+            ("native blush matches Electron CSS", nativeBlushMatchesElectronCSS),
             ("expressions stay below independent eyewear", expressionsStayBelowIndependentEyewear),
             ("expression anchors follow authored eye lines", expressionAnchorsFollowEyeLines),
             ("expression respects character viewBox origin", expressionRespectsCharacterViewBoxOrigin),
@@ -426,6 +427,37 @@ enum SelfCheck {
             && PetShadowStyle.blurRadius == 3
             && PetShadowStyle.opacity == 0.15
             && PetShadowStyle.bottomInset >= requiredBottomSpace
+    }
+
+    private static func nativeBlushMatchesElectronCSS() -> Bool {
+        let bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+        guard let normal = PetBlushGeometry.style(level: 1, characterID: "blobfish", in: bounds),
+              let deepWotou = PetBlushGeometry.style(level: 2, characterID: "blobfish-wotou", in: bounds) else {
+            return false
+        }
+        func rectsMatch(_ actual: [CGRect], _ expected: [CGRect]) -> Bool {
+            actual.count == expected.count && zip(actual, expected).allSatisfy { actual, expected in
+                abs(actual.minX - expected.minX) < 0.0001
+                    && abs(actual.minY - expected.minY) < 0.0001
+                    && abs(actual.width - expected.width) < 0.0001
+                    && abs(actual.height - expected.height) < 0.0001
+            }
+        }
+        return rectsMatch(normal.cheekRects, [
+            CGRect(x: 12, y: 42, width: 18, height: 12),
+            CGRect(x: 70, y: 42, width: 18, height: 12),
+        ])
+            && abs(normal.green - 122 / 255) < 0.0001
+            && abs(normal.blue - 146 / 255) < 0.0001
+            && normal.centerAlpha == 0.78
+            && rectsMatch(deepWotou.cheekRects, [
+                CGRect(x: 18, y: 32, width: 22, height: 14),
+                CGRect(x: 60, y: 32, width: 22, height: 14),
+            ])
+            && abs(deepWotou.green - 96 / 255) < 0.0001
+            && abs(deepWotou.blue - 126 / 255) < 0.0001
+            && deepWotou.centerAlpha == 0.92
+            && PetBlushGeometry.style(level: 0, characterID: "blobfish", in: bounds) == nil
     }
 
     private static func expressionsStayBelowIndependentEyewear() -> Bool {

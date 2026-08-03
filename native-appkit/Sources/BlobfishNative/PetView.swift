@@ -16,6 +16,45 @@ enum PetShadowStyle {
     static let bottomInset: CGFloat = 10
 }
 
+struct PetBlushStyle: Equatable {
+    let cheekRects: [CGRect]
+    let red: CGFloat
+    let green: CGFloat
+    let blue: CGFloat
+    let centerAlpha: CGFloat
+}
+
+enum PetBlushGeometry {
+    static func style(level: Int, characterID: String?, in bounds: CGRect) -> PetBlushStyle? {
+        guard level > 0 else { return nil }
+        let deep = level > 1
+        let width = bounds.width * (deep ? 0.22 : 0.18)
+        let height = bounds.height * (deep ? 0.14 : 0.12)
+        let isWotou = characterID == "blobfish-wotou"
+        let horizontalInset = bounds.width * (isWotou ? 0.18 : 0.12)
+        let bottomInset = bounds.height * (isWotou ? 0.32 : 0.42)
+        let left = CGRect(
+            x: bounds.minX + horizontalInset,
+            y: bounds.minY + bottomInset,
+            width: width,
+            height: height
+        )
+        let right = CGRect(
+            x: bounds.maxX - horizontalInset - width,
+            y: left.minY,
+            width: width,
+            height: height
+        )
+        return PetBlushStyle(
+            cheekRects: [left, right],
+            red: 1,
+            green: deep ? 96 / 255 : 122 / 255,
+            blue: deep ? 126 / 255 : 146 / 255,
+            centerAlpha: deep ? 0.92 : 0.78
+        )
+    }
+}
+
 struct PetEffectTransform: Equatable {
     let scaleX: CGFloat
     let scaleY: CGFloat
@@ -623,28 +662,45 @@ final class PetView: NSView, CALayerDelegate {
         context?.beginTransparencyLayer(auxiliaryInfo: nil)
         characterImage.draw(in: characterBounds, from: .zero, operation: .sourceOver, fraction: 1)
         drawAccessories()
-        drawBlush()
         context?.endTransparencyLayer()
         context?.restoreGState()
+        drawBlush()
     }
 
     private func drawBlush() {
-        guard blushLevel > 0 else { return }
-        let art = characterBounds
-        let width = art.width * (blushLevel > 1 ? 0.22 : 0.18)
-        let height = art.height * (blushLevel > 1 ? 0.14 : 0.12)
-        let centerY = art.minY + art.height * (character?.id == "blobfish-wotou" ? 0.32 : 0.42)
-        let color = blushLevel > 1
-            ? NSColor(calibratedRed: 1, green: 0.38, blue: 0.49, alpha: 0.48)
-            : NSColor(calibratedRed: 1, green: 0.48, blue: 0.57, alpha: 0.40)
-        color.setFill()
-        for centerX in [art.minX + art.width * 0.20, art.maxX - art.width * 0.20] {
-            NSBezierPath(ovalIn: NSRect(
-                x: centerX - width / 2,
-                y: centerY - height / 2,
-                width: width,
-                height: height
-            )).fill()
+        guard let style = PetBlushGeometry.style(
+            level: blushLevel,
+            characterID: character?.id,
+            in: characterBounds
+        ), let context = NSGraphicsContext.current?.cgContext else { return }
+        let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        guard let centerColor = CGColor(
+            colorSpace: colorSpace,
+            components: [style.red, style.green, style.blue, style.centerAlpha]
+        ), let edgeColor = CGColor(
+            colorSpace: colorSpace,
+            components: [style.red, style.green, style.blue, 0]
+        ), let gradient = CGGradient(
+            colorsSpace: colorSpace,
+            colors: [centerColor, edgeColor] as CFArray,
+            locations: [0, 1]
+        ) else { return }
+
+        for rect in style.cheekRects where rect.width > 0 && rect.height > 0 {
+            context.saveGState()
+            context.addEllipse(in: rect)
+            context.clip()
+            context.translateBy(x: rect.midX, y: rect.midY)
+            context.scaleBy(x: rect.width / rect.height, y: 1)
+            context.drawRadialGradient(
+                gradient,
+                startCenter: .zero,
+                startRadius: 0,
+                endCenter: .zero,
+                endRadius: rect.height / 2,
+                options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+            )
+            context.restoreGState()
         }
     }
 
