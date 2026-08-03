@@ -22,10 +22,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var performanceMonitor: PerformanceMonitor?
     private var statusItem: NSStatusItem?
     private var taskStatusItem: NSMenuItem?
+    private var codexStatusItem: NSMenuItem?
+    private var claudeStatusItem: NSMenuItem?
     private var pauseItem: NSMenuItem?
     private var taskRoamItem: NSMenuItem?
     private var performanceItem: NSMenuItem?
     private var launchAtLoginItem: NSMenuItem?
+    private var clockAlertTitleItem: NSMenuItem?
+    private var clockSnoozeItem: NSMenuItem?
+    private var clockDismissItem: NSMenuItem?
+    private var timerControlItem: NSMenuItem?
+    private var quickTimerItem: NSMenuItem?
     private var previousSnapshot = TaskSnapshot.idle
     private var clickCount = 0
     private var chatInviteTimer: Timer?
@@ -122,7 +129,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             dismiss: { [weak clocks] id in try? clocks?.dismissAlert(id: id) }
         )
         clocks.workdays = runtime.config.schedule.workdays
-        clocks.onTick = { [weak self] state, text in self?.panelController.updateClock(state: state, timerText: text) }
+        clocks.onTick = { [weak self] state, text in
+            self?.panelController.updateClock(state: state, timerText: text)
+            self?.updateClockMenu(state)
+        }
         clocks.onEvent = { [weak self] event, state in self?.handleClockEvent(event, state: state) }
         clockService = clocks
         clocks.start()
@@ -183,13 +193,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.toolTip = "水滴鱼"
 
         let menu = NSMenu()
-        let heading = NSMenuItem(title: "水滴鱼", action: nil, keyEquivalent: "")
+        let heading = NSMenuItem(title: "任务状态", action: nil, keyEquivalent: "")
         heading.isEnabled = false
         menu.addItem(heading)
-        let status = NSMenuItem(title: "没有运行中的任务", action: nil, keyEquivalent: "")
-        status.isEnabled = false
-        menu.addItem(status)
-        taskStatusItem = status
+        taskStatusItem = heading
+        let codex = NSMenuItem(title: "Codex · 没有运行中的任务", action: nil, keyEquivalent: "")
+        codex.isEnabled = false
+        menu.addItem(codex)
+        codexStatusItem = codex
+        let claude = NSMenuItem(title: "Claude · 没有运行中的任务", action: nil, keyEquivalent: "")
+        claude.isEnabled = false
+        menu.addItem(claude)
+        claudeStatusItem = claude
         menu.addItem(.separator())
 
         let settings = NSMenuItem(title: "设置…", action: #selector(openSettings), keyEquivalent: ",")
@@ -224,18 +239,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let locate = NSMenuItem(title: "把鱼移到屏幕中间", action: #selector(locatePet), keyEquivalent: "")
         locate.target = self
         menu.addItem(locate)
+        let alertTitle = NSMenuItem(title: "时间到了", action: nil, keyEquivalent: "")
+        alertTitle.isEnabled = false
+        alertTitle.isHidden = true
+        menu.addItem(alertTitle)
+        clockAlertTitleItem = alertTitle
+        let snooze = NSMenuItem(title: "稍后 5 分钟", action: #selector(snoozeClockAlert), keyEquivalent: "")
+        snooze.target = self; snooze.isHidden = true; menu.addItem(snooze); clockSnoozeItem = snooze
+        let dismiss = NSMenuItem(title: "知道了", action: #selector(dismissFirstClockAlert), keyEquivalent: "")
+        dismiss.target = self; dismiss.isHidden = true; menu.addItem(dismiss); clockDismissItem = dismiss
+
+        let timerControl = NSMenuItem(title: "计时器", action: nil, keyEquivalent: "")
+        timerControl.isHidden = true
+        menu.addItem(timerControl)
+        timerControlItem = timerControl
+
         let quickTimer = NSMenuItem(title: "快速计时", action: nil, keyEquivalent: "")
         let quickMenu = NSMenu()
-        for minutes in [10, 25, 45] {
-            let option = NSMenuItem(title: "\(minutes) 分钟", action: #selector(startQuickTimer(_:)), keyEquivalent: "")
+        for minutes in [5, 15, 25, 45] {
+            let title = minutes == 25 ? "25 分钟专注" : "\(minutes) 分钟"
+            let option = NSMenuItem(title: title, action: #selector(startQuickTimer(_:)), keyEquivalent: "")
             option.target = self; option.representedObject = minutes; quickMenu.addItem(option)
         }
         quickTimer.submenu = quickMenu
         menu.addItem(quickTimer)
+        quickTimerItem = quickTimer
         let clocks = NSMenuItem(title: "闹钟与计时器…", action: #selector(openClocks), keyEquivalent: "")
         clocks.target = self; menu.addItem(clocks)
-        let dismiss = NSMenuItem(title: "停止响铃", action: #selector(dismissClockAlerts), keyEquivalent: "")
-        dismiss.target = self; menu.addItem(dismiss)
         menu.addItem(.separator())
 
         let quit = NSMenuItem(title: "退出水滴鱼", action: #selector(quitApplication), keyEquivalent: "q")
@@ -247,20 +277,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func updateStatusMenu(_ snapshot: TaskSnapshot) {
-        switch snapshot.state {
-        case .idle:
-            taskStatusItem?.title = "没有运行中的任务"
-        case .running:
-            taskStatusItem?.title = snapshot.activeCount > 1
-                ? "正在运行 \(snapshot.activeCount) 个 · \(snapshot.tasks.first?.title ?? "任务")"
-                : "进行中 · \(snapshot.tasks.first?.title ?? "任务")"
-        case .waiting:
-            taskStatusItem?.title = "等待确认 · \(snapshot.tasks.first?.title ?? "任务")"
-        case .completed:
-            taskStatusItem?.title = "任务已完成"
-        case .failed:
-            taskStatusItem?.title = "任务失败"
-        }
+        taskStatusItem?.title = runtime.config.ui.locale == "en" ? "Task status" : "任务状态"
+        codexStatusItem?.title = providerSummary(
+            name: "Codex", provider: "codex", enabled: runtime.config.integrations.codex, snapshot: snapshot
+        )
+        claudeStatusItem?.title = providerSummary(
+            name: "Claude", provider: "claude-code", enabled: runtime.config.integrations.claudeCode, snapshot: snapshot
+        )
+    }
+
+    private func providerSummary(name: String, provider: String, enabled: Bool, snapshot: TaskSnapshot) -> String {
+        let english = runtime.config.ui.locale == "en"
+        guard enabled else { return "\(name) · \(english ? "Off" : "已关闭")" }
+        let tasks = snapshot.tasks.filter { $0.provider == provider }
+        guard let first = tasks.first else { return "\(name) · \(english ? "No active tasks" : "没有运行中的任务")" }
+        let state: String
+        if tasks.contains(where: { $0.state == .waiting }) { state = english ? "Needs confirmation" : "等待确认" }
+        else if tasks.contains(where: { $0.state == .failed }) { state = english ? "Failed" : "失败" }
+        else if tasks.contains(where: { $0.state == .completed }) { state = english ? "Completed" : "已完成" }
+        else { state = english ? "Running" : "进行中" }
+        let count = tasks.count > 1 ? " \(tasks.count)" : ""
+        return "\(name) · \(state)\(count) · \(first.title)"
     }
 
     private func handleTaskFeedback(_ snapshot: TaskSnapshot) {
@@ -479,11 +516,72 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func startQuickTimer(_ sender: NSMenuItem) {
         guard let minutes = sender.representedObject as? Int else { return }
-        do { try clockService?.startTimer(minutes: minutes, label: ""); panelController.say("计时开始了。", event: "clock.timerStarted", priority: SpeechPriority.schedule, replaceKey: "clock.control") }
+        let label = minutes == 25 ? (runtime.config.ui.locale == "en" ? "Focus" : "专注") : ""
+        do { try clockService?.startTimer(minutes: minutes, label: label); panelController.say("计时开始了。", event: "clock.timerStarted", priority: SpeechPriority.schedule, replaceKey: "clock.control") }
         catch { panelController.say("计时器没能开始。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
     }
 
-    @objc private func dismissClockAlerts() { try? clockService?.dismissAlerts() }
+    private func updateClockMenu(_ state: ClockState) {
+        let english = runtime.config.ui.locale == "en"
+        let ringing = state.alerts.first(where: { $0.state == "ringing" })
+        clockAlertTitleItem?.isHidden = ringing == nil
+        clockSnoozeItem?.isHidden = ringing == nil
+        clockDismissItem?.isHidden = ringing == nil
+        if let ringing {
+            let icon = ringing.sourceType == "alarm" ? "⏰" : "⏱"
+            clockAlertTitleItem?.title = "\(icon) \(ringing.label.isEmpty ? (english ? "Time is up" : "时间到了") : ringing.label)"
+            clockSnoozeItem?.title = english ? "Snooze 5 minutes" : "稍后 5 分钟"
+            clockDismissItem?.title = english ? "Dismiss" : "知道了"
+        }
+
+        timerControlItem?.isHidden = state.timer == nil
+        quickTimerItem?.isHidden = state.timer != nil
+        guard let timer = state.timer else { return }
+        timerControlItem?.title = "\(english ? "Timer" : "计时器") · \(clockService?.remainingTimerText() ?? "00:00")"
+        let submenu = NSMenu()
+        let pause = NSMenuItem(
+            title: timer.state == "running"
+                ? (english ? "Pause timer" : "暂停计时")
+                : (english ? "Resume timer" : "继续计时"),
+            action: #selector(pauseOrResumeTimer),
+            keyEquivalent: ""
+        )
+        pause.target = self; submenu.addItem(pause)
+        let extend = NSMenuItem(title: english ? "Add 5 minutes" : "增加 5 分钟", action: #selector(extendTimer), keyEquivalent: "")
+        extend.target = self; submenu.addItem(extend)
+        let cancel = NSMenuItem(title: english ? "Cancel timer" : "取消计时", action: #selector(cancelTimer), keyEquivalent: "")
+        cancel.target = self; submenu.addItem(cancel)
+        timerControlItem?.submenu = submenu
+    }
+
+    @objc private func snoozeClockAlert() {
+        guard let id = clockService?.state.alerts.first(where: { $0.state == "ringing" })?.id else { return }
+        do { try clockService?.snoozeAlert(id: id, minutes: 5) }
+        catch { panelController.say("稍后提醒没有设好。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
+    }
+
+    @objc private func dismissFirstClockAlert() {
+        guard let id = clockService?.state.alerts.first(where: { $0.state == "ringing" })?.id else { return }
+        do { try clockService?.dismissAlert(id: id) }
+        catch { panelController.say("提醒没有关掉。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
+    }
+
+    @objc private func pauseOrResumeTimer() {
+        do {
+            if clockService?.state.timer?.state == "running" { try clockService?.pauseTimer() }
+            else { try clockService?.resumeTimer() }
+        } catch { panelController.say("计时器没有改好。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
+    }
+
+    @objc private func extendTimer() {
+        do { try clockService?.extendTimer(minutes: 5) }
+        catch { panelController.say("计时器没有延长。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
+    }
+
+    @objc private func cancelTimer() {
+        do { try clockService?.cancelTimer() }
+        catch { panelController.say("计时器没有取消。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
+    }
 
     @objc private func openClocks() { openSettings(); settingsController?.select(.clocks) }
 
@@ -528,6 +626,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.taskMonitor?.enabledProviders = self.enabledProviders()
                 self.clockService?.workdays = self.runtime.config.schedule.workdays
                 self.syncQuickSettingsMenu()
+                self.updateStatusMenu(self.previousSnapshot)
                 self.performanceMonitor?.memoryLimitMB = self.runtime.config.performance.memoryLimitMb
                 self.performanceMonitor?.autoQuitEnabled = self.runtime.config.performance.autoQuitEnabled
                 if !self.runtime.config.performance.panelEnabled { self.panelController.updatePerformance(nil) }
