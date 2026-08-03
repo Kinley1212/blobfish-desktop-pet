@@ -30,10 +30,10 @@ make archive     # 架构对应的 zip
 
 ## 发布约定
 
-原生版不读取 Electron 的 `blobfish-latest.json`，只读取 `blobfish-native-latest.json`。正式 Release 同时保留两个更新清单，让 1.x Electron 用户和 2.x 原生用户都能安全更新：
+原生版不读取 Electron 的 `blobfish-latest.json`，只读取 `blobfish-native-latest.json`。2.0.0 Release 只发布 Swift / AppKit 原生安装包：
 
 - `channel: "native-appkit"`
-- `BlobfishNative-<version>-macOS-arm64.zip` / `...-x64.zip`
+- `BlobfishNative-<version>-macOS-arm64.zip`
 - 文件大小和 `sha256:<64 hex>`
 
-这样可以从根本上避免原生版误装 Electron 包。
+目前只支持 Apple Silicon Mac，这样可以从根本上避免原生版误装 Electron 包或错误架构。

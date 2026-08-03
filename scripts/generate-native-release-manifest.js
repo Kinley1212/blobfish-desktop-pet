@@ -14,6 +14,13 @@ if (!versionMatch || !/^\d+\.\d+\.\d+$/.test(versionMatch[1])) {
 }
 
 const version = versionMatch[1];
+const architectures = process.argv.slice(2);
+
+if (architectures.length === 0
+    || new Set(architectures).size !== architectures.length
+    || architectures.some((architecture) => !['arm64', 'x64'].includes(architecture))) {
+  throw new Error('Usage: node scripts/generate-native-release-manifest.js <arm64|x64> [...]');
+}
 
 function assetEntry(architecture) {
   const name = `BlobfishNative-${version}-macOS-${architecture}.zip`;
@@ -31,10 +38,7 @@ const manifest = {
   channel: 'native-appkit',
   version,
   repository: REPOSITORY,
-  assets: {
-    arm64: assetEntry('arm64'),
-    x64: assetEntry('x64'),
-  },
+  assets: Object.fromEntries(architectures.map((architecture) => [architecture, assetEntry(architecture)])),
 };
 
 const outputPath = path.join(releaseDirectory, 'blobfish-native-latest.json');
