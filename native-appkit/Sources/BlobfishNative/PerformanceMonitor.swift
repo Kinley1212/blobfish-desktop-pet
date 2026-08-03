@@ -8,6 +8,35 @@ struct PerformanceSample: Equatable {
     let appMemoryMB: Double
 }
 
+enum PerformanceMath {
+    static func processCPUPercent(
+        cpuTimeDelta: TimeInterval,
+        elapsed: TimeInterval,
+        logicalProcessorCount: Int
+    ) -> Double {
+        guard cpuTimeDelta.isFinite, cpuTimeDelta >= 0, elapsed.isFinite, elapsed > 0 else { return 0 }
+        let capacity = elapsed * Double(max(1, logicalProcessorCount))
+        return min(100, max(0, cpuTimeDelta / capacity * 100))
+    }
+
+    static func systemRAMPercent(
+        activePages: UInt64,
+        inactivePages: UInt64,
+        wiredPages: UInt64,
+        compressedPages: UInt64,
+        fileBackedPages: UInt64,
+        purgeablePages: UInt64,
+        pageSize: UInt64,
+        physicalMemory: UInt64
+    ) -> Double {
+        guard pageSize > 0, physicalMemory > 0 else { return 0 }
+        let residentPages = activePages + inactivePages + wiredPages + compressedPages
+        let reclaimablePages = min(residentPages, fileBackedPages + purgeablePages)
+        let usedBytes = Double(residentPages - reclaimablePages) * Double(pageSize)
+        return min(100, max(0, usedBytes / Double(physicalMemory) * 100))
+    }
+}
+
 final class PerformanceMonitor {
     var onSample: ((PerformanceSample) -> Void)?
     var onSustainedMemoryLimit: (() -> Void)?
@@ -27,7 +56,14 @@ final class PerformanceMonitor {
         RunLoop.main.add(timer!, forMode: .common)
     }
 
-    func stop() { timer?.invalidate(); timer = nil }
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+        previousCPU = nil
+        previousProcessCPU = nil
+        previousDate = nil
+        memoryExceededAt = nil
+    }
 
     private func sample() {
         let now = Date()
@@ -35,7 +71,11 @@ final class PerformanceMonitor {
         let processCPUTime = readProcessCPUTime()
         let processCPU: Double
         if let prior = previousProcessCPU, let priorDate = previousDate {
-            processCPU = max(0, min(100, (processCPUTime - prior) / now.timeIntervalSince(priorDate) * 100))
+            processCPU = PerformanceMath.processCPUPercent(
+                cpuTimeDelta: processCPUTime - prior,
+                elapsed: now.timeIntervalSince(priorDate),
+                logicalProcessorCount: ProcessInfo.processInfo.activeProcessorCount
+            )
         } else { processCPU = 0 }
         previousProcessCPU = processCPUTime; previousDate = now
         let memory = readSystemMemoryPercent()
@@ -80,9 +120,16 @@ final class PerformanceMonitor {
             }
         }
         guard result == KERN_SUCCESS else { return 0 }
-        let usedPages = UInt64(info.active_count) + UInt64(info.inactive_count) + UInt64(info.wire_count) + UInt64(info.compressor_page_count)
-        let used = Double(usedPages) * Double(pageSize)
-        return min(100, used / Double(ProcessInfo.processInfo.physicalMemory) * 100)
+        return PerformanceMath.systemRAMPercent(
+            activePages: UInt64(info.active_count),
+            inactivePages: UInt64(info.inactive_count),
+            wiredPages: UInt64(info.wire_count),
+            compressedPages: UInt64(info.compressor_page_count),
+            fileBackedPages: UInt64(info.external_page_count),
+            purgeablePages: UInt64(info.purgeable_count),
+            pageSize: UInt64(pageSize),
+            physicalMemory: ProcessInfo.processInfo.physicalMemory
+        )
     }
 
     private func readAppMemoryMB() -> Double {

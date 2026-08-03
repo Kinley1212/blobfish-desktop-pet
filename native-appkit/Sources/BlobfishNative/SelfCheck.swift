@@ -27,6 +27,8 @@ enum SelfCheck {
             ("expressions stay below independent eyewear", expressionsStayBelowIndependentEyewear),
             ("expression anchors follow authored eye lines", expressionAnchorsFollowEyeLines),
             ("expression respects character viewBox origin", expressionRespectsCharacterViewBoxOrigin),
+            ("performance percentages share system capacity", performancePercentagesShareSystemCapacity),
+            ("system RAM excludes reclaimable cache", systemRAMExcludesReclaimableCache),
             ("pet reaction geometry", petReactionGeometry),
             ("task carousel geometry", taskCarouselGeometry),
             ("continuous task spinner timeline", continuousTaskSpinnerTimeline),
@@ -475,6 +477,27 @@ enum SelfCheck {
         return canvas == CGRect(x: -16, y: 0, width: 172, height: 120)
             && abs(point.x - target.midX) < 0.001
             && abs(point.y - 65.75) < 0.001
+    }
+
+    private static func performancePercentagesShareSystemCapacity() -> Bool {
+        abs(PerformanceMath.processCPUPercent(
+            cpuTimeDelta: 0.68,
+            elapsed: 2,
+            logicalProcessorCount: 8
+        ) - 4.25) < 0.001
+    }
+
+    private static func systemRAMExcludesReclaimableCache() -> Bool {
+        abs(PerformanceMath.systemRAMPercent(
+            activePages: 400,
+            inactivePages: 300,
+            wiredPages: 100,
+            compressedPages: 100,
+            fileBackedPages: 200,
+            purgeablePages: 50,
+            pageSize: 1,
+            physicalMemory: 1_000
+        ) - 65) < 0.001
     }
 
     private static func petReactionGeometry() -> Bool {
