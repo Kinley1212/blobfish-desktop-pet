@@ -342,7 +342,8 @@ struct BrandedSettingsView: View {
                 Spacer()
             }
             .padding(.horizontal, 14)
-            .frame(height: 50)
+            .frame(maxWidth: .infinity, minHeight: 50, maxHeight: 50, alignment: .leading)
+            .contentShape(Rectangle())
             .foregroundStyle(model.selectedSection == section ? Color.white : Color.primary.opacity(0.72))
             .background(
                 RoundedRectangle(cornerRadius: 15)

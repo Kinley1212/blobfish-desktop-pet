@@ -184,7 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         calendarService?.stop()
         performanceMonitor?.stop()
         chatInviteTimer?.invalidate()
-        panelController.stop()
+        panelController?.stop()
     }
 
     private func configureStatusMenu() {
