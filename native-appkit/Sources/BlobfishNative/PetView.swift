@@ -350,9 +350,19 @@ final class PetView: NSView {
             transform.scaleX(by: -1, yBy: 1)
             transform.concat()
         }
+        let context = NSGraphicsContext.current?.cgContext
+        context?.saveGState()
+        context?.setShadow(
+            offset: CGSize(width: 0, height: -3),
+            blur: 3,
+            color: NSColor.black.withAlphaComponent(0.15).cgColor
+        )
+        context?.beginTransparencyLayer(auxiliaryInfo: nil)
         characterImage.draw(in: characterBounds, from: .zero, operation: .sourceOver, fraction: 1)
         drawAccessories()
         drawBlush()
+        context?.endTransparencyLayer()
+        context?.restoreGState()
         NSGraphicsContext.restoreGraphicsState()
     }
 
