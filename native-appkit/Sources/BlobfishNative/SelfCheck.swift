@@ -23,6 +23,7 @@ enum SelfCheck {
             ("nearest display preserves pet height", nearestDisplayPreservesPetHeight),
             ("display-paced pet motion", displayPacedPetMotion),
             ("display-timed carousel easing", displayTimedCarouselEasing),
+            ("unclipped CSS-matched pet shadow", unclippedCSSMatchedPetShadow),
             ("pet reaction geometry", petReactionGeometry),
             ("task carousel geometry", taskCarouselGeometry),
             ("speech priority and mood restore", speechPriorityAndMoodRestore),
@@ -399,6 +400,14 @@ enum SelfCheck {
             && middle > early
             && middle < 1
             && end == 1
+    }
+
+    private static func unclippedCSSMatchedPetShadow() -> Bool {
+        let requiredBottomSpace = abs(PetShadowStyle.offsetY) + PetShadowStyle.blurRadius
+        return PetShadowStyle.offsetY == -3
+            && PetShadowStyle.blurRadius == 3
+            && PetShadowStyle.opacity == 0.15
+            && PetShadowStyle.bottomInset >= requiredBottomSpace
     }
 
     private static func petReactionGeometry() -> Bool {

@@ -8,6 +8,13 @@ enum PetVisualEffect: Equatable {
     case bump
 }
 
+enum PetShadowStyle {
+    static let offsetY: CGFloat = -3
+    static let blurRadius: CGFloat = 3
+    static let opacity: CGFloat = 0.15
+    static let bottomInset: CGFloat = 10
+}
+
 struct PetEffectTransform: Equatable {
     let scaleX: CGFloat
     let scaleY: CGFloat
@@ -195,7 +202,8 @@ final class PetView: NSView {
     var characterBounds: NSRect {
         let size = character?.manifest.size ?? CharacterPack.Size(width: 105, height: 90)
         let scaled = NSSize(width: size.width * characterScale, height: size.height * characterScale)
-        return NSRect(x: bounds.midX - scaled.width / 2, y: timerText == nil ? 4 : 24, width: scaled.width, height: scaled.height)
+        let bottom = PetShadowStyle.bottomInset + (timerText == nil ? 0 : 20)
+        return NSRect(x: bounds.midX - scaled.width / 2, y: bottom, width: scaled.width, height: scaled.height)
     }
     var movementBounds: NSRect {
         let art = characterBounds
@@ -408,10 +416,17 @@ final class PetView: NSView {
         }
         let context = NSGraphicsContext.current?.cgContext
         context?.saveGState()
+        context?.setShouldAntialias(true)
+        NSGraphicsContext.current?.imageInterpolation = .high
         context?.setShadow(
-            offset: CGSize(width: 0, height: -3),
-            blur: 3,
-            color: NSColor.black.withAlphaComponent(0.15).cgColor
+            offset: CGSize(width: 0, height: PetShadowStyle.offsetY),
+            blur: PetShadowStyle.blurRadius,
+            color: CGColor(
+                srgbRed: 0,
+                green: 0,
+                blue: 0,
+                alpha: PetShadowStyle.opacity
+            )
         )
         context?.beginTransparencyLayer(auxiliaryInfo: nil)
         characterImage.draw(in: characterBounds, from: .zero, operation: .sourceOver, fraction: 1)
