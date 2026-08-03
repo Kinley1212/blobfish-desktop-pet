@@ -3,6 +3,12 @@ import Foundation
 
 struct CharacterPack: Equatable, Identifiable {
     struct Size: Codable, Equatable { let width: Double; let height: Double }
+    struct Slot: Codable, Equatable { let x: Double; let y: Double; let scale: Double }
+    struct Accessories: Codable, Equatable { let slots: [String: Slot] }
+    struct Shape: Codable, Equatable {
+        let id: String; let label: String; let d: String?; let left: String?; let right: String?; let hideShading: Bool?
+    }
+    struct DIY: Codable, Equatable { let enabled: Bool; let shapes: [String: [Shape]]? }
     struct Manifest: Codable, Equatable {
         let id: String
         let displayName: String
@@ -12,8 +18,22 @@ struct CharacterPack: Equatable, Identifiable {
         let preview: String?
         let size: Size
         let defaultLanguagePack: String?
+        let accessories: Accessories?
+        let diy: DIY?
     }
 
+    let manifest: Manifest
+    let directoryURL: URL
+    var id: String { manifest.id }
+    var artURL: URL { directoryURL.appendingPathComponent(manifest.art) }
+}
+
+struct AccessoryPack: Equatable, Identifiable {
+    struct Point: Codable, Equatable { let x: Double; let y: Double }
+    struct Manifest: Codable, Equatable {
+        let id: String; let displayName: String; let version: Int; let slot: String
+        let art: String; let anchor: Point; let hidesEyes: Bool?
+    }
     let manifest: Manifest
     let directoryURL: URL
     var id: String { manifest.id }
@@ -113,6 +133,21 @@ final class PackCatalog {
                 }
             }
             return LanguagePack(manifest: manifest, phrases: phrases)
+        }
+    }
+
+    func accessories() throws -> [AccessoryPack] {
+        let root = packsRoot.appendingPathComponent("accessories", isDirectory: true)
+        return try loadDirectories(root: root) { directory in
+            let manifest: AccessoryPack.Manifest = try self.decodeJSON(directory.appendingPathComponent("manifest.json"))
+            guard Self.isPackID(manifest.id), directory.lastPathComponent == manifest.id,
+                  manifest.version == 1,
+                  ["face", "hat", "eyewear", "hand", "clock"].contains(manifest.slot) else {
+                throw PackCatalogError.invalidManifest(directory.lastPathComponent)
+            }
+            let art = try self.safeChild(manifest.art, of: directory)
+            try Self.requireRegularFile(art, maximumBytes: Self.maximumArtBytes)
+            return AccessoryPack(manifest: manifest, directoryURL: directory)
         }
     }
 

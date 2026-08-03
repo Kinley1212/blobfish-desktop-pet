@@ -1,8 +1,28 @@
 import AppKit
 
 final class PetView: NSView {
+    var onClick: (() -> Void)?
+    var transientMessage: String? { didSet { needsDisplay = true } }
+    var character: CharacterPack? {
+        didSet {
+            rebuildCharacterImage()
+            needsDisplay = true
+        }
+    }
+
+    var characterScale: Double = 1 { didSet { needsDisplay = true } }
+    var accessoryPacks: [AccessoryPack] = [] { didSet { rebuildAccessoryImages() } }
+    var accessorySpec = CharacterAccessories(nil) { didSet { rebuildAccessoryImages() } }
+    var customization: JSONValue? { didSet { rebuildCharacterImage() } }
+
+    var characterBounds: NSRect {
+        let size = character?.manifest.size ?? CharacterPack.Size(width: 105, height: 90)
+        let scaled = NSSize(width: size.width * characterScale, height: size.height * characterScale)
+        return NSRect(x: bounds.midX - scaled.width / 2, y: 4, width: scaled.width, height: scaled.height)
+    }
     var snapshot: TaskSnapshot = .idle {
         didSet {
+            syncCarousel(previous: oldValue)
             syncSpinner()
             needsDisplay = true
         }
@@ -16,6 +36,13 @@ final class PetView: NSView {
     private var blinkTimer: Timer?
     private var spinnerTimer: Timer?
     private var spinnerPhase: CGFloat = 0
+    private var carouselIndex = 0
+    private var carouselTimer: Timer?
+    private var characterImage: NSImage?
+    private var accessoryImages: [(AccessoryPack, NSImage)] = []
+    private var effect: TaskDisplayState?
+    private var effectPhase: CGFloat = 0
+    private var effectTimer: Timer?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -32,12 +59,90 @@ final class PetView: NSView {
     deinit {
         blinkTimer?.invalidate()
         spinnerTimer?.invalidate()
+        carouselTimer?.invalidate()
+        effectTimer?.invalidate()
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
+        drawSpeechBubble()
         drawTaskBubble()
-        drawBlobfish()
+        drawCharacter()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        onClick?()
+        super.mouseDown(with: event)
+    }
+
+    private func drawCharacter() {
+        guard let characterImage else { drawBlobfish(); return }
+        NSGraphicsContext.saveGraphicsState()
+        if let effect {
+            let transform = NSAffineTransform()
+            switch effect {
+            case .completed:
+                let scale = 1 + sin(effectPhase * .pi) * 0.13
+                transform.translateX(by: bounds.midX, yBy: characterBounds.midY)
+                transform.scale(by: scale)
+                transform.translateX(by: -bounds.midX, yBy: -characterBounds.midY)
+            case .failed:
+                transform.translateX(by: sin(effectPhase * .pi * 8) * 5, yBy: 0)
+            case .waiting:
+                transform.translateX(by: 0, yBy: sin(effectPhase * .pi * 4) * 2)
+            default: break
+            }
+            transform.concat()
+        }
+        if direction < 0 {
+            let transform = NSAffineTransform()
+            transform.translateX(by: bounds.midX * 2, yBy: 0)
+            transform.scaleX(by: -1, yBy: 1)
+            transform.concat()
+        }
+        characterImage.draw(in: characterBounds, from: .zero, operation: .sourceOver, fraction: 1)
+        drawAccessories()
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    private func rebuildAccessoryImages() {
+        let byID = Dictionary(uniqueKeysWithValues: accessoryPacks.map { ($0.id, $0) })
+        accessoryImages = accessorySpec.equipped.values.compactMap { id in
+            guard let pack = byID[id], let image = NSImage(contentsOf: pack.artURL) else { return nil }
+            return (pack, image)
+        }
+        needsDisplay = true
+    }
+
+    private func rebuildCharacterImage() {
+        characterImage = character.flatMap {
+            SVGAppearanceRenderer.image(character: $0, customization: customization, blinking: blinking)
+        }
+        needsDisplay = true
+    }
+
+    private func drawAccessories() {
+        guard let character, let sourceSize = characterImage?.size,
+              sourceSize.width > 0, sourceSize.height > 0 else { return }
+        let target = characterBounds
+        let scaleX = target.width / sourceSize.width
+        let scaleY = target.height / sourceSize.height
+        for (pack, image) in accessoryImages {
+            guard let slot = character.manifest.accessories?.slots[pack.manifest.slot] else { continue }
+            let tuning = accessorySpec.tuning[pack.id] ?? AccessoryTuning(nil)
+            let unitX = scaleX * slot.scale * tuning.size * tuning.width
+            let unitY = scaleY * slot.scale * tuning.size * tuning.height
+            let targetX = target.minX + (slot.x + tuning.offsetX) * scaleX
+            let targetY = target.maxY - (slot.y + tuning.offsetY) * scaleY
+            let imageSize = image.size
+            let rect = NSRect(
+                x: targetX - pack.manifest.anchor.x * unitX,
+                y: targetY - (imageSize.height - pack.manifest.anchor.y) * unitY,
+                width: imageSize.width * unitX,
+                height: imageSize.height * unitY
+            )
+            image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+        }
     }
 
     private func drawBlobfish() {
@@ -92,7 +197,15 @@ final class PetView: NSView {
 
     private func drawTaskBubble() {
         guard snapshot.state != .idle else { return }
-        let bubbleRect = NSRect(x: 23, y: 101, width: 254, height: 43)
+        let cards = snapshot.tasks
+        if cards.count > 1 {
+            for depth in stride(from: min(cards.count - 1, 2), through: 1, by: -1) {
+                let rect = NSRect(x: 23 + CGFloat(depth) * 5, y: 137 - CGFloat(depth) * 7, width: 254 - CGFloat(depth) * 10, height: 43)
+                NSColor.white.withAlphaComponent(0.28 + CGFloat(2 - depth) * 0.12).setFill()
+                NSBezierPath(roundedRect: rect, xRadius: 13, yRadius: 13).fill()
+            }
+        }
+        let bubbleRect = NSRect(x: 23, y: 137, width: 254, height: 43)
         NSColor.white.withAlphaComponent(0.96).setFill()
         let bubble = NSBezierPath(roundedRect: bubbleRect, xRadius: 13, yRadius: 13)
         bubble.fill()
@@ -100,8 +213,9 @@ final class PetView: NSView {
         bubble.lineWidth = 1
         bubble.stroke()
 
-        drawStatusIcon(at: NSPoint(x: 42, y: 122))
-        let title = snapshot.title ?? "任务"
+        drawStatusIcon(at: NSPoint(x: 42, y: 158))
+        let currentCard = cards.indices.contains(carouselIndex) ? cards[carouselIndex] : nil
+        let title = currentCard?.title ?? snapshot.title ?? "任务"
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
         let attributes: [NSAttributedString.Key: Any] = [
@@ -109,18 +223,59 @@ final class PetView: NSView {
             .foregroundColor: NSColor(calibratedWhite: 0.24, alpha: 1),
             .paragraphStyle: paragraph,
         ]
-        (title as NSString).draw(in: NSRect(x: 56, y: 114, width: 188, height: 17), withAttributes: attributes)
+        (title as NSString).draw(
+            in: NSRect(x: 56, y: 150, width: 188, height: 17),
+            withAttributes: attributes
+        )
 
-        if snapshot.activeCount > 1 {
-            let count = "+\(snapshot.activeCount - 1)" as NSString
+        if cards.count > 1 {
+            let count = "\(carouselIndex + 1)/\(cards.count)" as NSString
             count.draw(
-                at: NSPoint(x: 246, y: 115),
+                at: NSPoint(x: 246, y: 151),
                 withAttributes: [
                     .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium),
                     .foregroundColor: NSColor(calibratedRed: 0.31, green: 0.43, blue: 0.44, alpha: 1),
                 ]
             )
         }
+    }
+
+    private func drawSpeechBubble() {
+        guard let transientMessage else { return }
+        let rect = NSRect(x: 23, y: 88, width: 254, height: 40)
+        NSColor.white.withAlphaComponent(0.96).setFill()
+        let bubble = NSBezierPath(roundedRect: rect, xRadius: 13, yRadius: 13)
+        bubble.fill()
+        NSColor(calibratedWhite: 0.45, alpha: 0.18).setStroke()
+        bubble.stroke()
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        (transientMessage as NSString).draw(
+            in: NSRect(x: 38, y: 100, width: 224, height: 17),
+            withAttributes: [
+                .font: NSFont.systemFont(ofSize: 11.5, weight: .medium),
+                .foregroundColor: NSColor(calibratedWhite: 0.24, alpha: 1),
+                .paragraphStyle: paragraph,
+            ]
+        )
+    }
+
+    func playEffect(_ state: TaskDisplayState) {
+        effectTimer?.invalidate()
+        effect = state
+        effectPhase = 0
+        let started = Date()
+        effectTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            self.effectPhase = CGFloat(Date().timeIntervalSince(started) / 1.1)
+            if self.effectPhase >= 1 {
+                timer.invalidate()
+                self.effectTimer = nil
+                self.effect = nil
+            }
+            self.needsDisplay = true
+        }
+        RunLoop.main.add(effectTimer!, forMode: .common)
     }
 
     private func drawStatusIcon(at center: NSPoint) {
@@ -170,14 +325,37 @@ final class PetView: NSView {
         RunLoop.main.add(spinnerTimer!, forMode: .common)
     }
 
+    private func syncCarousel(previous: TaskSnapshot) {
+        carouselTimer?.invalidate()
+        carouselTimer = nil
+        let newTasks = snapshot.tasks
+        if let changed = newTasks.firstIndex(where: { card in
+            guard let old = previous.tasks.first(where: { $0.id == card.id }) else { return true }
+            return old.state != card.state || old.timestamp != card.timestamp
+        }) {
+            carouselIndex = changed
+        } else if carouselIndex >= newTasks.count {
+            carouselIndex = 0
+        }
+        guard newTasks.count > 1 else { return }
+        carouselTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            guard let self, !self.snapshot.tasks.isEmpty else { return }
+            self.carouselIndex = (self.carouselIndex + 1) % self.snapshot.tasks.count
+            self.needsDisplay = true
+        }
+        RunLoop.main.add(carouselTimer!, forMode: .common)
+    }
+
     private func scheduleBlink() {
         blinkTimer?.invalidate()
         blinkTimer = Timer.scheduledTimer(withTimeInterval: Double.random(in: 3.5...8.5), repeats: false) { [weak self] _ in
             guard let self else { return }
             self.blinking = true
+            self.rebuildCharacterImage()
             self.needsDisplay = true
             self.blinkTimer = Timer.scheduledTimer(withTimeInterval: 0.16, repeats: false) { [weak self] _ in
                 self?.blinking = false
+                self?.rebuildCharacterImage()
                 self?.needsDisplay = true
                 self?.scheduleBlink()
             }

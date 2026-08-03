@@ -8,6 +8,7 @@ final class AppRuntime {
     private(set) var character: CharacterPack?
     private(set) var language: LanguagePack?
     private(set) var phraseEngine: PhraseEngine?
+    private(set) var accessories: [AccessoryPack] = []
     private(set) var warnings: [String] = []
 
     init(applicationSupportURL: URL? = nil, packsRoot: URL? = nil) {
@@ -41,6 +42,12 @@ final class AppRuntime {
 
     private func reloadPacks() {
         guard let catalog else { return }
+        do {
+            accessories = try catalog.accessories()
+        } catch {
+            accessories = []
+            warnings.append("饰品目录加载失败：\(error)")
+        }
         do {
             character = try catalog.character(id: config.pet.characterPackId)
         } catch {

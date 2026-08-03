@@ -1,3 +1,4 @@
+import AppKit
 import Darwin
 import Foundation
 
@@ -14,6 +15,7 @@ enum SelfCheck {
             ("shared pack compatibility", sharedPackCompatibility),
             ("phrase rules and templates", phraseRulesAndTemplates),
             ("shared runtime recovery", sharedRuntimeRecovery),
+            ("custom SVG and accessory rendering", customSVGAndAccessoryRendering),
         ]
         var passed = 0
         for (name, check) in checks {
@@ -51,7 +53,11 @@ enum SelfCheck {
                 && TaskSnapshot.build(from: leases, nowMilliseconds: now) == TaskSnapshot(
                     state: .running,
                     title: "修复原生桌宠",
-                    activeCount: 1
+                    activeCount: 1,
+                    tasks: [TaskCard(
+                        id: "session-1", provider: "codex", state: .running,
+                        title: "修复原生桌宠", timestamp: now - 500
+                    )]
                 )
         }
     }
@@ -70,7 +76,11 @@ enum SelfCheck {
             return TaskSnapshot.build(from: leases, nowMilliseconds: now) == TaskSnapshot(
                 state: .waiting,
                 title: "Claude Code 任务",
-                activeCount: 1
+                activeCount: 1,
+                tasks: [TaskCard(
+                    id: "session-2", provider: "claude-code", state: .waiting,
+                    title: "Claude Code 任务", timestamp: now - 100
+                )]
             )
         }
     }
@@ -186,6 +196,7 @@ enum SelfCheck {
         return characters.count >= 3
             && languages.count >= 4
             && FileManager.default.fileExists(atPath: blobfish.artURL.path)
+            && NSImage(contentsOf: blobfish.artURL) != nil
             && chinese.phrases.contains(where: { $0.event == "agent.completed" })
             && chinese.phrases.contains(where: { $0.event == "system.battery" })
     }
@@ -217,6 +228,23 @@ enum SelfCheck {
                 && runtime.language?.id == "grass-buddy-zh-CN"
                 && runtime.phrase(event: "agent.started") != nil
         }
+    }
+
+    private static func customSVGAndAccessoryRendering() throws -> Bool {
+        let catalog = try PackCatalog()
+        let pack = try catalog.character(id: "blobfish")
+        let customization: JSONValue = .object([
+            "body": .object(["width": .number(1.2), "height": .number(0.9), "shape": .string("wotou")]),
+            "eyes": .object(["size": .number(1.1), "spacing": .number(2)]),
+        ])
+        let image = SVGAppearanceRenderer.image(character: pack, customization: customization, blinking: true)
+        let accessories = try catalog.accessories()
+        let hasClock = accessories.contains(where: { $0.id == "alarm-clock" && $0.manifest.slot == "clock" })
+        if image == nil || accessories.count < 80 || !hasClock {
+            print("  renderer=\(image != nil), accessories=\(accessories.count), clock=\(hasClock)")
+            return false
+        }
+        return true
     }
 
     private static func withPrivateDirectory(_ body: (URL) throws -> Bool) throws -> Bool {

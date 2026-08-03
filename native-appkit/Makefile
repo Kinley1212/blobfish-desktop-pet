@@ -3,7 +3,7 @@ export SDKROOT
 export CLANG_MODULE_CACHE_PATH := $(CURDIR)/.build/clang-module-cache
 export SWIFTPM_MODULECACHE_OVERRIDE := $(CURDIR)/.build/swiftpm-module-cache
 
-.PHONY: build test run clean
+.PHONY: build test run app clean
 
 build:
 	swift build
@@ -13,6 +13,9 @@ test:
 
 run:
 	swift run BlobfishNative
+
+app: build
+	sh scripts/package-app.sh
 
 clean:
 	swift package clean
