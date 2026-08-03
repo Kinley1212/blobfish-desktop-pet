@@ -42,3 +42,4 @@ jobs:
           name: blobfish-native-${{ runner.arch }}
           path: native-appkit/.build/BlobfishNative-*-macOS-*.zip
           if-no-files-found: error
+          include-hidden-files: true
