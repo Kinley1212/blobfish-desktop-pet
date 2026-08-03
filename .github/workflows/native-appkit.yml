@@ -1,0 +1,45 @@
+name: Native AppKit
+
+on:
+  push:
+    branches:
+      - codex/native-appkit-prototype
+    paths:
+      - "native-appkit/**"
+      - "src/packs/**"
+      - "integrations/**"
+      - "native/AgentEventSender.swift"
+      - ".github/workflows/native-appkit.yml"
+  pull_request:
+    paths:
+      - "native-appkit/**"
+      - "src/packs/**"
+      - "integrations/**"
+      - "native/AgentEventSender.swift"
+      - ".github/workflows/native-appkit.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-check:
+    runs-on: macos-15
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: native-appkit
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build native pet
+        run: make build
+      - name: Run native self-checks
+        run: make test
+      - name: Package native app
+        run: make archive
+      - name: Upload native preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: blobfish-native-${{ runner.arch }}
+          path: native-appkit/.build/BlobfishNative-*-macOS-*.zip
+          if-no-files-found: error
+          include-hidden-files: true
