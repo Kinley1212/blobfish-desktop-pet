@@ -51,6 +51,47 @@ enum PetMovementGeometry {
             y: min(max(origin.y, allowed.minY), allowed.maxY)
         )
     }
+
+    static func allowedOrigins(
+        visibleFrames: [NSRect],
+        visualBounds: NSRect,
+        currentOrigin: NSPoint
+    ) -> NSRect? {
+        let candidates = visibleFrames.compactMap { visibleFrame -> (visible: NSRect, allowed: NSRect)? in
+            guard let allowed = allowedOrigins(visibleFrame: visibleFrame, visualBounds: visualBounds) else {
+                return nil
+            }
+            return (visibleFrame, allowed)
+        }
+        guard !candidates.isEmpty else { return nil }
+
+        // Keep using the current display whenever the pet is already valid on
+        // it. Falling back to NSScreen.main here used to project a pet in a
+        // display seam all the way down to the primary screen's lower edge.
+        if let current = candidates.first(where: { $0.allowed.contains(currentOrigin) }) {
+            return current.allowed
+        }
+
+        let visualCenter = NSPoint(
+            x: currentOrigin.x + visualBounds.midX,
+            y: currentOrigin.y + visualBounds.midY
+        )
+        if let centered = candidates.first(where: { $0.visible.contains(visualCenter) }) {
+            return centered.allowed
+        }
+
+        return candidates.min { left, right in
+            squaredDistance(from: currentOrigin, to: left.allowed)
+                < squaredDistance(from: currentOrigin, to: right.allowed)
+        }?.allowed
+    }
+
+    private static func squaredDistance(from point: NSPoint, to rect: NSRect) -> CGFloat {
+        let projected = clamped(point, to: rect)
+        let dx = projected.x - point.x
+        let dy = projected.y - point.y
+        return dx * dx + dy * dy
+    }
 }
 
 final class PetPanelController {
@@ -265,13 +306,12 @@ final class PetPanelController {
 
     private func moveOneFrame() {
         let visualBounds = petView.movementBounds
-        let visualCenter = NSPoint(
-            x: panel.frame.minX + visualBounds.midX,
-            y: panel.frame.minY + visualBounds.midY
-        )
-        let screen = NSScreen.screens.first { $0.frame.contains(visualCenter) } ?? NSScreen.main
-        guard let visibleFrame = screen?.visibleFrame else { return }
-        guard let allowed = PetMovementGeometry.allowedOrigins(visibleFrame: visibleFrame, visualBounds: visualBounds) else { return }
+        let actualOrigin = panel.frame.origin
+        guard let allowed = PetMovementGeometry.allowedOrigins(
+            visibleFrames: NSScreen.screens.map(\.visibleFrame),
+            visualBounds: visualBounds,
+            currentOrigin: actualOrigin
+        ) else { return }
         let uptime = ProcessInfo.processInfo.systemUptime
         let elapsed = uptime - (lastFrameUptime ?? uptime - 1.0 / PetMotionTiming.framesPerSecond)
         lastFrameUptime = uptime
@@ -283,7 +323,6 @@ final class PetPanelController {
             state: motionState
         )
         petView.motionElapsed = motionElapsed
-        let actualOrigin = panel.frame.origin
         updatePointerInteraction()
         let externallyMoved = lastAutomaticOrigin.map {
             abs(actualOrigin.x - $0.x) > 1.5 || abs(actualOrigin.y - $0.y) > 1.5
@@ -372,10 +411,11 @@ final class PetPanelController {
         guard dragging else { return }
         let visualBounds = petView.movementBounds
         let current = panel.frame.origin
-        let center = NSPoint(x: current.x + visualBounds.midX, y: current.y + visualBounds.midY)
-        let screen = NSScreen.screens.first { $0.frame.contains(center) } ?? NSScreen.main
-        guard let visibleFrame = screen?.visibleFrame,
-              let allowed = PetMovementGeometry.allowedOrigins(visibleFrame: visibleFrame, visualBounds: visualBounds) else { return }
+        guard let allowed = PetMovementGeometry.allowedOrigins(
+            visibleFrames: NSScreen.screens.map(\.visibleFrame),
+            visualBounds: visualBounds,
+            currentOrigin: current
+        ) else { return }
         let origin = PetMovementGeometry.clamped(NSPoint(x: current.x + dx, y: current.y + dy), to: allowed)
         panel.setFrameOrigin(origin)
         preciseOrigin = origin

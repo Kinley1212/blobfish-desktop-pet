@@ -20,6 +20,7 @@ enum SelfCheck {
             ("native update channel isolation", nativeUpdateChannelIsolation),
             ("single instance lock", singleInstanceLock),
             ("dragged height preservation", draggedHeightPreservation),
+            ("nearest display preserves pet height", nearestDisplayPreservesPetHeight),
             ("display-paced pet motion", displayPacedPetMotion),
             ("pet reaction geometry", petReactionGeometry),
             ("task carousel geometry", taskCarouselGeometry),
@@ -347,6 +348,30 @@ enum SelfCheck {
         return dragged.y == 350
             && below.y == allowed.minY
             && above.y == allowed.maxY
+    }
+
+    private static func nearestDisplayPreservesPetHeight() throws -> Bool {
+        let visual = NSRect(x: 110, y: 4, width: 105, height: 95)
+        let primary = NSRect(x: 0, y: 23, width: 1_440, height: 877)
+        let secondary = NSRect(x: 1_440, y: 180, width: 1_920, height: 1_080)
+        let onSecondary = NSPoint(x: 1_520, y: 640)
+        guard let selected = PetMovementGeometry.allowedOrigins(
+            visibleFrames: [primary, secondary],
+            visualBounds: visual,
+            currentOrigin: onSecondary
+        ), let expected = PetMovementGeometry.allowedOrigins(
+            visibleFrame: secondary,
+            visualBounds: visual
+        ) else { return false }
+
+        let inDisplayGap = NSPoint(x: 1_350, y: 980)
+        guard let nearest = PetMovementGeometry.allowedOrigins(
+            visibleFrames: [primary, secondary],
+            visualBounds: visual,
+            currentOrigin: inDisplayGap
+        ) else { return false }
+        let projected = PetMovementGeometry.clamped(inDisplayGap, to: nearest)
+        return selected == expected && projected.y > primary.minY + 100
     }
 
     private static func displayPacedPetMotion() -> Bool {
