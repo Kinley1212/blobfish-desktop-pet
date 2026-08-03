@@ -5,7 +5,8 @@ import Foundation
 private let maximumInputBytes = 2 * 1024 * 1024
 private let maximumLeaseBytes = 16 * 1024
 private let maximumFutureTimestampSkewMs: Int64 = 60 * 1000
-private let runningLeaseMaxAgeMs: Int64 = 2 * 60 * 60 * 1000
+private let startedLeaseMaxAgeMs: Int64 = 15 * 60 * 1000
+private let runningLeaseMaxAgeMs: Int64 = 30 * 60 * 1000
 private let terminalLeaseMaxAgeMs: Int64 = 5 * 60 * 1000
 private let waitingLeaseMaxAgeMs: Int64 = 8 * 60 * 60 * 1000
 private let sessionLockAttempts = 10
@@ -662,6 +663,8 @@ private func shouldPruneLease(
         maxAge = terminalLeaseMaxAgeMs
     } else if event == "needs_input" {
         maxAge = waitingLeaseMaxAgeMs
+    } else if event == "started" {
+        maxAge = startedLeaseMaxAgeMs
     } else {
         maxAge = runningLeaseMaxAgeMs
     }
