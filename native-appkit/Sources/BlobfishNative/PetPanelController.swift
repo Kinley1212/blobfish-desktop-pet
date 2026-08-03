@@ -87,6 +87,15 @@ final class PetPanelController {
 
     func playEffect(_ state: TaskDisplayState) { petView.playEffect(state) }
 
+    func updateClock(state: ClockState, timerText: String?) {
+        petView.alarmClockVisible = state.alarms.contains(where: \.enabled)
+            || state.alerts.contains(where: { $0.sourceType == "alarm" })
+        petView.alarmRinging = state.alerts.contains(where: { $0.sourceType == "alarm" && $0.state == "ringing" })
+        petView.timerText = timerText
+    }
+
+    func updatePerformance(_ sample: PerformanceSample?) { petView.performanceSample = sample }
+
     func animateExit(completion: @escaping () -> Void) {
         movementTimer?.invalidate()
         movementTimer = nil

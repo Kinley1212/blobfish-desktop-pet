@@ -16,6 +16,7 @@ enum SelfCheck {
             ("phrase rules and templates", phraseRulesAndTemplates),
             ("shared runtime recovery", sharedRuntimeRecovery),
             ("custom SVG and accessory rendering", customSVGAndAccessoryRendering),
+            ("shared alarm and timer state", sharedAlarmAndTimerState),
         ]
         var passed = 0
         for (name, check) in checks {
@@ -245,6 +246,28 @@ enum SelfCheck {
             return false
         }
         return true
+    }
+
+    private static func sharedAlarmAndTimerState() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let service = ClockService(directoryURL: directory)
+            try service.createAlarm(label: "起床", mode: "daily", time: "09:30", date: nil, weekdays: [])
+            try service.startTimer(minutes: 2, label: "测试")
+            try service.pauseTimer()
+            guard service.state.timer?.state == "paused", service.remainingTimerText() != nil else { return false }
+            try service.resumeTimer()
+            var preferences = service.state.preferences
+            preferences.alarmSound.soundId = "Bottle"
+            try service.updatePreferences(preferences)
+            let reloaded = ClockService(directoryURL: directory)
+            let file = directory.appendingPathComponent("clock-state.json")
+            var info = stat()
+            return reloaded.state.alarms.first?.time == "09:30"
+                && reloaded.state.timer?.state == "running"
+                && reloaded.state.preferences.alarmSound.soundId == "Bottle"
+                && lstat(file.path, &info) == 0
+                && info.st_mode & 0o777 == 0o600
+        }
     }
 
     private static func withPrivateDirectory(_ body: (URL) throws -> Bool) throws -> Bool {

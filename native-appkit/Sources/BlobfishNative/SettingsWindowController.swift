@@ -7,22 +7,110 @@ final class SettingsViewModel: ObservableObject {
     @Published var draft: AppConfig
     @Published var message = ""
     @Published var selectedSection = SettingsSection.character
+    @Published var clockState: ClockState
+    @Published var timerMinutes = 25
+    @Published var timerLabel = ""
+    @Published var alarmLabel = ""
+    @Published var alarmTime = "09:00"
+    @Published var alarmMode = "daily"
+    @Published var alarmDate = Date().addingTimeInterval(24 * 60 * 60)
+    @Published var integrationStatuses: [String: IntegrationStatus] = [:]
+    @Published var integrationBusy = Set<String>()
 
     let runtime: AppRuntime
     let characters: [CharacterPack]
     let languages: [LanguagePack]
     let accessories: [AccessoryPack]
+    let clockService: ClockService?
+    let integrationManager: IntegrationManager
     private let onApply: () -> Void
 
-    init(runtime: AppRuntime, onApply: @escaping () -> Void) {
+    init(runtime: AppRuntime, clockService: ClockService?, onApply: @escaping () -> Void) {
         self.runtime = runtime
+        self.clockService = clockService
+        integrationManager = IntegrationManager(supportDirectory: runtime.configStore.fileURL.deletingLastPathComponent())
+        clockState = clockService?.state ?? .empty
         draft = runtime.config
         characters = (try? runtime.catalog?.characters()) ?? []
         languages = (try? runtime.catalog?.languages()) ?? []
         accessories = runtime.accessories
         self.onApply = onApply
         if !runtime.warnings.isEmpty { message = runtime.warnings.joined(separator: "\n") }
+        refreshIntegrations()
     }
+
+    func refreshIntegrations() {
+        for provider in ["codex", "claude"] {
+            integrationBusy.insert(provider)
+            integrationManager.inspect(provider) { [weak self] status in
+                self?.integrationStatuses[provider] = status
+                self?.integrationBusy.remove(provider)
+            }
+        }
+    }
+
+    func connectIntegration(_ provider: String) {
+        integrationBusy.insert(provider)
+        integrationManager.connect(provider) { [weak self] result in
+            guard let self else { return }
+            self.integrationBusy.remove(provider)
+            switch result {
+            case .success(let status):
+                self.integrationStatuses[provider] = status
+                self.message = provider == "codex"
+                    ? (self.isEnglish ? "Installed. Allow the pet in Codex /hooks, then continue a task." : "已安装。请在 Codex 的 /hooks 允许水滴鱼，然后继续一次任务。")
+                    : (self.isEnglish ? "Installed. Restart Claude Code and continue a task." : "已安装。重新打开 Claude Code，然后继续一次任务。")
+            case .failure(let error):
+                self.message = (self.isEnglish ? "Connection failed: " : "连接失败：") + error.localizedDescription
+            }
+        }
+    }
+
+    func startTimer() {
+        do { try clockService?.startTimer(minutes: timerMinutes, label: timerLabel); refreshClock() }
+        catch { message = String(describing: error) }
+    }
+
+    func pauseOrResumeTimer() {
+        do {
+            if clockState.timer?.state == "running" { try clockService?.pauseTimer() } else { try clockService?.resumeTimer() }
+            refreshClock()
+        } catch { message = String(describing: error) }
+    }
+
+    func extendTimer() { do { try clockService?.extendTimer(); refreshClock() } catch { message = String(describing: error) } }
+    func cancelTimer() { do { try clockService?.cancelTimer(); refreshClock() } catch { message = String(describing: error) } }
+
+    func createAlarm() {
+        let formatter = DateFormatter(); formatter.dateFormat = "yyyy-MM-dd"
+        do {
+            try clockService?.createAlarm(
+                label: alarmLabel, mode: alarmMode, time: alarmTime,
+                date: alarmMode == "once" ? formatter.string(from: alarmDate) : nil,
+                weekdays: alarmMode == "weekly" ? [1, 2, 3, 4, 5] : []
+            )
+            refreshClock()
+        } catch { message = String(describing: error) }
+    }
+
+    func toggleAlarm(_ alarm: ClockState.Alarm, enabled: Bool) {
+        do { try clockService?.setAlarmEnabled(id: alarm.id, enabled: enabled); refreshClock() }
+        catch { message = String(describing: error) }
+    }
+
+    func deleteAlarm(_ alarm: ClockState.Alarm) {
+        do { try clockService?.deleteAlarm(id: alarm.id); refreshClock() }
+        catch { message = String(describing: error) }
+    }
+
+    func saveClockPreferences() {
+        do { try clockService?.updatePreferences(clockState.preferences); refreshClock() }
+        catch { message = String(describing: error) }
+    }
+
+    func dismissClockAlerts() { do { try clockService?.dismissAlerts(); refreshClock() } catch { message = String(describing: error) } }
+
+    private func refreshClock() { clockState = clockService?.state ?? .empty }
 
     var isEnglish: Bool { draft.ui.locale == "en" }
 
@@ -320,13 +408,114 @@ struct NativeSettingsView: View {
                 Toggle(t("显示任务标题", "Show task titles"), isOn: $model.draft.privacy.includeTaskTitles)
                 Toggle(t("显示日历标题", "Show calendar titles"), isOn: $model.draft.privacy.includeCalendarTitles)
             }
+            integrationCard(provider: "codex", title: "Codex")
+            integrationCard(provider: "claude", title: "Claude Code")
+        }
+    }
+
+    private func integrationCard(provider: String, title: String) -> some View {
+        SettingsCard {
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(title).font(.headline)
+                    if let status = model.integrationStatuses[provider] {
+                        Label(
+                            status.detail,
+                            systemImage: status.verified ? "checkmark.circle.fill" : status.installed ? "exclamationmark.circle" : "xmark.circle"
+                        )
+                        .foregroundStyle(status.verified ? .green : status.installed ? .orange : .secondary)
+                    } else {
+                        Text(t("正在检查…", "Checking…")).foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+                if model.integrationBusy.contains(provider) { ProgressView().controlSize(.small) }
+                Button(model.integrationStatuses[provider]?.installed == true ? t("重新连接", "Reconnect") : t("一键连接", "Connect")) {
+                    model.connectIntegration(provider)
+                }.disabled(model.integrationBusy.contains(provider))
+            }
+            if provider == "codex" {
+                Text(t("安装后只需在任一 Codex 任务输入 /hooks 并允许水滴鱼一次。", "After installation, enter /hooks in any Codex task and allow the pet once."))
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text(t("安装后重新打开 Claude Code 会话即可，不需要终端窗口。", "Restart the Claude Code session after installation; no Terminal window is used."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
     }
 
     private var clocksSection: some View {
-        SettingsPage(title: t("闹钟与计时器", "Alarms & Timers"), subtitle: t("这里将显示当前闹钟和计时器。", "Active alarms and timers appear here.")) {
-            SettingsCard { Text(t("闹钟和计时运行时会继续沿用同一份 1.4.5 数据。", "Alarm and timer state shares the same 1.4.5 data.")) }
+        SettingsPage(title: t("闹钟与计时器", "Alarms & Timers"), subtitle: t("与 1.4.5 共用记录；到点后闹钟会震动。", "Shares 1.4.5 state; the clock shakes when it rings.")) {
+            SettingsCard {
+                Text(t("计时器", "Timer")).font(.headline)
+                if let timer = model.clockState.timer {
+                    Text(timer.label.isEmpty ? (model.clockService?.remainingTimerText() ?? "—") : "\(timer.label) · \(model.clockService?.remainingTimerText() ?? "—")")
+                        .font(.system(.title2, design: .rounded).monospacedDigit())
+                    HStack {
+                        Button(timer.state == "running" ? t("暂停", "Pause") : t("继续", "Resume")) { model.pauseOrResumeTimer() }
+                        Button(t("延长 5 分钟", "Add 5 minutes")) { model.extendTimer() }
+                        Button(t("取消", "Cancel"), role: .destructive) { model.cancelTimer() }
+                    }
+                } else {
+                    TextField(t("计时名称（可选）", "Timer label (optional)"), text: $model.timerLabel)
+                    Stepper(t("\(model.timerMinutes) 分钟", "\(model.timerMinutes) minutes"), value: $model.timerMinutes, in: 1...(7 * 24 * 60))
+                    Button(t("开始计时", "Start timer")) { model.startTimer() }
+                }
+            }
+            SettingsCard {
+                Text(t("新闹钟", "New alarm")).font(.headline)
+                TextField(t("名称（可选）", "Label (optional)"), text: $model.alarmLabel)
+                TextField("HH:mm", text: $model.alarmTime)
+                Picker(t("重复", "Repeat"), selection: $model.alarmMode) {
+                    Text(t("单次", "Once")).tag("once")
+                    Text(t("每天", "Daily")).tag("daily")
+                    Text(t("工作日", "Workdays")).tag("workdays")
+                    Text(t("每周一至五", "Weekly Mon–Fri")).tag("weekly")
+                }
+                if model.alarmMode == "once" { DatePicker(t("日期", "Date"), selection: $model.alarmDate, displayedComponents: .date) }
+                Button(t("添加闹钟", "Add alarm")) { model.createAlarm() }
+            }
+            if !model.clockState.alarms.isEmpty {
+                SettingsCard {
+                    Text(t("已保存的闹钟", "Saved alarms")).font(.headline)
+                    ForEach(model.clockState.alarms) { alarm in
+                        HStack {
+                            Toggle("", isOn: Binding(
+                                get: { alarm.enabled },
+                                set: { model.toggleAlarm(alarm, enabled: $0) }
+                            )).labelsHidden()
+                            Text(alarm.time).monospacedDigit().font(.headline)
+                            Text(alarm.label.isEmpty ? alarmModeName(alarm.mode) : alarm.label)
+                            Spacer()
+                            Button(role: .destructive) { model.deleteAlarm(alarm) } label: { Image(systemName: "trash") }
+                        }
+                    }
+                }
+            }
+            SettingsCard {
+                Text(t("响铃", "Sounds")).font(.headline)
+                Toggle(t("闹钟声音", "Alarm sound"), isOn: $model.clockState.preferences.alarmSound.enabled)
+                soundPicker(selection: $model.clockState.preferences.alarmSound.soundId)
+                Toggle(t("计时结束声音", "Timer sound"), isOn: $model.clockState.preferences.timerSound.enabled)
+                soundPicker(selection: $model.clockState.preferences.timerSound.soundId)
+                Toggle(t("安静时段也响", "Allow during quiet hours"), isOn: $model.clockState.preferences.allowSoundDuringQuietHours)
+                Button(t("保存响铃设置", "Save sound settings")) { model.saveClockPreferences() }
+                if !model.clockState.alerts.isEmpty { Button(t("停止响铃", "Stop ringing")) { model.dismissClockAlerts() } }
+            }
         }
+    }
+
+    private func soundPicker(selection: Binding<String>) -> some View {
+        Picker(t("声音", "Sound"), selection: selection) {
+            ForEach(["Glass", "Ping", "Hero", "Submarine", "Tink", "Pop", "Purr", "Bottle", "Funk"], id: \.self) { Text($0).tag($0) }
+        }
+    }
+
+    private func alarmModeName(_ mode: String) -> String {
+        let names = model.isEnglish
+            ? ["once": "Once", "daily": "Daily", "workdays": "Workdays", "weekly": "Weekly"]
+            : ["once": "单次", "daily": "每天", "workdays": "工作日", "weekly": "每周"]
+        return names[mode] ?? mode
     }
 
     private var performanceSection: some View {
@@ -376,8 +565,8 @@ struct SettingsCard<Content: View>: View {
 }
 
 final class SettingsWindowController: NSWindowController {
-    init(runtime: AppRuntime, onApply: @escaping () -> Void) {
-        let viewModel = SettingsViewModel(runtime: runtime, onApply: onApply)
+    init(runtime: AppRuntime, clockService: ClockService?, onApply: @escaping () -> Void) {
+        let viewModel = SettingsViewModel(runtime: runtime, clockService: clockService, onApply: onApply)
         let hosting = NSHostingController(rootView: NativeSettingsView(model: viewModel))
         let window = NSWindow(contentViewController: hosting)
         window.title = "水滴鱼"

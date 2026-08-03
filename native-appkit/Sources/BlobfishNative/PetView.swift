@@ -14,11 +14,15 @@ final class PetView: NSView {
     var accessoryPacks: [AccessoryPack] = [] { didSet { rebuildAccessoryImages() } }
     var accessorySpec = CharacterAccessories(nil) { didSet { rebuildAccessoryImages() } }
     var customization: JSONValue? { didSet { rebuildCharacterImage() } }
+    var alarmClockVisible = false { didSet { rebuildAccessoryImages() } }
+    var alarmRinging = false { didSet { syncClockAnimation() } }
+    var timerText: String? { didSet { needsDisplay = true } }
+    var performanceSample: PerformanceSample? { didSet { needsDisplay = true } }
 
     var characterBounds: NSRect {
         let size = character?.manifest.size ?? CharacterPack.Size(width: 105, height: 90)
         let scaled = NSSize(width: size.width * characterScale, height: size.height * characterScale)
-        return NSRect(x: bounds.midX - scaled.width / 2, y: 4, width: scaled.width, height: scaled.height)
+        return NSRect(x: bounds.midX - scaled.width / 2, y: timerText == nil ? 4 : 24, width: scaled.width, height: scaled.height)
     }
     var snapshot: TaskSnapshot = .idle {
         didSet {
@@ -43,6 +47,8 @@ final class PetView: NSView {
     private var effect: TaskDisplayState?
     private var effectPhase: CGFloat = 0
     private var effectTimer: Timer?
+    private var clockAnimationTimer: Timer?
+    private var clockShakePhase: CGFloat = 0
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -61,12 +67,15 @@ final class PetView: NSView {
         spinnerTimer?.invalidate()
         carouselTimer?.invalidate()
         effectTimer?.invalidate()
+        clockAnimationTimer?.invalidate()
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         drawSpeechBubble()
         drawTaskBubble()
+        drawTimerDisplay()
+        drawPerformancePanel()
         drawCharacter()
     }
 
@@ -107,7 +116,9 @@ final class PetView: NSView {
 
     private func rebuildAccessoryImages() {
         let byID = Dictionary(uniqueKeysWithValues: accessoryPacks.map { ($0.id, $0) })
-        accessoryImages = accessorySpec.equipped.values.compactMap { id in
+        var ids = Array(accessorySpec.equipped.values)
+        if alarmClockVisible, !ids.contains("alarm-clock") { ids.append("alarm-clock") }
+        accessoryImages = ids.compactMap { id in
             guard let pack = byID[id], let image = NSImage(contentsOf: pack.artURL) else { return nil }
             return (pack, image)
         }
@@ -135,14 +146,58 @@ final class PetView: NSView {
             let targetX = target.minX + (slot.x + tuning.offsetX) * scaleX
             let targetY = target.maxY - (slot.y + tuning.offsetY) * scaleY
             let imageSize = image.size
+            let shake = alarmRinging && pack.id == "alarm-clock" ? sin(clockShakePhase) * 3 : 0
             let rect = NSRect(
-                x: targetX - pack.manifest.anchor.x * unitX,
+                x: targetX - pack.manifest.anchor.x * unitX + shake,
                 y: targetY - (imageSize.height - pack.manifest.anchor.y) * unitY,
                 width: imageSize.width * unitX,
                 height: imageSize.height * unitY
             )
             image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
         }
+    }
+
+    private func drawTimerDisplay() {
+        guard let timerText else { return }
+        let rect = NSRect(x: bounds.midX - 40, y: 1, width: 80, height: 25)
+        NSColor(calibratedRed: 0.94, green: 0.96, blue: 0.94, alpha: 0.98).setFill()
+        let calendar = NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5)
+        calendar.fill()
+        NSColor(calibratedRed: 0.34, green: 0.50, blue: 0.49, alpha: 1).setFill()
+        NSRect(x: rect.minX, y: rect.maxY - 6, width: rect.width, height: 6).fill()
+        let value = timerText as NSString
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold),
+            .foregroundColor: NSColor(calibratedWhite: 0.23, alpha: 1),
+        ]
+        let size = value.size(withAttributes: attributes)
+        value.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.minY + 3), withAttributes: attributes)
+    }
+
+    private func drawPerformancePanel() {
+        guard let sample = performanceSample else { return }
+        let rect = NSRect(x: 205, y: 5, width: 88, height: 32)
+        NSColor(calibratedWhite: 0.12, alpha: 0.76).setFill()
+        NSBezierPath(roundedRect: rect, xRadius: 7, yRadius: 7).fill()
+        let text = String(format: "CPU %2.0f%%\nRAM %2.0f%%", sample.systemCPUPercent, sample.systemRAMPercent) as NSString
+        text.draw(
+            in: NSRect(x: rect.minX + 8, y: rect.minY + 5, width: rect.width - 12, height: rect.height - 7),
+            withAttributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium),
+                .foregroundColor: NSColor.white,
+            ]
+        )
+    }
+
+    private func syncClockAnimation() {
+        clockAnimationTimer?.invalidate(); clockAnimationTimer = nil
+        guard alarmRinging else { clockShakePhase = 0; needsDisplay = true; return }
+        clockAnimationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20.0, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.clockShakePhase += 1.2
+            self.needsDisplay = true
+        }
+        RunLoop.main.add(clockAnimationTimer!, forMode: .common)
     }
 
     private func drawBlobfish() {

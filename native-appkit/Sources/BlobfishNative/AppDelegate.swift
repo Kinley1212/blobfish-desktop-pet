@@ -5,6 +5,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panelController: PetPanelController!
     private var settingsController: SettingsWindowController?
     private var taskMonitor: TaskMonitor?
+    private var clockService: ClockService?
+    private var routineService: RoutineService?
+    private var calendarService: CalendarService?
+    private var performanceMonitor: PerformanceMonitor?
     private var statusItem: NSStatusItem?
     private var taskStatusItem: NSMenuItem?
     private var pauseItem: NSMenuItem?
@@ -22,12 +26,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureStatusMenu()
         panelController.show()
 
+        let supportDirectory = runtime.configStore.fileURL.deletingLastPathComponent()
+        let clocks = ClockService(directoryURL: supportDirectory)
+        clocks.workdays = runtime.config.schedule.workdays
+        clocks.onTick = { [weak self] state, text in self?.panelController.updateClock(state: state, timerText: text) }
+        clocks.onEvent = { [weak self] event, state in self?.handleClockEvent(event, state: state) }
+        clockService = clocks
+        clocks.start()
+
+        let routine = RoutineService(runtime: runtime)
+        routine.onPhrase = { [weak self] event, context in self?.deliverPhrase(event: event, context: context) }
+        routineService = routine
+        routine.start()
+
+        let calendar = CalendarService(runtime: runtime)
+        calendar.onPhrase = { [weak self] event, context in self?.deliverPhrase(event: event, context: context) }
+        calendarService = calendar
+        calendar.start()
+
+        let performance = PerformanceMonitor()
+        performance.memoryLimitMB = runtime.config.performance.memoryLimitMb
+        performance.autoQuitEnabled = runtime.config.performance.autoQuitEnabled
+        performance.onSample = { [weak self] sample in
+            guard let self else { return }
+            self.panelController.updatePerformance(self.runtime.config.performance.panelEnabled ? sample : nil)
+        }
+        performance.onSustainedMemoryLimit = { [weak self] in self?.handleSustainedMemoryLimit() }
+        performanceMonitor = performance
+        performance.start()
+
         let leaseDirectory = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/BlobfishDesktopPet/agent-task-leases", isDirectory: true)
         let monitor = TaskMonitor(directoryURL: leaseDirectory)
         monitor.includeTitles = runtime.config.privacy.includeTaskTitles
         monitor.onUpdate = { [weak self] snapshot in
             self?.handleTaskFeedback(snapshot)
+            self?.routineService?.hasActiveTasks = snapshot.activeCount > 0
             self?.panelController.update(snapshot: snapshot)
             self?.updateStatusMenu(snapshot)
         }
@@ -40,6 +74,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         taskMonitor?.stop()
+        clockService?.stop()
+        routineService?.stop()
+        calendarService?.stop()
+        performanceMonitor?.stop()
         panelController.stop()
     }
 
@@ -148,6 +186,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return current >= quiet.start || current < quiet.end
     }
 
+    private func handleClockEvent(_ event: ClockEvent, state: ClockState) {
+        panelController.updateClock(state: state, timerText: clockService?.remainingTimerText())
+        switch event {
+        case .alarmDue(let alert):
+            if state.preferences.alarmSound.enabled,
+               state.preferences.allowSoundDuringQuietHours || !isQuietNow() {
+                soundPlayer.play(id: state.preferences.alarmSound.soundId)
+            }
+            panelController.say(runtime.phrase(
+                event: "clock.alarmRinging",
+                context: alert.label.isEmpty ? [:] : ["label": .string(alert.label)]
+            ) ?? (alert.label.isEmpty ? "闹钟响了。" : "\(alert.label) 到时间了。"))
+        case .timerDue(let alert):
+            if state.preferences.timerSound.enabled,
+               state.preferences.allowSoundDuringQuietHours || !isQuietNow() {
+                soundPlayer.play(id: state.preferences.timerSound.soundId)
+            }
+            panelController.say(runtime.phrase(
+                event: "clock.timerCompleted",
+                context: alert.label.isEmpty ? [:] : ["label": .string(alert.label)]
+            ) ?? "计时结束了。")
+            panelController.playEffect(.completed)
+        case .changed(let reason):
+            let eventName: String?
+            switch reason {
+            case "alarm-created": eventName = "clock.alarmClockAppeared"
+            case "alarm-deleted": eventName = state.alarms.contains(where: \.enabled) ? nil : "clock.alarmClockDisappeared"
+            case "timer-started": eventName = "clock.timerStarted"
+            case "timer-paused": eventName = "clock.timerPaused"
+            case "timer-resumed": eventName = "clock.timerResumed"
+            case "timer-extended": eventName = "clock.timerExtended"
+            case "timer-cancelled": eventName = "clock.timerCancelled"
+            default: eventName = nil
+            }
+            if let eventName, let phrase = runtime.phrase(event: eventName) { panelController.say(phrase) }
+        }
+    }
+
+    private func deliverPhrase(event: String, context: [String: JSONValue]) {
+        if event.hasPrefix("schedule."), !runtime.config.language.categories.schedule { return }
+        if event.hasPrefix("system."), !runtime.config.language.categories.system { return }
+        if event.hasPrefix("calendar."), !runtime.config.language.categories.calendar { return }
+        if event.hasPrefix("clock."), !runtime.config.language.categories.clock { return }
+        guard let phrase = runtime.phrase(event: event, context: context) else { return }
+        panelController.say(phrase, duration: event == "calendar.starting" ? 7 : 5.5)
+    }
+
+    private func handleSustainedMemoryLimit() {
+        guard previousSnapshot.activeCount == 0,
+              settingsController?.window?.isVisible != true,
+              clockService?.state.alerts.isEmpty != false else { return }
+        panelController.say(runtime.phrase(event: "system.memoryExit") ?? "内存一直太高。我先沉下去。", duration: 5)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            self?.panelController.animateExit { NSApp.terminate(nil) }
+        }
+    }
+
     @objc private func togglePause() {
         do {
             try runtime.update { $0.pet.roamWhenNoTasks.toggle() }
@@ -170,11 +265,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openSettings() {
         if settingsController == nil {
-            settingsController = SettingsWindowController(runtime: runtime) { [weak self] in
+            settingsController = SettingsWindowController(runtime: runtime, clockService: clockService) { [weak self] in
                 guard let self else { return }
                 self.panelController.apply(runtime: self.runtime)
                 self.taskMonitor?.includeTitles = self.runtime.config.privacy.includeTaskTitles
+                self.clockService?.workdays = self.runtime.config.schedule.workdays
                 self.syncMovementMenu()
+                self.performanceMonitor?.memoryLimitMB = self.runtime.config.performance.memoryLimitMb
+                self.performanceMonitor?.autoQuitEnabled = self.runtime.config.performance.autoQuitEnabled
+                if !self.runtime.config.performance.panelEnabled { self.panelController.updatePerformance(nil) }
+                self.calendarService?.stop()
+                self.calendarService?.start()
+                do { try LoginItemController.sync(enabled: self.runtime.config.startup.launchAtLogin) }
+                catch { self.panelController.say("开机启动设置没有改成功。") }
             }
         }
         settingsController?.showWindow(nil)
