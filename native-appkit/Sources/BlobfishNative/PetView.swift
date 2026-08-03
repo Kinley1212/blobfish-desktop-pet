@@ -1,5 +1,84 @@
 import AppKit
 
+enum PetVisualEffect: Equatable {
+    case success
+    case failed
+    case waiting
+    case hit
+    case bump
+}
+
+struct PetEffectTransform: Equatable {
+    let scaleX: CGFloat
+    let scaleY: CGFloat
+    let offsetX: CGFloat
+    let offsetY: CGFloat
+}
+
+enum PetEffectGeometry {
+    private struct Keyframe {
+        let progress: CGFloat
+        let transform: PetEffectTransform
+    }
+
+    static func transform(for effect: PetVisualEffect, progress: CGFloat) -> PetEffectTransform {
+        let identity = PetEffectTransform(scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 0)
+        let frames: [Keyframe]
+        switch effect {
+        case .hit:
+            frames = [
+                Keyframe(progress: 0, transform: identity),
+                Keyframe(progress: 0.20, transform: PetEffectTransform(scaleX: 1.30, scaleY: 0.65, offsetX: 0, offsetY: -10)),
+                Keyframe(progress: 0.50, transform: PetEffectTransform(scaleX: 0.85, scaleY: 1.15, offsetX: 0, offsetY: 6)),
+                Keyframe(progress: 0.75, transform: PetEffectTransform(scaleX: 1.05, scaleY: 0.95, offsetX: 0, offsetY: -2)),
+                Keyframe(progress: 1, transform: identity),
+            ]
+        case .bump:
+            frames = [
+                Keyframe(progress: 0, transform: identity),
+                Keyframe(progress: 0.30, transform: PetEffectTransform(scaleX: 1.38, scaleY: 0.60, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 0.55, transform: PetEffectTransform(scaleX: 0.85, scaleY: 1.18, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 0.75, transform: PetEffectTransform(scaleX: 1.08, scaleY: 0.94, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 1, transform: identity),
+            ]
+        case .success:
+            frames = [
+                Keyframe(progress: 0, transform: identity),
+                Keyframe(progress: 0.28, transform: PetEffectTransform(scaleX: 1, scaleY: 0.94, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 0.58, transform: PetEffectTransform(scaleX: 1, scaleY: 1.06, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 1, transform: identity),
+            ]
+        case .failed:
+            frames = [
+                Keyframe(progress: 0, transform: identity),
+                Keyframe(progress: 0.55, transform: PetEffectTransform(scaleX: 1, scaleY: 0.88, offsetX: 0, offsetY: -6)),
+                Keyframe(progress: 1, transform: identity),
+            ]
+        case .waiting:
+            frames = [
+                Keyframe(progress: 0, transform: identity),
+                Keyframe(progress: 0.5, transform: PetEffectTransform(scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 2)),
+                Keyframe(progress: 1, transform: identity),
+            ]
+        }
+        let value = min(1, max(0, progress))
+        guard let upperIndex = frames.indices.dropFirst().first(where: { value <= frames[$0].progress }) else {
+            return frames.last?.transform ?? identity
+        }
+        let lower = frames[upperIndex - 1]
+        let upper = frames[upperIndex]
+        let span = max(0.0001, upper.progress - lower.progress)
+        let local = (value - lower.progress) / span
+        func mix(_ start: CGFloat, _ end: CGFloat) -> CGFloat { start + (end - start) * local }
+        return PetEffectTransform(
+            scaleX: mix(lower.transform.scaleX, upper.transform.scaleX),
+            scaleY: mix(lower.transform.scaleY, upper.transform.scaleY),
+            offsetX: mix(lower.transform.offsetX, upper.transform.offsetX),
+            offsetY: mix(lower.transform.offsetY, upper.transform.offsetY)
+        )
+    }
+}
+
 struct TaskCarouselPlacement: Equatable {
     let depth: Int
     let horizontalOffset: CGFloat
@@ -52,13 +131,19 @@ final class PetView: NSView {
     }
 
     var characterScale: Double = 1 { didSet { needsDisplay = true } }
-    var accessoryPacks: [AccessoryPack] = [] { didSet { rebuildAccessoryImages() } }
-    var accessorySpec = CharacterAccessories(nil) { didSet { rebuildAccessoryImages() } }
+    var accessoryPacks: [AccessoryPack] = [] {
+        didSet { rebuildAccessoryImages(); rebuildCharacterImage() }
+    }
+    var accessorySpec = CharacterAccessories(nil) {
+        didSet { rebuildAccessoryImages(); rebuildCharacterImage() }
+    }
     var customization: JSONValue? { didSet { rebuildCharacterImage() } }
     var alarmClockVisible = false { didSet { rebuildAccessoryImages() } }
     var alarmRinging = false { didSet { syncClockAnimation() } }
     var timerText: String? { didSet { needsDisplay = true } }
     var performanceSample: PerformanceSample? { didSet { needsDisplay = true } }
+    var performancePetName = "水滴鱼" { didSet { needsDisplay = true } }
+    var visualBobOffset: CGFloat = 0 { didSet { needsDisplay = true } }
 
     var characterBounds: NSRect {
         let size = character?.manifest.size ?? CharacterPack.Size(width: 105, height: 90)
@@ -95,7 +180,7 @@ final class PetView: NSView {
     private var carouselProgress: CGFloat = 1
     private var characterImage: NSImage?
     private var accessoryImages: [(AccessoryPack, NSImage)] = []
-    private var effect: TaskDisplayState?
+    private var effect: PetVisualEffect?
     private var effectPhase: CGFloat = 0
     private var effectTimer: Timer?
     private var clockAnimationTimer: Timer?
@@ -137,22 +222,24 @@ final class PetView: NSView {
     }
 
     private func drawCharacter() {
-        guard let characterImage else { drawBlobfish(); return }
         NSGraphicsContext.saveGraphicsState()
+        let bobTransform = NSAffineTransform()
+        bobTransform.translateX(by: 0, yBy: visualBobOffset)
+        bobTransform.concat()
+        guard let characterImage else {
+            drawBlobfish()
+            NSGraphicsContext.restoreGraphicsState()
+            return
+        }
         if let effect {
+            let geometry = PetEffectGeometry.transform(for: effect, progress: effectPhase)
             let transform = NSAffineTransform()
-            switch effect {
-            case .completed:
-                let scale = 1 + sin(effectPhase * .pi) * 0.13
-                transform.translateX(by: bounds.midX, yBy: characterBounds.midY)
-                transform.scale(by: scale)
-                transform.translateX(by: -bounds.midX, yBy: -characterBounds.midY)
-            case .failed:
-                transform.translateX(by: sin(effectPhase * .pi * 8) * 5, yBy: 0)
-            case .waiting:
-                transform.translateX(by: 0, yBy: sin(effectPhase * .pi * 4) * 2)
-            default: break
-            }
+            transform.translateX(
+                by: characterBounds.midX + geometry.offsetX,
+                yBy: characterBounds.midY + geometry.offsetY
+            )
+            transform.scaleX(by: geometry.scaleX, yBy: geometry.scaleY)
+            transform.translateX(by: -characterBounds.midX, yBy: -characterBounds.midY)
             transform.concat()
         }
         if direction < 0 {
@@ -178,8 +265,17 @@ final class PetView: NSView {
     }
 
     private func rebuildCharacterImage() {
+        let faceID = accessorySpec.equipped["face"]
+        let hidesBaseEyes = accessoryPacks.first {
+            $0.id == faceID && $0.manifest.slot == "face"
+        }?.manifest.hidesEyes == true
         characterImage = character.flatMap {
-            SVGAppearanceRenderer.image(character: $0, customization: customization, blinking: blinking)
+            SVGAppearanceRenderer.image(
+                character: $0,
+                customization: customization,
+                blinking: blinking,
+                hidesBaseEyes: hidesBaseEyes
+            )
         }
         needsDisplay = true
     }
@@ -228,15 +324,40 @@ final class PetView: NSView {
 
     private func drawPerformancePanel() {
         guard let sample = performanceSample else { return }
-        let rect = NSRect(x: 205, y: 5, width: 88, height: 32)
-        NSColor(calibratedWhite: 0.12, alpha: 0.76).setFill()
-        NSBezierPath(roundedRect: rect, xRadius: 7, yRadius: 7).fill()
-        let text = String(format: "CPU %2.0f%%\nRAM %2.0f%%", sample.systemCPUPercent, sample.systemRAMPercent) as NSString
-        text.draw(
-            in: NSRect(x: rect.minX + 8, y: rect.minY + 5, width: rect.width - 12, height: rect.height - 7),
+        let rect = NSRect(x: 8, y: 5, width: 116, height: 42)
+        let path = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowBlurRadius = 6
+        shadow.shadowOffset = NSSize(width: 0, height: -2)
+        shadow.shadowColor = NSColor(calibratedRed: 0.15, green: 0.21, blue: 0.20, alpha: 0.10)
+        shadow.set()
+        NSColor(calibratedRed: 0.973, green: 0.984, blue: 0.980, alpha: 0.92).setFill()
+        path.fill()
+        NSGraphicsContext.restoreGraphicsState()
+        NSColor(calibratedRed: 0.325, green: 0.412, blue: 0.408, alpha: 0.18).setStroke()
+        path.lineWidth = 1
+        path.stroke()
+
+        let color = NSColor(calibratedRed: 0.325, green: 0.412, blue: 0.408, alpha: 1)
+        let system = String(
+            format: "CPU %.0f%% · RAM %.0f%%",
+            sample.systemCPUPercent,
+            sample.systemRAMPercent
+        ) as NSString
+        system.draw(
+            at: NSPoint(x: rect.minX + 8, y: rect.minY + 23),
             withAttributes: [
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium),
-                .foregroundColor: NSColor.white,
+                .font: NSFont.systemFont(ofSize: 9, weight: .regular),
+                .foregroundColor: color,
+            ]
+        )
+        let app = String(format: "%@ %.0f MB", performancePetName, sample.appMemoryMB) as NSString
+        app.draw(
+            at: NSPoint(x: rect.minX + 8, y: rect.minY + 7),
+            withAttributes: [
+                .font: NSFont.systemFont(ofSize: 10, weight: .bold),
+                .foregroundColor: color,
             ]
         )
     }
@@ -354,44 +475,34 @@ final class PetView: NSView {
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         paragraph.lineBreakMode = .byWordWrapping
+        paragraph.lineSpacing = 1.5
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
-            .foregroundColor: NSColor(calibratedRed: 0.28, green: 0.20, blue: 0.23, alpha: 1),
+            .font: NSFont.systemFont(ofSize: 12, weight: .regular),
+            .foregroundColor: NSColor(calibratedRed: 0.18, green: 0.16, blue: 0.17, alpha: 1),
             .paragraphStyle: paragraph,
         ]
         let measured = (transientMessage as NSString).boundingRect(
-            with: NSSize(width: 240, height: 44),
+            with: NSSize(width: 244, height: 52),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: attributes
         )
-        let width = min(260, max(88, ceil(measured.width) + 22))
-        let height = min(50, max(30, ceil(measured.height) + 12))
-        let taskFrontY = characterBounds.maxY + 43
-        let y = snapshot.state == .idle ? characterBounds.maxY + 10 : taskFrontY + 38
+        let width = min(260, max(32, ceil(measured.width) + 16))
+        let height = min(60, max(24, ceil(measured.height) + 8))
+        let y = snapshot.state == .idle ? characterBounds.maxY + 8 : characterBounds.maxY + 76
         let rect = NSRect(x: bounds.midX - width / 2, y: y, width: width, height: height)
 
         NSGraphicsContext.saveGraphicsState()
         let shadow = NSShadow()
-        shadow.shadowBlurRadius = 5
-        shadow.shadowOffset = NSSize(width: 0, height: -2)
-        shadow.shadowColor = NSColor.black.withAlphaComponent(0.16)
+        shadow.shadowBlurRadius = 4
+        shadow.shadowOffset = NSSize(width: 0, height: -1)
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.20)
         shadow.set()
-        NSColor(calibratedRed: 1, green: 0.96, blue: 0.95, alpha: 0.98).setFill()
-        let bubble = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
+        NSColor.white.withAlphaComponent(0.98).setFill()
+        let bubble = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
         bubble.fill()
-        let tail = NSBezierPath()
-        tail.move(to: NSPoint(x: rect.midX - 6, y: rect.minY + 1))
-        tail.line(to: NSPoint(x: rect.midX, y: rect.minY - 6))
-        tail.line(to: NSPoint(x: rect.midX + 6, y: rect.minY + 1))
-        tail.close()
-        tail.fill()
         NSGraphicsContext.restoreGraphicsState()
-
-        NSColor(calibratedRed: 0.72, green: 0.47, blue: 0.53, alpha: 0.22).setStroke()
-        bubble.lineWidth = 1
-        bubble.stroke()
         (transientMessage as NSString).draw(
-            in: rect.insetBy(dx: 11, dy: 6),
+            in: rect.insetBy(dx: 8, dy: 4),
             withAttributes: attributes
         )
     }
@@ -462,13 +573,29 @@ final class PetView: NSView {
     }
 
     func playEffect(_ state: TaskDisplayState) {
+        let visualEffect: PetVisualEffect
+        let duration: TimeInterval
+        switch state {
+        case .completed: visualEffect = .success; duration = 0.7
+        case .failed: visualEffect = .failed; duration = 0.9
+        case .waiting: visualEffect = .waiting; duration = 0.6
+        default: return
+        }
+        startEffect(visualEffect, duration: duration)
+    }
+
+    func playClickEffect() { startEffect(.hit, duration: 0.5) }
+
+    func playBumpEffect() { startEffect(.bump, duration: 0.32) }
+
+    private func startEffect(_ visualEffect: PetVisualEffect, duration: TimeInterval) {
         effectTimer?.invalidate()
-        effect = state
+        effect = visualEffect
         effectPhase = 0
         let started = Date()
-        effectTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] timer in
+        effectTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
-            self.effectPhase = CGFloat(Date().timeIntervalSince(started) / 1.1)
+            self.effectPhase = CGFloat(Date().timeIntervalSince(started) / duration)
             if self.effectPhase >= 1 {
                 timer.invalidate()
                 self.effectTimer = nil

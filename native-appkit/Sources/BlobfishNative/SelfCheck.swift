@@ -20,6 +20,8 @@ enum SelfCheck {
             ("native update channel isolation", nativeUpdateChannelIsolation),
             ("single instance lock", singleInstanceLock),
             ("dragged height preservation", draggedHeightPreservation),
+            ("display-paced pet motion", displayPacedPetMotion),
+            ("pet reaction geometry", petReactionGeometry),
             ("task carousel geometry", taskCarouselGeometry),
         ]
         var passed = 0
@@ -243,10 +245,20 @@ enum SelfCheck {
             "eyes": .object(["size": .number(1.1), "spacing": .number(2)]),
         ])
         let image = SVGAppearanceRenderer.image(character: pack, customization: customization, blinking: true)
+        let restingData = SVGAppearanceRenderer.renderedSVGData(
+            character: pack, customization: customization, blinking: false
+        )
+        let coveredData = SVGAppearanceRenderer.renderedSVGData(
+            character: pack, customization: customization, blinking: false, hidesBaseEyes: true
+        )
+        let restingSVG = restingData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        let coveredSVG = coveredData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
         let accessories = try catalog.accessories()
         let hasClock = accessories.contains(where: { $0.id == "alarm-clock" && $0.manifest.slot == "clock" })
-        if image == nil || accessories.count < 80 || !hasClock {
-            print("  renderer=\(image != nil), accessories=\(accessories.count), clock=\(hasClock)")
+        let restingFaceIsNeutral = !restingSVG.contains("tear") && restingSVG.contains("eye-left")
+        let selectedFaceCoversEyes = !coveredSVG.contains("eye-left") && !coveredSVG.contains("tear")
+        if image == nil || accessories.count < 80 || !hasClock || !restingFaceIsNeutral || !selectedFaceCoversEyes {
+            print("  renderer=\(image != nil), accessories=\(accessories.count), clock=\(hasClock), neutral=\(restingFaceIsNeutral), covered=\(selectedFaceCoversEyes)")
             return false
         }
         return true
@@ -317,6 +329,27 @@ enum SelfCheck {
         return dragged.y == 350
             && below.y == allowed.minY
             && above.y == allowed.maxY
+    }
+
+    private static func displayPacedPetMotion() -> Bool {
+        let frameDistance = PetMotionTiming.travelDistance(speed: 1.5, elapsed: 1.0 / 60.0)
+        let oneSecondDistance = frameDistance * 60
+        return PetMotionTiming.framesPerSecond == 60
+            && abs(oneSecondDistance - 50) < 0.001
+            && abs(PetMotionTiming.swimOffset(elapsed: 0)) < 0.001
+            && abs(PetMotionTiming.swimOffset(elapsed: 0.45) - 5) < 0.001
+            && abs(PetMotionTiming.swimOffset(elapsed: 0.9)) < 0.001
+    }
+
+    private static func petReactionGeometry() -> Bool {
+        let pressed = PetEffectGeometry.transform(for: .hit, progress: 0.20)
+        let rebound = PetEffectGeometry.transform(for: .hit, progress: 0.50)
+        let bump = PetEffectGeometry.transform(for: .bump, progress: 0.30)
+        let finished = PetEffectGeometry.transform(for: .hit, progress: 1)
+        return pressed == PetEffectTransform(scaleX: 1.30, scaleY: 0.65, offsetX: 0, offsetY: -10)
+            && rebound == PetEffectTransform(scaleX: 0.85, scaleY: 1.15, offsetX: 0, offsetY: 6)
+            && bump == PetEffectTransform(scaleX: 1.38, scaleY: 0.60, offsetX: 0, offsetY: 0)
+            && finished == PetEffectTransform(scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 0)
     }
 
     private static func taskCarouselGeometry() -> Bool {

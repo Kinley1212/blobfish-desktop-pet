@@ -1,5 +1,21 @@
 import AppKit
 
+enum PetMotionTiming {
+    static let framesPerSecond = 60.0
+    static let pointsPerSecondPerSpeedUnit = 1_000.0 / 30.0
+    static let swimPeriod = 0.9
+    static let swimDistance = 5.0
+
+    static func travelDistance(speed: Double, elapsed: TimeInterval) -> CGFloat {
+        CGFloat(speed * pointsPerSecondPerSpeedUnit * max(0, min(elapsed, 0.05)))
+    }
+
+    static func swimOffset(elapsed: TimeInterval) -> CGFloat {
+        let phase = elapsed.truncatingRemainder(dividingBy: swimPeriod) / swimPeriod
+        return CGFloat((1 - cos(phase * 2 * .pi)) * swimDistance / 2)
+    }
+}
+
 enum PetMovementGeometry {
     static func allowedOrigins(visibleFrame: NSRect, visualBounds: NSRect) -> NSRect? {
         let width = visibleFrame.width - visualBounds.width
@@ -31,11 +47,15 @@ final class PetPanelController {
     private var taskWantsMovement = false
     private var hasActiveTasks = false
     private var movementEnabled = false
-    private var bobPhase: CGFloat = 0
     private var bobBaselineY: CGFloat?
+    private var preciseOrigin: NSPoint?
+    private var lastFrameUptime: TimeInterval?
+    private let motionStartUptime = ProcessInfo.processInfo.systemUptime
     private var lastAutomaticOrigin: NSPoint?
     private var config: AppConfig
     private var speechTimer: Timer?
+    private var interactionTimer: Timer?
+    private var interactionPaused = false
 
     var onClick: (() -> Void)? {
         didSet { petView.onClick = onClick }
@@ -68,6 +88,7 @@ final class PetPanelController {
         petView.accessoryPacks = runtime.accessories
         petView.accessorySpec = AppearanceJSON.accessorySpec(in: config, characterID: config.pet.characterPackId)
         petView.customization = config.pet.customization[config.pet.characterPackId]
+        petView.performancePetName = config.ui.locale == "en" ? "Pet" : "水滴鱼"
         centerOnPrimaryScreen()
         syncMovementTimer()
     }
@@ -90,7 +111,10 @@ final class PetPanelController {
         petView.accessoryPacks = runtime.accessories
         petView.accessorySpec = AppearanceJSON.accessorySpec(in: config, characterID: config.pet.characterPackId)
         petView.customization = config.pet.customization[config.pet.characterPackId]
+        petView.performancePetName = config.ui.locale == "en" ? "Pet" : "水滴鱼"
         bobBaselineY = nil
+        preciseOrigin = nil
+        lastFrameUptime = nil
         lastAutomaticOrigin = nil
         syncMovementTimer()
     }
@@ -100,12 +124,16 @@ final class PetPanelController {
         let x = visibleFrame.midX - panel.frame.width / 2
         panel.setFrameOrigin(NSPoint(x: x, y: visibleFrame.minY - petView.movementBounds.minY))
         bobBaselineY = nil
+        preciseOrigin = nil
+        lastFrameUptime = nil
         lastAutomaticOrigin = nil
     }
 
     func stop() {
         movementTimer?.invalidate()
         movementTimer = nil
+        interactionTimer?.invalidate()
+        interactionTimer = nil
         panel.orderOut(nil)
     }
 
@@ -121,6 +149,17 @@ final class PetPanelController {
     }
 
     func playEffect(_ state: TaskDisplayState) { petView.playEffect(state) }
+
+    func playClickReaction() {
+        interactionTimer?.invalidate()
+        interactionPaused = true
+        petView.playClickEffect()
+        interactionTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
+            self?.interactionPaused = false
+            self?.interactionTimer = nil
+        }
+        RunLoop.main.add(interactionTimer!, forMode: .common)
+    }
 
     func updateClock(state: ClockState, timerText: String?) {
         petView.alarmClockVisible = state.alarms.contains(where: \.enabled)
@@ -153,9 +192,11 @@ final class PetPanelController {
         movementEnabled = ((hasActiveTasks && taskWantsMovement && config.pet.roamWhenTasks)
             || (!hasActiveTasks && config.pet.roamWhenNoTasks))
         guard movementTimer == nil else { return }
-        movementTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+        lastFrameUptime = ProcessInfo.processInfo.systemUptime
+        movementTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] _ in
             self?.moveOneFrame()
         }
+        movementTimer?.tolerance = 1.0 / 240.0
         RunLoop.main.add(movementTimer!, forMode: .common)
     }
 
@@ -168,42 +209,54 @@ final class PetPanelController {
         let screen = NSScreen.screens.first { $0.frame.contains(visualCenter) } ?? NSScreen.main
         guard let visibleFrame = screen?.visibleFrame else { return }
         guard let allowed = PetMovementGeometry.allowedOrigins(visibleFrame: visibleFrame, visualBounds: visualBounds) else { return }
-        var origin = panel.frame.origin
-        let step = CGFloat(config.pet.speed) * 0.84
-        bobPhase += .pi / 13.5
-        if bobPhase >= .pi * 2 { bobPhase -= .pi * 2 }
-        let bob = (sin(bobPhase) + 1) * 2.5
+        let uptime = ProcessInfo.processInfo.systemUptime
+        let elapsed = uptime - (lastFrameUptime ?? uptime - 1.0 / PetMotionTiming.framesPerSecond)
+        lastFrameUptime = uptime
+        let step = PetMotionTiming.travelDistance(speed: config.pet.speed, elapsed: elapsed)
+        let bob = PetMotionTiming.swimOffset(elapsed: uptime - motionStartUptime)
+        let actualOrigin = panel.frame.origin
         let externallyMoved = lastAutomaticOrigin.map {
-            abs(origin.x - $0.x) > 1.5 || abs(origin.y - $0.y) > 1.5
+            abs(actualOrigin.x - $0.x) > 1.5 || abs(actualOrigin.y - $0.y) > 1.5
         } ?? true
+        if externallyMoved || preciseOrigin == nil {
+            preciseOrigin = actualOrigin
+            bobBaselineY = actualOrigin.y
+        }
+        var origin = preciseOrigin ?? actualOrigin
+        petView.visualBobOffset = interactionPaused ? 0 : bob
 
-        if config.pet.moveAxis == "vertical", movementEnabled {
+        if config.pet.moveAxis == "vertical", movementEnabled, !interactionPaused {
             origin.y += movementDirection * step
             if origin.y <= allowed.minY {
                 origin.y = allowed.minY
                 movementDirection = 1
+                petView.playBumpEffect()
             } else if origin.y >= allowed.maxY {
                 origin.y = allowed.maxY
                 movementDirection = -1
+                petView.playBumpEffect()
             }
             origin.x = min(max(origin.x, allowed.minX), allowed.maxX)
         } else {
-            if movementEnabled, config.pet.moveAxis == "horizontal" {
+            if movementEnabled, !interactionPaused, config.pet.moveAxis == "horizontal" {
                 origin.x += movementDirection * step
                 if origin.x <= allowed.minX {
                     origin.x = allowed.minX
                     movementDirection = 1
+                    petView.playBumpEffect()
                 } else if origin.x >= allowed.maxX {
                     origin.x = allowed.maxX
                     movementDirection = -1
+                    petView.playBumpEffect()
                 }
             }
-            if externallyMoved || bobBaselineY == nil { bobBaselineY = origin.y - bob }
-            origin.y = min(max((bobBaselineY ?? origin.y) + bob, allowed.minY), allowed.maxY)
+            if bobBaselineY == nil { bobBaselineY = origin.y }
+            origin.y = min(max(bobBaselineY ?? origin.y, allowed.minY), allowed.maxY)
             origin.x = min(max(origin.x, allowed.minX), allowed.maxX)
         }
         petView.direction = movementDirection
         panel.setFrameOrigin(origin)
-        lastAutomaticOrigin = origin
+        preciseOrigin = origin
+        lastAutomaticOrigin = panel.frame.origin
     }
 }

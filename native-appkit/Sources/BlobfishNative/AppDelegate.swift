@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var taskStatusItem: NSMenuItem?
     private var pauseItem: NSMenuItem?
     private var previousSnapshot = TaskSnapshot.idle
+    private var clickCount = 0
     private let soundPlayer = SoundPlayer()
     private let instanceGuard = SingleInstanceGuard()
 
@@ -35,7 +36,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panelController = PetPanelController(runtime: runtime)
         panelController.onClick = { [weak self] in
             guard let self else { return }
-            self.panelController.say(self.runtime.phrase(event: "interaction.click") ?? "……你戳我干嘛。")
+            self.clickCount += 1
+            self.panelController.playClickReaction()
+            self.panelController.say(
+                self.runtime.phrase(
+                    event: "interaction.click",
+                    context: ["clickCount": .number(Double(self.clickCount))]
+                ) ?? "……你戳我干嘛。",
+                duration: 0.8
+            )
+            if self.runtime.config.language.rareEnabled,
+               self.clickCount >= 10,
+               Double.random(in: 0..<1) < 0.12,
+               let rare = self.runtime.phrase(
+                   event: "rare.tooManyClicks",
+                   context: ["clickCount": .number(Double(self.clickCount))]
+               ) {
+                self.panelController.say(rare, duration: 4.2)
+            }
         }
         configureStatusMenu()
         panelController.show()

@@ -2,13 +2,45 @@ import AppKit
 import Foundation
 
 enum SVGAppearanceRenderer {
-    static func image(character: CharacterPack, customization: JSONValue?, blinking: Bool) -> NSImage? {
+    static func image(
+        character: CharacterPack,
+        customization: JSONValue?,
+        blinking: Bool,
+        hidesBaseEyes: Bool = false
+    ) -> NSImage? {
+        guard let data = renderedSVGData(
+            character: character,
+            customization: customization,
+            blinking: blinking,
+            hidesBaseEyes: hidesBaseEyes
+        ) else { return nil }
+        return NSImage(data: data)
+    }
+
+    static func renderedSVGData(
+        character: CharacterPack,
+        customization: JSONValue?,
+        blinking: Bool,
+        hidesBaseEyes: Bool = false
+    ) -> Data? {
         guard let document = try? XMLDocument(contentsOf: character.artURL, options: [.nodePreserveAll]),
               let root = document.rootElement(), root.name?.lowercased() == "svg" else { return nil }
         sanitize(root)
+        hideRestingTearsAndCoveredEyes(root, hidesBaseEyes: hidesBaseEyes)
         applyShapes(root, manifest: character.manifest, customization: customization)
         applyTransforms(root, customization: customization, blinking: blinking)
-        return NSImage(data: document.xmlData(options: []))
+        return document.xmlData(options: [])
+    }
+
+    private static func hideRestingTearsAndCoveredEyes(_ root: XMLElement, hidesBaseEyes: Bool) {
+        // The Electron character CSS keeps tears invisible until a hit/failure
+        // reaction. Native rendering has no CSS engine, so remove them from the
+        // resting image instead of accidentally showing a permanent cry face.
+        elements(class: "tears", in: root).forEach { $0.detach() }
+        elements(class: "tear", in: root).forEach { $0.detach() }
+        guard hidesBaseEyes else { return }
+        elements(class: "eyes", in: root).forEach { $0.detach() }
+        elements(class: "eye", in: root).forEach { $0.detach() }
     }
 
     private static func sanitize(_ root: XMLElement) {
