@@ -25,6 +25,7 @@ enum SelfCheck {
             ("display-timed carousel easing", displayTimedCarouselEasing),
             ("unclipped CSS-matched pet shadow", unclippedCSSMatchedPetShadow),
             ("expressions stay below independent eyewear", expressionsStayBelowIndependentEyewear),
+            ("expression anchors follow authored eye lines", expressionAnchorsFollowEyeLines),
             ("pet reaction geometry", petReactionGeometry),
             ("task carousel geometry", taskCarouselGeometry),
             ("continuous task spinner timeline", continuousTaskSpinnerTimeline),
@@ -439,6 +440,24 @@ enum SelfCheck {
         return order == ["face-happy", "bamboo-copter", "round-glasses", "bubble-tea", "alarm-clock"]
             && eyewearTuning.tuning["round-glasses"]?.offsetX == 12
             && eyewearTuning.tuning["face-happy"] == nil
+    }
+
+    private static func expressionAnchorsFollowEyeLines() throws -> Bool {
+        let expected: [String: Double] = [
+            "face-angry": 55, "face-annoyed": 56, "face-blank": 51, "face-cold": 46,
+            "face-coy": 50, "face-cry": 50, "face-determined": 56, "face-dizzy": 50,
+            "face-doubt": 52, "face-happy": 50, "face-hungry": 48, "face-love": 49,
+            "face-money": 51, "face-nosebleed": 50, "face-panic": 55, "face-pitiful": 54,
+            "face-proud": 46, "face-question": 53, "face-relieved": 54, "face-satisfied": 55,
+            "face-scared": 57, "face-shocked": 53, "face-shy": 49, "face-side-eye": 52,
+            "face-sleepy": 53, "face-smug": 58, "face-sparkle": 53, "face-star-eye": 52,
+            "face-swirl-cheek": 53, "face-teasing": 49, "face-wink": 50,
+        ]
+        let faces = try PackCatalog().accessories().filter { $0.manifest.slot == "face" }
+        guard faces.count == expected.count else { return false }
+        return faces.allSatisfy { face in
+            face.manifest.anchor.x == 50 && face.manifest.anchor.y == expected[face.id]
+        }
     }
 
     private static func petReactionGeometry() -> Bool {
