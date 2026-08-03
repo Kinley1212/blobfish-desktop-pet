@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 
 enum PetVisualEffect: Equatable {
     case success
@@ -154,22 +155,23 @@ enum TaskCarouselGeometry {
     }
 }
 
-final class PetView: NSView {
+final class PetView: NSView, CALayerDelegate {
     var onClick: (() -> Void)?
     var onDragStart: (() -> Void)?
     var onDragMove: ((CGFloat, CGFloat) -> Void)?
     var onDragEnd: ((CGFloat, CGFloat) -> Void)?
     var onClockSnooze: ((String) -> Void)?
     var onClockDismiss: ((String) -> Void)?
-    var transientMessage: String? { didSet { needsDisplay = true } }
+    var transientMessage: String? { didSet { invalidateOverlay() } }
     var character: CharacterPack? {
         didSet {
             rebuildCharacterImage()
-            needsDisplay = true
         }
     }
 
-    var characterScale: Double = 1 { didSet { needsDisplay = true } }
+    var characterScale: Double = 1 {
+        didSet { rebuildArtworkLayer(); updateArtworkTransform() }
+    }
     var accessoryPacks: [AccessoryPack] = [] {
         didSet { rebuildAccessoryImages(); rebuildCharacterImage() }
     }
@@ -184,14 +186,20 @@ final class PetView: NSView {
         }
     }
     var alarmRinging = false { didSet { syncClockAnimation() } }
-    var clockAlert: ClockState.Alert? { didSet { needsDisplay = true } }
-    var locale = "zh-CN" { didSet { needsDisplay = true } }
-    var timerText: String? { didSet { needsDisplay = true } }
-    var performanceSample: PerformanceSample? { didSet { needsDisplay = true } }
-    var performancePetName = "水滴鱼" { didSet { needsDisplay = true } }
-    var visualBobOffset: CGFloat = 0 { didSet { needsDisplay = true } }
-    var motionState = PetMotionTiming.State.idle { didSet { needsDisplay = true } }
-    var motionElapsed: TimeInterval = 0 { didSet { needsDisplay = true } }
+    var clockAlert: ClockState.Alert? { didSet { invalidateOverlay() } }
+    var locale = "zh-CN" { didSet { invalidateOverlay() } }
+    var timerText: String? {
+        didSet {
+            rebuildArtworkLayer()
+            updateArtworkTransform()
+            invalidateOverlay()
+        }
+    }
+    var performanceSample: PerformanceSample? { didSet { invalidateOverlay() } }
+    var performancePetName = "水滴鱼" { didSet { invalidateOverlay() } }
+    var visualBobOffset: CGFloat = 0 { didSet { updateArtworkTransform() } }
+    var motionState = PetMotionTiming.State.idle { didSet { updateArtworkTransform() } }
+    var motionElapsed: TimeInterval = 0 { didSet { updateArtworkTransform() } }
     var characterID: String { character?.id ?? "blobfish" }
     var interactiveBounds: NSRect {
         var result = characterBounds.offsetBy(dx: 0, dy: visualBobOffset).insetBy(dx: -8, dy: -8)
@@ -213,13 +221,13 @@ final class PetView: NSView {
         didSet {
             syncCarousel(previous: oldValue)
             syncSpinner()
-            needsDisplay = true
+            invalidateOverlay()
         }
     }
 
     var direction: CGFloat = 1 {
         didSet {
-            if oldValue != direction { needsDisplay = true }
+            if oldValue != direction { updateArtworkTransform() }
         }
     }
 
@@ -238,6 +246,10 @@ final class PetView: NSView {
     private var carouselProgress: CGFloat = 1
     private var characterImage: NSImage?
     private var accessoryImages: [(AccessoryPack, NSImage)] = []
+    private let artworkLayer = CALayer()
+    private let overlayLayer = CALayer()
+    private var artworkBackingScale: CGFloat = 0
+    private var artworkCanvasSize = NSSize.zero
     private var effect: PetVisualEffect?
     private var effectPhase: CGFloat = 0
     private var effectTimer: Timer?
@@ -263,14 +275,119 @@ final class PetView: NSView {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.clear.cgColor
-        scheduleBlink()
+        configureLayers()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
+        configureLayers()
+    }
+
+    private func configureLayers() {
+        wantsLayer = true
+        guard let rootLayer = layer else { return }
+        rootLayer.backgroundColor = NSColor.clear.cgColor
+        rootLayer.masksToBounds = false
+
+        artworkLayer.contentsGravity = .resize
+        artworkLayer.magnificationFilter = .linear
+        artworkLayer.minificationFilter = .trilinear
+        artworkLayer.masksToBounds = false
+        overlayLayer.delegate = self
+        overlayLayer.masksToBounds = false
+        rootLayer.addSublayer(artworkLayer)
+        rootLayer.addSublayer(overlayLayer)
+        updateLayerGeometry()
         scheduleBlink()
+    }
+
+    private func invalidateOverlay() {
+        overlayLayer.setNeedsDisplay()
+    }
+
+    private func updateLayerGeometry() {
+        guard !bounds.isEmpty else { return }
+        let backingScale = window?.backingScaleFactor
+            ?? NSScreen.main?.backingScaleFactor
+            ?? 2
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        artworkLayer.bounds = bounds
+        overlayLayer.frame = bounds
+        overlayLayer.contentsScale = backingScale
+        CATransaction.commit()
+
+        let sizeChanged = artworkCanvasSize != bounds.size
+        let scaleChanged = abs(artworkBackingScale - backingScale) > 0.001
+        if sizeChanged || scaleChanged {
+            artworkCanvasSize = bounds.size
+            artworkBackingScale = backingScale
+            rebuildArtworkLayer()
+            invalidateOverlay()
+        }
+        updateArtworkTransform()
+    }
+
+    private func rebuildArtworkLayer() {
+        guard artworkLayer.superlayer != nil,
+              bounds.width > 0, bounds.height > 0 else { return }
+        let scale = max(1, artworkBackingScale > 0 ? artworkBackingScale : 2)
+        let pixelWidth = Int(ceil(bounds.width * scale))
+        let pixelHeight = Int(ceil(bounds.height * scale))
+        guard pixelWidth > 0, pixelHeight > 0,
+              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                data: nil,
+                width: pixelWidth,
+                height: pixelHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              ) else { return }
+        context.scaleBy(x: scale, y: scale)
+        context.setShouldAntialias(true)
+        context.interpolationQuality = .high
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+        drawArtworkBase()
+        NSGraphicsContext.restoreGraphicsState()
+        guard let image = context.makeImage() else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        artworkLayer.contentsScale = scale
+        artworkLayer.contents = image
+        CATransaction.commit()
+    }
+
+    private func updateArtworkTransform() {
+        guard artworkLayer.superlayer != nil, !bounds.isEmpty else { return }
+        let art = characterBounds
+        let geometry = effect.map {
+            PetEffectGeometry.transform(for: $0, progress: effectPhase, characterID: characterID)
+        } ?? PetEffectTransform(scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 0)
+        let motion = ambientMotionTransform()
+        let anchor = CGPoint(
+            x: min(1, max(0, art.midX / bounds.width)),
+            y: min(1, max(0, art.midY / bounds.height))
+        )
+        var transform = CATransform3DIdentity
+        transform = CATransform3DRotate(transform, motion.rotation * .pi / 180, 0, 0, 1)
+        transform = CATransform3DScale(
+            transform,
+            geometry.scaleX * motion.scaleX * (direction < 0 ? -1 : 1),
+            geometry.scaleY * motion.scaleY,
+            1
+        )
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        artworkLayer.anchorPoint = anchor
+        artworkLayer.position = CGPoint(
+            x: art.midX + geometry.offsetX,
+            y: art.midY + geometry.offsetY + visualBobOffset
+        )
+        artworkLayer.transform = transform
+        CATransaction.commit()
     }
 
     deinit {
@@ -282,11 +399,32 @@ final class PetView: NSView {
         clockAnimationTimer?.invalidate()
         alarmClockTransitionTimer?.invalidate()
         blushTimer?.invalidate()
+        overlayLayer.delegate = nil
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        drawCharacter()
+    }
+
+    override func layout() {
+        super.layout()
+        updateLayerGeometry()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateLayerGeometry()
+    }
+
+    func draw(_ layer: CALayer, in context: CGContext) {
+        guard layer === overlayLayer else { return }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+        drawOverlay()
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    private func drawOverlay() {
         drawCompletionEffect()
         drawTimerDisplay()
         drawPerformancePanel()
@@ -362,11 +500,11 @@ final class PetView: NSView {
     func showBlush(streak: Int) {
         blushTimer?.invalidate()
         blushLevel = streak >= 3 ? 2 : 1
-        needsDisplay = true
+        rebuildArtworkLayer()
         blushTimer = Timer.scheduledTimer(withTimeInterval: 2.6, repeats: false) { [weak self] _ in
             self?.blushLevel = 0
             self?.blushTimer = nil
-            self?.needsDisplay = true
+            self?.rebuildArtworkLayer()
         }
         RunLoop.main.add(blushTimer!, forMode: .common)
     }
@@ -378,41 +516,10 @@ final class PetView: NSView {
         rebuildCharacterImage()
     }
 
-    private func drawCharacter() {
-        NSGraphicsContext.saveGraphicsState()
-        let bobTransform = NSAffineTransform()
-        bobTransform.translateX(by: 0, yBy: visualBobOffset)
-        bobTransform.concat()
+    private func drawArtworkBase() {
         guard let characterImage else {
             drawBlobfish()
-            NSGraphicsContext.restoreGraphicsState()
             return
-        }
-        if let effect {
-            let geometry = PetEffectGeometry.transform(for: effect, progress: effectPhase, characterID: characterID)
-            let transform = NSAffineTransform()
-            transform.translateX(
-                by: characterBounds.midX + geometry.offsetX,
-                yBy: characterBounds.midY + geometry.offsetY
-            )
-            transform.scaleX(by: geometry.scaleX, yBy: geometry.scaleY)
-            transform.translateX(by: -characterBounds.midX, yBy: -characterBounds.midY)
-            transform.concat()
-        }
-        let motion = ambientMotionTransform()
-        if motion.rotation != 0 || motion.scaleX != 1 || motion.scaleY != 1 {
-            let transform = NSAffineTransform()
-            transform.translateX(by: characterBounds.midX, yBy: characterBounds.midY)
-            transform.rotate(byDegrees: motion.rotation)
-            transform.scaleX(by: motion.scaleX, yBy: motion.scaleY)
-            transform.translateX(by: -characterBounds.midX, yBy: -characterBounds.midY)
-            transform.concat()
-        }
-        if direction < 0 {
-            let transform = NSAffineTransform()
-            transform.translateX(by: bounds.midX * 2, yBy: 0)
-            transform.scaleX(by: -1, yBy: 1)
-            transform.concat()
         }
         let context = NSGraphicsContext.current?.cgContext
         context?.saveGState()
@@ -434,7 +541,6 @@ final class PetView: NSView {
         drawBlush()
         context?.endTransparencyLayer()
         context?.restoreGState()
-        NSGraphicsContext.restoreGraphicsState()
     }
 
     private func drawBlush() {
@@ -496,7 +602,7 @@ final class PetView: NSView {
             guard let pack = byID[id], let image = NSImage(contentsOf: pack.artURL) else { return nil }
             return (pack, image)
         }
-        needsDisplay = true
+        rebuildArtworkLayer()
     }
 
     private func rebuildCharacterImage() {
@@ -512,7 +618,7 @@ final class PetView: NSView {
                 hidesBaseEyes: hidesBaseEyes
             )
         }
-        needsDisplay = true
+        rebuildArtworkLayer()
     }
 
     private func drawAccessories() {
@@ -585,7 +691,7 @@ final class PetView: NSView {
                     self.rebuildAccessoryImages()
                 }
             }
-            self.needsDisplay = true
+            self.rebuildArtworkLayer()
         }
         RunLoop.main.add(alarmClockTransitionTimer!, forMode: .common)
     }
@@ -670,11 +776,15 @@ final class PetView: NSView {
 
     private func syncClockAnimation() {
         clockAnimationTimer?.invalidate(); clockAnimationTimer = nil
-        guard alarmRinging else { clockShakePhase = 0; needsDisplay = true; return }
+        guard alarmRinging else {
+            clockShakePhase = 0
+            rebuildArtworkLayer()
+            return
+        }
         clockAnimationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] _ in
             guard let self else { return }
             self.clockShakePhase += 0.4
-            self.needsDisplay = true
+            self.rebuildArtworkLayer()
         }
         RunLoop.main.add(clockAnimationTimer!, forMode: .common)
     }
@@ -697,7 +807,7 @@ final class PetView: NSView {
         NSBezierPath(ovalIn: NSRect(x: 99, y: 31, width: 23, height: 18)).fill()
         NSBezierPath(ovalIn: NSRect(x: 180, y: 30, width: 22, height: 17)).fill()
 
-        let noseX = direction >= 0 ? body.minX - 6 : body.maxX - 18
+        let noseX = body.minX - 6
         NSColor(calibratedRed: 0.92, green: 0.76, blue: 0.80, alpha: 1).setFill()
         NSBezierPath(ovalIn: NSRect(x: noseX, y: 29, width: 24, height: 24)).fill()
 
@@ -973,7 +1083,7 @@ final class PetView: NSView {
                 self.completionTimer = nil
                 self.completionPhase = nil
             }
-            self.needsDisplay = true
+            self.invalidateOverlay()
         }
         RunLoop.main.add(completionTimer!, forMode: .common)
     }
@@ -1030,6 +1140,7 @@ final class PetView: NSView {
         effectTimer?.invalidate()
         effect = visualEffect
         effectPhase = 0
+        updateArtworkTransform()
         let started = Date()
         effectTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
@@ -1039,7 +1150,7 @@ final class PetView: NSView {
                 self.effectTimer = nil
                 self.effect = nil
             }
-            self.needsDisplay = true
+            self.updateArtworkTransform()
         }
         RunLoop.main.add(effectTimer!, forMode: .common)
     }
@@ -1119,7 +1230,7 @@ final class PetView: NSView {
         guard animated else {
             carouselFromIndex = nil
             carouselProgress = 1
-            needsDisplay = true
+            invalidateOverlay()
             return
         }
         carouselFromIndex = oldIndex
@@ -1153,7 +1264,7 @@ final class PetView: NSView {
                 carouselProgress = 1
             }
         }
-        if changed { needsDisplay = true }
+        if changed { invalidateOverlay() }
         syncAnimationDisplayLink()
     }
 
@@ -1163,11 +1274,9 @@ final class PetView: NSView {
             guard let self else { return }
             self.blinking = true
             self.rebuildCharacterImage()
-            self.needsDisplay = true
             self.blinkTimer = Timer.scheduledTimer(withTimeInterval: 0.16, repeats: false) { [weak self] _ in
                 self?.blinking = false
                 self?.rebuildCharacterImage()
-                self?.needsDisplay = true
                 self?.scheduleBlink()
             }
         }
