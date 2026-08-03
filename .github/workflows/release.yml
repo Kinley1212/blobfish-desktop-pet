@@ -73,12 +73,12 @@ jobs:
         shell: bash
         run: |
           cat > release-notes.md <<'NOTES'
-          ## 水滴鱼 2.0.2
+          ## 水滴鱼 2.1.0
 
-          本次更新让原生版「水滴魚（窝窝头）」的脸红腮红恢复 Electron 版的柔和径向渐变、颜色、透明度与专属位置。
+          本次更新重新设计了原生版性能面板：CPU 与内存柱状图并排显示，浅色代表整机占用，深色代表水滴鱼自身占用，并提供角色主题动画和可调位置。
 
-          - `BlobfishNative-2.0.2-macOS-arm64.zip`：Apple Silicon Mac 原生安装包
-          - `BlobfishNative-2.0.2-macOS-x64.zip`：Intel Mac 原生安装包
+          - `BlobfishNative-2.1.0-macOS-arm64.zip`：Apple Silicon Mac 原生安装包
+          - `BlobfishNative-2.1.0-macOS-x64.zip`：Intel Mac 原生安装包
           - `blobfish-native-latest.json`：原生版一键更新清单
           - 两个安装包均为纯 Swift / AppKit，不包含 Electron
 
