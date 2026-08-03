@@ -6,6 +6,7 @@ enum SelfCheck {
     static func run() -> Bool {
         let checks: [(String, () throws -> Bool)] = [
             ("private lease recovery", privateLeaseRecovery),
+            ("orphaned task leases expire promptly", orphanedTaskLeasesExpirePromptly),
             ("waiting fallback title", waitingFallbackTitle),
             ("terminal status expiry", terminalStatusExpiry),
             ("unsafe input rejection", unsafeInputRejection),
@@ -81,6 +82,38 @@ enum SelfCheck {
                         title: "修复原生桌宠", timestamp: now - 500
                     )]
                 )
+        }
+    }
+
+    private static func orphanedTaskLeasesExpirePromptly() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let now = 4 * 60 * 60 * 1_000.0
+            try writeLease([
+                "version": 1,
+                "provider": "codex",
+                "event": "started",
+                "sessionId": "orphaned-start",
+                "turnId": "turn-start",
+                "timestamp": now - TaskLeaseReader.startedMaximumAgeMilliseconds - 1,
+            ], named: String(repeating: "1", count: 64) + ".json", in: directory)
+            try writeLease([
+                "version": 1,
+                "provider": "codex",
+                "event": "running",
+                "sessionId": "orphaned-running",
+                "turnId": "turn-running",
+                "timestamp": now - TaskLeaseReader.runningMaximumAgeMilliseconds - 1,
+            ], named: String(repeating: "2", count: 64) + ".json", in: directory)
+            try writeLease([
+                "version": 1,
+                "provider": "claude-code",
+                "event": "needs_input",
+                "sessionId": "still-waiting",
+                "turnId": "turn-waiting",
+                "timestamp": now - TaskLeaseReader.runningMaximumAgeMilliseconds - 1,
+            ], named: String(repeating: "3", count: 64) + ".json", in: directory)
+            let leases = try TaskLeaseReader(directoryURL: directory).read(nowMilliseconds: now)
+            return leases.map(\.sessionId) == ["still-waiting"]
         }
     }
 
@@ -545,12 +578,28 @@ enum SelfCheck {
 
     private static func performancePanelStaysOnCanvas() -> Bool {
         let canvas = CGRect(x: 0, y: 0, width: 340, height: 300)
-        let lowerLeft = PerformancePanelGeometry.rect(in: canvas, side: "left", verticalPosition: 0)
-        let upperRight = PerformancePanelGeometry.rect(in: canvas, side: "right", verticalPosition: 1)
-        let clamped = PerformancePanelGeometry.rect(in: canvas, side: "left", verticalPosition: 5)
-        return lowerLeft == CGRect(x: 8, y: 8, width: 88, height: 132)
-            && upperRight == CGRect(x: 244, y: 160, width: 88, height: 132)
-            && clamped.maxY == canvas.maxY - PerformancePanelGeometry.margin
+        let character = CGRect(x: 105.5, y: 10, width: 129, height: 90)
+        let lowerLeft = PerformancePanelGeometry.rect(
+            in: canvas, characterBounds: character, side: "left", verticalPosition: 0
+        )
+        let upperRight = PerformancePanelGeometry.rect(
+            in: canvas, characterBounds: character, side: "right", verticalPosition: 1
+        )
+        let clamped = PerformancePanelGeometry.rect(
+            in: canvas, characterBounds: character, side: "left", verticalPosition: 5
+        )
+        let small = PerformancePanelGeometry.size(for: CGRect(x: 0, y: 0, width: 84, height: 58.5))
+        let large = PerformancePanelGeometry.size(for: CGRect(x: 0, y: 0, width: 193.5, height: 135))
+        return abs(lowerLeft.minX - 8) < 0.001
+            && abs(lowerLeft.minY - 8) < 0.001
+            && abs(lowerLeft.width - 57.6) < 0.001
+            && abs(lowerLeft.height - character.height) < 0.001
+            && abs(upperRight.maxX - (canvas.maxX - PerformancePanelGeometry.margin)) < 0.001
+            && abs(upperRight.maxY - (canvas.maxY - PerformancePanelGeometry.margin)) < 0.001
+            && abs(clamped.maxY - (canvas.maxY - PerformancePanelGeometry.margin)) < 0.001
+            && small == CGSize(width: 46, height: 58.5)
+            && abs(large.width - 86.4) < 0.001
+            && large.height == 135
             && canvas.contains(lowerLeft)
             && canvas.contains(upperRight)
     }
