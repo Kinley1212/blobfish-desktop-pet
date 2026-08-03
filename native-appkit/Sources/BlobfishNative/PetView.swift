@@ -311,12 +311,12 @@ final class PetView: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         guard pendingClockAction == nil else { return }
-        guard let down = mouseDownScreenPoint, let previous = lastDragScreenPoint else { return }
+        guard mouseDownScreenPoint != nil, let previous = lastDragScreenPoint else { return }
         let point = NSEvent.mouseLocation
         let dx = point.x - previous.x
         let dy = point.y - previous.y
         lastDragScreenPoint = point
-        dragDistance = hypot(point.x - down.x, point.y - down.y)
+        dragDistance += hypot(dx, dy)
         guard dragStarted || dragDistance >= 4 else { return }
         if !dragStarted {
             dragStarted = true

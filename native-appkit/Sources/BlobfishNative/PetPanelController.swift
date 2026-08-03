@@ -1,5 +1,16 @@
 import AppKit
 
+final class PetPanel: NSPanel {
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        // Most of this borderless panel is deliberately transparent space for
+        // speech and task cards. AppKit's default constraint treats that space
+        // as visible window content and pulls the whole panel back on-screen
+        // when the pet reaches the menu-bar edge. PetMovementGeometry already
+        // constrains the actual artwork, so preserve the requested panel frame.
+        frameRect
+    }
+}
+
 enum PetMotionTiming {
     enum State { case idle, roam, working, waiting }
     static let framesPerSecond = 60.0
@@ -177,7 +188,7 @@ final class PetPanelController {
         // four-card task carousel. Collision still uses movementBounds, so this
         // does not create an invisible wall around the pet.
         let size = NSSize(width: 340, height: 300)
-        panel = NSPanel(
+        panel = PetPanel(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
