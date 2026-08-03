@@ -22,6 +22,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var taskStatusItem: NSMenuItem?
     private var pauseItem: NSMenuItem?
+    private var taskRoamItem: NSMenuItem?
+    private var performanceItem: NSMenuItem?
+    private var launchAtLoginItem: NSMenuItem?
     private var previousSnapshot = TaskSnapshot.idle
     private var clickCount = 0
     private let soundPlayer = SoundPlayer()
@@ -179,11 +182,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.target = self
         menu.addItem(settings)
 
-        let pause = NSMenuItem(title: "暂停游动", action: #selector(togglePause), keyEquivalent: "")
+        let taskRoam = NSMenuItem(title: "任务进行时游动", action: #selector(toggleTaskRoam), keyEquivalent: "")
+        taskRoam.target = self
+        menu.addItem(taskRoam)
+        taskRoamItem = taskRoam
+
+        let pause = NSMenuItem(title: "没有任务时也继续游动", action: #selector(togglePause), keyEquivalent: "")
         pause.target = self
         menu.addItem(pause)
         pauseItem = pause
-        syncMovementMenu()
+
+        let performance = NSMenuItem(title: "显示性能面板", action: #selector(togglePerformancePanel), keyEquivalent: "")
+        performance.target = self
+        menu.addItem(performance)
+        performanceItem = performance
+
+        let launch = NSMenuItem(title: "登录后自动启动", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        launch.target = self
+        menu.addItem(launch)
+        launchAtLoginItem = launch
+        syncQuickSettingsMenu()
 
         let locate = NSMenuItem(title: "把鱼移到屏幕中间", action: #selector(locatePet), keyEquivalent: "")
         locate.target = self
@@ -351,15 +369,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             try runtime.update { $0.pet.roamWhenNoTasks.toggle() }
             panelController.apply(runtime: runtime)
-            syncMovementMenu()
+            syncQuickSettingsMenu()
         } catch {
             panelController.say("没能改好游动设置。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
         }
     }
 
-    private func syncMovementMenu() {
+    @objc private func toggleTaskRoam() {
+        updateQuickSetting(event: "interaction.taskRoamToggle") { $0.pet.roamWhenTasks.toggle() }
+    }
+
+    @objc private func togglePerformancePanel() {
+        updateQuickSetting(event: "interaction.performancePanelToggle") { $0.performance.panelEnabled.toggle() }
+        if !runtime.config.performance.panelEnabled { panelController.updatePerformance(nil) }
+    }
+
+    @objc private func toggleLaunchAtLogin() {
+        do {
+            try runtime.update { $0.startup.launchAtLogin.toggle() }
+            try LoginItemController.sync(enabled: runtime.config.startup.launchAtLogin)
+            syncQuickSettingsMenu()
+        } catch {
+            panelController.say("开机启动设置没有改成功。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
+        }
+    }
+
+    private func updateQuickSetting(event: String, change: (inout AppConfig) -> Void) {
+        do {
+            try runtime.update(change)
+            panelController.apply(runtime: runtime)
+            syncQuickSettingsMenu()
+            if let phrase = runtime.phrase(event: event) {
+                panelController.say(phrase, event: event, priority: SpeechPriority.interaction, replaceKey: event)
+            }
+        } catch {
+            panelController.say("设置没有改成功。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
+        }
+    }
+
+    private func syncQuickSettingsMenu() {
         pauseItem?.title = runtime.config.ui.locale == "en" ? "Move while idle" : "没有任务时也继续游动"
         pauseItem?.state = runtime.config.pet.roamWhenNoTasks ? .on : .off
+        taskRoamItem?.title = runtime.config.ui.locale == "en" ? "Move while tasks run" : "任务进行时游动"
+        taskRoamItem?.state = runtime.config.pet.roamWhenTasks ? .on : .off
+        performanceItem?.title = runtime.config.ui.locale == "en" ? "Show performance panel" : "显示性能面板"
+        performanceItem?.state = runtime.config.performance.panelEnabled ? .on : .off
+        launchAtLoginItem?.title = runtime.config.ui.locale == "en" ? "Open at login" : "登录后自动启动"
+        launchAtLoginItem?.state = runtime.config.startup.launchAtLogin ? .on : .off
     }
 
     private func enabledProviders() -> Set<String> {
@@ -392,7 +448,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.taskMonitor?.includeTitles = self.runtime.config.privacy.includeTaskTitles
                 self.taskMonitor?.enabledProviders = self.enabledProviders()
                 self.clockService?.workdays = self.runtime.config.schedule.workdays
-                self.syncMovementMenu()
+                self.syncQuickSettingsMenu()
                 self.performanceMonitor?.memoryLimitMB = self.runtime.config.performance.memoryLimitMb
                 self.performanceMonitor?.autoQuitEnabled = self.runtime.config.performance.autoQuitEnabled
                 if !self.runtime.config.performance.panelEnabled { self.panelController.updatePerformance(nil) }

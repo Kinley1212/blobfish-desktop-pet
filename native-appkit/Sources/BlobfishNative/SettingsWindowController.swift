@@ -27,6 +27,7 @@ final class SettingsViewModel: ObservableObject {
     let clockService: ClockService?
     let integrationManager: IntegrationManager
     let updater = NativeUpdater()
+    private let soundPlayer = SoundPlayer()
     private var availableUpdate: (NativeUpdateManifest, NativeUpdateManifest.Asset)?
     private let onApply: () -> Void
 
@@ -158,6 +159,22 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func dismissClockAlerts() { do { try clockService?.dismissAlerts(); refreshClock() } catch { message = String(describing: error) } }
+
+    func previewSound(_ id: String) { soundPlayer.play(id: id) }
+
+    func workdayBinding(_ day: Int) -> Binding<Bool> {
+        Binding(
+            get: { self.draft.schedule.workdays.contains(day) },
+            set: { enabled in
+                if enabled {
+                    if !self.draft.schedule.workdays.contains(day) { self.draft.schedule.workdays.append(day) }
+                } else {
+                    self.draft.schedule.workdays.removeAll { $0 == day }
+                }
+                self.draft.schedule.workdays.sort()
+            }
+        )
+    }
 
     private func refreshClock() { clockState = clockService?.state ?? .empty }
 
@@ -544,6 +561,16 @@ struct BrandedSettingsView: View {
     private var scheduleSection: some View {
         SettingsPage(title: t("问候与作息", "Schedule & Greetings"), subtitle: t("时间使用 24 小时制。", "Times use the 24-hour clock.")) {
             SettingsCard {
+                Text(t("工作日", "Workdays")).font(.headline)
+                HStack(spacing: 8) {
+                    ForEach(Array(zip([1, 2, 3, 4, 5, 6, 0], model.isEnglish
+                        ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+                        : ["一", "二", "三", "四", "五", "六", "日"])), id: \.0) { day, label in
+                        Toggle(label, isOn: model.workdayBinding(day))
+                            .toggleStyle(.button)
+                            .buttonStyle(.bordered)
+                    }
+                }
                 TextField(t("午饭时间", "Lunch time"), text: $model.draft.schedule.lunchTime)
                 TextField(t("下班时间", "End of work"), text: $model.draft.schedule.offWorkTime)
                 Toggle(t("半小时提醒", "Half-hour reminders"), isOn: $model.draft.schedule.halfHourReminders)
@@ -575,6 +602,29 @@ struct BrandedSettingsView: View {
                 Stepper(t("最短间隔：\(Int(model.draft.language.idleMinMinutes)) 分钟", "Minimum interval: \(Int(model.draft.language.idleMinMinutes)) min"), value: $model.draft.language.idleMinMinutes, in: 1...180)
                 Stepper(t("最长间隔：\(Int(model.draft.language.idleMaxMinutes)) 分钟", "Maximum interval: \(Int(model.draft.language.idleMaxMinutes)) min"), value: $model.draft.language.idleMaxMinutes, in: 1...240)
             }
+            SettingsCard {
+                Text(t("台词类型", "Dialogue categories")).font(.headline)
+                Toggle(t("作息台词", "Schedule lines"), isOn: $model.draft.language.categories.schedule)
+                Toggle(t("系统状态台词", "System status lines"), isOn: $model.draft.language.categories.system)
+                Toggle(t("日历台词", "Calendar lines"), isOn: $model.draft.language.categories.calendar)
+                Toggle(t("任务台词", "Task lines"), isOn: $model.draft.language.categories.agents)
+                Toggle(t("闹钟与计时台词", "Alarm and timer lines"), isOn: $model.draft.language.categories.clock)
+            }
+            SettingsCard {
+                Text(t("任务提示音", "Task sounds")).font(.headline)
+                Toggle(t("等待审核 / 确认时播放", "Play when review or confirmation is needed"), isOn: $model.draft.sound.needsInput.enabled)
+                soundChoiceRow(selection: $model.draft.sound.needsInput.soundId)
+                Divider()
+                Toggle(t("任务完成时播放", "Play when a task completes"), isOn: $model.draft.sound.taskComplete.enabled)
+                soundChoiceRow(selection: $model.draft.sound.taskComplete.soundId)
+            }
+        }
+    }
+
+    private func soundChoiceRow(selection: Binding<String>) -> some View {
+        HStack {
+            soundPicker(selection: selection)
+            Button(t("试听", "Preview")) { model.previewSound(selection.wrappedValue) }
         }
     }
 
