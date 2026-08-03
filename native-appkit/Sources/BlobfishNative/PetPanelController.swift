@@ -397,6 +397,11 @@ final class PetPanelController {
             petView.direction = velocity.dx >= 0 ? 1 : -1
             panel.setFrameOrigin(origin)
             preciseOrigin = origin
+            // A fling is also a deliberate placement. Keep its latest height
+            // as the horizontal-roaming baseline so the first frame after the
+            // velocity stops cannot restore the pre-drag (usually bottom)
+            // baseline and make the pet appear to teleport.
+            bobBaselineY = origin.y
             lastAutomaticOrigin = panel.frame.origin
             return
         }
@@ -433,6 +438,7 @@ final class PetPanelController {
         petView.direction = movementDirection
         panel.setFrameOrigin(origin)
         preciseOrigin = origin
+        bobBaselineY = origin.y
         lastAutomaticOrigin = panel.frame.origin
     }
 
@@ -463,6 +469,7 @@ final class PetPanelController {
     private func endDrag(velocityX: CGFloat, velocityY: CGFloat) {
         dragging = false
         preciseOrigin = panel.frame.origin
+        bobBaselineY = panel.frame.origin.y
         lastAutomaticOrigin = panel.frame.origin
         let amplified = CGVector(dx: velocityX * 1.35, dy: velocityY * 1.35)
         let speed = hypot(amplified.dx, amplified.dy)
