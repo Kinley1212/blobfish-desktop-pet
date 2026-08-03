@@ -10,54 +10,37 @@ permissions:
 
 jobs:
   build:
-    name: Build ${{ matrix.arch }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-15
-            arch: arm64
-          - runner: macos-15-intel
-            arch: x64
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
+    name: Build native arm64
+    runs-on: macos-15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: Verify tag and source versions
+      - name: Verify tag and native version
         shell: bash
         run: |
           set -euo pipefail
           tag_version="${GITHUB_REF_NAME#v}"
-          package_version="$(node -p "require('./package.json').version")"
           native_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' native-appkit/App/Info.plist)"
-          test "$tag_version" = "$package_version"
           test "$tag_version" = "$native_version"
-      - run: npm ci
-      - name: Run Electron tests
-        run: npm test
-      - name: Package Electron app
-        run: npm run package:mac:${{ matrix.arch }}
       - name: Run native self-checks
         working-directory: native-appkit
         run: make test
       - name: Package native app
         working-directory: native-appkit
         run: make archive
-      - name: Collect release assets
+      - name: Verify package architecture and signature
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p release-assets
-          cp "release/BlobfishPro-${GITHUB_REF_NAME#v}-macOS-${{ matrix.arch }}.zip" release-assets/
-          cp "native-appkit/.build/BlobfishNative-${GITHUB_REF_NAME#v}-macOS-${{ matrix.arch }}.zip" release-assets/
+          app="native-appkit/.build/水滴鱼.app"
+          executable="$app/Contents/MacOS/BlobfishNative"
+          test "$(/usr/bin/uname -m)" = "arm64"
+          test "$(/usr/bin/lipo -archs "$executable")" = "arm64"
+          /usr/bin/codesign --verify --deep --strict --verbose=2 "$app"
       - uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.arch }}
-          path: release-assets/*.zip
+          name: native-release-arm64
+          path: native-appkit/.build/BlobfishNative-*-macOS-arm64.zip
           if-no-files-found: error
           retention-days: 7
 
@@ -68,18 +51,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
       - uses: actions/download-artifact@v4
         with:
-          pattern: release-*
+          name: native-release-arm64
           path: release
-          merge-multiple: true
-      - name: Generate update manifests
-        run: |
-          node scripts/generate-release-manifest.js
-          node scripts/generate-native-release-manifest.js
+      - name: Generate native update manifest
+        run: node scripts/generate-native-release-manifest.js arm64
       - name: Write release notes
         shell: bash
         run: |
@@ -88,9 +65,9 @@ jobs:
 
           这是水滴鱼首个 Swift / AppKit 原生正式版，在保留角色、捏鱼、任务摩天轮、台词、闹钟、计时器、日历和一键更新等功能的同时，显著降低了常驻内存占用。
 
-          - `BlobfishNative-*-macOS-*`：2.0 原生版（推荐）
-          - `BlobfishPro-*-macOS-*`：1.x Electron 兼容版，供旧版安全升级
-          - `arm64`：Apple Silicon Mac；`x64`：Intel Mac
+          - `BlobfishNative-2.0.0-macOS-arm64.zip`：Apple Silicon Mac 原生安装包
+          - `blobfish-native-latest.json`：原生版一键更新清单
+          - 2.0.0 不包含 Electron，也不提供 Intel 版本
 
           当前安装包使用 ad-hoc 签名，尚未获得 Apple Developer ID 公证。首次在其他 Mac 打开时可能仍需按 macOS 的安全提示确认。
           NOTES
@@ -99,8 +76,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: >-
           gh release create "$GITHUB_REF_NAME"
-          release/*.zip
-          release/blobfish-latest.json
+          release/BlobfishNative-*-macOS-arm64.zip
           release/blobfish-native-latest.json
           --verify-tag
           --title "水滴鱼 ${GITHUB_REF_NAME#v}"
