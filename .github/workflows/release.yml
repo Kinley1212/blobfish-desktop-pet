@@ -75,7 +75,7 @@ jobs:
           cat > release-notes.md <<'NOTES'
           ## 水滴鱼 2.1.0
 
-          本次更新重新设计了原生版性能面板：CPU 与内存柱状图并排显示，浅色代表整机占用，深色代表水滴鱼自身占用，并提供角色主题动画和可调位置。
+          本次更新重新设计了原生版性能面板：CPU 与内存柱状图并排显示，浅色代表整机占用，深色代表水滴鱼自身占用，并提供角色主题动画和可调位置。原生应用也换上了「水滴魚（窝窝头）」专属图标。
 
           - `BlobfishNative-2.1.0-macOS-arm64.zip`：Apple Silicon Mac 原生安装包
           - `BlobfishNative-2.1.0-macOS-x64.zip`：Intel Mac 原生安装包
