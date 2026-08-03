@@ -137,6 +137,14 @@ enum TaskCarouselGeometry {
             opacity: mix(from.opacity, to.opacity)
         )
     }
+
+    static func transitionProgress(_ progress: CGFloat) -> CGFloat {
+        CGFloat(PetMotionTiming.cubicBezier(
+            Double(progress),
+            x1: 0.22, y1: 0.8,
+            x2: 0.26, y2: 1
+        ))
+    }
 }
 
 final class PetView: NSView {
@@ -210,11 +218,14 @@ final class PetView: NSView {
     private var blinking = false
     private static let bobDistance: CGFloat = 5
     private var blinkTimer: Timer?
-    private var spinnerTimer: Timer?
-    private var spinnerPhase: CGFloat = 0
+    private lazy var animationDisplayLink = DisplayLinkDriver { [weak self] uptime in
+        self?.advanceDisplayAnimations(uptime: uptime)
+    }
+    private var spinnerStartedAt: TimeInterval?
+    private var spinnerPhase: CGFloat = 90
     private var carouselIndex = 0
     private var carouselTimer: Timer?
-    private var carouselAnimationTimer: Timer?
+    private var carouselStartedAt: TimeInterval?
     private var carouselFromIndex: Int?
     private var carouselProgress: CGFloat = 1
     private var characterImage: NSImage?
@@ -256,9 +267,8 @@ final class PetView: NSView {
 
     deinit {
         blinkTimer?.invalidate()
-        spinnerTimer?.invalidate()
+        animationDisplayLink.stop()
         carouselTimer?.invalidate()
-        carouselAnimationTimer?.invalidate()
         effectTimer?.invalidate()
         completionTimer?.invalidate()
         clockAnimationTimer?.invalidate()
@@ -1015,9 +1025,13 @@ final class PetView: NSView {
     private func drawStatusIcon(state: TaskDisplayState, at center: NSPoint, alpha: CGFloat) {
         switch state {
         case .running:
-            NSColor(calibratedRed: 0.37, green: 0.57, blue: 0.58, alpha: alpha).setStroke()
+            let base = NSBezierPath(ovalIn: NSRect(x: center.x - 6, y: center.y - 6, width: 12, height: 12))
+            NSColor(srgbRed: 0.843, green: 0.882, blue: 0.886, alpha: alpha).setStroke()
+            base.lineWidth = 2
+            base.stroke()
+            NSColor(srgbRed: 0.424, green: 0.573, blue: 0.584, alpha: alpha).setStroke()
             let spinner = NSBezierPath()
-            spinner.appendArc(withCenter: center, radius: 6, startAngle: spinnerPhase, endAngle: spinnerPhase + 270)
+            spinner.appendArc(withCenter: center, radius: 6, startAngle: spinnerPhase, endAngle: spinnerPhase + 90)
             spinner.lineWidth = 2
             spinner.lineCapStyle = .round
             spinner.stroke()
@@ -1048,15 +1062,10 @@ final class PetView: NSView {
     }
 
     private func syncSpinner() {
-        spinnerTimer?.invalidate()
-        spinnerTimer = nil
-        guard snapshot.state == .running else { return }
-        spinnerTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            self.spinnerPhase = (self.spinnerPhase - 7.5).truncatingRemainder(dividingBy: 360)
-            self.needsDisplay = true
-        }
-        RunLoop.main.add(spinnerTimer!, forMode: .common)
+        spinnerStartedAt = snapshot.tasks.contains(where: { $0.state == .running })
+            ? ProcessInfo.processInfo.systemUptime
+            : nil
+        syncAnimationDisplayLink()
     }
 
     private func syncCarousel(previous: TaskSnapshot) {
@@ -1082,8 +1091,7 @@ final class PetView: NSView {
 
     private func setCarouselIndex(_ index: Int, animated: Bool) {
         guard index != carouselIndex else { return }
-        carouselAnimationTimer?.invalidate()
-        carouselAnimationTimer = nil
+        carouselStartedAt = nil
         let oldIndex = carouselIndex
         carouselIndex = index
         guard animated else {
@@ -1094,18 +1102,37 @@ final class PetView: NSView {
         }
         carouselFromIndex = oldIndex
         carouselProgress = 0
-        let started = Date()
-        carouselAnimationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] timer in
-            guard let self else { timer.invalidate(); return }
-            self.carouselProgress = min(1, CGFloat(Date().timeIntervalSince(started) / 0.36))
-            if self.carouselProgress >= 1 {
-                timer.invalidate()
-                self.carouselAnimationTimer = nil
-                self.carouselFromIndex = nil
-            }
-            self.needsDisplay = true
+        carouselStartedAt = ProcessInfo.processInfo.systemUptime
+        syncAnimationDisplayLink()
+    }
+
+    private func syncAnimationDisplayLink() {
+        if spinnerStartedAt != nil || carouselStartedAt != nil {
+            animationDisplayLink.start()
+        } else {
+            animationDisplayLink.stop()
         }
-        RunLoop.main.add(carouselAnimationTimer!, forMode: .common)
+    }
+
+    private func advanceDisplayAnimations(uptime: TimeInterval) {
+        var changed = false
+        if let spinnerStartedAt {
+            let phase = (uptime - spinnerStartedAt).truncatingRemainder(dividingBy: 0.8) / 0.8
+            spinnerPhase = 90 - CGFloat(phase * 360)
+            changed = true
+        }
+        if let carouselStartedAt {
+            let linear = min(1, CGFloat((uptime - carouselStartedAt) / 0.24))
+            carouselProgress = TaskCarouselGeometry.transitionProgress(linear)
+            changed = true
+            if linear >= 1 {
+                self.carouselStartedAt = nil
+                carouselFromIndex = nil
+                carouselProgress = 1
+            }
+        }
+        if changed { needsDisplay = true }
+        syncAnimationDisplayLink()
     }
 
     private func scheduleBlink() {

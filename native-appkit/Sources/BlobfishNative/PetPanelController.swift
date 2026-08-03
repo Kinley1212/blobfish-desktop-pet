@@ -7,6 +7,36 @@ enum PetMotionTiming {
     static let swimPeriod = 0.9
     static let swimDistance = 5.0
 
+    static func cubicBezier(
+        _ progress: Double,
+        x1: Double, y1: Double,
+        x2: Double, y2: Double
+    ) -> Double {
+        let x = min(1, max(0, progress))
+        func value(_ t: Double, _ first: Double, _ second: Double) -> Double {
+            let inverse = 1 - t
+            return 3 * inverse * inverse * t * first
+                + 3 * inverse * t * t * second
+                + t * t * t
+        }
+        func derivative(_ t: Double, _ first: Double, _ second: Double) -> Double {
+            3 * (1 - t) * (1 - t) * first
+                + 6 * (1 - t) * t * (second - first)
+                + 3 * t * t * (1 - second)
+        }
+        var t = x
+        for _ in 0..<6 {
+            let slope = derivative(t, x1, x2)
+            guard abs(slope) > 0.000_001 else { break }
+            t = min(1, max(0, t - (value(t, x1, x2) - x) / slope))
+        }
+        return value(t, y1, y2)
+    }
+
+    static func easeInOut(_ progress: Double) -> Double {
+        cubicBezier(progress, x1: 0.42, y1: 0, x2: 0.58, y2: 1)
+    }
+
     static func travelDistance(speed: Double, elapsed: TimeInterval) -> CGFloat {
         CGFloat(speed * pointsPerSecondPerSpeedUnit * max(0, min(elapsed, 0.05)))
     }
@@ -26,7 +56,8 @@ enum PetMotionTiming {
             distance = swimDistance
         }
         let phase = elapsed.truncatingRemainder(dividingBy: period) / period
-        return CGFloat((1 - cos(phase * 2 * .pi)) * distance / 2)
+        let leg = phase <= 0.5 ? phase * 2 : (1 - phase) * 2
+        return CGFloat(easeInOut(leg) * distance)
     }
 }
 
@@ -97,7 +128,9 @@ enum PetMovementGeometry {
 final class PetPanelController {
     let panel: NSPanel
     private let petView: PetView
-    private var movementTimer: Timer?
+    private lazy var movementDisplayLink = DisplayLinkDriver { [weak self] _ in
+        self?.moveOneFrame()
+    }
     private var movementDirection: CGFloat = 1
     private var taskWantsMovement = false
     private var hasActiveTasks = false
@@ -216,8 +249,7 @@ final class PetPanelController {
     }
 
     func stop() {
-        movementTimer?.invalidate()
-        movementTimer = nil
+        movementDisplayLink.stop()
         interactionTimer?.invalidate()
         interactionTimer = nil
         speechQueue.clear()
@@ -273,8 +305,7 @@ final class PetPanelController {
     func updatePerformance(_ sample: PerformanceSample?) { petView.performanceSample = sample }
 
     func animateExit(completion: @escaping () -> Void) {
-        movementTimer?.invalidate()
-        movementTimer = nil
+        movementDisplayLink.stop()
         let initialFrame = panel.frame
         let started = Date()
         var timer: Timer?
@@ -295,13 +326,9 @@ final class PetPanelController {
             || (!hasActiveTasks && config.pet.roamWhenNoTasks))
         if !hasActiveTasks { motionState = movementEnabled ? .roam : .idle }
         petView.motionState = motionState
-        guard movementTimer == nil else { return }
+        guard !movementDisplayLink.isRunning else { return }
         lastFrameUptime = ProcessInfo.processInfo.systemUptime
-        movementTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] _ in
-            self?.moveOneFrame()
-        }
-        movementTimer?.tolerance = 1.0 / 240.0
-        RunLoop.main.add(movementTimer!, forMode: .common)
+        movementDisplayLink.start()
     }
 
     private func moveOneFrame() {

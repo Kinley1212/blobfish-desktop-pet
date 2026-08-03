@@ -10,7 +10,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "BlobfishNative",
-            linkerSettings: [.linkedFramework("AppKit")]
+            linkerSettings: [
+                .linkedFramework("AppKit"),
+                .linkedFramework("CoreVideo"),
+            ]
         ),
     ]
 )

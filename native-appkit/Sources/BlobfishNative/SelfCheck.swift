@@ -22,6 +22,7 @@ enum SelfCheck {
             ("dragged height preservation", draggedHeightPreservation),
             ("nearest display preserves pet height", nearestDisplayPreservesPetHeight),
             ("display-paced pet motion", displayPacedPetMotion),
+            ("display-timed carousel easing", displayTimedCarouselEasing),
             ("pet reaction geometry", petReactionGeometry),
             ("task carousel geometry", taskCarouselGeometry),
             ("speech priority and mood restore", speechPriorityAndMoodRestore),
@@ -386,6 +387,18 @@ enum SelfCheck {
             && abs(PetMotionTiming.swimOffset(elapsed: 0.9)) < 0.001
             && abs(grassIdle - 2) < 0.001
             && abs(grassRoam - 4) < 0.001
+    }
+
+    private static func displayTimedCarouselEasing() -> Bool {
+        let start = TaskCarouselGeometry.transitionProgress(0)
+        let early = TaskCarouselGeometry.transitionProgress(0.25)
+        let middle = TaskCarouselGeometry.transitionProgress(0.5)
+        let end = TaskCarouselGeometry.transitionProgress(1)
+        return start == 0
+            && early > 0.5
+            && middle > early
+            && middle < 1
+            && end == 1
     }
 
     private static func petReactionGeometry() -> Bool {
