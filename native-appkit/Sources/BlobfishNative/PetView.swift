@@ -546,7 +546,7 @@ final class PetView: NSView {
         }
         let duration: TimeInterval = appearing ? 0.52 : 0.44
         let started = Date()
-        alarmClockTransitionTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
+        alarmClockTransitionTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
             self.alarmClockTransitionPhase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
             if self.alarmClockTransitionPhase == 1 {
@@ -639,9 +639,9 @@ final class PetView: NSView {
     private func syncClockAnimation() {
         clockAnimationTimer?.invalidate(); clockAnimationTimer = nil
         guard alarmRinging else { clockShakePhase = 0; needsDisplay = true; return }
-        clockAnimationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 20.0, repeats: true) { [weak self] _ in
+        clockAnimationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] _ in
             guard let self else { return }
-            self.clockShakePhase += 1.2
+            self.clockShakePhase += 0.4
             self.needsDisplay = true
         }
         RunLoop.main.add(clockAnimationTimer!, forMode: .common)
@@ -933,7 +933,7 @@ final class PetView: NSView {
         completionPhase = 0
         let duration: TimeInterval = all ? 2 : 1.4
         let started = Date()
-        completionTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
+        completionTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
             self.completionPhase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
             if self.completionPhase == 1 {
@@ -999,7 +999,7 @@ final class PetView: NSView {
         effect = visualEffect
         effectPhase = 0
         let started = Date()
-        effectTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
+        effectTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
             self.effectPhase = CGFloat(Date().timeIntervalSince(started) / duration)
             if self.effectPhase >= 1 {
@@ -1051,9 +1051,9 @@ final class PetView: NSView {
         spinnerTimer?.invalidate()
         spinnerTimer = nil
         guard snapshot.state == .running else { return }
-        spinnerTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 12.0, repeats: true) { [weak self] _ in
+        spinnerTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] _ in
             guard let self else { return }
-            self.spinnerPhase = (self.spinnerPhase - 24).truncatingRemainder(dividingBy: 360)
+            self.spinnerPhase = (self.spinnerPhase - 7.5).truncatingRemainder(dividingBy: 360)
             self.needsDisplay = true
         }
         RunLoop.main.add(spinnerTimer!, forMode: .common)
@@ -1095,7 +1095,7 @@ final class PetView: NSView {
         carouselFromIndex = oldIndex
         carouselProgress = 0
         let started = Date()
-        carouselAnimationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] timer in
+        carouselAnimationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] timer in
             guard let self else { timer.invalidate(); return }
             self.carouselProgress = min(1, CGFloat(Date().timeIntervalSince(started) / 0.36))
             if self.carouselProgress >= 1 {

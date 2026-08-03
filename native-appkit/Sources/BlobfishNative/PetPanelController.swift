@@ -237,7 +237,7 @@ final class PetPanelController {
         let initialFrame = panel.frame
         let started = Date()
         var timer: Timer?
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] value in
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] value in
             guard let self else { value.invalidate(); completion(); return }
             let progress = min(1, Date().timeIntervalSince(started) / 0.75)
             self.panel.alphaValue = 1 - progress
