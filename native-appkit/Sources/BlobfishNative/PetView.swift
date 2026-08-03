@@ -174,6 +174,23 @@ enum TaskSpinnerTimeline {
     }
 }
 
+enum ExpressionCanvasGeometry {
+    static func targetAnchor(
+        slotX: CGFloat,
+        slotY: CGFloat,
+        canvas: CGRect,
+        target: CGRect
+    ) -> CGPoint {
+        guard canvas.width > 0, canvas.height > 0 else {
+            return CGPoint(x: target.midX, y: target.midY)
+        }
+        return CGPoint(
+            x: target.minX + (slotX - canvas.minX) * target.width / canvas.width,
+            y: target.maxY - (slotY - canvas.minY) * target.height / canvas.height
+        )
+    }
+}
+
 final class PetView: NSView, CALayerDelegate {
     var onClick: (() -> Void)?
     var onDragStart: (() -> Void)?
@@ -185,6 +202,7 @@ final class PetView: NSView, CALayerDelegate {
     var character: CharacterPack? {
         didSet {
             guard oldValue != character else { return }
+            characterViewBox = character.flatMap(SVGAppearanceRenderer.viewBox)
             rebuildCharacterImage()
         }
     }
@@ -306,6 +324,7 @@ final class PetView: NSView, CALayerDelegate {
     private var carouselFromIndex: Int?
     private var carouselProgress: CGFloat = 1
     private var characterImage: NSImage?
+    private var characterViewBox: CGRect?
     private var accessoryImages: [(AccessoryPack, NSImage)] = []
     private let artworkLayer = CALayer()
     private let overlayLayer = CALayer()
@@ -693,15 +712,36 @@ final class PetView: NSView, CALayerDelegate {
         guard let character, let sourceSize = characterImage?.size,
               sourceSize.width > 0, sourceSize.height > 0 else { return }
         let target = characterBounds
-        let scaleX = target.width / sourceSize.width
-        let scaleY = target.height / sourceSize.height
+        let canvas = characterViewBox ?? CGRect(origin: .zero, size: sourceSize)
+        guard canvas.width > 0, canvas.height > 0 else { return }
+        let scaleX = target.width / canvas.width
+        let scaleY = target.height / canvas.height
         for (pack, image) in accessoryImages {
             guard let slot = character.manifest.accessories?.slots[pack.manifest.slot] else { continue }
             let tuning = accessorySpec.tuning[pack.id] ?? AccessoryTuning(nil)
             let unitX = scaleX * slot.scale * tuning.size * tuning.width
             let unitY = scaleY * slot.scale * tuning.size * tuning.height
-            let targetX = target.minX + (slot.x + tuning.offsetX) * scaleX
-            let targetY = target.maxY - (slot.y + tuning.offsetY) * scaleY
+            // Expressions replace eyes that are authored inside the character's
+            // SVG coordinate space. A non-zero viewBox origin (the wotou fish
+            // starts at x = -16) must therefore be removed before projecting
+            // the face anchor into the AppKit target rectangle. Tunable props
+            // keep their existing offset contract and remain independent.
+            let targetAnchor: CGPoint
+            if pack.manifest.slot == "face" {
+                targetAnchor = ExpressionCanvasGeometry.targetAnchor(
+                    slotX: slot.x + tuning.offsetX,
+                    slotY: slot.y + tuning.offsetY,
+                    canvas: canvas,
+                    target: target
+                )
+            } else {
+                targetAnchor = CGPoint(
+                    x: target.minX + (slot.x + tuning.offsetX) * scaleX,
+                    y: target.maxY - (slot.y + tuning.offsetY) * scaleY
+                )
+            }
+            let targetX = targetAnchor.x
+            let targetY = targetAnchor.y
             let imageSize = image.size
             let isClock = pack.id == "alarm-clock"
             let shake = alarmRinging && isClock ? sin(clockShakePhase) * 3 : 0

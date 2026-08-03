@@ -2,6 +2,12 @@ import AppKit
 import Foundation
 
 enum SVGAppearanceRenderer {
+    static func viewBox(for character: CharacterPack) -> CGRect? {
+        guard let document = try? XMLDocument(contentsOf: character.artURL, options: [.nodePreserveAll]),
+              let root = document.rootElement() else { return nil }
+        return viewBox(of: root)
+    }
+
     static func image(
         character: CharacterPack,
         customization: JSONValue?,
@@ -87,10 +93,9 @@ enum SVGAppearanceRenderer {
 
     private static func applyTransforms(_ root: XMLElement, customization: JSONValue?, blinking: Bool) {
         let spec = customization?.objectValue ?? [:]
-        let viewBox = root.attribute(forName: "viewBox")?.stringValue?
-            .split(whereSeparator: { $0 == " " || $0 == "," }).compactMap { Double($0) } ?? []
-        let width = viewBox.count == 4 ? viewBox[2] : 140
-        let height = viewBox.count == 4 ? viewBox[3] : 120
+        let viewBox = viewBox(of: root)
+        let width = viewBox?.width ?? 140
+        let height = viewBox?.height ?? 120
         transform(elements(class: "body-shape", in: root) + elements(class: "body-shading", in: root),
                   scaleX: number(spec, "body", "width", 1), scaleY: number(spec, "body", "height", 1), pivotX: width / 2, pivotY: height / 2)
 
@@ -157,6 +162,16 @@ enum SVGAppearanceRenderer {
     private static func elements(class name: String, in root: XMLElement) -> [XMLElement] {
         let expression = ".//*[contains(concat(' ', normalize-space(@class), ' '), ' \(name) ')]"
         return ((try? root.nodes(forXPath: expression)) ?? []).compactMap { $0 as? XMLElement }
+    }
+
+    private static func viewBox(of root: XMLElement) -> CGRect? {
+        let values = root.attribute(forName: "viewBox")?.stringValue?
+            .split(whereSeparator: { $0 == " " || $0 == "," })
+            .compactMap { Double($0) } ?? []
+        guard values.count == 4, values.allSatisfy(\.isFinite), values[2] > 0, values[3] > 0 else {
+            return nil
+        }
+        return CGRect(x: values[0], y: values[1], width: values[2], height: values[3])
     }
 
     private static func number(_ spec: [String: JSONValue], _ part: String, _ key: String, _ fallback: Double) -> Double {

@@ -26,6 +26,7 @@ enum SelfCheck {
             ("unclipped CSS-matched pet shadow", unclippedCSSMatchedPetShadow),
             ("expressions stay below independent eyewear", expressionsStayBelowIndependentEyewear),
             ("expression anchors follow authored eye lines", expressionAnchorsFollowEyeLines),
+            ("expression respects character viewBox origin", expressionRespectsCharacterViewBoxOrigin),
             ("pet reaction geometry", petReactionGeometry),
             ("task carousel geometry", taskCarouselGeometry),
             ("continuous task spinner timeline", continuousTaskSpinnerTimeline),
@@ -458,6 +459,22 @@ enum SelfCheck {
         return faces.allSatisfy { face in
             face.manifest.anchor.x == 50 && face.manifest.anchor.y == expected[face.id]
         }
+    }
+
+    private static func expressionRespectsCharacterViewBoxOrigin() throws -> Bool {
+        let character = try PackCatalog().character(id: "blobfish-wotou")
+        guard let canvas = SVGAppearanceRenderer.viewBox(for: character),
+              let face = character.manifest.accessories?.slots["face"] else { return false }
+        let target = CGRect(x: 10, y: 20, width: 129, height: 90)
+        let point = ExpressionCanvasGeometry.targetAnchor(
+            slotX: face.x,
+            slotY: face.y,
+            canvas: canvas,
+            target: target
+        )
+        return canvas == CGRect(x: -16, y: 0, width: 172, height: 120)
+            && abs(point.x - target.midX) < 0.001
+            && abs(point.y - 65.75) < 0.001
     }
 
     private static func petReactionGeometry() -> Bool {
