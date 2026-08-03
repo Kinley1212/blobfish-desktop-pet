@@ -11,5 +11,5 @@ case "$MACHINE" in
 esac
 OUTPUT="$ROOT/.build/BlobfishNative-$VERSION-macOS-$ARCH.zip"
 rm -f "$OUTPUT"
-COPYFILE_DISABLE=1 ditto -c -k --norsrc --noextattr --keepParent "$ROOT/.build/水滴鱼原生版.app" "$OUTPUT"
+COPYFILE_DISABLE=1 ditto -c -k --norsrc --noextattr --keepParent "$ROOT/.build/水滴鱼.app" "$OUTPUT"
 shasum -a 256 "$OUTPUT"

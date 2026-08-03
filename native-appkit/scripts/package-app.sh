@@ -3,7 +3,7 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 REPOSITORY=$(CDPATH= cd -- "$ROOT/.." && pwd)
-APP="$ROOT/.build/水滴鱼原生版.app"
+APP="$ROOT/.build/水滴鱼.app"
 CONTENTS="$APP/Contents"
 
 rm -rf "$APP"

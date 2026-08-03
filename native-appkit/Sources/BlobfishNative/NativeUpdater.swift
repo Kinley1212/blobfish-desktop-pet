@@ -101,9 +101,9 @@ final class NativeUpdater {
             installDirectory = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Applications", isDirectory: true)
             try FileManager.default.createDirectory(at: installDirectory, withIntermediateDirectories: true)
         }
-        let target = installDirectory.appendingPathComponent("水滴鱼原生版.app", isDirectory: true)
-        let temporary = installDirectory.appendingPathComponent(".水滴鱼原生版-installing-\(UUID().uuidString).app", isDirectory: true)
-        let backup = installDirectory.appendingPathComponent(".水滴鱼原生版-backup-\(UUID().uuidString).app", isDirectory: true)
+        let target = installDirectory.appendingPathComponent("水滴鱼.app", isDirectory: true)
+        let temporary = installDirectory.appendingPathComponent(".水滴鱼-installing-\(UUID().uuidString).app", isDirectory: true)
+        let backup = installDirectory.appendingPathComponent(".水滴鱼-backup-\(UUID().uuidString).app", isDirectory: true)
         try FileManager.default.copyItem(at: candidates[0], to: temporary)
         var movedExisting = false
         do {
@@ -112,6 +112,11 @@ final class NativeUpdater {
             }
             try FileManager.default.moveItem(at: temporary, to: target)
             if movedExisting { try? FileManager.default.removeItem(at: backup) }
+            if currentBundle != target,
+               currentBundle.pathExtension == "app",
+               currentBundle.deletingLastPathComponent() == installDirectory {
+                try? FileManager.default.removeItem(at: currentBundle)
+            }
             return target
         } catch {
             try? FileManager.default.removeItem(at: temporary)

@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Verify tag and source versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version="$(node -p "require('./package.json').version")"
+          native_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' native-appkit/App/Info.plist)"
+          test "$tag_version" = "$package_version"
+          test "$tag_version" = "$native_version"
+      - run: npm ci
+      - name: Run Electron tests
+        run: npm test
+      - name: Package Electron app
+        run: npm run package:mac:${{ matrix.arch }}
+      - name: Run native self-checks
+        working-directory: native-appkit
+        run: make test
+      - name: Package native app
+        working-directory: native-appkit
+        run: make archive
+      - name: Collect release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          cp "release/BlobfishPro-${GITHUB_REF_NAME#v}-macOS-${{ matrix.arch }}.zip" release-assets/
+          cp "native-appkit/.build/BlobfishNative-${GITHUB_REF_NAME#v}-macOS-${{ matrix.arch }}.zip" release-assets/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.arch }}
+          path: release-assets/*.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+      - name: Generate update manifests
+        run: |
+          node scripts/generate-release-manifest.js
+          node scripts/generate-native-release-manifest.js
+      - name: Write release notes
+        shell: bash
+        run: |
+          cat > release-notes.md <<'NOTES'
+          ## 水滴鱼 2.0.0
+
+          这是水滴鱼首个 Swift / AppKit 原生正式版，在保留角色、捏鱼、任务摩天轮、台词、闹钟、计时器、日历和一键更新等功能的同时，显著降低了常驻内存占用。
+
+          - `BlobfishNative-*-macOS-*`：2.0 原生版（推荐）
+          - `BlobfishPro-*-macOS-*`：1.x Electron 兼容版，供旧版安全升级
+          - `arm64`：Apple Silicon Mac；`x64`：Intel Mac
+
+          当前安装包使用 ad-hoc 签名，尚未获得 Apple Developer ID 公证。首次在其他 Mac 打开时可能仍需按 macOS 的安全提示确认。
+          NOTES
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          release/*.zip
+          release/blobfish-latest.json
+          release/blobfish-native-latest.json
+          --verify-tag
+          --title "水滴鱼 ${GITHUB_REF_NAME#v}"
+          --notes-file release-notes.md

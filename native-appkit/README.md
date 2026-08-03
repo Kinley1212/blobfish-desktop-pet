@@ -1,6 +1,6 @@
-# 水滴鱼原生 AppKit 版
+# 水滴鱼 2.0 原生 AppKit 版
 
-这个分支把 Electron 1.4.5 的功能迁移到 Swift、AppKit 与 SwiftUI，同时继续读取同一份用户数据：
+2.0.0 把 Electron 1.4.5 的功能迁移到 Swift、AppKit 与 SwiftUI，同时继续读取同一份用户数据：
 
 `~/Library/Application Support/BlobfishDesktopPet`
 
@@ -30,7 +30,7 @@ make archive     # 架构对应的 zip
 
 ## 发布约定
 
-原生版不读取 Electron 的 `blobfish-latest.json`，只读取 `blobfish-native-latest.json`。原生 Release 必须提供：
+原生版不读取 Electron 的 `blobfish-latest.json`，只读取 `blobfish-native-latest.json`。正式 Release 同时保留两个更新清单，让 1.x Electron 用户和 2.x 原生用户都能安全更新：
 
 - `channel: "native-appkit"`
 - `BlobfishNative-<version>-macOS-arm64.zip` / `...-x64.zip`
