@@ -17,6 +17,9 @@ enum SelfCheck {
             ("shared runtime recovery", sharedRuntimeRecovery),
             ("custom SVG and accessory rendering", customSVGAndAccessoryRendering),
             ("shared alarm and timer state", sharedAlarmAndTimerState),
+            ("native update channel isolation", nativeUpdateChannelIsolation),
+            ("single instance lock", singleInstanceLock),
+            ("dragged height preservation", draggedHeightPreservation),
         ]
         var passed = 0
         for (name, check) in checks {
@@ -268,6 +271,51 @@ enum SelfCheck {
                 && lstat(file.path, &info) == 0
                 && info.st_mode & 0o777 == 0o600
         }
+    }
+
+    private static func nativeUpdateChannelIsolation() throws -> Bool {
+        let asset = NativeUpdateManifest.Asset(
+            name: "BlobfishNative-0.2.0-macOS-arm64.zip", size: 1024,
+            digest: "sha256:" + String(repeating: "a", count: 64),
+            url: "https://github.com/Kinley1212/blobfish-desktop-pet/releases/download/v0.2.0/BlobfishNative-0.2.0-macOS-arm64.zip"
+        )
+        let manifest = NativeUpdateManifest(
+            channel: "native-appkit", version: "0.2.0", repository: NativeUpdater.repository,
+            assets: ["arm64": asset]
+        )
+        guard try NativeUpdater.select(manifest: manifest, currentVersion: "0.1.0", architecture: "arm64") == .available(manifest, asset),
+              try NativeUpdater.select(manifest: manifest, currentVersion: "0.2.0", architecture: "arm64") == .upToDate("0.2.0") else { return false }
+        let electronManifest = NativeUpdateManifest(
+            channel: "electron", version: "1.4.5", repository: NativeUpdater.repository,
+            assets: ["arm64": asset]
+        )
+        do {
+            _ = try NativeUpdater.select(manifest: electronManifest, currentVersion: "0.1.0", architecture: "arm64")
+            return false
+        } catch UpdaterError.invalidManifest { return true }
+    }
+
+    private static func singleInstanceLock() throws -> Bool {
+        try withPrivateDirectory { directory in
+            var first: SingleInstanceGuard? = SingleInstanceGuard()
+            let second = SingleInstanceGuard()
+            guard first?.acquire(in: directory) == true, second.acquire(in: directory) == false else { return false }
+            first = nil
+            let third = SingleInstanceGuard()
+            return third.acquire(in: directory)
+        }
+    }
+
+    private static func draggedHeightPreservation() throws -> Bool {
+        let screen = NSRect(x: 0, y: 23, width: 1_440, height: 877)
+        let visual = NSRect(x: 98, y: 4, width: 104, height: 95)
+        guard let allowed = PetMovementGeometry.allowedOrigins(visibleFrame: screen, visualBounds: visual) else { return false }
+        let dragged = PetMovementGeometry.clamped(NSPoint(x: 420, y: 350), to: allowed)
+        let below = PetMovementGeometry.clamped(NSPoint(x: 420, y: -100), to: allowed)
+        let above = PetMovementGeometry.clamped(NSPoint(x: 420, y: 1_000), to: allowed)
+        return dragged.y == 350
+            && below.y == allowed.minY
+            && above.y == allowed.maxY
     }
 
     private static func withPrivateDirectory(_ body: (URL) throws -> Bool) throws -> Bool {

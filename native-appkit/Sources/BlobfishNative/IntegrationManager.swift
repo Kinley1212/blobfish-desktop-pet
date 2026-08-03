@@ -91,22 +91,36 @@ final class IntegrationManager {
         let managedRoot = supportDirectory.appendingPathComponent("managed-integrations", isDirectory: true)
         let target = managedRoot.appendingPathComponent(definition.resourceDirectory, isDirectory: true)
         let temporary = managedRoot.appendingPathComponent(".\(definition.resourceDirectory)-\(UUID().uuidString)", isDirectory: true)
+        let backup = managedRoot.appendingPathComponent(".\(definition.resourceDirectory)-backup-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: managedRoot, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         try FileManager.default.copyItem(at: source, to: temporary)
-        if FileManager.default.fileExists(atPath: target.path) { try FileManager.default.removeItem(at: target) }
-        try FileManager.default.moveItem(at: temporary, to: target)
-
+        defer { try? FileManager.default.removeItem(at: temporary) }
         let senderSource = Bundle.main.resourceURL?.appendingPathComponent("native/blobfish-agent-event-sender")
             ?? URL(fileURLWithPath: "/nonexistent/blobfish-agent-event-sender")
-        guard FileManager.default.isExecutableFile(atPath: senderSource.path) else { throw IntegrationError.senderMissing }
+        guard FileManager.default.isExecutableFile(atPath: senderSource.path) else {
+            try? FileManager.default.removeItem(at: temporary)
+            throw IntegrationError.senderMissing
+        }
         let pluginRoot = definition.provider == "codex"
-            ? target.appendingPathComponent("plugins/blobfish-agent-bridge", isDirectory: true)
-            : target.appendingPathComponent("blobfish-agent-bridge", isDirectory: true)
+            ? temporary.appendingPathComponent("plugins/blobfish-agent-bridge", isDirectory: true)
+            : temporary.appendingPathComponent("blobfish-agent-bridge", isDirectory: true)
         let bin = pluginRoot.appendingPathComponent("bin", isDirectory: true)
         try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let senderTarget = bin.appendingPathComponent("blobfish-agent-event-sender")
         try FileManager.default.copyItem(at: senderSource, to: senderTarget)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: senderTarget.path)
+        var movedExisting = false
+        do {
+            if FileManager.default.fileExists(atPath: target.path) {
+                try FileManager.default.moveItem(at: target, to: backup); movedExisting = true
+            }
+            try FileManager.default.moveItem(at: temporary, to: target)
+            if movedExisting { try? FileManager.default.removeItem(at: backup) }
+        } catch {
+            try? FileManager.default.removeItem(at: temporary)
+            if movedExisting, !FileManager.default.fileExists(atPath: target.path) { try? FileManager.default.moveItem(at: backup, to: target) }
+            throw error
+        }
         return target
     }
 
@@ -116,9 +130,26 @@ final class IntegrationManager {
         environment["CI"] = "1"; environment["NO_COLOR"] = "1"; environment["TERM"] = "dumb"
         process.environment = environment
         let output = Pipe(), errors = Pipe(); process.standardOutput = output; process.standardError = errors
-        try process.run(); process.waitUntilExit()
-        let stdout = output.fileHandleForReading.readDataToEndOfFile()
-        let stderr = errors.fileHandleForReading.readDataToEndOfFile()
+        let captured = CommandOutput()
+        let finished = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in finished.signal() }
+        try process.run()
+        let readers = DispatchGroup()
+        readers.enter()
+        DispatchQueue.global(qos: .utility).async {
+            captured.setStandardOutput(output.fileHandleForReading.readDataToEndOfFile()); readers.leave()
+        }
+        readers.enter()
+        DispatchQueue.global(qos: .utility).async {
+            captured.setStandardError(errors.fileHandleForReading.readDataToEndOfFile()); readers.leave()
+        }
+        guard finished.wait(timeout: .now() + 30) == .success else {
+            process.terminate()
+            _ = finished.wait(timeout: .now() + 2)
+            throw IntegrationError.commandFailed("连接命令超过 30 秒，已停止")
+        }
+        readers.wait()
+        let (stdout, stderr) = captured.values()
         guard process.terminationStatus == 0 else {
             let detail = String(data: stderr, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
             throw IntegrationError.commandFailed(String((detail ?? "连接命令失败").suffix(600)))
@@ -141,6 +172,15 @@ final class IntegrationManager {
         guard let leases = try? TaskLeaseReader(directoryURL: directory).read() else { return false }
         return leases.contains { $0.provider == provider }
     }
+}
+
+private final class CommandOutput: @unchecked Sendable {
+    private let lock = NSLock()
+    private var standardOutput = Data()
+    private var standardError = Data()
+    func setStandardOutput(_ data: Data) { lock.lock(); standardOutput = data; lock.unlock() }
+    func setStandardError(_ data: Data) { lock.lock(); standardError = data; lock.unlock() }
+    func values() -> (Data, Data) { lock.lock(); defer { lock.unlock() }; return (standardOutput, standardError) }
 }
 
 private struct Definition {

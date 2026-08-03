@@ -6,10 +6,16 @@ on:
       - codex/native-appkit-prototype
     paths:
       - "native-appkit/**"
+      - "src/packs/**"
+      - "integrations/**"
+      - "native/AgentEventSender.swift"
       - ".github/workflows/native-appkit.yml"
   pull_request:
     paths:
       - "native-appkit/**"
+      - "src/packs/**"
+      - "integrations/**"
+      - "native/AgentEventSender.swift"
       - ".github/workflows/native-appkit.yml"
 
 permissions:
@@ -28,3 +34,11 @@ jobs:
         run: make build
       - name: Run native self-checks
         run: make test
+      - name: Package native app
+        run: make archive
+      - name: Upload native preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: blobfish-native-${{ runner.arch }}
+          path: native-appkit/.build/BlobfishNative-*-macOS-*.zip
+          if-no-files-found: error

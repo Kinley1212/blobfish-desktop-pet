@@ -8,7 +8,7 @@ CONTENTS="$APP/Contents"
 
 rm -rf "$APP"
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources"
-cp "$ROOT/.build/debug/BlobfishNative" "$CONTENTS/MacOS/BlobfishNative"
+cp "$ROOT/.build/release/BlobfishNative" "$CONTENTS/MacOS/BlobfishNative"
 cp "$ROOT/App/Info.plist" "$CONTENTS/Info.plist"
 ditto "$REPOSITORY/src/packs" "$CONTENTS/Resources/packs"
 ditto "$REPOSITORY/integrations" "$CONTENTS/Resources/integrations"

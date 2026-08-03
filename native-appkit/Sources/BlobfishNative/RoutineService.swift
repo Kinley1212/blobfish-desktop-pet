@@ -80,7 +80,13 @@ final class RoutineService {
         let formatter = DateFormatter(); formatter.dateFormat = "yyyy-MM-dd"
         let dateKey = formatter.string(from: now)
         let file = supportDirectory.appendingPathComponent("startup-greeting-state.json")
-        if let data = try? Data(contentsOf: file),
+        var info = stat()
+        let safeState = lstat(file.path, &info) == 0
+            && info.st_mode & S_IFMT == S_IFREG
+            && info.st_uid == getuid()
+            && info.st_mode & 0o077 == 0
+            && info.st_size >= 0 && info.st_size <= 16 * 1024
+        if safeState, let data = try? Data(contentsOf: file),
            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            object["version"] as? Int == 1, object["lastGreetingDate"] as? String == dateKey { return }
         let weekday = Calendar.current.component(.weekday, from: now) - 1

@@ -1,5 +1,28 @@
 import AppKit
 
+enum PetMovementGeometry {
+    static func allowedOrigins(visibleFrame: NSRect, visualBounds: NSRect) -> NSRect? {
+        let width = visibleFrame.width - visualBounds.width
+        let height = visibleFrame.height - visualBounds.height
+        guard width >= 0, height >= 0,
+              visibleFrame.width.isFinite, visibleFrame.height.isFinite,
+              visualBounds.width.isFinite, visualBounds.height.isFinite else { return nil }
+        return NSRect(
+            x: visibleFrame.minX - visualBounds.minX,
+            y: visibleFrame.minY - visualBounds.minY,
+            width: width,
+            height: height
+        )
+    }
+
+    static func clamped(_ origin: NSPoint, to allowed: NSRect) -> NSPoint {
+        NSPoint(
+            x: min(max(origin.x, allowed.minX), allowed.maxX),
+            y: min(max(origin.y, allowed.minY), allowed.maxY)
+        )
+    }
+}
+
 final class PetPanelController {
     let panel: NSPanel
     private let petView: PetView
@@ -7,6 +30,10 @@ final class PetPanelController {
     private var movementDirection: CGFloat = 1
     private var taskWantsMovement = false
     private var hasActiveTasks = false
+    private var movementEnabled = false
+    private var bobPhase: CGFloat = 0
+    private var bobBaselineY: CGFloat?
+    private var lastAutomaticOrigin: NSPoint?
     private var config: AppConfig
     private var speechTimer: Timer?
 
@@ -39,6 +66,7 @@ final class PetPanelController {
         petView.accessorySpec = AppearanceJSON.accessorySpec(in: config, characterID: config.pet.characterPackId)
         petView.customization = config.pet.customization[config.pet.characterPackId]
         centerOnPrimaryScreen()
+        syncMovementTimer()
     }
 
     func show() {
@@ -59,13 +87,17 @@ final class PetPanelController {
         petView.accessoryPacks = runtime.accessories
         petView.accessorySpec = AppearanceJSON.accessorySpec(in: config, characterID: config.pet.characterPackId)
         petView.customization = config.pet.customization[config.pet.characterPackId]
+        bobBaselineY = nil
+        lastAutomaticOrigin = nil
         syncMovementTimer()
     }
 
     func centerOnPrimaryScreen() {
         guard let visibleFrame = NSScreen.main?.visibleFrame else { return }
         let x = visibleFrame.midX - panel.frame.width / 2
-        panel.setFrameOrigin(NSPoint(x: x, y: visibleFrame.minY - 5))
+        panel.setFrameOrigin(NSPoint(x: x, y: visibleFrame.minY - petView.movementBounds.minY))
+        bobBaselineY = nil
+        lastAutomaticOrigin = nil
     }
 
     func stop() {
@@ -115,13 +147,8 @@ final class PetPanelController {
     }
 
     private func syncMovementTimer() {
-        let shouldMove = ((hasActiveTasks && taskWantsMovement && config.pet.roamWhenTasks)
-                || (!hasActiveTasks && config.pet.roamWhenNoTasks))
-        if !shouldMove {
-            movementTimer?.invalidate()
-            movementTimer = nil
-            return
-        }
+        movementEnabled = ((hasActiveTasks && taskWantsMovement && config.pet.roamWhenTasks)
+            || (!hasActiveTasks && config.pet.roamWhenNoTasks))
         guard movementTimer == nil else { return }
         movementTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
             self?.moveOneFrame()
@@ -130,38 +157,50 @@ final class PetPanelController {
     }
 
     private func moveOneFrame() {
-        let center = NSPoint(x: panel.frame.midX, y: panel.frame.midY)
-        let screen = NSScreen.screens.first { $0.frame.contains(center) } ?? NSScreen.main
+        let visualBounds = petView.movementBounds
+        let visualCenter = NSPoint(
+            x: panel.frame.minX + visualBounds.midX,
+            y: panel.frame.minY + visualBounds.midY
+        )
+        let screen = NSScreen.screens.first { $0.frame.contains(visualCenter) } ?? NSScreen.main
         guard let visibleFrame = screen?.visibleFrame else { return }
+        guard let allowed = PetMovementGeometry.allowedOrigins(visibleFrame: visibleFrame, visualBounds: visualBounds) else { return }
         var origin = panel.frame.origin
         let step = CGFloat(config.pet.speed) * 0.84
-        if config.pet.moveAxis == "vertical" {
+        bobPhase += .pi / 13.5
+        if bobPhase >= .pi * 2 { bobPhase -= .pi * 2 }
+        let bob = (sin(bobPhase) + 1) * 2.5
+        let externallyMoved = lastAutomaticOrigin.map {
+            abs(origin.x - $0.x) > 1.5 || abs(origin.y - $0.y) > 1.5
+        } ?? true
+
+        if config.pet.moveAxis == "vertical", movementEnabled {
             origin.y += movementDirection * step
-            let bounds = petView.characterBounds
-            let minimumY = visibleFrame.minY - bounds.minY
-            let maximumY = visibleFrame.maxY - bounds.maxY
-            if origin.y <= minimumY {
-                origin.y = minimumY
+            if origin.y <= allowed.minY {
+                origin.y = allowed.minY
                 movementDirection = 1
-            } else if origin.y >= maximumY {
-                origin.y = maximumY
+            } else if origin.y >= allowed.maxY {
+                origin.y = allowed.maxY
                 movementDirection = -1
             }
+            origin.x = min(max(origin.x, allowed.minX), allowed.maxX)
         } else {
-            origin.x += movementDirection * step
-            let bounds = petView.characterBounds
-            let minimumX = visibleFrame.minX - bounds.minX
-            let maximumX = visibleFrame.maxX - bounds.maxX
-            if origin.x <= minimumX {
-                origin.x = minimumX
-                movementDirection = 1
-            } else if origin.x >= maximumX {
-                origin.x = maximumX
-                movementDirection = -1
+            if movementEnabled, config.pet.moveAxis == "horizontal" {
+                origin.x += movementDirection * step
+                if origin.x <= allowed.minX {
+                    origin.x = allowed.minX
+                    movementDirection = 1
+                } else if origin.x >= allowed.maxX {
+                    origin.x = allowed.maxX
+                    movementDirection = -1
+                }
             }
-            origin.y = visibleFrame.minY - petView.characterBounds.minY
+            if externallyMoved || bobBaselineY == nil { bobBaselineY = origin.y - bob }
+            origin.y = min(max((bobBaselineY ?? origin.y) + bob, allowed.minY), allowed.maxY)
+            origin.x = min(max(origin.x, allowed.minX), allowed.maxX)
         }
         petView.direction = movementDirection
         panel.setFrameOrigin(origin)
+        lastAutomaticOrigin = origin
     }
 }

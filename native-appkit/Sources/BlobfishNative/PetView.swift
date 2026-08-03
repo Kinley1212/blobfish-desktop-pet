@@ -24,6 +24,10 @@ final class PetView: NSView {
         let scaled = NSSize(width: size.width * characterScale, height: size.height * characterScale)
         return NSRect(x: bounds.midX - scaled.width / 2, y: timerText == nil ? 4 : 24, width: scaled.width, height: scaled.height)
     }
+    var movementBounds: NSRect {
+        let art = characterBounds
+        return NSRect(x: art.minX, y: art.minY, width: art.width, height: art.height + Self.bobDistance)
+    }
     var snapshot: TaskSnapshot = .idle {
         didSet {
             syncCarousel(previous: oldValue)
@@ -33,10 +37,13 @@ final class PetView: NSView {
     }
 
     var direction: CGFloat = 1 {
-        didSet { needsDisplay = true }
+        didSet {
+            if oldValue != direction { needsDisplay = true }
+        }
     }
 
     private var blinking = false
+    private static let bobDistance: CGFloat = 5
     private var blinkTimer: Timer?
     private var spinnerTimer: Timer?
     private var spinnerPhase: CGFloat = 0

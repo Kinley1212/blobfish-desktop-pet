@@ -1,6 +1,7 @@
 import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let openSettingsAtLaunch: Bool
     private var runtime: AppRuntime!
     private var panelController: PetPanelController!
     private var settingsController: SettingsWindowController?
@@ -14,10 +15,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pauseItem: NSMenuItem?
     private var previousSnapshot = TaskSnapshot.idle
     private let soundPlayer = SoundPlayer()
+    private let instanceGuard = SingleInstanceGuard()
+
+    init(openSettingsAtLaunch: Bool = false) {
+        self.openSettingsAtLaunch = openSettingsAtLaunch
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         runtime = AppRuntime()
+        guard instanceGuard.acquire(in: runtime.configStore.fileURL.deletingLastPathComponent()) else {
+            NSRunningApplication.runningApplications(withBundleIdentifier: "com.blobfish.desktop-pet.native")
+                .first(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier })?
+                .activate(options: [.activateIgnoringOtherApps])
+            NSApp.terminate(nil)
+            return
+        }
         panelController = PetPanelController(runtime: runtime)
         panelController.onClick = { [weak self] in
             guard let self else { return }
@@ -59,6 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .appendingPathComponent("Library/Application Support/BlobfishDesktopPet/agent-task-leases", isDirectory: true)
         let monitor = TaskMonitor(directoryURL: leaseDirectory)
         monitor.includeTitles = runtime.config.privacy.includeTaskTitles
+        monitor.enabledProviders = enabledProviders()
         monitor.onUpdate = { [weak self] snapshot in
             self?.handleTaskFeedback(snapshot)
             self?.routineService?.hasActiveTasks = snapshot.activeCount > 0
@@ -67,7 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         taskMonitor = monitor
         monitor.start()
-        if CommandLine.arguments.contains("--open-settings") {
+        if openSettingsAtLaunch {
             DispatchQueue.main.async { [weak self] in self?.openSettings() }
         }
     }
@@ -109,6 +124,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let locate = NSMenuItem(title: "把鱼移到屏幕中间", action: #selector(locatePet), keyEquivalent: "")
         locate.target = self
         menu.addItem(locate)
+        let quickTimer = NSMenuItem(title: "快速计时", action: nil, keyEquivalent: "")
+        let quickMenu = NSMenu()
+        for minutes in [10, 25, 45] {
+            let option = NSMenuItem(title: "\(minutes) 分钟", action: #selector(startQuickTimer(_:)), keyEquivalent: "")
+            option.target = self; option.representedObject = minutes; quickMenu.addItem(option)
+        }
+        quickTimer.submenu = quickMenu
+        menu.addItem(quickTimer)
+        let clocks = NSMenuItem(title: "闹钟与计时器…", action: #selector(openClocks), keyEquivalent: "")
+        clocks.target = self; menu.addItem(clocks)
+        let dismiss = NSMenuItem(title: "停止响铃", action: #selector(dismissClockAlerts), keyEquivalent: "")
+        dismiss.target = self; menu.addItem(dismiss)
         menu.addItem(.separator())
 
         let quit = NSMenuItem(title: "退出水滴鱼", action: #selector(quitApplication), keyEquivalent: "q")
@@ -124,9 +151,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .idle:
             taskStatusItem?.title = "没有运行中的任务"
         case .running:
-            taskStatusItem?.title = snapshot.activeCount > 1 ? "正在运行 \(snapshot.activeCount) 个任务" : "任务正在运行"
+            taskStatusItem?.title = snapshot.activeCount > 1
+                ? "正在运行 \(snapshot.activeCount) 个 · \(snapshot.tasks.first?.title ?? "任务")"
+                : "进行中 · \(snapshot.tasks.first?.title ?? "任务")"
         case .waiting:
-            taskStatusItem?.title = "任务正在等你确认"
+            taskStatusItem?.title = "等待确认 · \(snapshot.tasks.first?.title ?? "任务")"
         case .completed:
             taskStatusItem?.title = "任务已完成"
         case .failed:
@@ -258,10 +287,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pauseItem?.state = runtime.config.pet.roamWhenNoTasks ? .on : .off
     }
 
+    private func enabledProviders() -> Set<String> {
+        var providers = Set<String>()
+        if runtime.config.integrations.codex { providers.insert("codex") }
+        if runtime.config.integrations.claudeCode { providers.insert("claude-code") }
+        return providers
+    }
+
     @objc private func locatePet() {
         panelController.centerOnPrimaryScreen()
         panelController.show()
     }
+
+    @objc private func startQuickTimer(_ sender: NSMenuItem) {
+        guard let minutes = sender.representedObject as? Int else { return }
+        do { try clockService?.startTimer(minutes: minutes, label: ""); panelController.say("计时开始了。") }
+        catch { panelController.say("计时器没能开始。") }
+    }
+
+    @objc private func dismissClockAlerts() { try? clockService?.dismissAlerts() }
+
+    @objc private func openClocks() { openSettings(); settingsController?.select(.clocks) }
 
     @objc private func openSettings() {
         if settingsController == nil {
@@ -269,6 +315,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self else { return }
                 self.panelController.apply(runtime: self.runtime)
                 self.taskMonitor?.includeTitles = self.runtime.config.privacy.includeTaskTitles
+                self.taskMonitor?.enabledProviders = self.enabledProviders()
                 self.clockService?.workdays = self.runtime.config.schedule.workdays
                 self.syncMovementMenu()
                 self.performanceMonitor?.memoryLimitMB = self.runtime.config.performance.memoryLimitMb

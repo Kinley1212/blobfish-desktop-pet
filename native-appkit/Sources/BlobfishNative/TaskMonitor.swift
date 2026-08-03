@@ -3,6 +3,7 @@ import Foundation
 final class TaskMonitor {
     var onUpdate: ((TaskSnapshot) -> Void)?
     var includeTitles = true
+    var enabledProviders = Set(["codex", "claude-code"])
 
     private let reader: TaskLeaseReader
     private let queue = DispatchQueue(label: "com.blobfish.native.task-monitor", qos: .utility)
@@ -35,8 +36,9 @@ final class TaskMonitor {
             let now = Date().timeIntervalSince1970 * 1_000
             let snapshot: TaskSnapshot
             do {
+                let leases = try self.reader.read(nowMilliseconds: now).filter { self.enabledProviders.contains($0.provider) }
                 snapshot = TaskSnapshot.build(
-                    from: try self.reader.read(nowMilliseconds: now),
+                    from: leases,
                     nowMilliseconds: now,
                     includeTitles: self.includeTitles
                 )

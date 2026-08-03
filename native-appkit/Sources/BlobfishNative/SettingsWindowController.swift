@@ -16,6 +16,9 @@ final class SettingsViewModel: ObservableObject {
     @Published var alarmDate = Date().addingTimeInterval(24 * 60 * 60)
     @Published var integrationStatuses: [String: IntegrationStatus] = [:]
     @Published var integrationBusy = Set<String>()
+    @Published var updateStatus = ""
+    @Published var updateProgress: Double?
+    @Published var updateAvailable = false
 
     let runtime: AppRuntime
     let characters: [CharacterPack]
@@ -23,6 +26,8 @@ final class SettingsViewModel: ObservableObject {
     let accessories: [AccessoryPack]
     let clockService: ClockService?
     let integrationManager: IntegrationManager
+    let updater = NativeUpdater()
+    private var availableUpdate: (NativeUpdateManifest, NativeUpdateManifest.Asset)?
     private let onApply: () -> Void
 
     init(runtime: AppRuntime, clockService: ClockService?, onApply: @escaping () -> Void) {
@@ -62,6 +67,50 @@ final class SettingsViewModel: ObservableObject {
                     : (self.isEnglish ? "Installed. Restart Claude Code and continue a task." : "已安装。重新打开 Claude Code，然后继续一次任务。")
             case .failure(let error):
                 self.message = (self.isEnglish ? "Connection failed: " : "连接失败：") + error.localizedDescription
+            }
+        }
+    }
+
+    func checkUpdate() {
+        updateStatus = isEnglish ? "Checking the native release channel…" : "正在检查原生版更新…"
+        updateProgress = 0
+        updater.check { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(.upToDate(let version)):
+                self.availableUpdate = nil; self.updateProgress = nil
+                self.updateAvailable = false
+                self.updateStatus = self.isEnglish ? "Native v\(version) is up to date." : "原生版 v\(version) 已是最新。"
+            case .success(.available(let manifest, let asset)):
+                self.availableUpdate = (manifest, asset); self.updateProgress = nil
+                self.updateAvailable = true
+                self.updateStatus = self.isEnglish ? "Native v\(manifest.version) is ready." : "发现原生版 v\(manifest.version)，可以安装。"
+            case .failure(let error):
+                self.availableUpdate = nil; self.updateProgress = nil
+                self.updateAvailable = false
+                self.updateStatus = error.localizedDescription
+            }
+        }
+    }
+
+    func installUpdate() {
+        guard let update = availableUpdate else { return }
+        updateProgress = 0.05
+        updateStatus = isEnglish ? "Downloading and verifying…" : "正在下载并校验…"
+        updater.install(manifest: update.0, asset: update.1, progress: { [weak self] value in
+            self?.updateProgress = value
+        }) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let url):
+                self.updateStatus = self.isEnglish ? "Installed. Restarting…" : "安装完成，正在重新打开…"
+                self.updater.relaunch(at: url) { error in
+                    DispatchQueue.main.async {
+                        if let error { self.updateStatus = (self.isEnglish ? "Could not restart: " : "无法重新打开：") + error.localizedDescription }
+                        else { NSApp.terminate(nil) }
+                    }
+                }
+            case .failure(let error): self.updateProgress = nil; self.updateStatus = error.localizedDescription
             }
         }
     }
@@ -175,6 +224,27 @@ final class SettingsViewModel: ObservableObject {
         if root["equipped"] == nil { root["equipped"] = .object([:]) }
         draft.pet.accessories[character] = .object(root)
     }
+
+    func selectCharacter(_ id: String) {
+        draft.pet.characterPackId = id
+        let compatible = languages.filter { isLanguage($0, compatibleWith: id) }
+        if !compatible.contains(where: { $0.id == draft.language.packId }) {
+            draft.language.packId = characters.first(where: { $0.id == id })?.manifest.defaultLanguagePack
+                ?? compatible.first?.id
+                ?? AppConfig.defaults.language.packId
+        }
+    }
+
+    var compatibleLanguages: [LanguagePack] {
+        languages.filter { isLanguage($0, compatibleWith: draft.pet.characterPackId) }
+    }
+
+    private func isLanguage(_ language: LanguagePack, compatibleWith characterID: String) -> Bool {
+        if let ids = language.manifest.characterPackIds { return ids.contains(characterID) }
+        return characterID == "grass-buddy"
+            ? language.id.hasPrefix("grass-buddy-")
+            : language.id.hasPrefix("blobfish-")
+    }
 }
 
 enum SettingsSection: String, CaseIterable, Identifiable {
@@ -182,24 +252,18 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-struct NativeSettingsView: View {
+struct BrandedSettingsView: View {
     @ObservedObject var model: SettingsViewModel
 
     var body: some View {
-        NavigationView {
-            List(selection: $model.selectedSection) {
-                sidebar(.character, "person.crop.circle", zh: "角色与动作", en: "Character & Motion")
-                sidebar(.schedule, "clock", zh: "问候与作息", en: "Schedule & Greetings")
-                sidebar(.language, "quote.bubble", zh: "台词", en: "Dialogue")
-                sidebar(.connection, "link", zh: "连接与隐私", en: "Connections & Privacy")
-                sidebar(.clocks, "timer", zh: "闹钟与计时器", en: "Alarms & Timers")
-                sidebar(.performance, "gauge.with.dots.needle.33percent", zh: "性能与更新", en: "Performance & Updates")
-            }
-            .listStyle(.sidebar)
-            .frame(minWidth: 210)
-
+        HStack(spacing: 0) {
+            brandedSidebar
             VStack(spacing: 0) {
-                ScrollView { section.padding(30).frame(maxWidth: 760, alignment: .leading) }
+                if model.selectedSection == .character {
+                    characterWorkspace
+                } else {
+                    ScrollView { section.padding(30).frame(maxWidth: 760, alignment: .leading) }
+                }
                 Divider()
                 HStack {
                     Text(model.message).font(.caption).foregroundStyle(.secondary).lineLimit(2)
@@ -209,15 +273,71 @@ struct NativeSettingsView: View {
                         .keyboardShortcut(.defaultAction)
                 }
                 .padding(16)
+                .background(Color.white.opacity(0.74))
             }
             .frame(minWidth: 650, minHeight: 620)
         }
-        .frame(width: 920, height: 680)
+        .frame(minWidth: 920, minHeight: 680)
+        .background(
+            LinearGradient(
+                colors: [Color(red: 0.95, green: 0.98, blue: 0.97), Color(red: 0.98, green: 0.97, blue: 0.95)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+    }
+
+    private var brandedSidebar: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("DESKTOP PET").font(.caption.weight(.bold)).tracking(2.2).foregroundStyle(Color(red: 0.28, green: 0.48, blue: 0.47))
+                Text(currentCharacter?.manifest.displayName ?? t("水滴鱼", "Blobfish"))
+                    .font(.system(size: 25, weight: .bold, design: .rounded))
+                Text(t("陪你工作，也记得喘口气。", "A quiet companion for focused work."))
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.bottom, 18)
+
+            sidebarButton(.character, "person.crop.circle", zh: "角色与动作", en: "Character & Motion")
+            sidebarButton(.schedule, "clock", zh: "问候与作息", en: "Schedule & Greetings")
+            sidebarButton(.language, "quote.bubble", zh: "台词", en: "Dialogue")
+            sidebarButton(.connection, "link", zh: "连接与隐私", en: "Connections & Privacy")
+            sidebarButton(.clocks, "timer", zh: "闹钟与计时器", en: "Alarms & Timers")
+            sidebarButton(.performance, "gauge.with.dots.needle.33percent", zh: "性能与更新", en: "Performance & Updates")
+            Spacer()
+            Text("NATIVE PREVIEW · " + model.updater.currentVersion)
+                .font(.caption2.monospaced()).foregroundStyle(.tertiary)
+        }
+        .padding(24)
+        .frame(width: 235)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .background(Color.white.opacity(0.58))
+        .overlay(alignment: .trailing) { Divider() }
+    }
+
+    private func sidebarButton(_ section: SettingsSection, _ icon: String, zh: String, en: String) -> some View {
+        Button {
+            model.selectedSection = section
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon).frame(width: 22)
+                Text(t(zh, en)).fontWeight(.semibold)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 50)
+            .foregroundStyle(model.selectedSection == section ? Color.white : Color.primary.opacity(0.72))
+            .background(
+                RoundedRectangle(cornerRadius: 15)
+                    .fill(model.selectedSection == section ? Color(red: 0.28, green: 0.48, blue: 0.47) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder private var section: some View {
         switch model.selectedSection {
-        case .character: characterSection
+        case .character: EmptyView()
         case .schedule: scheduleSection
         case .language: languageSection
         case .connection: connectionSection
@@ -226,51 +346,110 @@ struct NativeSettingsView: View {
         }
     }
 
-    private var characterSection: some View {
-        SettingsPage(title: t("角色与动作", "Character & Motion"), subtitle: t("选择形象并决定它什么时候、怎样移动。", "Choose the character and when it should move.")) {
-            SettingsCard {
-                Picker(t("角色", "Character"), selection: $model.draft.pet.characterPackId) {
+    private var currentCharacter: CharacterPack? {
+        model.characters.first { $0.id == model.draft.pet.characterPackId }
+    }
+
+    private var characterWorkspace: some View {
+        HStack(alignment: .top, spacing: 22) {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(t("角色与动作", "Character & Motion"))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                Text(t("左边实时看效果，右边慢慢捏。", "Preview on the left while you tune on the right."))
+                    .foregroundStyle(.secondary)
+
+                VStack(spacing: 8) {
+                    PetAppearancePreview(
+                        character: currentCharacter,
+                        scale: model.draft.pet.scale,
+                        accessories: model.accessories,
+                        accessorySpec: AppearanceJSON.accessorySpec(
+                            in: model.draft,
+                            characterID: model.draft.pet.characterPackId
+                        ),
+                        customization: model.draft.pet.customization[model.draft.pet.characterPackId]
+                    )
+                    .frame(width: 280, height: 180)
+                    Text(currentCharacter?.manifest.displayName ?? t("角色预览", "Character preview"))
+                        .font(.headline)
+                    Text(t("拖动滑杆会立即反映在这里", "Changes appear here immediately"))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .padding(14)
+                .background(Color.white.opacity(0.86), in: RoundedRectangle(cornerRadius: 22))
+                .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.black.opacity(0.07)))
+
+                Picker(t("角色", "Character"), selection: Binding(
+                    get: { model.draft.pet.characterPackId },
+                    set: { model.selectCharacter($0) }
+                )) {
                     ForEach(model.characters) { Text($0.manifest.displayName).tag($0.id) }
                 }
-                LabeledContent(t("大小", "Size")) {
-                    Slider(value: $model.draft.pet.scale, in: 0.65...1.5, step: 0.05)
-                    Text(model.draft.pet.scale.formatted(.number.precision(.fractionLength(2)))).monospacedDigit()
-                }
-                LabeledContent(t("游动速度", "Movement speed")) {
-                    Slider(value: $model.draft.pet.speed, in: 0.25...4, step: 0.25)
-                    Text(model.draft.pet.speed.formatted(.number.precision(.fractionLength(2)))).monospacedDigit()
-                }
-                Picker(t("游动方向", "Movement axis"), selection: $model.draft.pet.moveAxis) {
-                    Text(t("左右", "Horizontal")).tag("horizontal")
-                    Text(t("上下", "Vertical")).tag("vertical")
-                }.pickerStyle(.segmented)
-                Toggle(t("有任务时游动", "Move while tasks are active"), isOn: $model.draft.pet.roamWhenTasks)
-                Toggle(t("没有任务时也游动", "Move while idle"), isOn: $model.draft.pet.roamWhenNoTasks)
-            }
-            SettingsCard {
-                Text(t("捏鱼 / 捏草与饰品", "Character editor & accessories")).font(.headline)
-                diyEditor
-            }
-            SettingsCard {
-                Text(t("饰品", "Accessories")).font(.headline)
-                ForEach(["face", "hat", "eyewear", "hand"], id: \.self) { slot in
-                    Picker(slotName(slot), selection: accessoryBinding(slot: slot)) {
-                        Text(t("不使用", "None")).tag("")
-                        ForEach(model.accessories.filter { $0.manifest.slot == slot }) { accessory in
-                            Text(accessory.manifest.displayName).tag(accessory.id)
-                        }
+                .pickerStyle(.menu)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(t("大小", "Size")).font(.subheadline.weight(.semibold))
+                    HStack {
+                        Slider(value: $model.draft.pet.scale, in: 0.65...1.5, step: 0.05)
+                        Text(model.draft.pet.scale.formatted(.number.precision(.fractionLength(2)))).monospacedDigit()
                     }
-                    if let id = AppearanceJSON.accessorySpec(
-                        in: model.draft,
-                        characterID: model.draft.pet.characterPackId
-                    ).equipped[slot], slot != "face" {
-                        accessoryTuningEditor(id: id)
+                    Text(t("游动速度", "Movement speed")).font(.subheadline.weight(.semibold))
+                    HStack {
+                        Slider(value: $model.draft.pet.speed, in: 0.25...4, step: 0.25)
+                        Text(model.draft.pet.speed.formatted(.number.precision(.fractionLength(2)))).monospacedDigit()
+                    }
+                    Picker(t("游动方向", "Movement axis"), selection: $model.draft.pet.moveAxis) {
+                        Text(t("左右", "Horizontal")).tag("horizontal")
+                        Text(t("上下", "Vertical")).tag("vertical")
+                    }.pickerStyle(.segmented)
+                    Toggle(t("有任务时游动", "Move while tasks are active"), isOn: $model.draft.pet.roamWhenTasks)
+                    Toggle(t("没有任务时也游动", "Move while idle"), isOn: $model.draft.pet.roamWhenNoTasks)
+                }
+                .padding(16)
+                .background(Color.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 18))
+            }
+            .frame(width: 320, alignment: .topLeading)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    SettingsCard {
+                        Text(currentCharacter?.id == "grass-buddy" ? t("捏草", "Shape the grass") : t("捏鱼", "Shape the fish"))
+                            .font(.title3.weight(.bold))
+                        Text(t("形状、五官和手脚会同步出现在左侧预览。", "Shape, face and limbs update in the live preview."))
+                            .font(.callout).foregroundStyle(.secondary)
+                        diyEditor
+                    }
+                    SettingsCard {
+                        Text(t("饰品", "Accessories")).font(.title3.weight(.bold))
+                        accessoryEditors
                     }
                 }
-                Divider()
-                Text(t("闹钟位置", "Alarm clock position")).font(.subheadline.weight(.semibold))
-                accessoryTuningEditor(id: "alarm-clock")
+                .padding(.trailing, 4)
             }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(28)
+    }
+
+    private var accessoryEditors: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(["face", "hat", "eyewear", "hand"], id: \.self) { slot in
+                Picker(slotName(slot), selection: accessoryBinding(slot: slot)) {
+                    Text(t("不使用", "None")).tag("")
+                    ForEach(model.accessories.filter { $0.manifest.slot == slot }) { accessory in
+                        Text(accessory.manifest.displayName).tag(accessory.id)
+                    }
+                }
+                if let id = AppearanceJSON.accessorySpec(
+                    in: model.draft,
+                    characterID: model.draft.pet.characterPackId
+                ).equipped[slot], slot != "face" {
+                    accessoryTuningEditor(id: id)
+                }
+            }
+            Divider()
+            Text(t("闹钟位置", "Alarm clock position")).font(.subheadline.weight(.semibold))
+            accessoryTuningEditor(id: "alarm-clock")
         }
     }
 
@@ -389,7 +568,7 @@ struct NativeSettingsView: View {
                     Text("简体中文").tag("zh-CN"); Text("English").tag("en")
                 }
                 Picker(t("语言包", "Dialogue pack"), selection: $model.draft.language.packId) {
-                    ForEach(model.languages) { Text($0.manifest.displayName).tag($0.id) }
+                    ForEach(model.compatibleLanguages) { Text($0.manifest.displayName).tag($0.id) }
                 }
                 Toggle(t("闲聊", "Idle chatter"), isOn: $model.draft.language.idleEnabled)
                 Toggle(t("罕见台词", "Rare lines"), isOn: $model.draft.language.rareEnabled)
@@ -529,12 +708,18 @@ struct NativeSettingsView: View {
             SettingsCard {
                 Text(t("原生版分支", "Native branch")).font(.headline)
                 Text("codex/native-appkit-prototype").font(.system(.body, design: .monospaced)).textSelection(.enabled)
+                Text(t("当前原生版本：v\(model.updater.currentVersion) · 功能基线：Electron 1.4.5", "Native version: v\(model.updater.currentVersion) · Feature baseline: Electron 1.4.5"))
+                    .foregroundStyle(.secondary)
+                if !model.updateStatus.isEmpty { Text(model.updateStatus).font(.callout) }
+                if let value = model.updateProgress { ProgressView(value: value) }
+                HStack {
+                    Button(t("检查原生版更新", "Check native updates")) { model.checkUpdate() }
+                    if model.updateAvailable { Button(t("下载并安装", "Download and install")) { model.installUpdate() } }
+                }
+                Text(t("全程在应用内完成，不会打开终端；只接受原生渠道、匹配芯片且通过 SHA-256 与应用身份校验的安装包。", "Runs entirely in-app with no Terminal; only native-channel packages matching the Mac architecture, SHA-256 digest and app identity are accepted."))
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
-    }
-
-    private func sidebar(_ section: SettingsSection, _ icon: String, zh: String, en: String) -> some View {
-        Label(t(zh, en), systemImage: icon).tag(section)
     }
 
     private func t(_ zh: String, _ en: String) -> String { model.isEnglish ? en : zh }
@@ -565,17 +750,22 @@ struct SettingsCard<Content: View>: View {
 }
 
 final class SettingsWindowController: NSWindowController {
+    private let viewModel: SettingsViewModel
     init(runtime: AppRuntime, clockService: ClockService?, onApply: @escaping () -> Void) {
         let viewModel = SettingsViewModel(runtime: runtime, clockService: clockService, onApply: onApply)
-        let hosting = NSHostingController(rootView: NativeSettingsView(model: viewModel))
+        self.viewModel = viewModel
+        let hosting = NSHostingController(rootView: BrandedSettingsView(model: viewModel))
         let window = NSWindow(contentViewController: hosting)
         window.title = "水滴鱼"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 920, height: 680))
+        window.setContentSize(NSSize(width: 1_100, height: 760))
+        window.minSize = NSSize(width: 920, height: 680)
         window.center()
         super.init(window: window)
         shouldCascadeWindows = true
     }
+
+    func select(_ section: SettingsSection) { viewModel.selectedSection = section }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }

@@ -217,7 +217,8 @@ final class ClockService {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
         var info = stat()
         guard lstat(fileURL.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG,
-              info.st_uid == getuid(), info.st_size <= 1024 * 1024 else { return nil }
+              info.st_uid == getuid(), info.st_mode & 0o077 == 0,
+              info.st_size >= 0, info.st_size <= 1024 * 1024 else { return nil }
         return try? JSONDecoder().decode(ClockState.self, from: Data(contentsOf: fileURL))
     }
 
