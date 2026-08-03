@@ -27,6 +27,7 @@ enum SelfCheck {
             ("expressions stay below independent eyewear", expressionsStayBelowIndependentEyewear),
             ("pet reaction geometry", petReactionGeometry),
             ("task carousel geometry", taskCarouselGeometry),
+            ("continuous task spinner timeline", continuousTaskSpinnerTimeline),
             ("speech priority and mood restore", speechPriorityAndMoodRestore),
         ]
         var passed = 0
@@ -401,6 +402,16 @@ enum SelfCheck {
             && middle > early
             && middle < 1
             && end == 1
+    }
+
+    private static func continuousTaskSpinnerTimeline() -> Bool {
+        let started = TaskSpinnerTimeline.start(current: nil, hasRunningTask: true, now: 10)
+        let preserved = TaskSpinnerTimeline.start(current: started, hasRunningTask: true, now: 11)
+        let stopped = TaskSpinnerTimeline.start(current: preserved, hasRunningTask: false, now: 12)
+        guard started == 10, preserved == 10, stopped == nil else { return false }
+        return abs(TaskSpinnerTimeline.angle(start: 10, now: 10) - 90) < 0.001
+            && abs(TaskSpinnerTimeline.angle(start: 10, now: 10.2)) < 0.001
+            && abs(TaskSpinnerTimeline.angle(start: 10, now: 10.8) - 90) < 0.001
     }
 
     private static func unclippedCSSMatchedPetShadow() -> Bool {

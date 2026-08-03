@@ -155,6 +155,25 @@ enum TaskCarouselGeometry {
     }
 }
 
+enum TaskSpinnerTimeline {
+    static let revolutionDuration: TimeInterval = 0.8
+
+    static func start(
+        current: TimeInterval?,
+        hasRunningTask: Bool,
+        now: TimeInterval
+    ) -> TimeInterval? {
+        guard hasRunningTask else { return nil }
+        return current ?? now
+    }
+
+    static func angle(start: TimeInterval, now: TimeInterval) -> CGFloat {
+        let elapsed = max(0, now - start)
+        let phase = elapsed.truncatingRemainder(dividingBy: revolutionDuration) / revolutionDuration
+        return 90 - CGFloat(phase * 360)
+    }
+}
+
 final class PetView: NSView, CALayerDelegate {
     var onClick: (() -> Void)?
     var onDragStart: (() -> Void)?
@@ -1195,9 +1214,12 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func syncSpinner() {
-        spinnerStartedAt = snapshot.tasks.contains(where: { $0.state == .running })
-            ? ProcessInfo.processInfo.systemUptime
-            : nil
+        spinnerStartedAt = TaskSpinnerTimeline.start(
+            current: spinnerStartedAt,
+            hasRunningTask: snapshot.tasks.contains(where: { $0.state == .running }),
+            now: ProcessInfo.processInfo.systemUptime
+        )
+        if spinnerStartedAt == nil { spinnerPhase = 90 }
         syncAnimationDisplayLink()
     }
 
@@ -1250,8 +1272,7 @@ final class PetView: NSView, CALayerDelegate {
     private func advanceDisplayAnimations(uptime: TimeInterval) {
         var changed = false
         if let spinnerStartedAt {
-            let phase = (uptime - spinnerStartedAt).truncatingRemainder(dividingBy: 0.8) / 0.8
-            spinnerPhase = 90 - CGFloat(phase * 360)
+            spinnerPhase = TaskSpinnerTimeline.angle(start: spinnerStartedAt, now: uptime)
             changed = true
         }
         if let carouselStartedAt {
