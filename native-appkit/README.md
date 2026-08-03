@@ -18,11 +18,12 @@
 
 ```bash
 cd native-appkit
-swift test
-swift run BlobfishNative
+make build
+make test
+make run
 ```
 
-当前开发机器的 Command Line Tools 存在系统级版本不匹配：Swift 编译器为 6.3.3，而 SDK 由 6.3.2 生成，因此 `swift build` 在读取 SDK 时失败，尚未进入本项目源码的类型检查。安装匹配版本的 Xcode / Command Line Tools 后，需要重新执行上面的 `swift test` 和 `swift run` 才能把原型视为构建验证通过。
+`Makefile` 会在当前开发机器上选择可用的 macOS 15.4 SDK，并把模块缓存限制在项目的 `.build/` 内；其他机器会使用 `xcrun` 返回的默认 SDK。GitHub Actions 会重复执行构建和自检。`--self-test` 不依赖缺失的 XCTest 模块，但会执行真实文件系统安全检查。
 
 ## 目前没有做
 

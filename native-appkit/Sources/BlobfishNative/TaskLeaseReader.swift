@@ -14,7 +14,7 @@ struct TaskLeaseReader {
 
     func read(nowMilliseconds: Double = Date().timeIntervalSince1970 * 1_000) throws -> [TaskLease] {
         guard FileManager.default.fileExists(atPath: directoryURL.path) else { return [] }
-        let directoryInfo = try metadata(atPath: directoryURL.path, followLinks: false)
+        let directoryInfo = try metadata(atPath: directoryURL.path)
         guard isType(directoryInfo.st_mode, S_IFDIR),
               directoryInfo.st_uid == getuid(),
               directoryInfo.st_mode & 0o077 == 0 else {
@@ -113,9 +113,9 @@ struct TaskLeaseReader {
         return nowMilliseconds - lease.timestamp <= maximumAge
     }
 
-    private func metadata(atPath path: String, followLinks: Bool) throws -> stat {
+    private func metadata(atPath path: String) throws -> stat {
         var info = stat()
-        let result = followLinks ? Darwin.stat(path, &info) : Darwin.lstat(path, &info)
+        let result = Darwin.lstat(path, &info)
         guard result == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
         return info
     }
@@ -128,8 +128,8 @@ struct TaskLeaseReader {
             && left.st_mtimespec.tv_nsec == right.st_mtimespec.tv_nsec
     }
 
-    private func isType(_ mode: mode_t, _ type: Int32) -> Bool {
-        mode & mode_t(S_IFMT) == mode_t(type)
+    private func isType(_ mode: mode_t, _ type: mode_t) -> Bool {
+        mode & S_IFMT == type
     }
 
     private func isLeaseName(_ name: String) -> Bool {

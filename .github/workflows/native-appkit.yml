@@ -1,0 +1,30 @@
+name: Native AppKit
+
+on:
+  push:
+    branches:
+      - codex/native-appkit-prototype
+    paths:
+      - "native-appkit/**"
+      - ".github/workflows/native-appkit.yml"
+  pull_request:
+    paths:
+      - "native-appkit/**"
+      - ".github/workflows/native-appkit.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-check:
+    runs-on: macos-15
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: native-appkit
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build native pet
+        run: make build
+      - name: Run native self-checks
+        run: make test

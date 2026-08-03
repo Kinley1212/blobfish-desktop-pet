@@ -12,9 +12,5 @@ let package = Package(
             name: "BlobfishNative",
             linkerSettings: [.linkedFramework("AppKit")]
         ),
-        .testTarget(
-            name: "BlobfishNativeTests",
-            dependencies: ["BlobfishNative"]
-        ),
     ]
 )
