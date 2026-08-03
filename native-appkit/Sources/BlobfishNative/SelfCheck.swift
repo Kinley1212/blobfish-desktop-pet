@@ -23,6 +23,7 @@ enum SelfCheck {
             ("display-paced pet motion", displayPacedPetMotion),
             ("pet reaction geometry", petReactionGeometry),
             ("task carousel geometry", taskCarouselGeometry),
+            ("speech priority and mood restore", speechPriorityAndMoodRestore),
         ]
         var passed = 0
         for (name, check) in checks {
@@ -369,6 +370,41 @@ enum SelfCheck {
             && midpoint.downwardOffset == 5
             && abs(midpoint.opacity - 0.91) < 0.0001
             && TaskCarouselGeometry.visibleIndices(total: 0, frontIndex: 0).isEmpty
+    }
+
+    private static func speechPriorityAndMoodRestore() -> Bool {
+        var delivered: [String] = []
+        var idleCount = 0
+        let queue = SpeechQueue(
+            deliver: { delivered.append($0.text) },
+            onIdle: { idleCount += 1 }
+        )
+        queue.enqueue(text: "idle", event: "idle.chatter", priority: 10, duration: 60, replaceKey: "idle")
+        queue.enqueue(text: "agent", event: "agent.started", priority: 60, duration: 60, replaceKey: "agent")
+        queue.enqueue(text: "click", event: "interaction.click", priority: 30, duration: 60, replaceKey: "click")
+        queue.enqueue(text: "schedule", event: "schedule.offWork", priority: 40, duration: 60, replaceKey: "schedule")
+        queue.enqueue(text: "agent-new", event: "agent.completed", priority: 60, duration: 60, replaceKey: "agent")
+        guard delivered == ["idle", "agent", "agent-new"],
+              queue.pending.map(\.text) == ["schedule", "click"] else {
+            queue.clear()
+            return false
+        }
+        queue.finishCurrent()
+        let completedFace = ExpressionMoodSelector.pick(
+            event: "agent.completed",
+            available: ["face-happy"],
+            random: { 0 }
+        )
+        let missingFace = ExpressionMoodSelector.pick(
+            event: "agent.completed",
+            available: [],
+            random: { 0 }
+        )
+        queue.clear()
+        return delivered == ["idle", "agent", "agent-new", "schedule"]
+            && idleCount == 1
+            && completedFace == "face-happy"
+            && missingFace == nil
     }
 
     private static func withPrivateDirectory(_ body: (URL) throws -> Bool) throws -> Bool {

@@ -193,6 +193,7 @@ final class PetView: NSView {
     private var clockShakePhase: CGFloat = 0
     private var blushLevel = 0
     private var blushTimer: Timer?
+    private var moodFaceID: String?
     private var mouseDownScreenPoint: NSPoint?
     private var lastDragScreenPoint: NSPoint?
     private var dragDistance: CGFloat = 0
@@ -292,6 +293,13 @@ final class PetView: NSView {
         RunLoop.main.add(blushTimer!, forMode: .common)
     }
 
+    func setMoodFace(_ id: String?) {
+        guard moodFaceID != id else { return }
+        moodFaceID = id
+        rebuildAccessoryImages()
+        rebuildCharacterImage()
+    }
+
     private func drawCharacter() {
         NSGraphicsContext.saveGraphicsState()
         let bobTransform = NSAffineTransform()
@@ -347,7 +355,9 @@ final class PetView: NSView {
 
     private func rebuildAccessoryImages() {
         let byID = Dictionary(uniqueKeysWithValues: accessoryPacks.map { ($0.id, $0) })
-        var ids = Array(accessorySpec.equipped.values)
+        var equipped = accessorySpec.equipped
+        if let moodFaceID { equipped["face"] = moodFaceID }
+        var ids = Array(equipped.values)
         if alarmClockVisible, !ids.contains("alarm-clock") { ids.append("alarm-clock") }
         accessoryImages = ids.compactMap { id in
             guard let pack = byID[id], let image = NSImage(contentsOf: pack.artURL) else { return nil }
@@ -357,7 +367,7 @@ final class PetView: NSView {
     }
 
     private func rebuildCharacterImage() {
-        let faceID = accessorySpec.equipped["face"]
+        let faceID = moodFaceID ?? accessorySpec.equipped["face"]
         let hidesBaseEyes = accessoryPacks.first {
             $0.id == faceID && $0.manifest.slot == "face"
         }?.manifest.hidesEyes == true

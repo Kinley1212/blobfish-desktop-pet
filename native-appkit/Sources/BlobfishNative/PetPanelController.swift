@@ -53,7 +53,6 @@ final class PetPanelController {
     private let motionStartUptime = ProcessInfo.processInfo.systemUptime
     private var lastAutomaticOrigin: NSPoint?
     private var config: AppConfig
-    private var speechTimer: Timer?
     private var interactionTimer: Timer?
     private var interactionPaused = false
     private var hoverPaused = false
@@ -69,6 +68,19 @@ final class PetPanelController {
         didSet { petView.onClick = onClick }
     }
     var onPetting: ((Int) -> Void)?
+    var moodFaceProvider: ((String) -> String?)?
+    private lazy var speechQueue = SpeechQueue(
+        deliver: { [weak self] message in
+            guard let self else { return }
+            self.petView.transientMessage = message.text
+            self.petView.setMoodFace(message.event.flatMap { self.moodFaceProvider?($0) })
+            self.show()
+        },
+        onIdle: { [weak self] in
+            self?.petView.transientMessage = nil
+            self?.petView.setMoodFace(nil)
+        }
+    )
 
     init(runtime: AppRuntime) {
         config = runtime.config
@@ -146,18 +158,24 @@ final class PetPanelController {
         movementTimer = nil
         interactionTimer?.invalidate()
         interactionTimer = nil
+        speechQueue.clear()
         panel.orderOut(nil)
     }
 
-    func say(_ text: String, duration: TimeInterval = 7) {
-        speechTimer?.invalidate()
-        petView.transientMessage = text
-        show()
-        speechTimer = Timer.scheduledTimer(withTimeInterval: duration, repeats: false) { [weak self] _ in
-            self?.petView.transientMessage = nil
-            self?.speechTimer = nil
-        }
-        RunLoop.main.add(speechTimer!, forMode: .common)
+    func say(
+        _ text: String,
+        event: String? = nil,
+        duration: TimeInterval = 7,
+        priority: Int = 10,
+        replaceKey: String? = nil
+    ) {
+        speechQueue.enqueue(
+            text: text,
+            event: event,
+            priority: priority,
+            duration: duration,
+            replaceKey: replaceKey
+        )
     }
 
     func playEffect(_ state: TaskDisplayState) { petView.playEffect(state) }

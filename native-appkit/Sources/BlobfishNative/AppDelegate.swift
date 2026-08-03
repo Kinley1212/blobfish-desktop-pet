@@ -1,6 +1,15 @@
 import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private enum SpeechPriority {
+        static let idle = 10
+        static let interaction = 30
+        static let schedule = 40
+        static let calendar = 50
+        static let agent = 60
+        static let urgent = 90
+    }
+
     private let openSettingsAtLaunch: Bool
     private var runtime: AppRuntime!
     private var panelController: PetPanelController!
@@ -34,6 +43,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         panelController = PetPanelController(runtime: runtime)
+        panelController.moodFaceProvider = { [weak self] event in
+            guard let self else { return nil }
+            let available = Set(self.runtime.accessories
+                .filter { $0.manifest.slot == "face" }
+                .map(\.id))
+            return ExpressionMoodSelector.pick(event: event, available: available)
+        }
         panelController.onClick = { [weak self] in
             guard let self else { return }
             self.clickCount += 1
@@ -43,7 +59,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     event: "interaction.click",
                     context: ["clickCount": .number(Double(self.clickCount))]
                 ) ?? "……你戳我干嘛。",
-                duration: 0.8
+                event: "interaction.click",
+                duration: 0.8,
+                priority: SpeechPriority.interaction,
+                replaceKey: "interaction.click"
             )
             if self.runtime.config.language.rareEnabled,
                self.clickCount >= 10,
@@ -52,7 +71,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                    event: "rare.tooManyClicks",
                    context: ["clickCount": .number(Double(self.clickCount))]
                ) {
-                self.panelController.say(rare, duration: 4.2)
+                self.panelController.say(
+                    rare,
+                    event: "rare.tooManyClicks",
+                    duration: 4.2,
+                    priority: SpeechPriority.interaction,
+                    replaceKey: "rare.tooManyClicks"
+                )
             }
         }
         panelController.onPetting = { [weak self] streak in
@@ -65,7 +90,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     event: event,
                     context: ["count": .number(Double(streak))]
                 ) {
-                    self.panelController.say(phrase, duration: 2.6)
+                    self.panelController.say(
+                        phrase,
+                        event: event,
+                        duration: 2.6,
+                        priority: SpeechPriority.interaction,
+                        replaceKey: event
+                    )
                     break
                 }
             }
@@ -207,19 +238,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panelController.say(runtime.phrase(
                 event: "agent.needsInput",
                 context: ["activeCount": .number(Double(isActive))]
-            ) ?? "这里要你决定。")
+            ) ?? "这里要你决定。", event: "agent.needsInput", priority: SpeechPriority.urgent, replaceKey: "agent.needsInput")
             panelController.playEffect(.waiting)
         } else if snapshot.state == .failed && previousSnapshot.state != .failed {
             if runtime.config.sound.taskComplete.enabled, !isQuietNow() {
                 soundPlayer.play(id: runtime.config.sound.taskComplete.soundId)
             }
-            panelController.say(runtime.phrase(event: "agent.failed") ?? "这个没弄成。")
+            panelController.say(runtime.phrase(event: "agent.failed") ?? "这个没弄成。", event: "agent.failed", priority: SpeechPriority.urgent, replaceKey: "agent.failed")
             panelController.playEffect(.failed)
         } else if snapshot.state == .completed && previousSnapshot.state != .completed {
             if runtime.config.sound.taskComplete.enabled, !isQuietNow() {
                 soundPlayer.play(id: runtime.config.sound.taskComplete.soundId)
             }
-            panelController.say(runtime.phrase(event: "agent.allCompleted", context: ["remaining": .number(0)]) ?? "都结束了……终于。")
+            panelController.say(runtime.phrase(event: "agent.allCompleted", context: ["remaining": .number(0)]) ?? "都结束了……终于。", event: "agent.allCompleted", priority: SpeechPriority.agent, replaceKey: "agent.allCompleted")
             panelController.playEffect(.completed)
         } else if wasActive > isActive, isActive > 0 {
             if runtime.config.sound.taskComplete.enabled, !isQuietNow() {
@@ -228,13 +259,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panelController.say(runtime.phrase(
                 event: "agent.completed",
                 context: ["remaining": .number(Double(isActive))]
-            ) ?? "这个好了。")
+            ) ?? "这个好了。", event: "agent.completed", priority: SpeechPriority.agent, replaceKey: "agent.completed")
             panelController.playEffect(.completed)
         } else if isActive > wasActive {
             panelController.say(runtime.phrase(
                 event: "agent.started",
                 context: ["activeCount": .number(Double(isActive))]
-            ) ?? "又开始了……我去游。")
+            ) ?? "又开始了……我去游。", event: "agent.started", priority: SpeechPriority.agent, replaceKey: "agent.started")
         }
     }
 
@@ -259,7 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panelController.say(runtime.phrase(
                 event: "clock.alarmRinging",
                 context: alert.label.isEmpty ? [:] : ["label": .string(alert.label)]
-            ) ?? (alert.label.isEmpty ? "闹钟响了。" : "\(alert.label) 到时间了。"))
+            ) ?? (alert.label.isEmpty ? "闹钟响了。" : "\(alert.label) 到时间了。"), event: "clock.alarmRinging", priority: SpeechPriority.urgent, replaceKey: "clock.ringing")
         case .timerDue(let alert):
             if state.preferences.timerSound.enabled,
                state.preferences.allowSoundDuringQuietHours || !isQuietNow() {
@@ -268,7 +299,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panelController.say(runtime.phrase(
                 event: "clock.timerCompleted",
                 context: alert.label.isEmpty ? [:] : ["label": .string(alert.label)]
-            ) ?? "计时结束了。")
+            ) ?? "计时结束了。", event: "clock.timerCompleted", priority: SpeechPriority.urgent, replaceKey: "clock.ringing")
             panelController.playEffect(.completed)
         case .changed(let reason):
             let eventName: String?
@@ -282,7 +313,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case "timer-cancelled": eventName = "clock.timerCancelled"
             default: eventName = nil
             }
-            if let eventName, let phrase = runtime.phrase(event: eventName) { panelController.say(phrase) }
+            if let eventName, let phrase = runtime.phrase(event: eventName) {
+                panelController.say(phrase, event: eventName, priority: SpeechPriority.schedule, replaceKey: "clock.control")
+            }
         }
     }
 
@@ -292,14 +325,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if event.hasPrefix("calendar."), !runtime.config.language.categories.calendar { return }
         if event.hasPrefix("clock."), !runtime.config.language.categories.clock { return }
         guard let phrase = runtime.phrase(event: event, context: context) else { return }
-        panelController.say(phrase, duration: event == "calendar.starting" ? 7 : 5.5)
+        let priority = event.hasPrefix("calendar.") ? SpeechPriority.calendar
+            : event.hasPrefix("system.") ? SpeechPriority.urgent
+            : SpeechPriority.schedule
+        panelController.say(
+            phrase,
+            event: event,
+            duration: event == "calendar.starting" ? 7 : 5.5,
+            priority: priority,
+            replaceKey: event
+        )
     }
 
     private func handleSustainedMemoryLimit() {
         guard previousSnapshot.activeCount == 0,
               settingsController?.window?.isVisible != true,
               clockService?.state.alerts.isEmpty != false else { return }
-        panelController.say(runtime.phrase(event: "system.memoryExit") ?? "内存一直太高。我先沉下去。", duration: 5)
+        panelController.say(runtime.phrase(event: "system.memoryExit") ?? "内存一直太高。我先沉下去。", event: "system.memoryExit", duration: 5, priority: SpeechPriority.urgent, replaceKey: "system.memoryExit")
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
             self?.panelController.animateExit { NSApp.terminate(nil) }
         }
@@ -311,7 +353,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             panelController.apply(runtime: runtime)
             syncMovementMenu()
         } catch {
-            panelController.say("没能改好游动设置。")
+            panelController.say("没能改好游动设置。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
         }
     }
 
@@ -334,8 +376,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func startQuickTimer(_ sender: NSMenuItem) {
         guard let minutes = sender.representedObject as? Int else { return }
-        do { try clockService?.startTimer(minutes: minutes, label: ""); panelController.say("计时开始了。") }
-        catch { panelController.say("计时器没能开始。") }
+        do { try clockService?.startTimer(minutes: minutes, label: ""); panelController.say("计时开始了。", event: "clock.timerStarted", priority: SpeechPriority.schedule, replaceKey: "clock.control") }
+        catch { panelController.say("计时器没能开始。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
     }
 
     @objc private func dismissClockAlerts() { try? clockService?.dismissAlerts() }
@@ -357,7 +399,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.calendarService?.stop()
                 self.calendarService?.start()
                 do { try LoginItemController.sync(enabled: self.runtime.config.startup.launchAtLogin) }
-                catch { self.panelController.say("开机启动设置没有改成功。") }
+                catch { self.panelController.say("开机启动设置没有改成功。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
             }
         }
         settingsController?.showWindow(nil)
@@ -367,7 +409,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quitApplication() {
         let goodbye = runtime.phrase(event: "interaction.goodbye") ?? "好吧，我先沉下去了。"
-        panelController.say(goodbye, duration: 1.2)
+        panelController.say(goodbye, event: "interaction.goodbye", duration: 1.2, priority: SpeechPriority.interaction, replaceKey: "interaction.goodbye")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
             self?.panelController.animateExit { NSApp.terminate(nil) }
         }
