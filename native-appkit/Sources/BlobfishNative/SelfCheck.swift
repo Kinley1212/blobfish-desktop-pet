@@ -30,6 +30,8 @@ enum SelfCheck {
             ("expression respects character viewBox origin", expressionRespectsCharacterViewBoxOrigin),
             ("performance percentages share system capacity", performancePercentagesShareSystemCapacity),
             ("system RAM excludes reclaimable cache", systemRAMExcludesReclaimableCache),
+            ("performance panel stays on canvas", performancePanelStaysOnCanvas),
+            ("performance bars nest and animate", performanceBarsNestAndAnimate),
             ("pet reaction geometry", petReactionGeometry),
             ("task carousel geometry", taskCarouselGeometry),
             ("continuous task spinner timeline", continuousTaskSpinnerTimeline),
@@ -176,6 +178,8 @@ enum SelfCheck {
                 && result.config.schedule.workdays == [1, 5]
                 && result.config.language.categories.clock
                 && result.config.performance.memoryLimitMb == 1024
+                && result.config.performance.panelSide == "left"
+                && result.config.performance.panelVerticalPosition == 0.5
                 && result.config.pet.customization["blobfish-wotou"]?.objectValue?["bodyShape"]?.stringValue == "bun"
         }
     }
@@ -514,11 +518,16 @@ enum SelfCheck {
     }
 
     private static func performancePercentagesShareSystemCapacity() -> Bool {
-        abs(PerformanceMath.processCPUPercent(
+        let cpu = PerformanceMath.processCPUPercent(
             cpuTimeDelta: 0.68,
             elapsed: 2,
             logicalProcessorCount: 8
-        ) - 4.25) < 0.001
+        )
+        let ram = PerformanceMath.appRAMPercent(
+            appMemoryMB: 256,
+            physicalMemory: 16 * 1_024 * 1_024 * 1_024
+        )
+        return abs(cpu - 4.25) < 0.001 && abs(ram - 1.5625) < 0.001
     }
 
     private static func systemRAMExcludesReclaimableCache() -> Bool {
@@ -532,6 +541,33 @@ enum SelfCheck {
             pageSize: 1,
             physicalMemory: 1_000
         ) - 65) < 0.001
+    }
+
+    private static func performancePanelStaysOnCanvas() -> Bool {
+        let canvas = CGRect(x: 0, y: 0, width: 340, height: 300)
+        let lowerLeft = PerformancePanelGeometry.rect(in: canvas, side: "left", verticalPosition: 0)
+        let upperRight = PerformancePanelGeometry.rect(in: canvas, side: "right", verticalPosition: 1)
+        let clamped = PerformancePanelGeometry.rect(in: canvas, side: "left", verticalPosition: 5)
+        return lowerLeft == CGRect(x: 8, y: 8, width: 88, height: 132)
+            && upperRight == CGRect(x: 244, y: 160, width: 88, height: 132)
+            && clamped.maxY == canvas.maxY - PerformancePanelGeometry.margin
+            && canvas.contains(lowerLeft)
+            && canvas.contains(upperRight)
+    }
+
+    private static func performanceBarsNestAndAnimate() -> Bool {
+        let nested = PerformancePanelAnimation.nested(total: 18, app: 34)
+        let start = PerformancePanelAnimation.progress(elapsed: 0, delay: 0)
+        let delayed = PerformancePanelAnimation.progress(elapsed: 0.05, delay: 0.08)
+        let middle = PerformancePanelAnimation.progress(elapsed: 0.30, delay: 0)
+        let end = PerformancePanelAnimation.progress(elapsed: PerformancePanelAnimation.duration, delay: 0.16)
+        return nested.total == 34
+            && nested.app == 34
+            && start == 0
+            && delayed == 0
+            && middle > 0 && middle < 1
+            && end == 1
+            && PerformancePanelAnimation.interpolate(10, 30, progress: 0.5) == 20
     }
 
     private static func petReactionGeometry() -> Bool {

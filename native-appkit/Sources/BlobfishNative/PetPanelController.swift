@@ -209,7 +209,8 @@ final class PetPanelController {
         petView.accessoryPacks = runtime.accessories
         petView.accessorySpec = AppearanceJSON.accessorySpec(in: config, characterID: config.pet.characterPackId)
         petView.customization = config.pet.customization[config.pet.characterPackId]
-        petView.performancePetName = config.ui.locale == "en" ? "Pet" : "水滴鱼"
+        petView.performancePanelSide = config.performance.panelSide
+        petView.performancePanelVerticalPosition = config.performance.panelVerticalPosition
         petView.onDragStart = { [weak self] in self?.beginDrag() }
         petView.onDragMove = { [weak self] dx, dy in self?.dragBy(dx: dx, dy: dy) }
         petView.onDragEnd = { [weak self] vx, vy in self?.endDrag(velocityX: vx, velocityY: vy) }
@@ -240,7 +241,8 @@ final class PetPanelController {
         petView.accessoryPacks = runtime.accessories
         petView.accessorySpec = AppearanceJSON.accessorySpec(in: config, characterID: config.pet.characterPackId)
         petView.customization = config.pet.customization[config.pet.characterPackId]
-        petView.performancePetName = config.ui.locale == "en" ? "Pet" : "水滴鱼"
+        petView.performancePanelSide = config.performance.panelSide
+        petView.performancePanelVerticalPosition = config.performance.panelVerticalPosition
         petView.locale = config.ui.locale
         bobBaselineY = nil
         preciseOrigin = nil

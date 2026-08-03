@@ -752,6 +752,26 @@ struct BrandedSettingsView: View {
         SettingsPage(title: t("性能与更新", "Performance & Updates"), subtitle: t("控制资源显示与内存保护。", "Control resource visibility and memory protection.")) {
             SettingsCard {
                 Toggle(t("显示 CPU / 内存面板", "Show CPU / memory panel"), isOn: $model.draft.performance.panelEnabled)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(t("面板位置", "Panel position")).font(.headline)
+                    Picker("", selection: $model.draft.performance.panelSide) {
+                        Text(t("左侧", "Left")).tag("left")
+                        Text(t("右侧", "Right")).tag("right")
+                    }
+                    .pickerStyle(.segmented)
+                    HStack(spacing: 10) {
+                        Text(t("下", "Bottom")).font(.caption).foregroundStyle(.secondary)
+                        Slider(value: $model.draft.performance.panelVerticalPosition, in: 0...1)
+                        Text(t("上", "Top")).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Text(t(
+                        "浅色显示整机占用，深色显示其中水滴鱼的占用。",
+                        "Light fill shows the Mac total; dark fill shows the pet within it."
+                    ))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .disabled(!model.draft.performance.panelEnabled)
                 Toggle(t("内存持续过高时自动退出", "Quit after sustained high memory"), isOn: $model.draft.performance.autoQuitEnabled)
                 Stepper(t("内存上限：\(Int(model.draft.performance.memoryLimitMb)) MB", "Memory limit: \(Int(model.draft.performance.memoryLimitMb)) MB"), value: $model.draft.performance.memoryLimitMb, in: 800...1536, step: 64)
                 Toggle(t("开机自动打开", "Launch at login"), isOn: $model.draft.startup.launchAtLogin)
