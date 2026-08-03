@@ -28,6 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var launchAtLoginItem: NSMenuItem?
     private var previousSnapshot = TaskSnapshot.idle
     private var clickCount = 0
+    private var chatInviteTimer: Timer?
+    private var chatInviteUntil = Date.distantPast
     private let soundPlayer = SoundPlayer()
     private let instanceGuard = SingleInstanceGuard()
 
@@ -56,6 +58,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         panelController.onClick = { [weak self] in
             guard let self else { return }
+            if Date() < self.chatInviteUntil {
+                self.chatInviteUntil = .distantPast
+                Task { @MainActor in self.openDialogue() }
+                return
+            }
             self.clickCount += 1
             self.panelController.playClickReaction()
             self.panelController.say(
@@ -154,6 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         taskMonitor = monitor
         monitor.start()
+        scheduleChatInvite()
         if openSettingsAtLaunch {
             DispatchQueue.main.async { [weak self] in self?.openSettings() }
         }
@@ -165,6 +173,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         routineService?.stop()
         calendarService?.stop()
         performanceMonitor?.stop()
+        chatInviteTimer?.invalidate()
         panelController.stop()
     }
 
@@ -304,6 +313,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let current = formatter.string(from: Date())
         if quiet.start <= quiet.end { return current >= quiet.start && current < quiet.end }
         return current >= quiet.start || current < quiet.end
+    }
+
+    private func scheduleChatInvite() {
+        chatInviteTimer?.invalidate()
+        let delay = Double.random(in: 25 * 60...55 * 60)
+        chatInviteTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            self.chatInviteTimer = nil
+            defer { self.scheduleChatInvite() }
+            guard self.previousSnapshot.activeCount == 0,
+                  self.settingsController?.window?.isVisible != true,
+                  self.dialogueController?.window?.isVisible != true,
+                  self.clockService?.state.alerts.contains(where: { $0.state == "ringing" }) != true,
+                  !self.isQuietNow(),
+                  Double.random(in: 0..<1) < 0.5 else { return }
+            let lines = self.runtime.config.ui.locale == "en"
+                ? ["…Got a minute?", "Want to talk for a bit?", "Hey… busy?", "I am bored. Talk?"]
+                : ["……有空吗。", "陪我说会儿话？", "喂……在忙吗。", "有点无聊。要不聊聊？"]
+            self.chatInviteUntil = Date().addingTimeInterval(9)
+            self.panelController.say(
+                lines.randomElement()!,
+                event: "interaction.chatInvite",
+                faceID: "face-coy",
+                duration: 9,
+                priority: SpeechPriority.idle,
+                replaceKey: "interaction.chatInvite"
+            )
+        }
+        RunLoop.main.add(chatInviteTimer!, forMode: .common)
     }
 
     private func handleClockEvent(_ event: ClockEvent, state: ClockState) {

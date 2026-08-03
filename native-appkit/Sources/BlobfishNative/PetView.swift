@@ -162,7 +162,12 @@ final class PetView: NSView {
         didSet { rebuildAccessoryImages(); rebuildCharacterImage() }
     }
     var customization: JSONValue? { didSet { rebuildCharacterImage() } }
-    var alarmClockVisible = false { didSet { rebuildAccessoryImages() } }
+    var alarmClockVisible = false {
+        didSet {
+            guard oldValue != alarmClockVisible else { return }
+            startAlarmClockTransition(appearing: alarmClockVisible)
+        }
+    }
     var alarmRinging = false { didSet { syncClockAnimation() } }
     var clockAlert: ClockState.Alert? { didSet { needsDisplay = true } }
     var locale = "zh-CN" { didSet { needsDisplay = true } }
@@ -222,6 +227,10 @@ final class PetView: NSView {
     private var completionAll = false
     private var clockAnimationTimer: Timer?
     private var clockShakePhase: CGFloat = 0
+    private var alarmClockTransitionTimer: Timer?
+    private var alarmClockTransitionPhase: CGFloat?
+    private var alarmClockAppearing = true
+    private var alarmClockRenderVisible = false
     private var blushLevel = 0
     private var blushTimer: Timer?
     private var moodFaceID: String?
@@ -253,6 +262,7 @@ final class PetView: NSView {
         effectTimer?.invalidate()
         completionTimer?.invalidate()
         clockAnimationTimer?.invalidate()
+        alarmClockTransitionTimer?.invalidate()
         blushTimer?.invalidate()
     }
 
@@ -454,7 +464,7 @@ final class PetView: NSView {
         var equipped = accessorySpec.equipped
         if let moodFaceID { equipped["face"] = moodFaceID }
         var ids = Array(equipped.values)
-        if alarmClockVisible, !ids.contains("alarm-clock") { ids.append("alarm-clock") }
+        if alarmClockRenderVisible, !ids.contains("alarm-clock") { ids.append("alarm-clock") }
         accessoryImages = ids.compactMap { id in
             guard let pack = byID[id], let image = NSImage(contentsOf: pack.artURL) else { return nil }
             return (pack, image)
@@ -492,15 +502,81 @@ final class PetView: NSView {
             let targetX = target.minX + (slot.x + tuning.offsetX) * scaleX
             let targetY = target.maxY - (slot.y + tuning.offsetY) * scaleY
             let imageSize = image.size
-            let shake = alarmRinging && pack.id == "alarm-clock" ? sin(clockShakePhase) * 3 : 0
-            let rect = NSRect(
+            let isClock = pack.id == "alarm-clock"
+            let shake = alarmRinging && isClock ? sin(clockShakePhase) * 3 : 0
+            var rect = NSRect(
                 x: targetX - pack.manifest.anchor.x * unitX + shake,
                 y: targetY - (imageSize.height - pack.manifest.anchor.y) * unitY,
                 width: imageSize.width * unitX,
                 height: imageSize.height * unitY
             )
-            image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+            var alpha: CGFloat = 1
+            var rotation: CGFloat = 0
+            if isClock, let phase = alarmClockTransitionPhase {
+                let geometry = alarmClockTransitionGeometry(progress: phase, appearing: alarmClockAppearing)
+                rect = NSRect(
+                    x: rect.midX - rect.width * geometry.scale / 2,
+                    y: rect.midY - rect.height * geometry.scale / 2 + geometry.offsetY,
+                    width: rect.width * geometry.scale,
+                    height: rect.height * geometry.scale
+                )
+                alpha = geometry.opacity
+                rotation = geometry.rotation
+            }
+            NSGraphicsContext.saveGraphicsState()
+            if rotation != 0 {
+                let transform = NSAffineTransform()
+                transform.translateX(by: rect.midX, yBy: rect.midY)
+                transform.rotate(byDegrees: rotation)
+                transform.translateX(by: -rect.midX, yBy: -rect.midY)
+                transform.concat()
+            }
+            image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: alpha)
+            NSGraphicsContext.restoreGraphicsState()
         }
+    }
+
+    private func startAlarmClockTransition(appearing: Bool) {
+        alarmClockTransitionTimer?.invalidate()
+        alarmClockAppearing = appearing
+        alarmClockTransitionPhase = 0
+        if appearing {
+            alarmClockRenderVisible = true
+            rebuildAccessoryImages()
+        }
+        let duration: TimeInterval = appearing ? 0.52 : 0.44
+        let started = Date()
+        alarmClockTransitionTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            self.alarmClockTransitionPhase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
+            if self.alarmClockTransitionPhase == 1 {
+                timer.invalidate()
+                self.alarmClockTransitionTimer = nil
+                self.alarmClockTransitionPhase = nil
+                if !appearing {
+                    self.alarmClockRenderVisible = false
+                    self.rebuildAccessoryImages()
+                }
+            }
+            self.needsDisplay = true
+        }
+        RunLoop.main.add(alarmClockTransitionTimer!, forMode: .common)
+    }
+
+    private func alarmClockTransitionGeometry(
+        progress: CGFloat,
+        appearing: Bool
+    ) -> (scale: CGFloat, opacity: CGFloat, offsetY: CGFloat, rotation: CGFloat) {
+        let value = min(1, max(0, progress))
+        if !appearing {
+            return (1 - 0.38 * value, 1 - value, -9 * value, 8 * value)
+        }
+        if value <= 0.62 {
+            let local = value / 0.62
+            return (0.55 + 0.53 * local, local, -10 + 12 * local, -9 + 12 * local)
+        }
+        let local = (value - 0.62) / 0.38
+        return (1.08 - 0.08 * local, 1, 2 - 2 * local, 3 - 3 * local)
     }
 
     private func drawTimerDisplay() {
