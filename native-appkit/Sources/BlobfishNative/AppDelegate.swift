@@ -55,6 +55,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.panelController.say(rare, duration: 4.2)
             }
         }
+        panelController.onPetting = { [weak self] streak in
+            guard let self else { return }
+            let events = (streak >= 6 ? ["interaction.pettingLots"] : [])
+                + (streak >= 3 ? ["interaction.pettingMore"] : [])
+                + ["interaction.petting"]
+            for event in events {
+                if let phrase = self.runtime.phrase(
+                    event: event,
+                    context: ["count": .number(Double(streak))]
+                ) {
+                    self.panelController.say(phrase, duration: 2.6)
+                    break
+                }
+            }
+        }
         configureStatusMenu()
         panelController.show()
 

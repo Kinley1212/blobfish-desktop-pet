@@ -56,10 +56,19 @@ final class PetPanelController {
     private var speechTimer: Timer?
     private var interactionTimer: Timer?
     private var interactionPaused = false
+    private var hoverPaused = false
+    private var dragging = false
+    private var flingVelocity: CGVector?
+    private var lastPointerX: CGFloat?
+    private var pettingHistory: [(time: TimeInterval, dx: CGFloat)] = []
+    private var pettingCooldownUntil: TimeInterval = 0
+    private var pettingStreak = 0
+    private var lastPettingAt: TimeInterval = 0
 
     var onClick: (() -> Void)? {
         didSet { petView.onClick = onClick }
     }
+    var onPetting: ((Int) -> Void)?
 
     init(runtime: AppRuntime) {
         config = runtime.config
@@ -80,7 +89,7 @@ final class PetPanelController {
         panel.hasShadow = false
         panel.level = .floating
         panel.hidesOnDeactivate = false
-        panel.isMovableByWindowBackground = true
+        panel.isMovableByWindowBackground = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.title = "水滴鱼"
         petView.character = runtime.character
@@ -89,6 +98,9 @@ final class PetPanelController {
         petView.accessorySpec = AppearanceJSON.accessorySpec(in: config, characterID: config.pet.characterPackId)
         petView.customization = config.pet.customization[config.pet.characterPackId]
         petView.performancePetName = config.ui.locale == "en" ? "Pet" : "水滴鱼"
+        petView.onDragStart = { [weak self] in self?.beginDrag() }
+        petView.onDragMove = { [weak self] dx, dy in self?.dragBy(dx: dx, dy: dy) }
+        petView.onDragEnd = { [weak self] vx, vy in self?.endDrag(velocityX: vx, velocityY: vy) }
         centerOnPrimaryScreen()
         syncMovementTimer()
     }
@@ -215,6 +227,7 @@ final class PetPanelController {
         let step = PetMotionTiming.travelDistance(speed: config.pet.speed, elapsed: elapsed)
         let bob = PetMotionTiming.swimOffset(elapsed: uptime - motionStartUptime)
         let actualOrigin = panel.frame.origin
+        updatePointerInteraction()
         let externallyMoved = lastAutomaticOrigin.map {
             abs(actualOrigin.x - $0.x) > 1.5 || abs(actualOrigin.y - $0.y) > 1.5
         } ?? true
@@ -223,9 +236,38 @@ final class PetPanelController {
             bobBaselineY = actualOrigin.y
         }
         var origin = preciseOrigin ?? actualOrigin
-        petView.visualBobOffset = interactionPaused ? 0 : bob
+        petView.visualBobOffset = interactionPaused || dragging ? 0 : bob
 
-        if config.pet.moveAxis == "vertical", movementEnabled, !interactionPaused {
+        if dragging { return }
+        if var velocity = flingVelocity {
+            let intended = NSPoint(x: origin.x + velocity.dx * elapsed, y: origin.y + velocity.dy * elapsed)
+            origin = PetMovementGeometry.clamped(intended, to: allowed)
+            var bounced = false
+            if abs(origin.x - intended.x) > 0.001 {
+                velocity.dx = -velocity.dx * 0.72
+                bounced = true
+            }
+            if abs(origin.y - intended.y) > 0.001 {
+                velocity.dy = -velocity.dy * 0.72
+                bounced = true
+            }
+            if bounced { petView.playBumpEffect() }
+            let decay = pow(0.985, elapsed / 0.03)
+            velocity.dx *= decay
+            velocity.dy *= decay
+            if hypot(velocity.dx, velocity.dy) < 16.67 {
+                flingVelocity = nil
+            } else {
+                flingVelocity = velocity
+            }
+            petView.direction = velocity.dx >= 0 ? 1 : -1
+            panel.setFrameOrigin(origin)
+            preciseOrigin = origin
+            lastAutomaticOrigin = panel.frame.origin
+            return
+        }
+
+        if config.pet.moveAxis == "vertical", movementEnabled, !interactionPaused, !hoverPaused {
             origin.y += movementDirection * step
             if origin.y <= allowed.minY {
                 origin.y = allowed.minY
@@ -238,7 +280,7 @@ final class PetPanelController {
             }
             origin.x = min(max(origin.x, allowed.minX), allowed.maxX)
         } else {
-            if movementEnabled, !interactionPaused, config.pet.moveAxis == "horizontal" {
+            if movementEnabled, !interactionPaused, !hoverPaused, config.pet.moveAxis == "horizontal" {
                 origin.x += movementDirection * step
                 if origin.x <= allowed.minX {
                     origin.x = allowed.minX
@@ -258,5 +300,80 @@ final class PetPanelController {
         panel.setFrameOrigin(origin)
         preciseOrigin = origin
         lastAutomaticOrigin = panel.frame.origin
+    }
+
+    private func beginDrag() {
+        dragging = true
+        hoverPaused = false
+        flingVelocity = nil
+        petView.visualBobOffset = 0
+        preciseOrigin = panel.frame.origin
+        lastAutomaticOrigin = panel.frame.origin
+    }
+
+    private func dragBy(dx: CGFloat, dy: CGFloat) {
+        guard dragging else { return }
+        let visualBounds = petView.movementBounds
+        let current = panel.frame.origin
+        let center = NSPoint(x: current.x + visualBounds.midX, y: current.y + visualBounds.midY)
+        let screen = NSScreen.screens.first { $0.frame.contains(center) } ?? NSScreen.main
+        guard let visibleFrame = screen?.visibleFrame,
+              let allowed = PetMovementGeometry.allowedOrigins(visibleFrame: visibleFrame, visualBounds: visualBounds) else { return }
+        let origin = PetMovementGeometry.clamped(NSPoint(x: current.x + dx, y: current.y + dy), to: allowed)
+        panel.setFrameOrigin(origin)
+        preciseOrigin = origin
+        lastAutomaticOrigin = panel.frame.origin
+    }
+
+    private func endDrag(velocityX: CGFloat, velocityY: CGFloat) {
+        dragging = false
+        preciseOrigin = panel.frame.origin
+        lastAutomaticOrigin = panel.frame.origin
+        let amplified = CGVector(dx: velocityX * 1.35, dy: velocityY * 1.35)
+        let speed = hypot(amplified.dx, amplified.dy)
+        guard speed >= 466.67 else { flingVelocity = nil; return }
+        let maximum: CGFloat = 1_833.33
+        if speed > maximum {
+            let scale = maximum / speed
+            flingVelocity = CGVector(dx: amplified.dx * scale, dy: amplified.dy * scale)
+        } else {
+            flingVelocity = amplified
+        }
+    }
+
+    private func updatePointerInteraction() {
+        let point = panel.convertPoint(fromScreen: NSEvent.mouseLocation)
+        let hovering = petView.interactiveBounds.contains(point) && !dragging
+        panel.ignoresMouseEvents = !(hovering || dragging)
+        hoverPaused = hovering
+        guard hovering else {
+            lastPointerX = nil
+            pettingHistory.removeAll(keepingCapacity: true)
+            return
+        }
+        guard let previousX = lastPointerX else { lastPointerX = point.x; return }
+        let dx = point.x - previousX
+        lastPointerX = point.x
+        guard abs(dx) >= 0.25 else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        pettingHistory.append((now, dx))
+        pettingHistory.removeAll { now - $0.time > 0.9 }
+        guard now >= pettingCooldownUntil else { return }
+        var reversals = 0
+        var travel: CGFloat = 0
+        var previousSign: CGFloat = 0
+        for sample in pettingHistory {
+            travel += abs(sample.dx)
+            let sign: CGFloat = sample.dx >= 0 ? 1 : -1
+            if previousSign != 0, sign != previousSign { reversals += 1 }
+            previousSign = sign
+        }
+        guard reversals >= 3, travel >= 44 else { return }
+        pettingCooldownUntil = now + 2.6
+        pettingHistory.removeAll(keepingCapacity: true)
+        pettingStreak = now - lastPettingAt <= 12 ? pettingStreak + 1 : 1
+        lastPettingAt = now
+        petView.showBlush(streak: pettingStreak)
+        onPetting?(pettingStreak)
     }
 }

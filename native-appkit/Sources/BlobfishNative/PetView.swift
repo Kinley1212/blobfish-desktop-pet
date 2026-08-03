@@ -122,6 +122,9 @@ enum TaskCarouselGeometry {
 
 final class PetView: NSView {
     var onClick: (() -> Void)?
+    var onDragStart: (() -> Void)?
+    var onDragMove: ((CGFloat, CGFloat) -> Void)?
+    var onDragEnd: ((CGFloat, CGFloat) -> Void)?
     var transientMessage: String? { didSet { needsDisplay = true } }
     var character: CharacterPack? {
         didSet {
@@ -144,6 +147,9 @@ final class PetView: NSView {
     var performanceSample: PerformanceSample? { didSet { needsDisplay = true } }
     var performancePetName = "水滴鱼" { didSet { needsDisplay = true } }
     var visualBobOffset: CGFloat = 0 { didSet { needsDisplay = true } }
+    var interactiveBounds: NSRect {
+        characterBounds.offsetBy(dx: 0, dy: visualBobOffset).insetBy(dx: -8, dy: -8)
+    }
 
     var characterBounds: NSRect {
         let size = character?.manifest.size ?? CharacterPack.Size(width: 105, height: 90)
@@ -185,6 +191,13 @@ final class PetView: NSView {
     private var effectTimer: Timer?
     private var clockAnimationTimer: Timer?
     private var clockShakePhase: CGFloat = 0
+    private var blushLevel = 0
+    private var blushTimer: Timer?
+    private var mouseDownScreenPoint: NSPoint?
+    private var lastDragScreenPoint: NSPoint?
+    private var dragDistance: CGFloat = 0
+    private var dragStarted = false
+    private var dragSamples: [(time: TimeInterval, dx: CGFloat, dy: CGFloat)] = []
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -205,20 +218,78 @@ final class PetView: NSView {
         carouselAnimationTimer?.invalidate()
         effectTimer?.invalidate()
         clockAnimationTimer?.invalidate()
+        blushTimer?.invalidate()
     }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        drawSpeechBubble()
-        drawTaskBubble()
+        drawCharacter()
         drawTimerDisplay()
         drawPerformancePanel()
-        drawCharacter()
+        drawSpeechBubble()
+        drawTaskBubble()
     }
 
     override func mouseDown(with event: NSEvent) {
-        onClick?()
-        super.mouseDown(with: event)
+        let point = NSEvent.mouseLocation
+        mouseDownScreenPoint = point
+        lastDragScreenPoint = point
+        dragDistance = 0
+        dragStarted = false
+        dragSamples.removeAll(keepingCapacity: true)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let down = mouseDownScreenPoint, let previous = lastDragScreenPoint else { return }
+        let point = NSEvent.mouseLocation
+        let dx = point.x - previous.x
+        let dy = point.y - previous.y
+        lastDragScreenPoint = point
+        dragDistance = hypot(point.x - down.x, point.y - down.y)
+        guard dragStarted || dragDistance >= 4 else { return }
+        if !dragStarted {
+            dragStarted = true
+            onDragStart?()
+        }
+        if dx != 0 || dy != 0 {
+            onDragMove?(dx, dy)
+            let now = ProcessInfo.processInfo.systemUptime
+            dragSamples.append((now, dx, dy))
+            dragSamples.removeAll { now - $0.time > 0.30 }
+        }
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        defer {
+            mouseDownScreenPoint = nil
+            lastDragScreenPoint = nil
+            dragSamples.removeAll(keepingCapacity: true)
+        }
+        guard dragStarted else { onClick?(); return }
+        let now = ProcessInfo.processInfo.systemUptime
+        guard let last = dragSamples.last, now - last.time < 0.06, dragSamples.count >= 2 else {
+            onDragEnd?(0, 0)
+            return
+        }
+        let first = dragSamples[0]
+        let duration = max(0.016, last.time - first.time)
+        let dx = dragSamples.reduce(CGFloat.zero) { $0 + $1.dx }
+        let dy = dragSamples.reduce(CGFloat.zero) { $0 + $1.dy }
+        onDragEnd?(dx / duration, dy / duration)
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    func showBlush(streak: Int) {
+        blushTimer?.invalidate()
+        blushLevel = streak >= 3 ? 2 : 1
+        needsDisplay = true
+        blushTimer = Timer.scheduledTimer(withTimeInterval: 2.6, repeats: false) { [weak self] _ in
+            self?.blushLevel = 0
+            self?.blushTimer = nil
+            self?.needsDisplay = true
+        }
+        RunLoop.main.add(blushTimer!, forMode: .common)
     }
 
     private func drawCharacter() {
@@ -250,7 +321,28 @@ final class PetView: NSView {
         }
         characterImage.draw(in: characterBounds, from: .zero, operation: .sourceOver, fraction: 1)
         drawAccessories()
+        drawBlush()
         NSGraphicsContext.restoreGraphicsState()
+    }
+
+    private func drawBlush() {
+        guard blushLevel > 0 else { return }
+        let art = characterBounds
+        let width = art.width * (blushLevel > 1 ? 0.22 : 0.18)
+        let height = art.height * (blushLevel > 1 ? 0.14 : 0.12)
+        let centerY = art.minY + art.height * (character?.id == "blobfish-wotou" ? 0.32 : 0.42)
+        let color = blushLevel > 1
+            ? NSColor(calibratedRed: 1, green: 0.38, blue: 0.49, alpha: 0.48)
+            : NSColor(calibratedRed: 1, green: 0.48, blue: 0.57, alpha: 0.40)
+        color.setFill()
+        for centerX in [art.minX + art.width * 0.20, art.maxX - art.width * 0.20] {
+            NSBezierPath(ovalIn: NSRect(
+                x: centerX - width / 2,
+                y: centerY - height / 2,
+                width: width,
+                height: height
+            )).fill()
+        }
     }
 
     private func rebuildAccessoryImages() {
