@@ -21,12 +21,18 @@ enum PetEffectGeometry {
         let transform: PetEffectTransform
     }
 
-    static func transform(for effect: PetVisualEffect, progress: CGFloat) -> PetEffectTransform {
+    static func transform(for effect: PetVisualEffect, progress: CGFloat, characterID: String = "blobfish") -> PetEffectTransform {
         let identity = PetEffectTransform(scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 0)
         let frames: [Keyframe]
         switch effect {
         case .hit:
-            frames = [
+            frames = characterID == "grass-buddy" ? [
+                Keyframe(progress: 0, transform: identity),
+                Keyframe(progress: 0.22, transform: PetEffectTransform(scaleX: 1.18, scaleY: 0.78, offsetX: 0, offsetY: -7)),
+                Keyframe(progress: 0.52, transform: PetEffectTransform(scaleX: 0.92, scaleY: 1.10, offsetX: 0, offsetY: 5)),
+                Keyframe(progress: 0.76, transform: PetEffectTransform(scaleX: 1.04, scaleY: 0.97, offsetX: 0, offsetY: -1)),
+                Keyframe(progress: 1, transform: identity),
+            ] : [
                 Keyframe(progress: 0, transform: identity),
                 Keyframe(progress: 0.20, transform: PetEffectTransform(scaleX: 1.30, scaleY: 0.65, offsetX: 0, offsetY: -10)),
                 Keyframe(progress: 0.50, transform: PetEffectTransform(scaleX: 0.85, scaleY: 1.15, offsetX: 0, offsetY: 6)),
@@ -34,7 +40,13 @@ enum PetEffectGeometry {
                 Keyframe(progress: 1, transform: identity),
             ]
         case .bump:
-            frames = [
+            frames = characterID == "grass-buddy" ? [
+                Keyframe(progress: 0, transform: identity),
+                Keyframe(progress: 0.28, transform: PetEffectTransform(scaleX: 1.24, scaleY: 0.72, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 0.58, transform: PetEffectTransform(scaleX: 0.91, scaleY: 1.10, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 0.78, transform: PetEffectTransform(scaleX: 1.04, scaleY: 0.97, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 1, transform: identity),
+            ] : [
                 Keyframe(progress: 0, transform: identity),
                 Keyframe(progress: 0.30, transform: PetEffectTransform(scaleX: 1.38, scaleY: 0.60, offsetX: 0, offsetY: 0)),
                 Keyframe(progress: 0.55, transform: PetEffectTransform(scaleX: 0.85, scaleY: 1.18, offsetX: 0, offsetY: 0)),
@@ -42,16 +54,23 @@ enum PetEffectGeometry {
                 Keyframe(progress: 1, transform: identity),
             ]
         case .success:
-            frames = [
+            frames = characterID == "grass-buddy" ? [
+                Keyframe(progress: 0, transform: identity),
+                Keyframe(progress: 0.20, transform: PetEffectTransform(scaleX: 1, scaleY: 0.94, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 0.52, transform: PetEffectTransform(scaleX: 1, scaleY: 1.04, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 0.76, transform: PetEffectTransform(scaleX: 1, scaleY: 0.98, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 1, transform: identity),
+            ] : [
                 Keyframe(progress: 0, transform: identity),
                 Keyframe(progress: 0.28, transform: PetEffectTransform(scaleX: 1, scaleY: 0.94, offsetX: 0, offsetY: 0)),
                 Keyframe(progress: 0.58, transform: PetEffectTransform(scaleX: 1, scaleY: 1.06, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 0.78, transform: PetEffectTransform(scaleX: 1, scaleY: 0.98, offsetX: 0, offsetY: 0)),
                 Keyframe(progress: 1, transform: identity),
             ]
         case .failed:
             frames = [
                 Keyframe(progress: 0, transform: identity),
-                Keyframe(progress: 0.55, transform: PetEffectTransform(scaleX: 1, scaleY: 0.88, offsetX: 0, offsetY: -6)),
+                Keyframe(progress: 0.55, transform: PetEffectTransform(scaleX: 1, scaleY: 0.88, offsetX: 0, offsetY: characterID == "grass-buddy" ? -7 : -6)),
                 Keyframe(progress: 1, transform: identity),
             ]
         case .waiting:
@@ -151,6 +170,9 @@ final class PetView: NSView {
     var performanceSample: PerformanceSample? { didSet { needsDisplay = true } }
     var performancePetName = "水滴鱼" { didSet { needsDisplay = true } }
     var visualBobOffset: CGFloat = 0 { didSet { needsDisplay = true } }
+    var motionState = PetMotionTiming.State.idle { didSet { needsDisplay = true } }
+    var motionElapsed: TimeInterval = 0 { didSet { needsDisplay = true } }
+    var characterID: String { character?.id ?? "blobfish" }
     var interactiveBounds: NSRect {
         var result = characterBounds.offsetBy(dx: 0, dy: visualBobOffset).insetBy(dx: -8, dy: -8)
         if clockAlert != nil { result = result.union(clockAlertRect) }
@@ -195,6 +217,9 @@ final class PetView: NSView {
     private var effect: PetVisualEffect?
     private var effectPhase: CGFloat = 0
     private var effectTimer: Timer?
+    private var completionTimer: Timer?
+    private var completionPhase: CGFloat?
+    private var completionAll = false
     private var clockAnimationTimer: Timer?
     private var clockShakePhase: CGFloat = 0
     private var blushLevel = 0
@@ -226,6 +251,7 @@ final class PetView: NSView {
         carouselTimer?.invalidate()
         carouselAnimationTimer?.invalidate()
         effectTimer?.invalidate()
+        completionTimer?.invalidate()
         clockAnimationTimer?.invalidate()
         blushTimer?.invalidate()
     }
@@ -233,6 +259,7 @@ final class PetView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         drawCharacter()
+        drawCompletionEffect()
         drawTimerDisplay()
         drawPerformancePanel()
         drawSpeechBubble()
@@ -334,13 +361,22 @@ final class PetView: NSView {
             return
         }
         if let effect {
-            let geometry = PetEffectGeometry.transform(for: effect, progress: effectPhase)
+            let geometry = PetEffectGeometry.transform(for: effect, progress: effectPhase, characterID: characterID)
             let transform = NSAffineTransform()
             transform.translateX(
                 by: characterBounds.midX + geometry.offsetX,
                 yBy: characterBounds.midY + geometry.offsetY
             )
             transform.scaleX(by: geometry.scaleX, yBy: geometry.scaleY)
+            transform.translateX(by: -characterBounds.midX, yBy: -characterBounds.midY)
+            transform.concat()
+        }
+        let motion = ambientMotionTransform()
+        if motion.rotation != 0 || motion.scaleX != 1 || motion.scaleY != 1 {
+            let transform = NSAffineTransform()
+            transform.translateX(by: characterBounds.midX, yBy: characterBounds.midY)
+            transform.rotate(byDegrees: motion.rotation)
+            transform.scaleX(by: motion.scaleX, yBy: motion.scaleY)
             transform.translateX(by: -characterBounds.midX, yBy: -characterBounds.midY)
             transform.concat()
         }
@@ -384,6 +420,33 @@ final class PetView: NSView {
                 height: height
             )).fill()
         }
+    }
+
+    private func ambientMotionTransform() -> (rotation: CGFloat, scaleX: CGFloat, scaleY: CGFloat) {
+        guard effect == nil else { return (0, 1, 1) }
+        if characterID == "grass-buddy" {
+            let period: TimeInterval
+            let degrees: CGFloat
+            let stretch: CGFloat
+            switch motionState {
+            case .idle: period = 3.6; degrees = 0; stretch = 0.006
+            case .roam: period = 0.84; degrees = 0.8; stretch = 0
+            case .working: period = 1.25; degrees = 1.2; stretch = 0.009
+            case .waiting: period = 2.8; degrees = 1.5; stretch = 0
+            }
+            let wave = CGFloat(sin(motionElapsed / period * 2 * .pi))
+            let amount = stretch * (wave + 1)
+            return (degrees * wave, 1 + amount, 1 - amount)
+        }
+        if motionState == .waiting {
+            let rotation = -CGFloat(1 - cos(motionElapsed / 2.2 * 2 * .pi))
+            return (rotation, 1, 1)
+        }
+        if motionState == .working {
+            let amount = CGFloat((1 - cos(motionElapsed / 1.5 * 2 * .pi)) * 0.0125)
+            return (0, 1 + amount, 1)
+        }
+        return (0, 1, 1)
     }
 
     private func rebuildAccessoryImages() {
@@ -785,6 +848,70 @@ final class PetView: NSView {
         default: return
         }
         startEffect(visualEffect, duration: duration)
+    }
+
+    func playCompletionEffect(all: Bool) {
+        playEffect(.completed)
+        completionTimer?.invalidate()
+        completionAll = all
+        completionPhase = 0
+        let duration: TimeInterval = all ? 2 : 1.4
+        let started = Date()
+        completionTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            self.completionPhase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
+            if self.completionPhase == 1 {
+                timer.invalidate()
+                self.completionTimer = nil
+                self.completionPhase = nil
+            }
+            self.needsDisplay = true
+        }
+        RunLoop.main.add(completionTimer!, forMode: .common)
+    }
+
+    private func drawCompletionEffect() {
+        guard let phase = completionPhase else { return }
+        let opacity: CGFloat
+        let scale: CGFloat
+        let yOffset: CGFloat
+        switch phase {
+        case ..<0.18:
+            let local = phase / 0.18
+            opacity = local; scale = 0.55 + 0.45 * local; yOffset = 7 * (1 - local)
+        case ..<0.68:
+            opacity = 1; scale = 1; yOffset = 0
+        case ..<0.82:
+            let local = (phase - 0.68) / 0.14
+            opacity = 1; scale = 1 - 0.07 * local; yOffset = 0
+        default:
+            let local = (phase - 0.82) / 0.18
+            opacity = 1 - local; scale = 0.93 - 0.18 * local; yOffset = -3 * local
+        }
+        let center = NSPoint(x: characterBounds.midX + 53, y: characterBounds.maxY - 28 + yOffset)
+        let rect = NSRect(x: center.x - 14 * scale, y: center.y - 14 * scale, width: 28 * scale, height: 28 * scale)
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowBlurRadius = 10
+        shadow.shadowOffset = NSSize(width: 0, height: -3)
+        shadow.shadowColor = NSColor(calibratedRed: 0.16, green: 0.34, blue: 0.21, alpha: 0.32 * opacity)
+        shadow.set()
+        (completionAll
+            ? NSColor(calibratedRed: 0.31, green: 0.53, blue: 0.45, alpha: opacity)
+            : NSColor(calibratedRed: 0.43, green: 0.62, blue: 0.47, alpha: opacity)).setFill()
+        NSBezierPath(ovalIn: rect).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        NSColor.white.withAlphaComponent(0.94 * opacity).setStroke()
+        let ring = NSBezierPath(ovalIn: rect)
+        ring.lineWidth = 2
+        ring.stroke()
+        let check = "✓" as NSString
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 18 * scale, weight: .heavy),
+            .foregroundColor: NSColor.white.withAlphaComponent(opacity),
+        ]
+        let size = check.size(withAttributes: attributes)
+        check.draw(at: NSPoint(x: center.x - size.width / 2, y: center.y - size.height / 2), withAttributes: attributes)
     }
 
     func playClickEffect() { startEffect(.hit, duration: 0.5) }

@@ -278,7 +278,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 soundPlayer.play(id: runtime.config.sound.taskComplete.soundId)
             }
             panelController.say(runtime.phrase(event: "agent.allCompleted", context: ["remaining": .number(0)]) ?? "都结束了……终于。", event: "agent.allCompleted", priority: SpeechPriority.agent, replaceKey: "agent.allCompleted")
-            panelController.playEffect(.completed)
+            panelController.playCompletionEffect(all: true)
         } else if wasActive > isActive, isActive > 0 {
             if runtime.config.sound.taskComplete.enabled, !isQuietNow() {
                 soundPlayer.play(id: runtime.config.sound.taskComplete.soundId)
@@ -287,7 +287,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 event: "agent.completed",
                 context: ["remaining": .number(Double(isActive))]
             ) ?? "这个好了。", event: "agent.completed", priority: SpeechPriority.agent, replaceKey: "agent.completed")
-            panelController.playEffect(.completed)
+            panelController.playCompletionEffect(all: false)
         } else if isActive > wasActive {
             panelController.say(runtime.phrase(
                 event: "agent.started",
@@ -327,7 +327,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 event: "clock.timerCompleted",
                 context: alert.label.isEmpty ? [:] : ["label": .string(alert.label)]
             ) ?? "计时结束了。", event: "clock.timerCompleted", priority: SpeechPriority.urgent, replaceKey: "clock.ringing")
-            panelController.playEffect(.completed)
+            panelController.playCompletionEffect(all: false)
         case .changed(let reason):
             let eventName: String?
             switch reason {

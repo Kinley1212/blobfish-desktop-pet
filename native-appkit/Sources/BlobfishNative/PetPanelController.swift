@@ -1,6 +1,7 @@
 import AppKit
 
 enum PetMotionTiming {
+    enum State { case idle, roam, working, waiting }
     static let framesPerSecond = 60.0
     static let pointsPerSecondPerSpeedUnit = 1_000.0 / 30.0
     static let swimPeriod = 0.9
@@ -10,9 +11,22 @@ enum PetMotionTiming {
         CGFloat(speed * pointsPerSecondPerSpeedUnit * max(0, min(elapsed, 0.05)))
     }
 
-    static func swimOffset(elapsed: TimeInterval) -> CGFloat {
-        let phase = elapsed.truncatingRemainder(dividingBy: swimPeriod) / swimPeriod
-        return CGFloat((1 - cos(phase * 2 * .pi)) * swimDistance / 2)
+    static func swimOffset(elapsed: TimeInterval, characterID: String = "blobfish", state: State = .idle) -> CGFloat {
+        let period: TimeInterval
+        let distance: Double
+        if characterID == "grass-buddy" {
+            switch state {
+            case .idle: period = 3.6; distance = 2
+            case .roam: period = 0.84; distance = 4
+            case .working: period = 1.25; distance = 3
+            case .waiting: period = 2.8; distance = 1
+            }
+        } else {
+            period = swimPeriod
+            distance = swimDistance
+        }
+        let phase = elapsed.truncatingRemainder(dividingBy: period) / period
+        return CGFloat((1 - cos(phase * 2 * .pi)) * distance / 2)
     }
 }
 
@@ -63,6 +77,7 @@ final class PetPanelController {
     private var pettingCooldownUntil: TimeInterval = 0
     private var pettingStreak = 0
     private var lastPettingAt: TimeInterval = 0
+    private var motionState = PetMotionTiming.State.idle
 
     var onClick: (() -> Void)? {
         didSet { petView.onClick = onClick }
@@ -126,6 +141,10 @@ final class PetPanelController {
         petView.snapshot = snapshot
         hasActiveTasks = snapshot.activeCount > 0
         taskWantsMovement = snapshot.state == .running
+        motionState = snapshot.activeCount > 0
+            ? (snapshot.state == .waiting ? .waiting : .working)
+            : (movementEnabled ? .roam : .idle)
+        petView.motionState = motionState
         syncMovementTimer()
     }
 
@@ -184,6 +203,8 @@ final class PetPanelController {
 
     func playEffect(_ state: TaskDisplayState) { petView.playEffect(state) }
 
+    func playCompletionEffect(all: Bool) { petView.playCompletionEffect(all: all) }
+
     func playClickReaction() {
         interactionTimer?.invalidate()
         interactionPaused = true
@@ -231,6 +252,8 @@ final class PetPanelController {
     private func syncMovementTimer() {
         movementEnabled = ((hasActiveTasks && taskWantsMovement && config.pet.roamWhenTasks)
             || (!hasActiveTasks && config.pet.roamWhenNoTasks))
+        if !hasActiveTasks { motionState = movementEnabled ? .roam : .idle }
+        petView.motionState = motionState
         guard movementTimer == nil else { return }
         lastFrameUptime = ProcessInfo.processInfo.systemUptime
         movementTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] _ in
@@ -253,7 +276,13 @@ final class PetPanelController {
         let elapsed = uptime - (lastFrameUptime ?? uptime - 1.0 / PetMotionTiming.framesPerSecond)
         lastFrameUptime = uptime
         let step = PetMotionTiming.travelDistance(speed: config.pet.speed, elapsed: elapsed)
-        let bob = PetMotionTiming.swimOffset(elapsed: uptime - motionStartUptime)
+        let motionElapsed = uptime - motionStartUptime
+        let bob = PetMotionTiming.swimOffset(
+            elapsed: motionElapsed,
+            characterID: petView.characterID,
+            state: motionState
+        )
+        petView.motionElapsed = motionElapsed
         let actualOrigin = panel.frame.origin
         updatePointerInteraction()
         let externallyMoved = lastAutomaticOrigin.map {

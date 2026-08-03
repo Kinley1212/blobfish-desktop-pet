@@ -352,11 +352,15 @@ enum SelfCheck {
     private static func displayPacedPetMotion() -> Bool {
         let frameDistance = PetMotionTiming.travelDistance(speed: 1.5, elapsed: 1.0 / 60.0)
         let oneSecondDistance = frameDistance * 60
+        let grassIdle = PetMotionTiming.swimOffset(elapsed: 1.8, characterID: "grass-buddy", state: .idle)
+        let grassRoam = PetMotionTiming.swimOffset(elapsed: 0.42, characterID: "grass-buddy", state: .roam)
         return PetMotionTiming.framesPerSecond == 60
             && abs(oneSecondDistance - 50) < 0.001
             && abs(PetMotionTiming.swimOffset(elapsed: 0)) < 0.001
             && abs(PetMotionTiming.swimOffset(elapsed: 0.45) - 5) < 0.001
             && abs(PetMotionTiming.swimOffset(elapsed: 0.9)) < 0.001
+            && abs(grassIdle - 2) < 0.001
+            && abs(grassRoam - 4) < 0.001
     }
 
     private static func petReactionGeometry() -> Bool {
@@ -364,10 +368,14 @@ enum SelfCheck {
         let rebound = PetEffectGeometry.transform(for: .hit, progress: 0.50)
         let bump = PetEffectGeometry.transform(for: .bump, progress: 0.30)
         let finished = PetEffectGeometry.transform(for: .hit, progress: 1)
+        let grassHit = PetEffectGeometry.transform(for: .hit, progress: 0.22, characterID: "grass-buddy")
+        let grassBump = PetEffectGeometry.transform(for: .bump, progress: 0.28, characterID: "grass-buddy")
         return pressed == PetEffectTransform(scaleX: 1.30, scaleY: 0.65, offsetX: 0, offsetY: -10)
             && rebound == PetEffectTransform(scaleX: 0.85, scaleY: 1.15, offsetX: 0, offsetY: 6)
             && bump == PetEffectTransform(scaleX: 1.38, scaleY: 0.60, offsetX: 0, offsetY: 0)
             && finished == PetEffectTransform(scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 0)
+            && grassHit == PetEffectTransform(scaleX: 1.18, scaleY: 0.78, offsetX: 0, offsetY: -7)
+            && grassBump == PetEffectTransform(scaleX: 1.24, scaleY: 0.72, offsetX: 0, offsetY: 0)
     }
 
     private static func taskCarouselGeometry() -> Bool {
