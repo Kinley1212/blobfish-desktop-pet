@@ -360,7 +360,6 @@ final class PetPanelController {
             characterID: petView.characterID,
             state: motionState
         )
-        petView.motionElapsed = motionElapsed
         updatePointerInteraction()
         let externallyMoved = lastAutomaticOrigin.map {
             abs(actualOrigin.x - $0.x) > 1.5 || abs(actualOrigin.y - $0.y) > 1.5
@@ -370,7 +369,10 @@ final class PetPanelController {
             bobBaselineY = actualOrigin.y
         }
         var origin = preciseOrigin ?? actualOrigin
-        petView.visualBobOffset = interactionPaused || dragging ? 0 : bob
+        petView.updateMotion(
+            elapsed: motionElapsed,
+            bobOffset: interactionPaused || dragging ? 0 : bob
+        )
 
         if dragging { return }
         if var velocity = flingVelocity {
@@ -395,7 +397,7 @@ final class PetPanelController {
                 flingVelocity = velocity
             }
             petView.direction = velocity.dx >= 0 ? 1 : -1
-            panel.setFrameOrigin(origin)
+            setPanelOriginIfChanged(origin)
             preciseOrigin = origin
             // A fling is also a deliberate placement. Keep its latest height
             // as the horizontal-roaming baseline so the first frame after the
@@ -436,7 +438,7 @@ final class PetPanelController {
             origin.x = min(max(origin.x, allowed.minX), allowed.maxX)
         }
         petView.direction = movementDirection
-        panel.setFrameOrigin(origin)
+        setPanelOriginIfChanged(origin)
         preciseOrigin = origin
         bobBaselineY = origin.y
         lastAutomaticOrigin = panel.frame.origin
@@ -446,7 +448,7 @@ final class PetPanelController {
         dragging = true
         hoverPaused = false
         flingVelocity = nil
-        petView.visualBobOffset = 0
+        petView.updateMotion(elapsed: petView.motionElapsed, bobOffset: 0)
         preciseOrigin = panel.frame.origin
         lastAutomaticOrigin = panel.frame.origin
     }
@@ -461,7 +463,7 @@ final class PetPanelController {
             currentOrigin: current
         ) else { return }
         let origin = PetMovementGeometry.clamped(NSPoint(x: current.x + dx, y: current.y + dy), to: allowed)
-        panel.setFrameOrigin(origin)
+        setPanelOriginIfChanged(origin)
         preciseOrigin = origin
         lastAutomaticOrigin = panel.frame.origin
     }
@@ -486,7 +488,10 @@ final class PetPanelController {
     private func updatePointerInteraction() {
         let point = panel.convertPoint(fromScreen: NSEvent.mouseLocation)
         let hovering = petView.interactiveBounds.contains(point) && !dragging
-        panel.ignoresMouseEvents = !(hovering || dragging)
+        let shouldIgnoreMouse = !(hovering || dragging)
+        if panel.ignoresMouseEvents != shouldIgnoreMouse {
+            panel.ignoresMouseEvents = shouldIgnoreMouse
+        }
         hoverPaused = hovering
         guard hovering else {
             lastPointerX = nil
@@ -517,5 +522,11 @@ final class PetPanelController {
         lastPettingAt = now
         petView.showBlush(streak: pettingStreak)
         onPetting?(pettingStreak)
+    }
+
+    private func setPanelOriginIfChanged(_ origin: NSPoint) {
+        let current = panel.frame.origin
+        guard abs(current.x - origin.x) > 0.001 || abs(current.y - origin.y) > 0.001 else { return }
+        panel.setFrameOrigin(origin)
     }
 }

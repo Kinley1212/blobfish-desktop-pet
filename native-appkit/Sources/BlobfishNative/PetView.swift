@@ -184,41 +184,82 @@ final class PetView: NSView, CALayerDelegate {
     var transientMessage: String? { didSet { invalidateOverlay() } }
     var character: CharacterPack? {
         didSet {
+            guard oldValue != character else { return }
             rebuildCharacterImage()
         }
     }
 
     var characterScale: Double = 1 {
-        didSet { rebuildArtworkLayer(); updateArtworkTransform() }
+        didSet {
+            guard oldValue != characterScale else { return }
+            rebuildArtworkLayer(); updateArtworkTransform()
+        }
     }
     var accessoryPacks: [AccessoryPack] = [] {
-        didSet { rebuildAccessoryImages(); rebuildCharacterImage() }
+        didSet {
+            guard oldValue != accessoryPacks else { return }
+            rebuildAccessoryImages(); rebuildCharacterImage()
+        }
     }
     var accessorySpec = CharacterAccessories(nil) {
-        didSet { rebuildAccessoryImages(); rebuildCharacterImage() }
+        didSet {
+            guard oldValue != accessorySpec else { return }
+            rebuildAccessoryImages(); rebuildCharacterImage()
+        }
     }
-    var customization: JSONValue? { didSet { rebuildCharacterImage() } }
+    var customization: JSONValue? {
+        didSet {
+            guard oldValue != customization else { return }
+            rebuildCharacterImage()
+        }
+    }
     var alarmClockVisible = false {
         didSet {
             guard oldValue != alarmClockVisible else { return }
             startAlarmClockTransition(appearing: alarmClockVisible)
         }
     }
-    var alarmRinging = false { didSet { syncClockAnimation() } }
-    var clockAlert: ClockState.Alert? { didSet { invalidateOverlay() } }
-    var locale = "zh-CN" { didSet { invalidateOverlay() } }
+    var alarmRinging = false {
+        didSet {
+            guard oldValue != alarmRinging else { return }
+            syncClockAnimation()
+        }
+    }
+    var clockAlert: ClockState.Alert? {
+        didSet {
+            guard oldValue != clockAlert else { return }
+            invalidateOverlay()
+        }
+    }
+    var locale = "zh-CN" {
+        didSet {
+            guard oldValue != locale else { return }
+            invalidateOverlay()
+        }
+    }
     var timerText: String? {
         didSet {
+            guard oldValue != timerText else { return }
             rebuildArtworkLayer()
             updateArtworkTransform()
             invalidateOverlay()
         }
     }
     var performanceSample: PerformanceSample? { didSet { invalidateOverlay() } }
-    var performancePetName = "水滴鱼" { didSet { invalidateOverlay() } }
-    var visualBobOffset: CGFloat = 0 { didSet { updateArtworkTransform() } }
-    var motionState = PetMotionTiming.State.idle { didSet { updateArtworkTransform() } }
-    var motionElapsed: TimeInterval = 0 { didSet { updateArtworkTransform() } }
+    var performancePetName = "水滴鱼" {
+        didSet {
+            guard oldValue != performancePetName else { return }
+            invalidateOverlay()
+        }
+    }
+    private(set) var visualBobOffset: CGFloat = 0
+    var motionState = PetMotionTiming.State.idle {
+        didSet {
+            guard oldValue != motionState else { return }
+            updateArtworkTransform()
+        }
+    }
+    private(set) var motionElapsed: TimeInterval = 0
     var characterID: String { character?.id ?? "blobfish" }
     var interactiveBounds: NSRect {
         var result = characterBounds.offsetBy(dx: 0, dy: visualBobOffset).insetBy(dx: -8, dy: -8)
@@ -238,6 +279,7 @@ final class PetView: NSView, CALayerDelegate {
     }
     var snapshot: TaskSnapshot = .idle {
         didSet {
+            guard oldValue != snapshot else { return }
             syncCarousel(previous: oldValue)
             syncSpinner()
             invalidateOverlay()
@@ -295,6 +337,13 @@ final class PetView: NSView, CALayerDelegate {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         configureLayers()
+    }
+
+    func updateMotion(elapsed: TimeInterval, bobOffset: CGFloat) {
+        guard motionElapsed != elapsed || visualBobOffset != bobOffset else { return }
+        motionElapsed = elapsed
+        visualBobOffset = bobOffset
+        updateArtworkTransform()
     }
 
     required init?(coder: NSCoder) {
