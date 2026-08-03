@@ -3,6 +3,7 @@ import Foundation
 struct SpeechMessage: Equatable {
     let text: String
     let event: String?
+    let faceID: String?
     let priority: Int
     let duration: TimeInterval
     let replaceKey: String?
@@ -26,14 +27,16 @@ final class SpeechQueue {
     func enqueue(
         text: String,
         event: String?,
+        faceID: String?,
         priority: Int,
         duration: TimeInterval,
         replaceKey: String?
     ) -> Bool {
-        guard !text.isEmpty else { return false }
+        guard !text.isEmpty || faceID != nil else { return false }
         let entry = SpeechMessage(
             text: text,
             event: event,
+            faceID: faceID,
             priority: priority,
             duration: duration,
             replaceKey: replaceKey,

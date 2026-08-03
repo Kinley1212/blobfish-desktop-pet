@@ -66,6 +66,24 @@ struct Phrase: Codable, Equatable, Identifiable {
     let conditions: [String: JSONValue]?
 }
 
+struct DialoguePack: Codable, Equatable {
+    struct Node: Codable, Equatable {
+        let prompt: String
+        let options: [Option]
+        let opener: Bool?
+    }
+
+    struct Option: Codable, Equatable {
+        let label: String
+        let reply: String?
+        let face: String?
+        let next: String?
+        let game: String?
+    }
+
+    let nodes: [String: Node]
+}
+
 private struct PhraseFile: Codable { let category: String; let phrases: [Phrase] }
 
 enum PackCatalogError: Error, CustomStringConvertible {
@@ -161,6 +179,34 @@ final class PackCatalog {
     func language(id: String) throws -> LanguagePack {
         guard let pack = try languages().first(where: { $0.id == id }) else {
             throw PackCatalogError.invalidManifest("language \(id)")
+        }
+        return pack
+    }
+
+    func dialogue(id: String) throws -> DialoguePack {
+        guard Self.isPackID(id) else { throw PackCatalogError.invalidManifest("dialogue \(id)") }
+        let root = packsRoot.appendingPathComponent("dialogues", isDirectory: true)
+        let file = try safeChild("\(id).json", of: root)
+        let pack: DialoguePack = try decodeJSON(file)
+        let nodeIDs = Set(pack.nodes.keys)
+        guard (1...200).contains(pack.nodes.count),
+              pack.nodes.values.contains(where: { $0.opener == true }) else {
+            throw PackCatalogError.invalidManifest("dialogue \(id)")
+        }
+        for (nodeID, node) in pack.nodes {
+            guard Self.isPackID(nodeID), !node.prompt.isEmpty, node.prompt.count <= 140,
+                  (1...4).contains(node.options.count) else {
+                throw PackCatalogError.invalidManifest("dialogue node \(nodeID)")
+            }
+            for option in node.options {
+                guard !option.label.isEmpty, option.label.count <= 30,
+                      option.reply.map({ $0.count <= 200 }) ?? true,
+                      option.face.map({ $0.range(of: #"^face-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"#, options: .regularExpression) != nil }) ?? true,
+                      option.next.map(nodeIDs.contains) ?? true,
+                      option.game.map({ ["rps", "dice", "riddle"].contains($0) }) ?? true else {
+                    throw PackCatalogError.invalidManifest("dialogue node \(nodeID) option")
+                }
+            }
         }
         return pack
     }

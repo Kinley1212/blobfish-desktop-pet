@@ -72,8 +72,8 @@ final class PetPanelController {
     private lazy var speechQueue = SpeechQueue(
         deliver: { [weak self] message in
             guard let self else { return }
-            self.petView.transientMessage = message.text
-            self.petView.setMoodFace(message.event.flatMap { self.moodFaceProvider?($0) })
+            self.petView.transientMessage = message.text.isEmpty ? nil : message.text
+            self.petView.setMoodFace(message.faceID ?? message.event.flatMap { self.moodFaceProvider?($0) })
             self.show()
         },
         onIdle: { [weak self] in
@@ -167,6 +167,7 @@ final class PetPanelController {
     func say(
         _ text: String,
         event: String? = nil,
+        faceID: String? = nil,
         duration: TimeInterval = 7,
         priority: Int = 10,
         replaceKey: String? = nil
@@ -174,6 +175,7 @@ final class PetPanelController {
         speechQueue.enqueue(
             text: text,
             event: event,
+            faceID: faceID,
             priority: priority,
             duration: duration,
             replaceKey: replaceKey

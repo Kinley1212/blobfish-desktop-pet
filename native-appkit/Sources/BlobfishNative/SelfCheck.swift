@@ -201,12 +201,14 @@ enum SelfCheck {
         let languages = try catalog.languages()
         let blobfish = try catalog.character(id: "blobfish")
         let chinese = try catalog.language(id: "blobfish-zh-TW")
+        let dialogue = try catalog.dialogue(id: "blobfish-zh-TW")
         return characters.count >= 3
             && languages.count >= 4
             && FileManager.default.fileExists(atPath: blobfish.artURL.path)
             && NSImage(contentsOf: blobfish.artURL) != nil
             && chinese.phrases.contains(where: { $0.event == "agent.completed" })
             && chinese.phrases.contains(where: { $0.event == "system.battery" })
+            && dialogue.nodes["games"]?.options.contains(where: { $0.game == "rps" }) == true
     }
 
     private static func phraseRulesAndTemplates() throws -> Bool {
@@ -394,11 +396,11 @@ enum SelfCheck {
             deliver: { delivered.append($0.text) },
             onIdle: { idleCount += 1 }
         )
-        queue.enqueue(text: "idle", event: "idle.chatter", priority: 10, duration: 60, replaceKey: "idle")
-        queue.enqueue(text: "agent", event: "agent.started", priority: 60, duration: 60, replaceKey: "agent")
-        queue.enqueue(text: "click", event: "interaction.click", priority: 30, duration: 60, replaceKey: "click")
-        queue.enqueue(text: "schedule", event: "schedule.offWork", priority: 40, duration: 60, replaceKey: "schedule")
-        queue.enqueue(text: "agent-new", event: "agent.completed", priority: 60, duration: 60, replaceKey: "agent")
+        queue.enqueue(text: "idle", event: "idle.chatter", faceID: nil, priority: 10, duration: 60, replaceKey: "idle")
+        queue.enqueue(text: "agent", event: "agent.started", faceID: nil, priority: 60, duration: 60, replaceKey: "agent")
+        queue.enqueue(text: "click", event: "interaction.click", faceID: nil, priority: 30, duration: 60, replaceKey: "click")
+        queue.enqueue(text: "schedule", event: "schedule.offWork", faceID: nil, priority: 40, duration: 60, replaceKey: "schedule")
+        queue.enqueue(text: "agent-new", event: "agent.completed", faceID: nil, priority: 60, duration: 60, replaceKey: "agent")
         guard delivered == ["idle", "agent", "agent-new"],
               queue.pending.map(\.text) == ["schedule", "click"] else {
             queue.clear()

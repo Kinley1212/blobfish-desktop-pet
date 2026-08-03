@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var runtime: AppRuntime!
     private var panelController: PetPanelController!
     private var settingsController: SettingsWindowController?
+    private var dialogueController: DialogueWindowController?
     private var taskMonitor: TaskMonitor?
     private var clockService: ClockService?
     private var routineService: RoutineService?
@@ -185,6 +186,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let settings = NSMenuItem(title: "设置…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
+
+        let chat = NSMenuItem(title: "找水滴鱼聊天…", action: #selector(openDialogue), keyEquivalent: "")
+        chat.target = self
+        menu.addItem(chat)
 
         let taskRoam = NSMenuItem(title: "任务进行时游动", action: #selector(toggleTaskRoam), keyEquivalent: "")
         taskRoam.target = self
@@ -443,6 +448,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func dismissClockAlerts() { try? clockService?.dismissAlerts() }
 
     @objc private func openClocks() { openSettings(); settingsController?.select(.clocks) }
+
+    @MainActor @objc private func openDialogue() {
+        if let window = dialogueController?.window, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        guard let catalog = runtime.catalog else {
+            panelController.say("聊天内容没有加载好。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
+            return
+        }
+        let pack = (try? catalog.dialogue(id: runtime.config.language.packId))
+            ?? (try? catalog.dialogue(id: "blobfish-zh-TW"))
+        guard let pack else {
+            panelController.say("聊天内容没有加载好。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
+            return
+        }
+        let controller = DialogueWindowController(runtime: runtime, pack: pack) { [weak self] text, face in
+            self?.panelController.say(
+                text,
+                event: "interaction.chat",
+                faceID: face,
+                duration: 3.2,
+                priority: SpeechPriority.interaction,
+                replaceKey: "interaction.chat"
+            )
+        }
+        dialogueController = controller
+        controller.showWindow(nil)
+        controller.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
 
     @objc private func openSettings() {
         if settingsController == nil {
