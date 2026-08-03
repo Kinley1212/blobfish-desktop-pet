@@ -33,6 +33,21 @@ struct CharacterAccessories: Equatable {
     }
 }
 
+enum AccessoryLayerOrder {
+    private static let slots = ["face", "hat", "eyewear", "hand", "clock"]
+
+    static func orderedIDs(
+        equipped: [String: String],
+        systemAccessoryIDs: [String] = []
+    ) -> [String] {
+        var result = slots.compactMap { equipped[$0] }
+        for id in systemAccessoryIDs where !result.contains(id) {
+            result.append(id)
+        }
+        return result
+    }
+}
+
 enum AppearanceJSON {
     static func accessorySpec(in config: AppConfig, characterID: String) -> CharacterAccessories {
         CharacterAccessories(config.pet.accessories[characterID])

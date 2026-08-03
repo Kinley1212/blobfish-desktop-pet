@@ -24,6 +24,7 @@ enum SelfCheck {
             ("display-paced pet motion", displayPacedPetMotion),
             ("display-timed carousel easing", displayTimedCarouselEasing),
             ("unclipped CSS-matched pet shadow", unclippedCSSMatchedPetShadow),
+            ("expressions stay below independent eyewear", expressionsStayBelowIndependentEyewear),
             ("pet reaction geometry", petReactionGeometry),
             ("task carousel geometry", taskCarouselGeometry),
             ("speech priority and mood restore", speechPriorityAndMoodRestore),
@@ -408,6 +409,25 @@ enum SelfCheck {
             && PetShadowStyle.blurRadius == 3
             && PetShadowStyle.opacity == 0.15
             && PetShadowStyle.bottomInset >= requiredBottomSpace
+    }
+
+    private static func expressionsStayBelowIndependentEyewear() -> Bool {
+        let order = AccessoryLayerOrder.orderedIDs(
+            equipped: [
+                "hand": "bubble-tea",
+                "eyewear": "round-glasses",
+                "face": "face-happy",
+                "hat": "bamboo-copter",
+            ],
+            systemAccessoryIDs: ["alarm-clock"]
+        )
+        let eyewearTuning = CharacterAccessories(.object([
+            "equipped": .object(["face": .string("face-happy"), "eyewear": .string("round-glasses")]),
+            "tuning": .object(["round-glasses": .object(["offsetX": .number(12)])]),
+        ]))
+        return order == ["face-happy", "bamboo-copter", "round-glasses", "bubble-tea", "alarm-clock"]
+            && eyewearTuning.tuning["round-glasses"]?.offsetX == 12
+            && eyewearTuning.tuning["face-happy"] == nil
     }
 
     private static func petReactionGeometry() -> Bool {

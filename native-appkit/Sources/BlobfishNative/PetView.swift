@@ -488,8 +488,10 @@ final class PetView: NSView {
         let byID = Dictionary(uniqueKeysWithValues: accessoryPacks.map { ($0.id, $0) })
         var equipped = accessorySpec.equipped
         if let moodFaceID { equipped["face"] = moodFaceID }
-        var ids = Array(equipped.values)
-        if alarmClockRenderVisible, !ids.contains("alarm-clock") { ids.append("alarm-clock") }
+        let ids = AccessoryLayerOrder.orderedIDs(
+            equipped: equipped,
+            systemAccessoryIDs: alarmClockRenderVisible ? ["alarm-clock"] : []
+        )
         accessoryImages = ids.compactMap { id in
             guard let pack = byID[id], let image = NSImage(contentsOf: pack.artURL) else { return nil }
             return (pack, image)
@@ -651,11 +653,16 @@ final class PetView: NSView {
                 .foregroundColor: color,
             ]
         )
-        let app = String(format: "%@ %.0f MB", performancePetName, sample.appMemoryMB) as NSString
+        let app = String(
+            format: "%@ CPU %.0f%% · %.0f MB",
+            performancePetName,
+            sample.appCPUPercent,
+            sample.appMemoryMB
+        ) as NSString
         app.draw(
             at: NSPoint(x: rect.minX + 8, y: rect.minY + 7),
             withAttributes: [
-                .font: NSFont.systemFont(ofSize: 10, weight: .bold),
+                .font: NSFont.systemFont(ofSize: 8.5, weight: .bold),
                 .foregroundColor: color,
             ]
         )
