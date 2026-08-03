@@ -37,7 +37,11 @@ struct AppConfig: Codable, Equatable {
     }
     struct Startup: Codable, Equatable { var launchAtLogin: Bool }
     struct Performance: Codable, Equatable {
-        var panelEnabled: Bool; var autoQuitEnabled: Bool; var memoryLimitMb: Double
+        var panelEnabled: Bool
+        var autoQuitEnabled: Bool
+        var memoryLimitMb: Double
+        var panelSide: String
+        var panelVerticalPosition: Double
     }
     struct Integrations: Codable, Equatable { var calendar: Bool; var codex: Bool; var claudeCode: Bool }
     struct Privacy: Codable, Equatable { var includeTaskTitles: Bool; var includeCalendarTitles: Bool }
@@ -80,7 +84,13 @@ struct AppConfig: Codable, Equatable {
             customization: [:], accessories: [:]
         ),
         startup: Startup(launchAtLogin: false),
-        performance: Performance(panelEnabled: false, autoQuitEnabled: false, memoryLimitMb: 1024),
+        performance: Performance(
+            panelEnabled: false,
+            autoQuitEnabled: false,
+            memoryLimitMb: 1024,
+            panelSide: "left",
+            panelVerticalPosition: 0.5
+        ),
         integrations: Integrations(calendar: false, codex: true, claudeCode: true),
         privacy: Privacy(includeTaskTitles: false, includeCalendarTitles: true),
         sound: Sound(
@@ -124,6 +134,10 @@ struct AppConfig: Codable, Equatable {
         }
         guard (800...1536).contains(performance.memoryLimitMb) else {
             throw ConfigError.invalid("memory limit")
+        }
+        guard performance.panelSide == "left" || performance.panelSide == "right",
+              (0...1).contains(performance.panelVerticalPosition) else {
+            throw ConfigError.invalid("performance panel position")
         }
         for id in [sound.taskComplete.soundId, sound.needsInput.soundId] {
             guard !id.isEmpty, id.utf8.count <= 64,

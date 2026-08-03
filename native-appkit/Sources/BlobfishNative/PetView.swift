@@ -55,6 +55,41 @@ enum PetBlushGeometry {
     }
 }
 
+enum PerformancePanelGeometry {
+    static let size = CGSize(width: 88, height: 132)
+    static let margin: CGFloat = 8
+
+    static func rect(in bounds: CGRect, side: String, verticalPosition: Double) -> CGRect {
+        let availableY = max(0, bounds.height - size.height - margin * 2)
+        let y = bounds.minY + margin + availableY * CGFloat(min(1, max(0, verticalPosition)))
+        let x = side == "right"
+            ? bounds.maxX - margin - size.width
+            : bounds.minX + margin
+        return CGRect(origin: CGPoint(x: x, y: y), size: size)
+    }
+}
+
+enum PerformancePanelAnimation {
+    static let duration: TimeInterval = 0.72
+
+    static func progress(elapsed: TimeInterval, delay: TimeInterval) -> CGFloat {
+        let span = max(0.001, duration - delay)
+        let value = min(1, max(0, (elapsed - delay) / span))
+        let eased = 1 - pow(1 - value, 3)
+        let softBounce = sin(value * .pi * 3) * (1 - value) * 0.045
+        return CGFloat(min(1, max(0, eased + softBounce)))
+    }
+
+    static func interpolate(_ from: Double, _ to: Double, progress: CGFloat) -> Double {
+        from + (to - from) * Double(progress)
+    }
+
+    static func nested(total: Double, app: Double) -> (total: Double, app: Double) {
+        let appValue = min(100, max(0, app))
+        return (max(min(100, max(0, total)), appValue), appValue)
+    }
+}
+
 struct PetEffectTransform: Equatable {
     let scaleX: CGFloat
     let scaleY: CGFloat
@@ -302,12 +337,27 @@ final class PetView: NSView, CALayerDelegate {
             invalidateOverlay()
         }
     }
-    var performanceSample: PerformanceSample? { didSet { invalidateOverlay() } }
-    var performancePetName = "水滴鱼" {
+    var performanceSample: PerformanceSample? {
         didSet {
-            guard oldValue != performancePetName else { return }
+            guard oldValue != performanceSample else { return }
+            if performanceSample != nil {
+                performanceFromSample = oldValue ?? .zero
+                performanceAnimationElapsed = 0
+                performanceAnimationStartedAt = ProcessInfo.processInfo.systemUptime
+            } else {
+                performanceFromSample = nil
+                performanceAnimationElapsed = PerformancePanelAnimation.duration
+                performanceAnimationStartedAt = nil
+            }
             invalidateOverlay()
+            syncAnimationDisplayLink()
         }
+    }
+    var performancePanelSide = "left" {
+        didSet { if oldValue != performancePanelSide { invalidateOverlay() } }
+    }
+    var performancePanelVerticalPosition = 0.5 {
+        didSet { if oldValue != performancePanelVerticalPosition { invalidateOverlay() } }
     }
     private(set) var visualBobOffset: CGFloat = 0
     var motionState = PetMotionTiming.State.idle {
@@ -373,6 +423,9 @@ final class PetView: NSView, CALayerDelegate {
     private var completionTimer: Timer?
     private var completionPhase: CGFloat?
     private var completionAll = false
+    private var performanceFromSample: PerformanceSample?
+    private var performanceAnimationStartedAt: TimeInterval?
+    private var performanceAnimationElapsed = PerformancePanelAnimation.duration
     private var clockAnimationTimer: Timer?
     private var clockShakePhase: CGFloat = 0
     private var alarmClockTransitionTimer: Timer?
@@ -892,8 +945,51 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func drawPerformancePanel() {
-        guard let sample = performanceSample else { return }
-        let rect = NSRect(x: 8, y: 5, width: 116, height: 42)
+        guard let target = performanceSample else { return }
+        let source = performanceFromSample ?? target
+        let elapsed = performanceAnimationElapsed
+        let cpuTotal = PerformancePanelAnimation.interpolate(
+            source.systemCPUPercent,
+            target.systemCPUPercent,
+            progress: PerformancePanelAnimation.progress(elapsed: elapsed, delay: 0)
+        )
+        let cpuApp = PerformancePanelAnimation.interpolate(
+            source.appCPUPercent,
+            target.appCPUPercent,
+            progress: PerformancePanelAnimation.progress(elapsed: elapsed, delay: 0.08)
+        )
+        let ramTotal = PerformancePanelAnimation.interpolate(
+            source.systemRAMPercent,
+            target.systemRAMPercent,
+            progress: PerformancePanelAnimation.progress(elapsed: elapsed, delay: 0.08)
+        )
+        let ramApp = PerformancePanelAnimation.interpolate(
+            source.appRAMPercent,
+            target.appRAMPercent,
+            progress: PerformancePanelAnimation.progress(elapsed: elapsed, delay: 0.16)
+        )
+        let rect = PerformancePanelGeometry.rect(
+            in: bounds,
+            side: performancePanelSide,
+            verticalPosition: performancePanelVerticalPosition
+        )
+        let grassTheme = characterID == "grass-buddy"
+        let background = grassTheme
+            ? NSColor(srgbRed: 0.977, green: 0.982, blue: 0.934, alpha: 0.94)
+            : NSColor(srgbRed: 1, green: 0.969, blue: 0.976, alpha: 0.94)
+        let outline = grassTheme
+            ? NSColor(srgbRed: 0.49, green: 0.55, blue: 0.31, alpha: 0.28)
+            : NSColor(srgbRed: 0.78, green: 0.49, blue: 0.58, alpha: 0.25)
+        let track = grassTheme
+            ? NSColor(srgbRed: 0.933, green: 0.941, blue: 0.847, alpha: 0.9)
+            : NSColor(srgbRed: 0.973, green: 0.910, blue: 0.929, alpha: 0.9)
+        let systemColor = grassTheme
+            ? NSColor(srgbRed: 0.804, green: 0.831, blue: 0.565, alpha: 0.92)
+            : NSColor(srgbRed: 0.945, green: 0.804, blue: 0.839, alpha: 0.94)
+        let appColor = grassTheme
+            ? NSColor(srgbRed: 0.39, green: 0.48, blue: 0.23, alpha: 0.98)
+            : NSColor(srgbRed: 0.78, green: 0.49, blue: 0.58, alpha: 0.98)
+        let textColor = NSColor(srgbRed: 0.29, green: 0.36, blue: 0.35, alpha: 1)
         let path = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
         NSGraphicsContext.saveGraphicsState()
         let shadow = NSShadow()
@@ -901,39 +997,143 @@ final class PetView: NSView, CALayerDelegate {
         shadow.shadowOffset = NSSize(width: 0, height: -2)
         shadow.shadowColor = NSColor(calibratedRed: 0.15, green: 0.21, blue: 0.20, alpha: 0.10)
         shadow.set()
-        NSColor(calibratedRed: 0.973, green: 0.984, blue: 0.980, alpha: 0.92).setFill()
+        background.setFill()
         path.fill()
         NSGraphicsContext.restoreGraphicsState()
-        NSColor(calibratedRed: 0.325, green: 0.412, blue: 0.408, alpha: 0.18).setStroke()
+        outline.setStroke()
         path.lineWidth = 1
         path.stroke()
 
-        let color = NSColor(calibratedRed: 0.325, green: 0.412, blue: 0.408, alpha: 1)
-        let system = String(
-            format: "CPU %.0f%% · RAM %.0f%%",
-            sample.systemCPUPercent,
-            sample.systemRAMPercent
-        ) as NSString
-        system.draw(
-            at: NSPoint(x: rect.minX + 8, y: rect.minY + 23),
-            withAttributes: [
-                .font: NSFont.systemFont(ofSize: 9, weight: .regular),
-                .foregroundColor: color,
+        let columns = [
+            ("CPU", cpuTotal, cpuApp, 0.0),
+            ("RAM", ramTotal, ramApp, 0.08),
+        ]
+        for (index, column) in columns.enumerated() {
+            let centerX = rect.minX + (index == 0 ? 24 : 64)
+            drawPerformanceColumn(
+                label: column.0,
+                total: column.1,
+                app: column.2,
+                centerX: centerX,
+                panelRect: rect,
+                trackColor: track,
+                systemColor: systemColor,
+                appColor: appColor,
+                textColor: textColor,
+                grassTheme: grassTheme,
+                decorationDelay: column.3
+            )
+        }
+        let memory = String(format: "%.0f MB", target.appMemoryMB) as NSString
+        drawCentered(
+            memory,
+            at: NSPoint(x: rect.midX, y: rect.minY + 7),
+            attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 7.5, weight: .medium),
+                .foregroundColor: textColor.withAlphaComponent(0.76),
             ]
         )
-        let app = String(
-            format: "%@ CPU %.0f%% · %.0f MB",
-            performancePetName,
-            sample.appCPUPercent,
-            sample.appMemoryMB
-        ) as NSString
-        app.draw(
-            at: NSPoint(x: rect.minX + 8, y: rect.minY + 7),
-            withAttributes: [
-                .font: NSFont.systemFont(ofSize: 8.5, weight: .bold),
-                .foregroundColor: color,
+    }
+
+    private func drawPerformanceColumn(
+        label: String,
+        total: Double,
+        app: Double,
+        centerX: CGFloat,
+        panelRect: CGRect,
+        trackColor: NSColor,
+        systemColor: NSColor,
+        appColor: NSColor,
+        textColor: NSColor,
+        grassTheme: Bool,
+        decorationDelay: TimeInterval
+    ) {
+        let nested = PerformancePanelAnimation.nested(total: total, app: app)
+        drawCentered(
+            label as NSString,
+            at: NSPoint(x: centerX, y: panelRect.maxY - 17),
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 8, weight: .semibold),
+                .foregroundColor: textColor.withAlphaComponent(0.72),
             ]
         )
+        drawCentered(
+            String(format: "%.0f%%", nested.total) as NSString,
+            at: NSPoint(x: centerX, y: panelRect.maxY - 31),
+            attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .bold),
+                .foregroundColor: textColor,
+            ]
+        )
+
+        let bar = CGRect(x: centerX - 7, y: panelRect.minY + 38, width: 14, height: 58)
+        trackColor.setFill()
+        NSBezierPath(roundedRect: bar, xRadius: 7, yRadius: 7).fill()
+        let totalHeight = bar.height * CGFloat(nested.total / 100)
+        if totalHeight > 0 {
+            let fill = CGRect(x: bar.minX, y: bar.minY, width: bar.width, height: max(1, totalHeight))
+            systemColor.setFill()
+            NSBezierPath(roundedRect: fill, xRadius: min(7, fill.height / 2), yRadius: min(7, fill.height / 2)).fill()
+        }
+        let appHeight = min(totalHeight, bar.height * CGFloat(nested.app / 100))
+        if appHeight > 0 {
+            let fill = CGRect(x: bar.minX, y: bar.minY, width: bar.width, height: max(2, appHeight))
+            appColor.setFill()
+            NSBezierPath(roundedRect: fill, xRadius: min(7, fill.height / 2), yRadius: min(7, fill.height / 2)).fill()
+        }
+        drawPerformanceDecoration(
+            at: NSPoint(x: centerX, y: bar.minY + max(2, totalHeight)),
+            color: appColor,
+            grassTheme: grassTheme,
+            delay: decorationDelay
+        )
+
+        let role = locale == "en" ? "Pet" : (grassTheme ? "草" : "鱼")
+        drawCentered(
+            String(format: "%@ %.0f%%", role, nested.app) as NSString,
+            at: NSPoint(x: centerX, y: panelRect.minY + 23),
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 7.5, weight: .semibold),
+                .foregroundColor: appColor,
+            ]
+        )
+    }
+
+    private func drawPerformanceDecoration(
+        at point: NSPoint,
+        color: NSColor,
+        grassTheme: Bool,
+        delay: TimeInterval
+    ) {
+        guard performanceAnimationStartedAt != nil else { return }
+        let progress = PerformancePanelAnimation.progress(elapsed: performanceAnimationElapsed, delay: delay)
+        let fade = 1 - progress
+        guard fade > 0.01 else { return }
+        color.withAlphaComponent(0.65 * fade).setFill()
+        color.withAlphaComponent(0.72 * fade).setStroke()
+        if grassTheme {
+            let sway = sin(progress * .pi * 2) * 2
+            let stem = NSBezierPath()
+            stem.move(to: point)
+            stem.curve(to: NSPoint(x: point.x + sway, y: point.y + 7), controlPoint1: NSPoint(x: point.x, y: point.y + 3), controlPoint2: NSPoint(x: point.x + sway, y: point.y + 5))
+            stem.lineWidth = 1.2
+            stem.stroke()
+            NSBezierPath(ovalIn: CGRect(x: point.x + sway - 5, y: point.y + 4, width: 5, height: 3)).fill()
+            NSBezierPath(ovalIn: CGRect(x: point.x + sway, y: point.y + 5, width: 5, height: 3)).fill()
+        } else {
+            let lift = CGFloat(progress) * 8
+            NSBezierPath(ovalIn: CGRect(x: point.x + 3, y: point.y + 2 + lift, width: 3.5, height: 3.5)).fill()
+            NSBezierPath(ovalIn: CGRect(x: point.x - 5, y: point.y + 5 + lift * 0.65, width: 2.5, height: 2.5)).fill()
+        }
+    }
+
+    private func drawCentered(
+        _ text: NSString,
+        at point: NSPoint,
+        attributes: [NSAttributedString.Key: Any]
+    ) {
+        let size = text.size(withAttributes: attributes)
+        text.draw(at: NSPoint(x: point.x - size.width / 2, y: point.y - size.height / 2), withAttributes: attributes)
     }
 
     private func syncClockAnimation() {
@@ -1405,7 +1605,7 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func syncAnimationDisplayLink() {
-        if spinnerStartedAt != nil || carouselStartedAt != nil {
+        if spinnerStartedAt != nil || carouselStartedAt != nil || performanceAnimationStartedAt != nil {
             if animationDisplayLink == nil {
                 animationDisplayLink = DisplayLinkDriver { [weak self] uptime in
                     self?.advanceDisplayAnimations(uptime: uptime)
@@ -1431,6 +1631,15 @@ final class PetView: NSView, CALayerDelegate {
                 self.carouselStartedAt = nil
                 carouselFromIndex = nil
                 carouselProgress = 1
+            }
+        }
+        if let performanceAnimationStartedAt {
+            performanceAnimationElapsed = max(0, uptime - performanceAnimationStartedAt)
+            changed = true
+            if performanceAnimationElapsed >= PerformancePanelAnimation.duration {
+                self.performanceAnimationStartedAt = nil
+                performanceAnimationElapsed = PerformancePanelAnimation.duration
+                performanceFromSample = performanceSample
             }
         }
         if changed { invalidateOverlay() }

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="background" x1="160" y1="96" x2="864" y2="928" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff9f7"/>
+      <stop offset="0.56" stop-color="#f9e8eb"/>
+      <stop offset="1" stop-color="#efd3da"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(345 270) rotate(48) scale(650)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff" stop-opacity="0.78"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="panelShadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="26" stdDeviation="24" flood-color="#8f5966" flood-opacity="0.22"/>
+    </filter>
+    <filter id="fishShadow" x="-25%" y="-30%" width="150%" height="180%">
+      <feDropShadow dx="0" dy="16" stdDeviation="14" flood-color="#76545d" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <rect x="54" y="54" width="916" height="916" rx="214" fill="url(#background)" filter="url(#panelShadow)"/>
+  <rect x="70" y="70" width="884" height="884" rx="199" fill="none" stroke="#ffffff" stroke-opacity="0.72" stroke-width="8"/>
+  <rect x="54" y="54" width="916" height="916" rx="214" fill="url(#glow)"/>
+
+  <ellipse cx="512" cy="792" rx="252" ry="48" fill="#9b6571" opacity="0.13"/>
+  <g transform="translate(197 236) scale(4.5)" filter="url(#fishShadow)">
+    <g class="fins">
+      <path d="M 25 68 C 6 64 -6 77 -3 89 C 0 98 13 95 23 88 Z" fill="#eeaebb"/>
+      <path d="M 115 68 C 134 64 146 77 143 89 C 140 98 127 95 117 88 Z" fill="#eeaebb"/>
+    </g>
+    <path d="M 70 15 C 36 15 13 40 11 65 C 10 83 14 100 27 108 C 39 114 56 115 70 115 C 84 115 101 114 113 108 C 126 100 130 83 129 65 C 127 40 104 15 70 15 Z" fill="#f7dde2"/>
+    <g transform="translate(3.5 3.8) scale(0.95)">
+      <circle cx="45" cy="58" r="6.3" fill="#2e2a2c"/>
+      <circle cx="95" cy="58" r="6.3" fill="#2e2a2c"/>
+      <path d="M 37 94 Q 70 78 103 94" stroke="#eeaebb" stroke-width="24" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M 41 92.2 Q 70 79.8 99 92.2" stroke="#c87d95" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.95"/>
+      <path d="M 70 60.6 C 80.8 72.6 86.8 81 86.8 88.2 C 86.8 96.6 79.6 101.4 70 101.4 C 60.4 101.4 53.2 96.6 53.2 88.2 C 53.2 81 59.2 72.6 70 60.6 Z" fill="#fbeaef"/>
+      <ellipse cx="64" cy="83.4" rx="3.36" ry="2.64" fill="#ffffff" opacity="0.9"/>
+    </g>
+  </g>
+
+  <circle cx="807" cy="252" r="34" fill="#ffffff" opacity="0.58"/>
+  <circle cx="855" cy="326" r="17" fill="#ffffff" opacity="0.48"/>
+</svg>

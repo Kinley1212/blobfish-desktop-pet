@@ -5,7 +5,16 @@ struct PerformanceSample: Equatable {
     let systemCPUPercent: Double
     let systemRAMPercent: Double
     let appCPUPercent: Double
+    let appRAMPercent: Double
     let appMemoryMB: Double
+
+    static let zero = PerformanceSample(
+        systemCPUPercent: 0,
+        systemRAMPercent: 0,
+        appCPUPercent: 0,
+        appRAMPercent: 0,
+        appMemoryMB: 0
+    )
 }
 
 enum PerformanceMath {
@@ -34,6 +43,11 @@ enum PerformanceMath {
         let reclaimablePages = min(residentPages, fileBackedPages + purgeablePages)
         let usedBytes = Double(residentPages - reclaimablePages) * Double(pageSize)
         return min(100, max(0, usedBytes / Double(physicalMemory) * 100))
+    }
+
+    static func appRAMPercent(appMemoryMB: Double, physicalMemory: UInt64) -> Double {
+        guard appMemoryMB.isFinite, appMemoryMB >= 0, physicalMemory > 0 else { return 0 }
+        return min(100, max(0, appMemoryMB * 1_048_576 / Double(physicalMemory) * 100))
     }
 }
 
@@ -80,7 +94,16 @@ final class PerformanceMonitor {
         previousProcessCPU = processCPUTime; previousDate = now
         let memory = readSystemMemoryPercent()
         let appMemory = readAppMemoryMB()
-        let value = PerformanceSample(systemCPUPercent: cpu, systemRAMPercent: memory, appCPUPercent: processCPU, appMemoryMB: appMemory)
+        let value = PerformanceSample(
+            systemCPUPercent: cpu,
+            systemRAMPercent: memory,
+            appCPUPercent: processCPU,
+            appRAMPercent: PerformanceMath.appRAMPercent(
+                appMemoryMB: appMemory,
+                physicalMemory: ProcessInfo.processInfo.physicalMemory
+            ),
+            appMemoryMB: appMemory
+        )
         onSample?(value)
 
         if autoQuitEnabled, appMemory >= memoryLimitMB {
