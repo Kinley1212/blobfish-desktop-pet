@@ -113,6 +113,7 @@ final class PetPanelController {
         petView.onDragStart = { [weak self] in self?.beginDrag() }
         petView.onDragMove = { [weak self] dx, dy in self?.dragBy(dx: dx, dy: dy) }
         petView.onDragEnd = { [weak self] vx, vy in self?.endDrag(velocityX: vx, velocityY: vy) }
+        petView.locale = config.ui.locale
         centerOnPrimaryScreen()
         syncMovementTimer()
     }
@@ -136,6 +137,7 @@ final class PetPanelController {
         petView.accessorySpec = AppearanceJSON.accessorySpec(in: config, characterID: config.pet.characterPackId)
         petView.customization = config.pet.customization[config.pet.characterPackId]
         petView.performancePetName = config.ui.locale == "en" ? "Pet" : "水滴鱼"
+        petView.locale = config.ui.locale
         bobBaselineY = nil
         preciseOrigin = nil
         lastFrameUptime = nil
@@ -195,7 +197,13 @@ final class PetPanelController {
         petView.alarmClockVisible = state.alarms.contains(where: \.enabled)
             || state.alerts.contains(where: { $0.sourceType == "alarm" })
         petView.alarmRinging = state.alerts.contains(where: { $0.sourceType == "alarm" && $0.state == "ringing" })
+        petView.clockAlert = state.alerts.first(where: { $0.state == "ringing" })
         petView.timerText = timerText
+    }
+
+    func setClockActions(snooze: @escaping (String) -> Void, dismiss: @escaping (String) -> Void) {
+        petView.onClockSnooze = snooze
+        petView.onClockDismiss = dismiss
     }
 
     func updatePerformance(_ sample: PerformanceSample?) { petView.performanceSample = sample }

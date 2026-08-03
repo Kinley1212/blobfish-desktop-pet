@@ -279,11 +279,26 @@ enum SelfCheck {
             let reloaded = ClockService(directoryURL: directory)
             let file = directory.appendingPathComponent("clock-state.json")
             var info = stat()
-            return reloaded.state.alarms.first?.time == "09:30"
+            guard reloaded.state.alarms.first?.time == "09:30"
                 && reloaded.state.timer?.state == "running"
                 && reloaded.state.preferences.alarmSound.soundId == "Bottle"
                 && lstat(file.path, &info) == 0
-                && info.st_mode & 0o777 == 0o600
+                && info.st_mode & 0o777 == 0o600 else { return false }
+            var fixture = reloaded.state
+            fixture.alerts = [.init(
+                id: "alert:test", sourceType: "alarm", sourceId: "alarm:test", label: "测试",
+                originalDueAtMs: 1, dueAtMs: 1, state: "ringing", ringStartedAtMs: 1
+            )]
+            var fixtureData = try JSONEncoder().encode(fixture)
+            fixtureData.append(0x0A)
+            try fixtureData.write(to: file, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+            let alerts = ClockService(directoryURL: directory)
+            try alerts.snoozeAlert(id: "alert:test", minutes: 5)
+            guard alerts.state.alerts.first?.state == "snoozed",
+                  (alerts.state.alerts.first?.dueAtMs ?? 0) > Date().timeIntervalSince1970 * 1_000 else { return false }
+            try alerts.dismissAlert(id: "alert:test")
+            return alerts.state.alerts.isEmpty
         }
     }
 

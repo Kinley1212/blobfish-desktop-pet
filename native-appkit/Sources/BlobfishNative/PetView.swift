@@ -125,6 +125,8 @@ final class PetView: NSView {
     var onDragStart: (() -> Void)?
     var onDragMove: ((CGFloat, CGFloat) -> Void)?
     var onDragEnd: ((CGFloat, CGFloat) -> Void)?
+    var onClockSnooze: ((String) -> Void)?
+    var onClockDismiss: ((String) -> Void)?
     var transientMessage: String? { didSet { needsDisplay = true } }
     var character: CharacterPack? {
         didSet {
@@ -143,12 +145,16 @@ final class PetView: NSView {
     var customization: JSONValue? { didSet { rebuildCharacterImage() } }
     var alarmClockVisible = false { didSet { rebuildAccessoryImages() } }
     var alarmRinging = false { didSet { syncClockAnimation() } }
+    var clockAlert: ClockState.Alert? { didSet { needsDisplay = true } }
+    var locale = "zh-CN" { didSet { needsDisplay = true } }
     var timerText: String? { didSet { needsDisplay = true } }
     var performanceSample: PerformanceSample? { didSet { needsDisplay = true } }
     var performancePetName = "水滴鱼" { didSet { needsDisplay = true } }
     var visualBobOffset: CGFloat = 0 { didSet { needsDisplay = true } }
     var interactiveBounds: NSRect {
-        characterBounds.offsetBy(dx: 0, dy: visualBobOffset).insetBy(dx: -8, dy: -8)
+        var result = characterBounds.offsetBy(dx: 0, dy: visualBobOffset).insetBy(dx: -8, dy: -8)
+        if clockAlert != nil { result = result.union(clockAlertRect) }
+        return result
     }
 
     var characterBounds: NSRect {
@@ -199,6 +205,8 @@ final class PetView: NSView {
     private var dragDistance: CGFloat = 0
     private var dragStarted = false
     private var dragSamples: [(time: TimeInterval, dx: CGFloat, dy: CGFloat)] = []
+    private enum ClockAction { case snooze(String); case dismiss(String) }
+    private var pendingClockAction: ClockAction?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -229,9 +237,15 @@ final class PetView: NSView {
         drawPerformancePanel()
         drawSpeechBubble()
         drawTaskBubble()
+        drawClockAlert()
     }
 
     override func mouseDown(with event: NSEvent) {
+        let local = convert(event.locationInWindow, from: nil)
+        if let alert = clockAlert {
+            if clockSnoozeRect.contains(local) { pendingClockAction = .snooze(alert.id); return }
+            if clockDismissRect.contains(local) { pendingClockAction = .dismiss(alert.id); return }
+        }
         let point = NSEvent.mouseLocation
         mouseDownScreenPoint = point
         lastDragScreenPoint = point
@@ -241,6 +255,7 @@ final class PetView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        guard pendingClockAction == nil else { return }
         guard let down = mouseDownScreenPoint, let previous = lastDragScreenPoint else { return }
         let point = NSEvent.mouseLocation
         let dx = point.x - previous.x
@@ -261,6 +276,14 @@ final class PetView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if let pendingClockAction {
+            self.pendingClockAction = nil
+            switch pendingClockAction {
+            case .snooze(let id): onClockSnooze?(id)
+            case .dismiss(let id): onClockDismiss?(id)
+            }
+            return
+        }
         defer {
             mouseDownScreenPoint = nil
             lastDragScreenPoint = nil
@@ -526,7 +549,7 @@ final class PetView: NSView {
     }
 
     private func drawTaskBubble() {
-        guard snapshot.state != .idle else { return }
+        guard snapshot.state != .idle, clockAlert == nil else { return }
         let cards = snapshot.tasks
         guard !cards.isEmpty else { return }
         let entries: [(index: Int, placement: TaskCarouselPlacement, showsPosition: Bool)]
@@ -607,6 +630,74 @@ final class PetView: NSView {
             in: rect.insetBy(dx: 8, dy: 4),
             withAttributes: attributes
         )
+    }
+
+    private var clockAlertRect: NSRect {
+        NSRect(x: bounds.midX - 138, y: characterBounds.maxY + 10, width: 276, height: 70)
+    }
+
+    private var clockSnoozeRect: NSRect {
+        let rect = clockAlertRect
+        return NSRect(x: rect.minX + 10, y: rect.minY + 9, width: 124, height: 25)
+    }
+
+    private var clockDismissRect: NSRect {
+        let rect = clockAlertRect
+        return NSRect(x: rect.midX + 3, y: rect.minY + 9, width: 128, height: 25)
+    }
+
+    private func drawClockAlert() {
+        guard let alert = clockAlert else { return }
+        let rect = clockAlertRect
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowBlurRadius = 18
+        shadow.shadowOffset = NSSize(width: 0, height: -6)
+        shadow.shadowColor = NSColor(calibratedRed: 0.20, green: 0.16, blue: 0.11, alpha: 0.18)
+        shadow.set()
+        NSColor(calibratedRed: 1, green: 0.976, blue: 0.929, alpha: 0.98).setFill()
+        let card = NSBezierPath(roundedRect: rect, xRadius: 16, yRadius: 16)
+        card.fill()
+        NSGraphicsContext.restoreGraphicsState()
+        NSColor(calibratedRed: 0.62, green: 0.42, blue: 0.22, alpha: 0.28).setStroke()
+        card.lineWidth = 1
+        card.stroke()
+
+        let english = locale == "en"
+        let kind = (alert.sourceType == "alarm"
+            ? (english ? "ALARM" : "闹钟到了")
+            : (english ? "TIMER" : "计时结束")) as NSString
+        kind.draw(at: NSPoint(x: rect.minX + 10, y: rect.maxY - 20), withAttributes: [
+            .font: NSFont.systemFont(ofSize: 9, weight: .heavy),
+            .foregroundColor: NSColor(calibratedRed: 0.61, green: 0.42, blue: 0.21, alpha: 1),
+            .kern: 1.1,
+        ])
+        let title = (alert.label.isEmpty ? (english ? "Time is up" : "时间到了") : alert.label) as NSString
+        title.draw(in: NSRect(x: rect.minX + 10, y: rect.minY + 37, width: rect.width - 20, height: 17), withAttributes: [
+            .font: NSFont.systemFont(ofSize: 12, weight: .bold),
+            .foregroundColor: NSColor(calibratedRed: 0.35, green: 0.29, blue: 0.21, alpha: 1),
+        ])
+        drawClockButton(clockSnoozeRect, title: english ? "Snooze 5 min" : "再等 5 分钟", primary: false)
+        drawClockButton(clockDismissRect, title: english ? "Dismiss" : "知道了", primary: true)
+    }
+
+    private func drawClockButton(_ rect: NSRect, title: String, primary: Bool) {
+        let path = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
+        (primary
+            ? NSColor(calibratedRed: 0.48, green: 0.40, blue: 0.31, alpha: 1)
+            : NSColor.white).setFill()
+        path.fill()
+        if !primary {
+            NSColor(calibratedRed: 0.49, green: 0.35, blue: 0.20, alpha: 0.20).setStroke()
+            path.stroke()
+        }
+        let value = title as NSString
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
+            .foregroundColor: primary ? NSColor.white : NSColor(calibratedRed: 0.41, green: 0.34, blue: 0.25, alpha: 1),
+        ]
+        let size = value.size(withAttributes: attributes)
+        value.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2), withAttributes: attributes)
     }
 
     private func drawTaskCard(

@@ -131,6 +131,20 @@ final class ClockService {
 
     func cancelTimer() throws { state.timer = nil; try persist(reason: "timer-cancelled") }
 
+    func snoozeAlert(id: String, minutes: Int = 5) throws {
+        guard (1...24 * 60).contains(minutes),
+              let index = state.alerts.firstIndex(where: { $0.id == id }) else { return }
+        state.alerts[index].state = "snoozed"
+        state.alerts[index].dueAtMs = Date().timeIntervalSince1970 * 1_000 + Double(minutes * 60 * 1_000)
+        state.alerts[index].ringStartedAtMs = nil
+        try persist(reason: "alert-snoozed")
+    }
+
+    func dismissAlert(id: String) throws {
+        state.alerts.removeAll { $0.id == id }
+        try persist(reason: "alert-dismissed")
+    }
+
     func dismissAlerts() throws { state.alerts.removeAll(); try persist(reason: "alerts-dismissed") }
 
     func updatePreferences(_ preferences: ClockState.Preferences) throws {
@@ -151,6 +165,13 @@ final class ClockService {
     private func poll() {
         let now = Date().timeIntervalSince1970 * 1_000
         var dueEvents: [ClockEvent] = []
+        for index in state.alerts.indices
+        where state.alerts[index].state == "snoozed" && state.alerts[index].dueAtMs <= now {
+            state.alerts[index].state = "ringing"
+            state.alerts[index].ringStartedAtMs = now
+            let alert = state.alerts[index]
+            dueEvents.append(alert.sourceType == "alarm" ? .alarmDue(alert) : .timerDue(alert))
+        }
         if let running = state.timer, running.state == "running", let due = running.dueAtMs, due <= now {
             let alert = makeAlert(sourceType: "timer", sourceID: running.id, label: running.label, dueAtMs: due, nowMs: now)
             state.timer = nil; state.alerts.append(alert); dueEvents.append(.timerDue(alert))

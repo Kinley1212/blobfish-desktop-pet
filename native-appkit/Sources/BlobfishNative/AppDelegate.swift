@@ -109,6 +109,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let supportDirectory = runtime.configStore.fileURL.deletingLastPathComponent()
         let clocks = ClockService(directoryURL: supportDirectory)
+        panelController.setClockActions(
+            snooze: { [weak clocks] id in try? clocks?.snoozeAlert(id: id, minutes: 5) },
+            dismiss: { [weak clocks] id in try? clocks?.dismissAlert(id: id) }
+        )
         clocks.workdays = runtime.config.schedule.workdays
         clocks.onTick = { [weak self] state, text in self?.panelController.updateClock(state: state, timerText: text) }
         clocks.onEvent = { [weak self] event, state in self?.handleClockEvent(event, state: state) }
