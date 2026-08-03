@@ -1,5 +1,46 @@
 import AppKit
 
+struct TaskCarouselPlacement: Equatable {
+    let depth: Int
+    let horizontalOffset: CGFloat
+    let downwardOffset: CGFloat
+    let scale: CGFloat
+    let opacity: CGFloat
+}
+
+enum TaskCarouselGeometry {
+    static let placements = [
+        TaskCarouselPlacement(depth: 0, horizontalOffset: 0, downwardOffset: 0, scale: 1, opacity: 1),
+        TaskCarouselPlacement(depth: 1, horizontalOffset: 16, downwardOffset: 10, scale: 0.96, opacity: 0.82),
+        TaskCarouselPlacement(depth: 2, horizontalOffset: -15, downwardOffset: 20, scale: 0.92, opacity: 0.60),
+        TaskCarouselPlacement(depth: 3, horizontalOffset: 12, downwardOffset: 29, scale: 0.88, opacity: 0.40),
+    ]
+
+    static func visibleIndices(total: Int, frontIndex: Int) -> [(index: Int, placement: TaskCarouselPlacement)] {
+        guard total > 0 else { return [] }
+        let normalized = ((frontIndex % total) + total) % total
+        return placements.prefix(min(total, placements.count)).map {
+            ((normalized + $0.depth) % total, $0)
+        }
+    }
+
+    static func interpolated(
+        from: TaskCarouselPlacement,
+        to: TaskCarouselPlacement,
+        progress: CGFloat
+    ) -> TaskCarouselPlacement {
+        let value = min(1, max(0, progress))
+        func mix(_ start: CGFloat, _ end: CGFloat) -> CGFloat { start + (end - start) * value }
+        return TaskCarouselPlacement(
+            depth: value < 0.5 ? from.depth : to.depth,
+            horizontalOffset: mix(from.horizontalOffset, to.horizontalOffset),
+            downwardOffset: mix(from.downwardOffset, to.downwardOffset),
+            scale: mix(from.scale, to.scale),
+            opacity: mix(from.opacity, to.opacity)
+        )
+    }
+}
+
 final class PetView: NSView {
     var onClick: (() -> Void)?
     var transientMessage: String? { didSet { needsDisplay = true } }
@@ -49,6 +90,9 @@ final class PetView: NSView {
     private var spinnerPhase: CGFloat = 0
     private var carouselIndex = 0
     private var carouselTimer: Timer?
+    private var carouselAnimationTimer: Timer?
+    private var carouselFromIndex: Int?
+    private var carouselProgress: CGFloat = 1
     private var characterImage: NSImage?
     private var accessoryImages: [(AccessoryPack, NSImage)] = []
     private var effect: TaskDisplayState?
@@ -73,6 +117,7 @@ final class PetView: NSView {
         blinkTimer?.invalidate()
         spinnerTimer?.invalidate()
         carouselTimer?.invalidate()
+        carouselAnimationTimer?.invalidate()
         effectTimer?.invalidate()
         clockAnimationTimer?.invalidate()
     }
@@ -260,66 +305,160 @@ final class PetView: NSView {
     private func drawTaskBubble() {
         guard snapshot.state != .idle else { return }
         let cards = snapshot.tasks
-        if cards.count > 1 {
-            for depth in stride(from: min(cards.count - 1, 2), through: 1, by: -1) {
-                let rect = NSRect(x: 23 + CGFloat(depth) * 5, y: 137 - CGFloat(depth) * 7, width: 254 - CGFloat(depth) * 10, height: 43)
-                NSColor.white.withAlphaComponent(0.28 + CGFloat(2 - depth) * 0.12).setFill()
-                NSBezierPath(roundedRect: rect, xRadius: 13, yRadius: 13).fill()
-            }
+        guard !cards.isEmpty else { return }
+        let entries: [(index: Int, placement: TaskCarouselPlacement, showsPosition: Bool)]
+        if let fromIndex = carouselFromIndex, carouselProgress < 1 {
+            let from = Dictionary(uniqueKeysWithValues: TaskCarouselGeometry
+                .visibleIndices(total: cards.count, frontIndex: fromIndex)
+                .map { ($0.index, $0.placement) })
+            let to = Dictionary(uniqueKeysWithValues: TaskCarouselGeometry
+                .visibleIndices(total: cards.count, frontIndex: carouselIndex)
+                .map { ($0.index, $0.placement) })
+            entries = Set(from.keys).union(to.keys).map { index in
+                let start = from[index] ?? hiddenPlacement(basedOn: to[index]!)
+                let end = to[index] ?? hiddenPlacement(basedOn: from[index]!)
+                return (
+                    index,
+                    TaskCarouselGeometry.interpolated(from: start, to: end, progress: carouselProgress),
+                    index == carouselIndex && carouselProgress >= 0.5
+                )
+            }.sorted { $0.placement.downwardOffset > $1.placement.downwardOffset }
+        } else {
+            entries = TaskCarouselGeometry.visibleIndices(total: cards.count, frontIndex: carouselIndex)
+                .reversed()
+                .map { ($0.index, $0.placement, $0.index == carouselIndex) }
         }
-        let bubbleRect = NSRect(x: 23, y: 137, width: 254, height: 43)
-        NSColor.white.withAlphaComponent(0.96).setFill()
-        let bubble = NSBezierPath(roundedRect: bubbleRect, xRadius: 13, yRadius: 13)
-        bubble.fill()
-        NSColor(calibratedWhite: 0.45, alpha: 0.18).setStroke()
-        bubble.lineWidth = 1
-        bubble.stroke()
-
-        drawStatusIcon(at: NSPoint(x: 42, y: 158))
-        let currentCard = cards.indices.contains(carouselIndex) ? cards[carouselIndex] : nil
-        let title = currentCard?.title ?? snapshot.title ?? "任务"
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineBreakMode = .byTruncatingTail
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold),
-            .foregroundColor: NSColor(calibratedWhite: 0.24, alpha: 1),
-            .paragraphStyle: paragraph,
-        ]
-        (title as NSString).draw(
-            in: NSRect(x: 56, y: 150, width: 188, height: 17),
-            withAttributes: attributes
-        )
-
-        if cards.count > 1 {
-            let count = "\(carouselIndex + 1)/\(cards.count)" as NSString
-            count.draw(
-                at: NSPoint(x: 246, y: 151),
-                withAttributes: [
-                    .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium),
-                    .foregroundColor: NSColor(calibratedRed: 0.31, green: 0.43, blue: 0.44, alpha: 1),
-                ]
+        for entry in entries {
+            drawTaskCard(
+                cards[entry.index],
+                placement: entry.placement,
+                position: entry.index + 1,
+                total: cards.count,
+                showsPosition: entry.showsPosition
             )
         }
     }
 
+    private func hiddenPlacement(basedOn placement: TaskCarouselPlacement) -> TaskCarouselPlacement {
+        TaskCarouselPlacement(
+            depth: placement.depth,
+            horizontalOffset: placement.horizontalOffset,
+            downwardOffset: placement.downwardOffset,
+            scale: placement.scale,
+            opacity: 0
+        )
+    }
+
     private func drawSpeechBubble() {
         guard let transientMessage else { return }
-        let rect = NSRect(x: 23, y: 88, width: 254, height: 40)
-        NSColor.white.withAlphaComponent(0.96).setFill()
-        let bubble = NSBezierPath(roundedRect: rect, xRadius: 13, yRadius: 13)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byWordWrapping
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
+            .foregroundColor: NSColor(calibratedRed: 0.28, green: 0.20, blue: 0.23, alpha: 1),
+            .paragraphStyle: paragraph,
+        ]
+        let measured = (transientMessage as NSString).boundingRect(
+            with: NSSize(width: 240, height: 44),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: attributes
+        )
+        let width = min(260, max(88, ceil(measured.width) + 22))
+        let height = min(50, max(30, ceil(measured.height) + 12))
+        let taskFrontY = characterBounds.maxY + 43
+        let y = snapshot.state == .idle ? characterBounds.maxY + 10 : taskFrontY + 38
+        let rect = NSRect(x: bounds.midX - width / 2, y: y, width: width, height: height)
+
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowBlurRadius = 5
+        shadow.shadowOffset = NSSize(width: 0, height: -2)
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.16)
+        shadow.set()
+        NSColor(calibratedRed: 1, green: 0.96, blue: 0.95, alpha: 0.98).setFill()
+        let bubble = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
         bubble.fill()
-        NSColor(calibratedWhite: 0.45, alpha: 0.18).setStroke()
+        let tail = NSBezierPath()
+        tail.move(to: NSPoint(x: rect.midX - 6, y: rect.minY + 1))
+        tail.line(to: NSPoint(x: rect.midX, y: rect.minY - 6))
+        tail.line(to: NSPoint(x: rect.midX + 6, y: rect.minY + 1))
+        tail.close()
+        tail.fill()
+        NSGraphicsContext.restoreGraphicsState()
+
+        NSColor(calibratedRed: 0.72, green: 0.47, blue: 0.53, alpha: 0.22).setStroke()
+        bubble.lineWidth = 1
         bubble.stroke()
+        (transientMessage as NSString).draw(
+            in: rect.insetBy(dx: 11, dy: 6),
+            withAttributes: attributes
+        )
+    }
+
+    private func drawTaskCard(
+        _ card: TaskCard,
+        placement: TaskCarouselPlacement,
+        position: Int,
+        total: Int,
+        showsPosition: Bool
+    ) {
+        let font = NSFont.systemFont(ofSize: 11, weight: placement.depth == 0 ? .semibold : .medium)
+        let countWidth: CGFloat = showsPosition && total > 1 ? 34 : 0
+        let measuredTitle = (card.title as NSString).size(withAttributes: [.font: font]).width
+        let unscaledWidth = min(270, max(178, measuredTitle + 42 + countWidth))
+        let width = unscaledWidth * placement.scale
+        let height = 26 * placement.scale
+        let frontY = characterBounds.maxY + 43
+        let rect = NSRect(
+            x: bounds.midX + placement.horizontalOffset - width / 2,
+            y: frontY - placement.downwardOffset,
+            width: width,
+            height: height
+        )
+
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowBlurRadius = placement.depth == 0 ? 7 : 4
+        shadow.shadowOffset = NSSize(width: 0, height: -2)
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.16 * placement.opacity)
+        shadow.set()
+        NSColor.white.withAlphaComponent(0.96 * placement.opacity).setFill()
+        let path = NSBezierPath(roundedRect: rect, xRadius: height / 2, yRadius: height / 2)
+        path.fill()
+        NSGraphicsContext.restoreGraphicsState()
+
+        NSColor(calibratedRed: 0.28, green: 0.36, blue: 0.37, alpha: 0.16 * placement.opacity).setStroke()
+        path.lineWidth = 1
+        path.stroke()
+
+        let iconCenter = NSPoint(x: rect.minX + 15 * placement.scale, y: rect.midY)
+        drawStatusIcon(state: card.state, at: iconCenter, alpha: placement.opacity)
+
+        let titleRight = rect.maxX - 9 - countWidth * placement.scale
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
-        (transientMessage as NSString).draw(
-            in: NSRect(x: 38, y: 100, width: 224, height: 17),
+        (card.title as NSString).draw(
+            in: NSRect(x: rect.minX + 27 * placement.scale, y: rect.midY - 7, width: max(20, titleRight - rect.minX - 27 * placement.scale), height: 15),
             withAttributes: [
-                .font: NSFont.systemFont(ofSize: 11.5, weight: .medium),
-                .foregroundColor: NSColor(calibratedWhite: 0.24, alpha: 1),
+                .font: font,
+                .foregroundColor: NSColor(calibratedWhite: 0.22, alpha: placement.opacity),
                 .paragraphStyle: paragraph,
             ]
         )
+
+        if showsPosition, total > 1 {
+            let pill = NSRect(x: rect.maxX - 37, y: rect.midY - 8, width: 29, height: 16)
+            NSColor(calibratedRed: 0.89, green: 0.93, blue: 0.92, alpha: 1).setFill()
+            NSBezierPath(roundedRect: pill, xRadius: 8, yRadius: 8).fill()
+            let count = "\(position)/\(total)" as NSString
+            let countAttributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .medium),
+                .foregroundColor: NSColor(calibratedRed: 0.31, green: 0.40, blue: 0.41, alpha: 1),
+            ]
+            let size = count.size(withAttributes: countAttributes)
+            count.draw(at: NSPoint(x: pill.midX - size.width / 2, y: pill.midY - size.height / 2), withAttributes: countAttributes)
+        }
     }
 
     func playEffect(_ state: TaskDisplayState) {
@@ -340,36 +479,36 @@ final class PetView: NSView {
         RunLoop.main.add(effectTimer!, forMode: .common)
     }
 
-    private func drawStatusIcon(at center: NSPoint) {
-        switch snapshot.state {
+    private func drawStatusIcon(state: TaskDisplayState, at center: NSPoint, alpha: CGFloat) {
+        switch state {
         case .running:
-            NSColor(calibratedRed: 0.37, green: 0.57, blue: 0.58, alpha: 1).setStroke()
+            NSColor(calibratedRed: 0.37, green: 0.57, blue: 0.58, alpha: alpha).setStroke()
             let spinner = NSBezierPath()
             spinner.appendArc(withCenter: center, radius: 6, startAngle: spinnerPhase, endAngle: spinnerPhase + 270)
             spinner.lineWidth = 2
             spinner.lineCapStyle = .round
             spinner.stroke()
         case .waiting:
-            NSColor(calibratedRed: 0.72, green: 0.53, blue: 0.28, alpha: 1).setFill()
+            NSColor(calibratedRed: 0.72, green: 0.53, blue: 0.28, alpha: alpha).setFill()
             NSBezierPath(ovalIn: NSRect(x: center.x - 7, y: center.y - 7, width: 14, height: 14)).fill()
-            drawSymbol("!", at: center)
+            drawSymbol("…", at: center, alpha: alpha)
         case .completed:
-            NSColor(calibratedRed: 0.35, green: 0.60, blue: 0.41, alpha: 1).setFill()
+            NSColor(calibratedRed: 0.35, green: 0.60, blue: 0.41, alpha: alpha).setFill()
             NSBezierPath(ovalIn: NSRect(x: center.x - 7, y: center.y - 7, width: 14, height: 14)).fill()
-            drawSymbol("✓", at: center)
+            drawSymbol("✓", at: center, alpha: alpha)
         case .failed:
-            NSColor(calibratedRed: 0.70, green: 0.34, blue: 0.32, alpha: 1).setFill()
+            NSColor(calibratedRed: 0.70, green: 0.34, blue: 0.32, alpha: alpha).setFill()
             NSBezierPath(ovalIn: NSRect(x: center.x - 7, y: center.y - 7, width: 14, height: 14)).fill()
-            drawSymbol("×", at: center)
+            drawSymbol("!", at: center, alpha: alpha)
         case .idle:
             break
         }
     }
 
-    private func drawSymbol(_ symbol: NSString, at center: NSPoint) {
+    private func drawSymbol(_ symbol: NSString, at center: NSPoint, alpha: CGFloat) {
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 10, weight: .bold),
-            .foregroundColor: NSColor.white,
+            .foregroundColor: NSColor.white.withAlphaComponent(alpha),
         ]
         let size = symbol.size(withAttributes: attributes)
         symbol.draw(at: NSPoint(x: center.x - size.width / 2, y: center.y - size.height / 2), withAttributes: attributes)
@@ -388,24 +527,52 @@ final class PetView: NSView {
     }
 
     private func syncCarousel(previous: TaskSnapshot) {
+        let newTasks = snapshot.tasks
+        guard newTasks != previous.tasks else { return }
         carouselTimer?.invalidate()
         carouselTimer = nil
-        let newTasks = snapshot.tasks
         if let changed = newTasks.firstIndex(where: { card in
             guard let old = previous.tasks.first(where: { $0.id == card.id }) else { return true }
             return old.state != card.state || old.timestamp != card.timestamp
         }) {
-            carouselIndex = changed
+            setCarouselIndex(changed, animated: previous.tasks.count > 1 && newTasks.count > 1)
         } else if carouselIndex >= newTasks.count {
-            carouselIndex = 0
+            setCarouselIndex(0, animated: false)
         }
         guard newTasks.count > 1 else { return }
         carouselTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             guard let self, !self.snapshot.tasks.isEmpty else { return }
-            self.carouselIndex = (self.carouselIndex + 1) % self.snapshot.tasks.count
-            self.needsDisplay = true
+            self.setCarouselIndex((self.carouselIndex + 1) % self.snapshot.tasks.count, animated: true)
         }
         RunLoop.main.add(carouselTimer!, forMode: .common)
+    }
+
+    private func setCarouselIndex(_ index: Int, animated: Bool) {
+        guard index != carouselIndex else { return }
+        carouselAnimationTimer?.invalidate()
+        carouselAnimationTimer = nil
+        let oldIndex = carouselIndex
+        carouselIndex = index
+        guard animated else {
+            carouselFromIndex = nil
+            carouselProgress = 1
+            needsDisplay = true
+            return
+        }
+        carouselFromIndex = oldIndex
+        carouselProgress = 0
+        let started = Date()
+        carouselAnimationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            self.carouselProgress = min(1, CGFloat(Date().timeIntervalSince(started) / 0.36))
+            if self.carouselProgress >= 1 {
+                timer.invalidate()
+                self.carouselAnimationTimer = nil
+                self.carouselFromIndex = nil
+            }
+            self.needsDisplay = true
+        }
+        RunLoop.main.add(carouselAnimationTimer!, forMode: .common)
     }
 
     private func scheduleBlink() {

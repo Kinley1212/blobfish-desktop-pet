@@ -43,7 +43,10 @@ final class PetPanelController {
 
     init(runtime: AppRuntime) {
         config = runtime.config
-        let size = NSSize(width: 300, height: 190)
+        // The extra transparent height is reserved for a speech bubble plus the
+        // four-card task carousel. Collision still uses movementBounds, so this
+        // does not create an invisible wall around the pet.
+        let size = NSSize(width: 340, height: 300)
         panel = NSPanel(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless, .nonactivatingPanel],

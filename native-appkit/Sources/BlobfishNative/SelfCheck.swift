@@ -20,6 +20,7 @@ enum SelfCheck {
             ("native update channel isolation", nativeUpdateChannelIsolation),
             ("single instance lock", singleInstanceLock),
             ("dragged height preservation", draggedHeightPreservation),
+            ("task carousel geometry", taskCarouselGeometry),
         ]
         var passed = 0
         for (name, check) in checks {
@@ -316,6 +317,25 @@ enum SelfCheck {
         return dragged.y == 350
             && below.y == allowed.minY
             && above.y == allowed.maxY
+    }
+
+    private static func taskCarouselGeometry() -> Bool {
+        let sixCards = TaskCarouselGeometry.visibleIndices(total: 6, frontIndex: 4)
+        let twoCards = TaskCarouselGeometry.visibleIndices(total: 2, frontIndex: 1)
+        let midpoint = TaskCarouselGeometry.interpolated(
+            from: TaskCarouselGeometry.placements[0],
+            to: TaskCarouselGeometry.placements[1],
+            progress: 0.5
+        )
+        return sixCards.map(\.index) == [4, 5, 0, 1]
+            && sixCards.map(\.placement.depth) == [0, 1, 2, 3]
+            && sixCards[1].placement.horizontalOffset == 16
+            && sixCards[3].placement.opacity == 0.40
+            && twoCards.map(\.index) == [1, 0]
+            && midpoint.horizontalOffset == 8
+            && midpoint.downwardOffset == 5
+            && abs(midpoint.opacity - 0.91) < 0.0001
+            && TaskCarouselGeometry.visibleIndices(total: 0, frontIndex: 0).isEmpty
     }
 
     private static func withPrivateDirectory(_ body: (URL) throws -> Bool) throws -> Bool {
