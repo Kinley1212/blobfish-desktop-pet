@@ -24,16 +24,18 @@ make build       # Debug
 make test        # 内置真实自检
 make app         # Release .app + 同源资源 + ad-hoc 签名
 make archive     # 架构对应的 zip
+make archive ARCH=x86_64 # 在 Apple Silicon 上交叉构建 Intel 包
 ```
 
 `Makefile` 会优先选用本机可用的 macOS 15.4 SDK，并把缓存放在 `.build/`。GitHub Actions 会重复构建、自检、Release 打包，并上传分支预览产物。
 
 ## 发布约定
 
-原生版不读取 Electron 的 `blobfish-latest.json`，只读取 `blobfish-native-latest.json`。2.0.0 Release 只发布 Swift / AppKit 原生安装包：
+原生版不读取 Electron 的 `blobfish-latest.json`，只读取 `blobfish-native-latest.json`。Release 发布 Swift / AppKit 原生安装包：
 
 - `channel: "native-appkit"`
 - `BlobfishNative-<version>-macOS-arm64.zip`
+- `BlobfishNative-<version>-macOS-x64.zip`
 - 文件大小和 `sha256:<64 hex>`
 
-目前只支持 Apple Silicon Mac，这样可以从根本上避免原生版误装 Electron 包或错误架构。
+Apple Silicon 与 Intel 使用独立安装包；更新器只会选择当前 Mac 对应的架构，并继续校验渠道、文件大小、SHA-256 与应用身份。

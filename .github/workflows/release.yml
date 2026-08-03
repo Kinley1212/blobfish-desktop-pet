@@ -10,9 +10,17 @@ permissions:
 
 jobs:
   build:
-    name: Build native arm64
+    name: Build native ${{ matrix.asset_arch }}
     runs-on: macos-15
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - swift_arch: arm64
+            asset_arch: arm64
+          - swift_arch: x86_64
+            asset_arch: x64
     steps:
       - uses: actions/checkout@v4
       - name: Verify tag and native version
@@ -23,24 +31,26 @@ jobs:
           native_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' native-appkit/App/Info.plist)"
           test "$tag_version" = "$native_version"
       - name: Run native self-checks
+        if: matrix.swift_arch == 'arm64'
         working-directory: native-appkit
         run: make test
       - name: Package native app
         working-directory: native-appkit
-        run: make archive
+        run: make archive ARCH=${{ matrix.swift_arch }}
       - name: Verify package architecture and signature
         shell: bash
         run: |
           set -euo pipefail
           app="native-appkit/.build/水滴鱼.app"
           executable="$app/Contents/MacOS/BlobfishNative"
-          test "$(/usr/bin/uname -m)" = "arm64"
-          test "$(/usr/bin/lipo -archs "$executable")" = "arm64"
+          helper="$app/Contents/Resources/native/blobfish-agent-event-sender"
+          test "$(/usr/bin/lipo -archs "$executable")" = "${{ matrix.swift_arch }}"
+          test "$(/usr/bin/lipo -archs "$helper")" = "${{ matrix.swift_arch }}"
           /usr/bin/codesign --verify --deep --strict --verbose=2 "$app"
       - uses: actions/upload-artifact@v4
         with:
-          name: native-release-arm64
-          path: native-appkit/.build/BlobfishNative-*-macOS-arm64.zip
+          name: native-release-${{ matrix.asset_arch }}
+          path: native-appkit/.build/BlobfishNative-*-macOS-${{ matrix.asset_arch }}.zip
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 7
@@ -54,21 +64,23 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: native-release-arm64
+          pattern: native-release-*
           path: release
+          merge-multiple: true
       - name: Generate native update manifest
-        run: node scripts/generate-native-release-manifest.js arm64
+        run: node scripts/generate-native-release-manifest.js arm64 x64
       - name: Write release notes
         shell: bash
         run: |
           cat > release-notes.md <<'NOTES'
-          ## 水滴鱼 2.0.0
+          ## 水滴鱼 2.0.1
 
-          这是水滴鱼首个 Swift / AppKit 原生正式版，在保留角色、捏鱼、任务摩天轮、台词、闹钟、计时器、日历和一键更新等功能的同时，显著降低了常驻内存占用。
+          本次更新修复了设置栏目切换导致的闪退与第二实例提前退出崩溃，并让侧边栏整块色块都可以点击。
 
-          - `BlobfishNative-2.0.0-macOS-arm64.zip`：Apple Silicon Mac 原生安装包
+          - `BlobfishNative-2.0.1-macOS-arm64.zip`：Apple Silicon Mac 原生安装包
+          - `BlobfishNative-2.0.1-macOS-x64.zip`：Intel Mac 原生安装包
           - `blobfish-native-latest.json`：原生版一键更新清单
-          - 2.0.0 不包含 Electron，也不提供 Intel 版本
+          - 两个安装包均为纯 Swift / AppKit，不包含 Electron
 
           当前安装包使用 ad-hoc 签名，尚未获得 Apple Developer ID 公证。首次在其他 Mac 打开时可能仍需按 macOS 的安全提示确认。
           NOTES
@@ -77,7 +89,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: >-
           gh release create "$GITHUB_REF_NAME"
-          release/BlobfishNative-*-macOS-arm64.zip
+          release/BlobfishNative-*-macOS-*.zip
           release/blobfish-native-latest.json
           --verify-tag
           --title "水滴鱼 ${GITHUB_REF_NAME#v}"
