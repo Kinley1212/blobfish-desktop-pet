@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 enum SelfCheck {
@@ -7,6 +8,12 @@ enum SelfCheck {
             ("waiting fallback title", waitingFallbackTitle),
             ("terminal status expiry", terminalStatusExpiry),
             ("unsafe input rejection", unsafeInputRejection),
+            ("shared config migration", sharedConfigMigration),
+            ("config round trip", configRoundTrip),
+            ("unsafe config rejection", unsafeConfigRejection),
+            ("shared pack compatibility", sharedPackCompatibility),
+            ("phrase rules and templates", phraseRulesAndTemplates),
+            ("shared runtime recovery", sharedRuntimeRecovery),
         ]
         var passed = 0
         for (name, check) in checks {
@@ -102,6 +109,113 @@ enum SelfCheck {
             } catch TaskLeaseReaderError.insecureDirectory {
                 return true
             }
+        }
+    }
+
+    private static func sharedConfigMigration() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let userConfig: [String: Any] = [
+                "version": 1,
+                "ui": ["locale": "en-US"],
+                "schedule": [
+                    "workdays": [5, 1, 1], "lunchTime": "12:30", "offWorkTime": "18:15",
+                    "halfHourReminders": false, "lunchReminder": true, "offWorkReminder": true,
+                ],
+                "quietHours": ["enabled": false, "start": "22:00", "end": "08:00"],
+                "language": [
+                    "packId": "blobfish-en", "idleEnabled": true, "rareEnabled": false,
+                    "idleMinMinutes": 5, "idleMaxMinutes": 10,
+                    "categories": ["schedule": true, "system": true, "calendar": false, "agents": true],
+                ],
+                "pet": [
+                    "characterPackId": "blobfish-wotou", "speed": 2, "scale": 1.1,
+                    "roamWhenTasks": false, "roamWhenNoTasks": true, "moveAxis": "vertical",
+                    "customization": ["blobfish-wotou": ["bodyShape": "bun", "bodyHue": 14]],
+                    "accessories": [:],
+                ],
+                "integrations": ["calendar": false, "codex": true, "claudeCode": true],
+                "privacy": ["includeTaskTitles": true, "includeCalendarTitles": false],
+            ]
+            let data = try JSONSerialization.data(withJSONObject: userConfig)
+            let file = directory.appendingPathComponent("settings.json")
+            try data.write(to: file)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+            let result = NativeConfigStore(directoryURL: directory).load()
+            return result.warning == nil
+                && result.config.ui.locale == "zh-CN"
+                && result.config.schedule.workdays == [1, 5]
+                && result.config.language.categories.clock
+                && result.config.performance.memoryLimitMb == 1024
+                && result.config.pet.customization["blobfish-wotou"]?.objectValue?["bodyShape"]?.stringValue == "bun"
+        }
+    }
+
+    private static func configRoundTrip() throws -> Bool {
+        try withPrivateDirectory { directory in
+            var config = AppConfig.defaults
+            config.ui.locale = "en"
+            config.pet.roamWhenTasks = false
+            config.sound.taskComplete.soundId = "Pop"
+            let store = NativeConfigStore(directoryURL: directory)
+            try store.save(config)
+            var info = stat()
+            guard lstat(store.fileURL.path, &info) == 0, info.st_mode & 0o777 == 0o600 else { return false }
+            return store.load().config == config
+        }
+    }
+
+    private static func unsafeConfigRejection() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let target = directory.appendingPathComponent("target.json")
+            try Data("{}".utf8).write(to: target)
+            try FileManager.default.createSymbolicLink(
+                at: directory.appendingPathComponent("settings.json"),
+                withDestinationURL: target
+            )
+            let result = NativeConfigStore(directoryURL: directory).load()
+            return result.config == .defaults && result.warning != nil
+        }
+    }
+
+    private static func sharedPackCompatibility() throws -> Bool {
+        let catalog = try PackCatalog()
+        let characters = try catalog.characters()
+        let languages = try catalog.languages()
+        let blobfish = try catalog.character(id: "blobfish")
+        let chinese = try catalog.language(id: "blobfish-zh-TW")
+        return characters.count >= 3
+            && languages.count >= 4
+            && FileManager.default.fileExists(atPath: blobfish.artURL.path)
+            && chinese.phrases.contains(where: { $0.event == "agent.completed" })
+            && chinese.phrases.contains(where: { $0.event == "system.battery" })
+    }
+
+    private static func phraseRulesAndTemplates() throws -> Bool {
+        let phrases = [
+            Phrase(
+                id: "one", event: "agent.completed", text: "还有 {remaining} 个。", weight: 1,
+                rarity: nil, cooldownMs: nil, conditions: ["remainingMin": .number(1)]
+            ),
+            Phrase(
+                id: "two", event: "agent.completed", text: "都好了。", weight: 1,
+                rarity: nil, cooldownMs: nil, conditions: ["remainingEquals": .number(0)]
+            ),
+        ]
+        let engine = PhraseEngine(phrases: phrases, random: { 0 })
+        return engine.select(event: "agent.completed", context: ["remaining": .number(2)])?.text == "还有 2 个。"
+            && engine.select(event: "agent.completed", context: ["remaining": .number(0)])?.text == "都好了。"
+    }
+
+    private static func sharedRuntimeRecovery() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let runtime = AppRuntime(applicationSupportURL: directory, packsRoot: ResourceLocator.packsRoot())
+            try runtime.update {
+                $0.pet.characterPackId = "grass-buddy"
+                $0.language.packId = "grass-buddy-zh-CN"
+            }
+            return runtime.character?.id == "grass-buddy"
+                && runtime.language?.id == "grass-buddy-zh-CN"
+                && runtime.phrase(event: "agent.started") != nil
         }
     }
 
