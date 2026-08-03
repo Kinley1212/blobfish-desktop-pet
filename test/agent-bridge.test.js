@@ -929,7 +929,15 @@ test('native prune removes expired or corrupt leases and keeps fresh or symlink 
       event: 'running',
       sessionId: 'expired-running',
       turnId: 'expired-running-turn',
-      timestamp: now - (2 * 60 * 60 * 1000) - 1_000,
+      timestamp: now - (30 * 60 * 1000) - 1_000,
+    });
+    const expiredStarted = writeLeaseFixture(leaseDirectory, {
+      version: 1,
+      provider: 'codex',
+      event: 'started',
+      sessionId: 'expired-started',
+      turnId: 'expired-started-turn',
+      timestamp: now - (15 * 60 * 1000) - 1_000,
     });
     const expiredWaiting = writeLeaseFixture(leaseDirectory, {
       version: 1,
@@ -959,6 +967,14 @@ test('native prune removes expired or corrupt leases and keeps fresh or symlink 
       turnId: 'fresh-running-turn',
       timestamp: now,
     });
+    const freshRunning = writeLeaseFixture(leaseDirectory, {
+      version: 1,
+      provider: 'codex',
+      event: 'running',
+      sessionId: 'fresh-running-heartbeat',
+      turnId: 'fresh-running-heartbeat-turn',
+      timestamp: now - (20 * 60 * 1000),
+    });
     const victimPath = path.join(directory, 'victim.txt');
     fs.writeFileSync(victimPath, 'keep me', { mode: 0o600 });
     const symlinkPath = leasePathFor(leaseDirectory, 'codex', 'symlink-lease');
@@ -966,10 +982,11 @@ test('native prune removes expired or corrupt leases and keeps fresh or symlink 
 
     runPrune(leaseDirectory);
 
-    for (const removed of [expiredRunning, expiredWaiting, expiredTerminal, malformed]) {
+    for (const removed of [expiredRunning, expiredStarted, expiredWaiting, expiredTerminal, malformed]) {
       assert.equal(fs.existsSync(removed), false);
     }
     assert.equal(fs.existsSync(fresh), true);
+    assert.equal(fs.existsSync(freshRunning), true);
     assert.equal(fs.lstatSync(symlinkPath).isSymbolicLink(), true);
     assert.equal(fs.readFileSync(victimPath, 'utf8'), 'keep me');
   } finally {

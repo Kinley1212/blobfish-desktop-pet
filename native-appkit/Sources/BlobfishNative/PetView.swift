@@ -56,10 +56,20 @@ enum PetBlushGeometry {
 }
 
 enum PerformancePanelGeometry {
-    static let size = CGSize(width: 88, height: 132)
     static let margin: CGFloat = 8
 
-    static func rect(in bounds: CGRect, side: String, verticalPosition: Double) -> CGRect {
+    static func size(for characterBounds: CGRect) -> CGSize {
+        let height = characterBounds.height
+        return CGSize(width: max(46, height * 0.64), height: height)
+    }
+
+    static func rect(
+        in bounds: CGRect,
+        characterBounds: CGRect,
+        side: String,
+        verticalPosition: Double
+    ) -> CGRect {
+        let size = size(for: characterBounds)
         let availableY = max(0, bounds.height - size.height - margin * 2)
         let y = bounds.minY + margin + availableY * CGFloat(min(1, max(0, verticalPosition)))
         let x = side == "right"
@@ -278,13 +288,14 @@ final class PetView: NSView, CALayerDelegate {
             guard oldValue != character else { return }
             characterViewBox = character.flatMap(SVGAppearanceRenderer.viewBox)
             rebuildCharacterImage()
+            invalidateOverlay()
         }
     }
 
     var characterScale: Double = 1 {
         didSet {
             guard oldValue != characterScale else { return }
-            rebuildArtworkLayer(); updateArtworkTransform()
+            rebuildArtworkLayer(); updateArtworkTransform(); invalidateOverlay()
         }
     }
     var accessoryPacks: [AccessoryPack] = [] {
@@ -970,9 +981,11 @@ final class PetView: NSView, CALayerDelegate {
         )
         let rect = PerformancePanelGeometry.rect(
             in: bounds,
+            characterBounds: characterBounds,
             side: performancePanelSide,
             verticalPosition: performancePanelVerticalPosition
         )
+        let visualScale = min(1.5, max(0.65, rect.height / 90))
         let grassTheme = characterID == "grass-buddy"
         let background = grassTheme
             ? NSColor(srgbRed: 0.977, green: 0.982, blue: 0.934, alpha: 0.94)
@@ -990,11 +1003,12 @@ final class PetView: NSView, CALayerDelegate {
             ? NSColor(srgbRed: 0.39, green: 0.48, blue: 0.23, alpha: 0.98)
             : NSColor(srgbRed: 0.78, green: 0.49, blue: 0.58, alpha: 0.98)
         let textColor = NSColor(srgbRed: 0.29, green: 0.36, blue: 0.35, alpha: 1)
-        let path = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
+        let cornerRadius = 8 * visualScale
+        let path = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
         NSGraphicsContext.saveGraphicsState()
         let shadow = NSShadow()
-        shadow.shadowBlurRadius = 6
-        shadow.shadowOffset = NSSize(width: 0, height: -2)
+        shadow.shadowBlurRadius = 5 * visualScale
+        shadow.shadowOffset = NSSize(width: 0, height: -1.5 * visualScale)
         shadow.shadowColor = NSColor(calibratedRed: 0.15, green: 0.21, blue: 0.20, alpha: 0.10)
         shadow.set()
         background.setFill()
@@ -1009,7 +1023,7 @@ final class PetView: NSView, CALayerDelegate {
             ("RAM", ramTotal, ramApp, 0.08),
         ]
         for (index, column) in columns.enumerated() {
-            let centerX = rect.minX + (index == 0 ? 24 : 64)
+            let centerX = rect.minX + rect.width * (index == 0 ? 0.28 : 0.72)
             drawPerformanceColumn(
                 label: column.0,
                 total: column.1,
@@ -1021,15 +1035,19 @@ final class PetView: NSView, CALayerDelegate {
                 appColor: appColor,
                 textColor: textColor,
                 grassTheme: grassTheme,
+                visualScale: visualScale,
                 decorationDelay: column.3
             )
         }
         let memory = String(format: "%.0f MB", target.appMemoryMB) as NSString
         drawCentered(
             memory,
-            at: NSPoint(x: rect.midX, y: rect.minY + 7),
+            at: NSPoint(x: rect.midX, y: rect.minY + 4 * visualScale),
             attributes: [
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 7.5, weight: .medium),
+                .font: NSFont.monospacedDigitSystemFont(
+                    ofSize: max(5.5, 7 * visualScale),
+                    weight: .medium
+                ),
                 .foregroundColor: textColor.withAlphaComponent(0.76),
             ]
         )
@@ -1046,54 +1064,83 @@ final class PetView: NSView, CALayerDelegate {
         appColor: NSColor,
         textColor: NSColor,
         grassTheme: Bool,
+        visualScale: CGFloat,
         decorationDelay: TimeInterval
     ) {
         let nested = PerformancePanelAnimation.nested(total: total, app: app)
         drawCentered(
             label as NSString,
-            at: NSPoint(x: centerX, y: panelRect.maxY - 17),
+            at: NSPoint(x: centerX, y: panelRect.maxY - 11 * visualScale),
             attributes: [
-                .font: NSFont.systemFont(ofSize: 8, weight: .semibold),
+                .font: NSFont.systemFont(ofSize: max(6, 8 * visualScale), weight: .semibold),
                 .foregroundColor: textColor.withAlphaComponent(0.72),
             ]
         )
         drawCentered(
             String(format: "%.0f%%", nested.total) as NSString,
-            at: NSPoint(x: centerX, y: panelRect.maxY - 31),
+            at: NSPoint(x: centerX, y: panelRect.maxY - 23 * visualScale),
             attributes: [
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .bold),
+                .font: NSFont.monospacedDigitSystemFont(
+                    ofSize: max(6.5, 9 * visualScale),
+                    weight: .bold
+                ),
                 .foregroundColor: textColor,
             ]
         )
 
-        let bar = CGRect(x: centerX - 7, y: panelRect.minY + 38, width: 14, height: 58)
+        let barBottom = panelRect.minY + 18 * visualScale
+        let barTop = panelRect.maxY - 29 * visualScale
+        let barWidth = max(5.5, 9 * visualScale)
+        let bar = CGRect(
+            x: centerX - barWidth / 2,
+            y: barBottom,
+            width: barWidth,
+            height: max(10, barTop - barBottom)
+        )
         trackColor.setFill()
-        NSBezierPath(roundedRect: bar, xRadius: 7, yRadius: 7).fill()
+        NSBezierPath(roundedRect: bar, xRadius: barWidth / 2, yRadius: barWidth / 2).fill()
         let totalHeight = bar.height * CGFloat(nested.total / 100)
         if totalHeight > 0 {
             let fill = CGRect(x: bar.minX, y: bar.minY, width: bar.width, height: max(1, totalHeight))
             systemColor.setFill()
-            NSBezierPath(roundedRect: fill, xRadius: min(7, fill.height / 2), yRadius: min(7, fill.height / 2)).fill()
+            NSBezierPath(
+                roundedRect: fill,
+                xRadius: min(barWidth / 2, fill.height / 2),
+                yRadius: min(barWidth / 2, fill.height / 2)
+            ).fill()
         }
         let appHeight = min(totalHeight, bar.height * CGFloat(nested.app / 100))
         if appHeight > 0 {
-            let fill = CGRect(x: bar.minX, y: bar.minY, width: bar.width, height: max(2, appHeight))
+            let fill = CGRect(
+                x: bar.minX,
+                y: bar.minY,
+                width: bar.width,
+                height: max(1.5 * visualScale, appHeight)
+            )
             appColor.setFill()
-            NSBezierPath(roundedRect: fill, xRadius: min(7, fill.height / 2), yRadius: min(7, fill.height / 2)).fill()
+            NSBezierPath(
+                roundedRect: fill,
+                xRadius: min(barWidth / 2, fill.height / 2),
+                yRadius: min(barWidth / 2, fill.height / 2)
+            ).fill()
         }
         drawPerformanceDecoration(
             at: NSPoint(x: centerX, y: bar.minY + max(2, totalHeight)),
             color: appColor,
             grassTheme: grassTheme,
+            visualScale: visualScale,
             delay: decorationDelay
         )
 
         let role = locale == "en" ? "Pet" : (grassTheme ? "草" : "鱼")
         drawCentered(
             String(format: "%@ %.0f%%", role, nested.app) as NSString,
-            at: NSPoint(x: centerX, y: panelRect.minY + 23),
+            at: NSPoint(x: centerX, y: panelRect.minY + 11 * visualScale),
             attributes: [
-                .font: NSFont.systemFont(ofSize: 7.5, weight: .semibold),
+                .font: NSFont.systemFont(
+                    ofSize: max(5.5, 7 * visualScale),
+                    weight: .semibold
+                ),
                 .foregroundColor: appColor,
             ]
         )
@@ -1103,6 +1150,7 @@ final class PetView: NSView, CALayerDelegate {
         at point: NSPoint,
         color: NSColor,
         grassTheme: Bool,
+        visualScale: CGFloat,
         delay: TimeInterval
     ) {
         guard performanceAnimationStartedAt != nil else { return }
@@ -1112,18 +1160,42 @@ final class PetView: NSView, CALayerDelegate {
         color.withAlphaComponent(0.65 * fade).setFill()
         color.withAlphaComponent(0.72 * fade).setStroke()
         if grassTheme {
-            let sway = sin(progress * .pi * 2) * 2
+            let sway = sin(progress * .pi * 2) * 2 * visualScale
             let stem = NSBezierPath()
             stem.move(to: point)
-            stem.curve(to: NSPoint(x: point.x + sway, y: point.y + 7), controlPoint1: NSPoint(x: point.x, y: point.y + 3), controlPoint2: NSPoint(x: point.x + sway, y: point.y + 5))
-            stem.lineWidth = 1.2
+            stem.curve(
+                to: NSPoint(x: point.x + sway, y: point.y + 7 * visualScale),
+                controlPoint1: NSPoint(x: point.x, y: point.y + 3 * visualScale),
+                controlPoint2: NSPoint(x: point.x + sway, y: point.y + 5 * visualScale)
+            )
+            stem.lineWidth = 1.1 * visualScale
             stem.stroke()
-            NSBezierPath(ovalIn: CGRect(x: point.x + sway - 5, y: point.y + 4, width: 5, height: 3)).fill()
-            NSBezierPath(ovalIn: CGRect(x: point.x + sway, y: point.y + 5, width: 5, height: 3)).fill()
+            NSBezierPath(ovalIn: CGRect(
+                x: point.x + sway - 5 * visualScale,
+                y: point.y + 4 * visualScale,
+                width: 5 * visualScale,
+                height: 3 * visualScale
+            )).fill()
+            NSBezierPath(ovalIn: CGRect(
+                x: point.x + sway,
+                y: point.y + 5 * visualScale,
+                width: 5 * visualScale,
+                height: 3 * visualScale
+            )).fill()
         } else {
-            let lift = CGFloat(progress) * 8
-            NSBezierPath(ovalIn: CGRect(x: point.x + 3, y: point.y + 2 + lift, width: 3.5, height: 3.5)).fill()
-            NSBezierPath(ovalIn: CGRect(x: point.x - 5, y: point.y + 5 + lift * 0.65, width: 2.5, height: 2.5)).fill()
+            let lift = CGFloat(progress) * 8 * visualScale
+            NSBezierPath(ovalIn: CGRect(
+                x: point.x + 3 * visualScale,
+                y: point.y + 2 * visualScale + lift,
+                width: 3.5 * visualScale,
+                height: 3.5 * visualScale
+            )).fill()
+            NSBezierPath(ovalIn: CGRect(
+                x: point.x - 5 * visualScale,
+                y: point.y + 5 * visualScale + lift * 0.65,
+                width: 2.5 * visualScale,
+                height: 2.5 * visualScale
+            )).fill()
         }
     }
 

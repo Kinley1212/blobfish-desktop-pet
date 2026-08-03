@@ -9,6 +9,10 @@ struct TaskLeaseReader {
     static let maximumFileBytes = 16 * 1024
     static let maximumLeaseCount = 256
     static let maximumDirectoryEntries = 1_024
+    static let startedMaximumAgeMilliseconds: Double = 15 * 60 * 1_000
+    static let runningMaximumAgeMilliseconds: Double = 30 * 60 * 1_000
+    static let waitingMaximumAgeMilliseconds: Double = 8 * 60 * 60 * 1_000
+    static let terminalMaximumAgeMilliseconds: Double = 5 * 60 * 1_000
 
     let directoryURL: URL
 
@@ -103,12 +107,10 @@ struct TaskLeaseReader {
 
         let maximumAge: Double
         switch lease.event {
-        case .needsInput:
-            maximumAge = 8 * 60 * 60 * 1_000
-        case .started, .running:
-            maximumAge = 2 * 60 * 60 * 1_000
-        case .ended, .completed, .failed:
-            maximumAge = 5 * 60 * 1_000
+        case .started: maximumAge = Self.startedMaximumAgeMilliseconds
+        case .running: maximumAge = Self.runningMaximumAgeMilliseconds
+        case .needsInput: maximumAge = Self.waitingMaximumAgeMilliseconds
+        case .ended, .completed, .failed: maximumAge = Self.terminalMaximumAgeMilliseconds
         }
         return nowMilliseconds - lease.timestamp <= maximumAge
     }
