@@ -564,12 +564,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let relayText = promptText(
                 title: "连接鱼鱼中转站",
                 message: "请输入你们共同使用的 HTTPS 中转服务地址。",
-                placeholder: "https://fish.example.com"
+                placeholder: "https://fish.example.com",
+                defaultValue: "https://blobfish-fish-messenger.blobfish-kinley1212.workers.dev"
             ), let relayURL = URL(string: relayText),
             let setupToken = promptText(
                 title: "输入建箱密语",
                 message: "这是中转站部署时设置的 SETUP_SECRET，只在创建信箱时发送，不会保存。",
-                placeholder: "至少 16 个字符"
+                placeholder: "至少 16 个字符",
+                secure: true
             ) else { return }
             Task { @MainActor in
                 do {
@@ -628,9 +630,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @MainActor private func promptText(title: String, message: String, placeholder: String) -> String? {
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 420, height: 28))
+    @MainActor private func promptText(
+        title: String,
+        message: String,
+        placeholder: String,
+        defaultValue: String = "",
+        secure: Bool = false
+    ) -> String? {
+        let frame = NSRect(x: 0, y: 0, width: 420, height: 28)
+        let field: NSTextField = secure ? NSSecureTextField(frame: frame) : NSTextField(frame: frame)
         field.placeholderString = placeholder
+        field.stringValue = defaultValue
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = message

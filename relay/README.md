@@ -13,3 +13,11 @@ npx wrangler deploy
 ```
 
 `SETUP_SECRET` 只用于你和朋友首次创建收件箱，防止公开地址被滥用；至少使用 16 个字符。收件箱最多暂存 100 条密文，30 天自动过期；客户端确认接收后立即删除。
+
+当前私人测试中转站：
+
+```text
+https://blobfish-fish-messenger.blobfish-kinley1212.workers.dev
+```
+
+建箱密语不提交到仓库，只通过可信的私下渠道分享。
