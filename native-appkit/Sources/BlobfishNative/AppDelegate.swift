@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private enum SpeechPriority {
         static let idle = 10
@@ -127,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let messenger = FishMessengerService()
         messenger.onMessage = { [weak self] message, contact in
             guard let self, !contact.muted else { return }
-            self.panelController.playEffect(.success)
+            self.panelController.playEffect(.completed)
             self.panelController.say(
                 "\(message.senderName)：\(message.text)",
                 event: "messenger.received",
@@ -613,7 +614,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in
             do {
                 try await messenger.send(text: text, to: contact.id)
-                panelController.playEffect(.success)
+                panelController.playEffect(.completed)
                 panelController.say("收到，我去告诉 \(contact.invite.displayName)。", event: "messenger.sent", priority: SpeechPriority.messenger)
             } catch { showMessengerError("这句话暂时没送出去。", error: error) }
         }
