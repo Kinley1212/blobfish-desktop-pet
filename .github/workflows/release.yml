@@ -72,14 +72,13 @@ jobs:
       - name: Write release notes
         shell: bash
         run: |
-          cat > release-notes.md <<'NOTES'
-          ## 水滴鱼 2.1.2
+          version="${GITHUB_REF_NAME#v}"
+          cat > release-notes.md <<NOTES
+          ## 水滴鱼 ${version}
 
-          修复窝窝头版水滴鱼的头顶 / 眼镜 / 手边饰品与身体不对齐的问题。表情插槽此前已修正过 viewBox 原点偏移（窝窝头的画布从 x = -16 开始），但同一处理没有同步到其他饰品插槽，导致这些饰品整体偏移。现在所有插槽统一走同一套坐标换算，并新增自检用例防止再次回归。
-
-          - `BlobfishNative-2.1.2-macOS-arm64.zip`：Apple Silicon Mac 原生安装包
-          - `BlobfishNative-2.1.2-macOS-x64.zip`：Intel Mac 原生安装包
-          - `blobfish-native-latest.json`：原生版一键更新清单
+          - \`BlobfishNative-${version}-macOS-arm64.zip\`：Apple Silicon Mac 原生安装包
+          - \`BlobfishNative-${version}-macOS-x64.zip\`：Intel Mac 原生安装包
+          - \`blobfish-native-latest.json\`：原生版一键更新清单
           - 两个安装包均为纯 Swift / AppKit，不包含 Electron
 
           当前安装包使用 ad-hoc 签名，尚未获得 Apple Developer ID 公证。首次在其他 Mac 打开时可能仍需按 macOS 的安全提示确认。
@@ -93,4 +92,5 @@ jobs:
           release/blobfish-native-latest.json
           --verify-tag
           --title "水滴鱼 ${GITHUB_REF_NAME#v}"
+          --generate-notes
           --notes-file release-notes.md

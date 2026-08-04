@@ -10,9 +10,9 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 **[中文](#中文) · [English](#english)**
 
 ![platform](https://img.shields.io/badge/platform-macOS-1f2328?style=flat-square)
-![electron](https://img.shields.io/badge/Electron-43-47848F?style=flat-square)
-![node](https://img.shields.io/badge/Node.js-%E2%89%A522.12-5FA04E?style=flat-square)
-![version](https://img.shields.io/badge/version-1.4.5-c87d95?style=flat-square)
+![native](https://img.shields.io/badge/native-Swift%20%2F%20AppKit-f05138?style=flat-square)
+![macOS](https://img.shields.io/badge/macOS-%E2%89%A513.0-1f2328?style=flat-square)
+![version](https://img.shields.io/badge/version-2.2.0-c87d95?style=flat-square)
 
 </div>
 
@@ -22,7 +22,7 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 
 ### 这是什么
 
-一个 Electron 写的 macOS 桌面宠物。透明置顶窗口，不占程序坞，平时在屏幕边缘来回游动，到点提醒你吃饭下班，跑 Codex / Claude Code 任务时会在头顶显示任务卡片。
+一个用 Swift、AppKit 与 SwiftUI 编写的原生 macOS 桌面宠物。透明置顶窗口，不占程序坞，平时在屏幕边缘来回游动，到点提醒你吃饭下班，跑 Codex / Claude Code 任务时会在头顶显示任务卡片。仓库仍保留 Electron 1.4.5 源码作为旧版兼容与资源工具链。
 
 ### 功能
 
@@ -56,7 +56,7 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 - Codex / Claude Code 任务状态桥接，任务完成可播放系统提示音
 - 锁屏唤醒、低电量提醒、日历日程提醒（日历默认关闭）
 
-**鱼鱼传话（开发中）**
+**鱼鱼传话**
 
 - 两位朋友通过私下交换鱼鱼码完成配对，让水滴鱼替自己传一句话
 - 正文在本机端到端加密，中转服务只保存限时密文；设备私钥保存在 macOS Keychain
@@ -68,13 +68,11 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 
 ### 安装运行
 
-需要 [Node.js](https://nodejs.org) 22.12 或更新版本。
+从 [GitHub Releases](https://github.com/Kinley1212/blobfish-desktop-pet/releases/latest) 下载与 Mac 芯片匹配的原生安装包：
 
 ```bash
-git clone https://github.com/Kinley1212/blobfish-desktop-pet.git
-cd blobfish-desktop-pet
-npm install
-npm start
+BlobfishNative-X.Y.Z-macOS-arm64.zip  # Apple Silicon
+BlobfishNative-X.Y.Z-macOS-x64.zip    # Intel
 ```
 
 右键鱼本体、或点击菜单栏的 🐟 打开设置。
@@ -82,13 +80,14 @@ npm start
 ### 打包成 App
 
 ```bash
-npm run package:mac:arm64   # Apple Silicon
-npm run package:mac:x64     # Intel
+cd native-appkit
+make archive ARCH=arm64   # Apple Silicon
+make archive ARCH=x86_64  # Intel
 ```
 
-会编译对应架构的日历助手与任务发送器、生成 App、做 ad-hoc 本地签名、校验架构，产物写入 `release/`。`npm run package:mac` 会依次生成两种架构。
+会生成对应架构的纯 Swift / AppKit App、做 ad-hoc 本地签名，并把 zip 写入 `native-appkit/.build/`。正式 GitHub Release 会由 CI 同时构建两种架构。
 
-> 日历助手用到 macOS 14 的 EventKit 接口，需要在 macOS 14 或更新的系统上打包。
+> 原生 App 最低支持 macOS 13；macOS 14 及更新系统会使用新版 EventKit 日历授权接口。
 >
 > ad-hoc 签名适合本机验收和开发者之间传递。面向普通用户分发仍需 Apple Developer ID 证书签名并完成 notarization。
 
@@ -169,7 +168,7 @@ npm test
 
 ### What is this
 
-A macOS desktop pet built with Electron. It lives in a transparent always-on-top window, stays out of the Dock, swims back and forth along the edge of your screen, reminds you when to eat and when to log off, and shows task cards above its head while Codex or Claude Code is working.
+A native macOS desktop pet built with Swift, AppKit and SwiftUI. It lives in a transparent always-on-top window, stays out of the Dock, swims along the edge of your screen, reminds you when to eat and log off, and shows task cards while Codex or Claude Code is working. The Electron 1.4.5 source remains in the repository as the legacy compatibility and resource toolchain.
 
 ### Features
 
@@ -209,13 +208,11 @@ Characters, languages and accessories are all self-contained packs — adding co
 
 ### Getting started
 
-Requires [Node.js](https://nodejs.org) 22.12 or newer.
+Download the native package matching your Mac from [GitHub Releases](https://github.com/Kinley1212/blobfish-desktop-pet/releases/latest):
 
 ```bash
-git clone https://github.com/Kinley1212/blobfish-desktop-pet.git
-cd blobfish-desktop-pet
-npm install
-npm start
+BlobfishNative-X.Y.Z-macOS-arm64.zip  # Apple Silicon
+BlobfishNative-X.Y.Z-macOS-x64.zip    # Intel
 ```
 
 Right-click the fish, or click the 🐟 in the menu bar, to open settings.
@@ -223,13 +220,14 @@ Right-click the fish, or click the 🐟 in the menu bar, to open settings.
 ### Packaging
 
 ```bash
-npm run package:mac:arm64   # Apple Silicon
-npm run package:mac:x64     # Intel
+cd native-appkit
+make archive ARCH=arm64   # Apple Silicon
+make archive ARCH=x86_64  # Intel
 ```
 
-Each command builds the matching-architecture calendar helper and task sender, produces the app, ad-hoc signs it locally, verifies the architecture of the binaries and writes the bundle to `release/`. `npm run package:mac` builds both in turn.
+Each command creates the matching pure Swift / AppKit app, applies an ad-hoc local signature and writes the zip to `native-appkit/.build/`. The GitHub Release workflow builds both architectures.
 
-> The calendar helper uses macOS 14 EventKit APIs, so packaging needs macOS 14 or newer.
+> The native app supports macOS 13 and uses the newer EventKit calendar authorization API on macOS 14 and later.
 >
 > Ad-hoc signing is fine for local acceptance and passing builds between developers. Distributing to ordinary users still needs an Apple Developer ID certificate and notarization.
 
