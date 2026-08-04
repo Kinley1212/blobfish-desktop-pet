@@ -1,6 +1,5 @@
 import AppKit
 
-@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private enum SpeechPriority {
         static let idle = 10
@@ -545,7 +544,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return providers
     }
 
-    @objc private func pairFishMessenger() {
+    @MainActor @objc private func pairFishMessenger() {
         guard let messenger = messengerService else { return }
         if messenger.profile == nil {
             guard let name = promptText(
@@ -575,7 +574,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         showPairingActions(messenger)
     }
 
-    private func showPairingActions(_ messenger: FishMessengerService) {
+    @MainActor private func showPairingActions(_ messenger: FishMessengerService) {
         let alert = NSAlert()
         alert.messageText = "鱼鱼配对"
         alert.informativeText = "你和朋友各自复制一次鱼鱼码，再把对方的码导入。鱼鱼码含投递权限，请只发给你信任的人。"
@@ -599,7 +598,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc private func sendFishMessage() {
+    @MainActor @objc private func sendFishMessage() {
         guard let messenger = messengerService else { return }
         guard let profile = messenger.profile else { pairFishMessenger(); return }
         guard let contact = profile.contacts.first(where: { !$0.blocked }) else {
@@ -620,7 +619,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func promptText(title: String, message: String, placeholder: String) -> String? {
+    @MainActor private func promptText(title: String, message: String, placeholder: String) -> String? {
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 420, height: 28))
         field.placeholderString = placeholder
         let alert = NSAlert()
@@ -635,7 +634,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return value.isEmpty ? nil : value
     }
 
-    private func showMessengerError(_ message: String, error: Error) {
+    @MainActor private func showMessengerError(_ message: String, error: Error) {
         let alert = NSAlert(error: error)
         alert.messageText = message
         alert.runModal()
