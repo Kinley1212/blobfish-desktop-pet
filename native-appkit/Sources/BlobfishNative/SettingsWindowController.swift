@@ -19,6 +19,11 @@ final class SettingsViewModel: ObservableObject {
     @Published var updateStatus = ""
     @Published var updateProgress: Double?
     @Published var updateAvailable = false
+    @Published var fishDisplayName = ""
+    @Published var fishPreferences = FishFriendPreferences.defaults
+    @Published var fishRecords: [FishMessageRecord] = []
+    @Published var fishContacts: [FishContact] = []
+    @Published var fishDraftMessage = ""
 
     let runtime: AppRuntime
     let characters: [CharacterPack]
@@ -27,13 +32,20 @@ final class SettingsViewModel: ObservableObject {
     let clockService: ClockService?
     let integrationManager: IntegrationManager
     let updater = NativeUpdater()
+    let messengerService: FishMessengerService?
     private let soundPlayer = SoundPlayer()
     private var availableUpdate: (NativeUpdateManifest, NativeUpdateManifest.Asset)?
     private let onApply: () -> Void
+    private let presenceProvider: @MainActor () -> FishPresence?
 
-    init(runtime: AppRuntime, clockService: ClockService?, onApply: @escaping () -> Void) {
+    init(
+        runtime: AppRuntime, clockService: ClockService?, messengerService: FishMessengerService?,
+        presenceProvider: @escaping @MainActor () -> FishPresence?, onApply: @escaping () -> Void
+    ) {
         self.runtime = runtime
         self.clockService = clockService
+        self.messengerService = messengerService
+        self.presenceProvider = presenceProvider
         integrationManager = IntegrationManager(supportDirectory: runtime.configStore.fileURL.deletingLastPathComponent())
         clockState = clockService?.state ?? .empty
         draft = runtime.config
@@ -43,7 +55,53 @@ final class SettingsViewModel: ObservableObject {
         self.onApply = onApply
         if !runtime.warnings.isEmpty { message = runtime.warnings.joined(separator: "\n") }
         refreshIntegrations()
+        refreshFishFriends()
+        messengerService?.addStateObserver { [weak self] in self?.refreshFishFriends() }
     }
+
+    func refreshFishFriends() {
+        fishDisplayName = messengerService?.profile?.displayName ?? ""
+        fishPreferences = messengerService?.preferences ?? .defaults
+        fishRecords = messengerService?.records.sorted { $0.sentAt > $1.sentAt } ?? []
+        fishContacts = messengerService?.profile?.contacts ?? []
+    }
+
+    func saveFishSettings() {
+        guard let messengerService else { return }
+        do {
+            try messengerService.updateDisplayName(fishDisplayName)
+            messengerService.updatePreferences(fishPreferences)
+            message = isEnglish ? "Fish friend settings saved." : "鱼友设置已保存。"
+        } catch { message = String(describing: error) }
+    }
+
+    func sendFishMessage(to contact: FishContact) {
+        let text = fishDraftMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, let messengerService else { return }
+        fishDraftMessage = ""
+        Task { @MainActor in
+            do { try await messengerService.send(text: text, to: contact.id) }
+            catch { self.message = String(describing: error) }
+        }
+    }
+
+    func startVisit(_ contact: FishContact) {
+        guard let messengerService, fishPreferences.visitsEnabled, let presence = presenceProvider() else { return }
+        Task { @MainActor in
+            do { try await messengerService.send(text: "来串门啦！", to: contact.id, kind: .visitStart, presence: presence) }
+            catch { self.message = String(describing: error) }
+        }
+    }
+
+    func endVisit(_ contact: FishContact) {
+        guard let messengerService else { return }
+        Task { @MainActor in
+            do { try await messengerService.send(text: "下次再玩。", to: contact.id, kind: .visitEnd) }
+            catch { self.message = String(describing: error) }
+        }
+    }
+
+    func markFishMessagesRead() { messengerService?.markRead() }
 
     func refreshIntegrations() {
         for provider in ["codex", "claude"] {
@@ -265,7 +323,7 @@ final class SettingsViewModel: ObservableObject {
 }
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case character, schedule, language, connection, clocks, performance
+    case character, friends, schedule, language, connection, clocks, performance
     var id: String { rawValue }
 }
 
@@ -316,6 +374,7 @@ struct BrandedSettingsView: View {
             .padding(.bottom, 18)
 
             sidebarButton(.character, "person.crop.circle", zh: "角色与动作", en: "Character & Motion")
+            sidebarButton(.friends, "person.2.wave.2", zh: "传话与串门", en: "Messages & Visits")
             sidebarButton(.schedule, "clock", zh: "问候与作息", en: "Schedule & Greetings")
             sidebarButton(.language, "quote.bubble", zh: "台词", en: "Dialogue")
             sidebarButton(.connection, "link", zh: "连接与隐私", en: "Connections & Privacy")
@@ -356,12 +415,107 @@ struct BrandedSettingsView: View {
     @ViewBuilder private var section: some View {
         switch model.selectedSection {
         case .character: EmptyView()
+        case .friends: friendsSection
         case .schedule: scheduleSection
         case .language: languageSection
         case .connection: connectionSection
         case .clocks: clocksSection
         case .performance: performanceSection
         }
+    }
+
+    private var friendsSection: some View {
+        SettingsPage(
+            title: t("传话与串门", "Messages & Visits"),
+            subtitle: t("端到端加密传话、双鱼串门、未读记录和个性气泡。", "Encrypted messages, visits, unread history, and custom bubbles.")
+        ) {
+            fishProfileCard
+            fishContactsCard
+            fishHistoryCard
+        }
+    }
+
+    private var fishProfileCard: some View {
+        SettingsCard {
+                Text(t("我的鱼友资料", "My fish profile")).font(.headline)
+                TextField(t("显示名字", "Display name"), text: $model.fishDisplayName)
+                    .textFieldStyle(.roundedBorder)
+                Picker(t("消息气泡", "Message bubble"), selection: $model.fishPreferences.bubbleColor) {
+                    Text(t("海水蓝", "Ocean blue")).tag("#1F7AE8")
+                    Text(t("珊瑚粉", "Coral pink")).tag("#E65D83")
+                    Text(t("海草绿", "Seaweed green")).tag("#2B9C77")
+                    Text(t("葡萄紫", "Grape purple")).tag("#7957C8")
+                    Text(t("夜空黑", "Night black")).tag("#384052")
+                }
+                Toggle(t("允许好友串门", "Allow friend visits"), isOn: $model.fishPreferences.visitsEnabled)
+                Toggle(t("好友来信播放音效", "Play sound for friend messages"), isOn: $model.fishPreferences.incomingSoundEnabled)
+                if model.fishPreferences.incomingSoundEnabled {
+                    HStack {
+                        soundPicker(selection: $model.fishPreferences.incomingSoundID)
+                        Button(t("试听", "Preview")) { model.previewSound(model.fishPreferences.incomingSoundID) }
+                    }
+                }
+                Button(t("保存鱼友设置", "Save fish settings")) { model.saveFishSettings() }
+        }
+    }
+
+    private var fishContactsCard: some View {
+        SettingsCard {
+                Text(t("好友与直接聊天", "Friends & direct chat")).font(.headline)
+                if model.fishContacts.isEmpty {
+                    Text(t("还没有配对好友，请先从右键菜单导入鱼鱼码。", "No friends yet. Import a fish code from the context menu first."))
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(model.fishContacts) { contact in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(contact.nickname ?? contact.invite.displayName).fontWeight(.semibold)
+                            Spacer()
+                            if model.messengerService?.activeVisitContactID == contact.id {
+                                Text(t("串门中 · 已停游", "Visiting · paused")).foregroundStyle(.pink)
+                                Button(t("结束串门", "End visit")) { model.endVisit(contact) }
+                            } else {
+                                Button(t("邀请串门", "Invite over")) { model.startVisit(contact) }
+                            }
+                        }
+                        HStack {
+                            TextField(t("输入传话内容", "Type a message"), text: $model.fishDraftMessage)
+                                .textFieldStyle(.roundedBorder)
+                            Button(t("发送", "Send")) { model.sendFishMessage(to: contact) }
+                        }
+                    }
+                    Divider()
+                }
+        }
+    }
+
+    private var fishHistoryCard: some View {
+        SettingsCard {
+            fishHistoryHeader
+            if model.fishRecords.isEmpty {
+                Text(t("还没有传话记录。", "No messages yet.")).foregroundStyle(.secondary)
+            }
+            ForEach(model.fishRecords.prefix(100)) { record in
+                FishHistoryRow(record: record, isEnglish: model.isEnglish)
+                Divider()
+            }
+        }
+    }
+
+    private var fishHistoryHeader: some View {
+        HStack {
+            Text(t("消息记录", "Message history")).font(.headline)
+            Spacer()
+            if fishUnreadCount > 0 {
+                Text(model.isEnglish ? "\(fishUnreadCount) unread" : "\(fishUnreadCount) 条未读")
+                    .foregroundStyle(.red)
+            }
+            Button(t("全部标为已读", "Mark all read")) { model.markFishMessagesRead() }
+        }
+    }
+
+    private var fishUnreadCount: Int {
+        model.fishRecords.filter { $0.direction == .incoming && !$0.isRead }.count
     }
 
     private var currentCharacter: CharacterPack? {
@@ -820,10 +974,42 @@ struct SettingsCard<Content: View>: View {
     }
 }
 
+private struct FishHistoryRow: View {
+    let record: FishMessageRecord
+    let isEnglish: Bool
+
+    var body: some View {
+        HStack(alignment: .top) {
+            Image(systemName: iconName)
+                .foregroundStyle(record.isRead ? Color.secondary : Color.blue)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(record.senderName).font(.caption.weight(.semibold))
+                Text(record.text).textSelection(.enabled)
+                Text(record.sentAt.formatted(date: .abbreviated, time: .shortened))
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if record.direction == .incoming && !record.isRead {
+                Text(isEnglish ? "Unread" : "未读").font(.caption).foregroundStyle(.red)
+            }
+        }
+    }
+
+    private var iconName: String {
+        record.direction == .incoming ? "arrow.down.left.circle.fill" : "arrow.up.right.circle"
+    }
+}
+
 final class SettingsWindowController: NSWindowController {
     private let viewModel: SettingsViewModel
-    init(runtime: AppRuntime, clockService: ClockService?, onApply: @escaping () -> Void) {
-        let viewModel = SettingsViewModel(runtime: runtime, clockService: clockService, onApply: onApply)
+    init(
+        runtime: AppRuntime, clockService: ClockService?, messengerService: FishMessengerService?,
+        presenceProvider: @escaping @MainActor () -> FishPresence?, onApply: @escaping () -> Void
+    ) {
+        let viewModel = SettingsViewModel(
+            runtime: runtime, clockService: clockService, messengerService: messengerService,
+            presenceProvider: presenceProvider, onApply: onApply
+        )
         self.viewModel = viewModel
         let hosting = NSHostingController(rootView: BrandedSettingsView(model: viewModel))
         let window = NSWindow(contentViewController: hosting)

@@ -128,17 +128,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         configureStatusMenu()
         panelController.show()
 
-        let messenger = FishMessengerService()
+        let messenger = FishMessengerService(
+            supportDirectory: runtime.configStore.fileURL.deletingLastPathComponent()
+        )
+        messenger.addStateObserver { [weak self, weak messenger] in
+            guard let self, let messenger else { return }
+            self.panelController.updateUnreadCount(messenger.unreadCount)
+            if let contactID = messenger.activeVisitContactID,
+               let contact = messenger.profile?.contacts.first(where: { $0.id == contactID }),
+               let presence = contact.lastPresence {
+                self.panelController.showVisit(
+                    presence: presence,
+                    friendName: contact.nickname ?? contact.invite.displayName,
+                    runtime: self.runtime
+                )
+            } else if messenger.activeVisitContactID == nil {
+                self.panelController.endVisit()
+            }
+        }
+        panelController.updateUnreadCount(messenger.unreadCount)
         messenger.onMessage = { [weak self] message, contact in
             guard let self, !contact.muted else { return }
             self.messengerReplyTarget = (contact.id, message.id)
+            if messenger.preferences.incomingSoundEnabled, !self.isQuietNow() {
+                self.soundPlayer.play(id: messenger.preferences.incomingSoundID)
+            }
+            let kind = message.kind ?? .text
+            if messenger.preferences.visitsEnabled,
+               (kind == .visitStart || kind == .visitAccept), let presence = message.presence {
+                self.panelController.showVisit(presence: presence, friendName: message.senderName, runtime: self.runtime)
+            }
+            if kind == .visitStart, messenger.preferences.visitsEnabled {
+                Task { @MainActor in
+                    try? await messenger.send(
+                        text: "我来啦！", to: contact.id, kind: .visitAccept,
+                        presence: self.currentFishPresence()
+                    )
+                }
+            }
+            if kind == .visitEnd {
+                self.panelController.endVisit()
+            }
             self.panelController.playEffect(.completed)
             self.panelController.say(
-                "\(message.senderName)：\(message.text)",
+                kind == .visitStart ? "\(message.senderName) 来串门啦，正在和你牵手。" :
+                    (kind == .visitEnd ? "\(message.senderName) 回家啦，下次再玩。" : "\(message.senderName)：\(message.text)"),
                 event: "messenger.received",
                 duration: 20,
                 priority: SpeechPriority.messenger,
-                replaceKey: "messenger.\(message.id.uuidString)"
+                replaceKey: "messenger.\(message.id.uuidString)",
+                color: message.bubbleColor
             )
         }
         messenger.onError = { [weak self] _ in
@@ -629,7 +668,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
               let target = messengerReplyTarget,
               let profile = messenger.profile,
               let contact = profile.contacts.first(where: { $0.id == target.contactID && !$0.blocked }) else { return }
+        messenger.markRead(target.messageID)
         composeFishMessage(to: contact, replyTo: target.messageID)
+    }
+
+    @MainActor private func currentFishPresence() -> FishPresence {
+        FishPresence(
+            characterPackID: runtime.config.pet.characterPackId,
+            customization: runtime.config.pet.customization[runtime.config.pet.characterPackId],
+            accessories: runtime.config.pet.accessories[runtime.config.pet.characterPackId]
+        )
     }
 
     @MainActor private func composeFishMessage(to contact: FishContact, replyTo: UUID? = nil) {
@@ -787,7 +835,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openSettings() {
         if settingsController == nil {
-            settingsController = SettingsWindowController(runtime: runtime, clockService: clockService) { [weak self] in
+            settingsController = SettingsWindowController(
+                runtime: runtime, clockService: clockService, messengerService: messengerService,
+                presenceProvider: { [weak self] in self?.currentFishPresence() }
+            ) { [weak self] in
                 guard let self else { return }
                 self.panelController.apply(runtime: self.runtime)
                 self.taskMonitor?.includeTitles = self.runtime.config.privacy.includeTaskTitles

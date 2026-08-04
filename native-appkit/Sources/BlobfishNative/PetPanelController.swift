@@ -145,6 +145,7 @@ enum PetMovementGeometry {
 final class PetPanelController {
     let panel: NSPanel
     private let petView: PetView
+    private let guestView: PetView
     private lazy var movementDisplayLink = DisplayLinkDriver { [weak self] _ in
         self?.moveOneFrame()
     }
@@ -170,6 +171,7 @@ final class PetPanelController {
     private var pettingStreak = 0
     private var lastPettingAt: TimeInterval = 0
     private var motionState = PetMotionTiming.State.idle
+    private var visitPaused = false
 
     var onClick: (() -> Void)? {
         didSet { petView.onClick = onClick }
@@ -184,12 +186,14 @@ final class PetPanelController {
             guard let self else { return }
             self.petView.transientMessage = message.text.isEmpty ? nil : message.text
             self.petView.transientMessageEvent = message.event
+            self.petView.transientMessageColor = message.color
             self.petView.setMoodFace(message.faceID ?? message.event.flatMap { self.moodFaceProvider?($0) })
             self.show()
         },
         onIdle: { [weak self] in
             self?.petView.transientMessage = nil
             self?.petView.transientMessageEvent = nil
+            self?.petView.transientMessageColor = nil
             self?.petView.setMoodFace(nil)
         }
     )
@@ -207,7 +211,11 @@ final class PetPanelController {
             defer: false
         )
         petView = PetView(frame: NSRect(origin: .zero, size: size))
+        guestView = PetView(frame: NSRect(x: 168, y: 0, width: 170, height: 165))
         panel.contentView = petView
+        petView.addSubview(guestView)
+        guestView.isHidden = true
+        guestView.ignoresMouseInteraction = true
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false
@@ -287,7 +295,8 @@ final class PetPanelController {
         faceID: String? = nil,
         duration: TimeInterval = 7,
         priority: Int = 10,
-        replaceKey: String? = nil
+        replaceKey: String? = nil,
+        color: String? = nil
     ) {
         speechQueue.enqueue(
             text: text,
@@ -295,7 +304,8 @@ final class PetPanelController {
             faceID: faceID,
             priority: priority,
             duration: duration,
-            replaceKey: replaceKey
+            replaceKey: replaceKey,
+            color: color
         )
     }
 
@@ -336,6 +346,29 @@ final class PetPanelController {
     }
 
     func updatePerformance(_ sample: PerformanceSample?) { petView.performanceSample = sample }
+
+    func updateUnreadCount(_ count: Int) { petView.unreadMessageCount = count }
+
+    func showVisit(presence: FishPresence, friendName: String, runtime: AppRuntime) {
+        guard let character = try? runtime.catalog?.character(id: presence.characterPackID) else { return }
+        guestView.character = character
+        guestView.characterScale = min(0.82, config.pet.scale * 0.82)
+        guestView.accessoryPacks = runtime.accessories
+        guestView.customization = presence.customization
+        guestView.accessorySpec = CharacterAccessories(presence.accessories)
+        guestView.motionState = .idle
+        guestView.updateMotion(elapsed: 0, bobOffset: 0)
+        guestView.isHidden = false
+        petView.visitingFriendName = friendName
+        visitPaused = true
+        flingVelocity = nil
+    }
+
+    func endVisit() {
+        guestView.isHidden = true
+        petView.visitingFriendName = nil
+        visitPaused = false
+    }
 
     func animateExit(completion: @escaping () -> Void) {
         movementDisplayLink.stop()
@@ -388,7 +421,7 @@ final class PetPanelController {
             menuOpen: menuPaused,
             interacting: interactionPaused,
             dragging: dragging
-        )
+        ) || visitPaused
         let externallyMoved = lastAutomaticOrigin.map {
             abs(actualOrigin.x - $0.x) > 1.5 || abs(actualOrigin.y - $0.y) > 1.5
         } ?? true

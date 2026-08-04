@@ -87,8 +87,15 @@ struct FishMessage: Codable, Equatable {
     let senderName: String
     let text: String
     let replyTo: UUID?
+    let kind: FishMessageKind?
+    let bubbleColor: String?
+    let presence: FishPresence?
 
-    init(id: UUID = UUID(), sentAt: Date = Date(), senderName: String, text: String, replyTo: UUID? = nil) throws {
+    init(
+        id: UUID = UUID(), sentAt: Date = Date(), senderName: String, text: String,
+        replyTo: UUID? = nil, kind: FishMessageKind? = nil,
+        bubbleColor: String? = nil, presence: FishPresence? = nil
+    ) throws {
         let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty, normalized.utf8.count <= Self.maximumTextBytes,
               senderName.utf8.count <= 48,
@@ -101,6 +108,9 @@ struct FishMessage: Codable, Equatable {
         self.senderName = senderName
         self.text = normalized
         self.replyTo = replyTo
+        self.kind = kind
+        self.bubbleColor = bubbleColor
+        self.presence = presence
     }
 }
 
@@ -158,7 +168,10 @@ struct FishMessengerIdentity {
                 sentAt: decoded.sentAt,
                 senderName: decoded.senderName,
                 text: decoded.text,
-                replyTo: decoded.replyTo
+                replyTo: decoded.replyTo,
+                kind: decoded.kind,
+                bubbleColor: decoded.bubbleColor,
+                presence: decoded.presence
             )
         } catch {
             throw FishMessengerError.decryptionFailed
