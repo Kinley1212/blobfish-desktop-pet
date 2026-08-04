@@ -72,6 +72,12 @@ enum PetMotionTiming {
     }
 }
 
+enum PetMovementPause {
+    static func shouldPause(hovering: Bool, menuOpen: Bool, interacting: Bool, dragging: Bool) -> Bool {
+        hovering || menuOpen || interacting || dragging
+    }
+}
+
 enum PetMovementGeometry {
     static func allowedOrigins(visibleFrame: NSRect, visualBounds: NSRect) -> NSRect? {
         let width = visibleFrame.width - visualBounds.width
@@ -155,6 +161,7 @@ final class PetPanelController {
     private var interactionTimer: Timer?
     private var interactionPaused = false
     private var hoverPaused = false
+    private var menuPaused = false
     private var dragging = false
     private var flingVelocity: CGVector?
     private var lastPointerX: CGFloat?
@@ -302,6 +309,14 @@ final class PetPanelController {
         RunLoop.main.add(interactionTimer!, forMode: .common)
     }
 
+    func setMenuPaused(_ paused: Bool) {
+        menuPaused = paused
+        if paused {
+            flingVelocity = nil
+            petView.updateMotion(elapsed: petView.motionElapsed, bobOffset: 0)
+        }
+    }
+
     func updateClock(state: ClockState, timerText: String?) {
         petView.alarmClockVisible = state.alarms.contains(where: \.enabled)
             || state.alerts.contains(where: { $0.sourceType == "alarm" })
@@ -363,6 +378,12 @@ final class PetPanelController {
             state: motionState
         )
         updatePointerInteraction()
+        let movementPaused = PetMovementPause.shouldPause(
+            hovering: hoverPaused,
+            menuOpen: menuPaused,
+            interacting: interactionPaused,
+            dragging: dragging
+        )
         let externallyMoved = lastAutomaticOrigin.map {
             abs(actualOrigin.x - $0.x) > 1.5 || abs(actualOrigin.y - $0.y) > 1.5
         } ?? true
@@ -373,10 +394,11 @@ final class PetPanelController {
         var origin = preciseOrigin ?? actualOrigin
         petView.updateMotion(
             elapsed: motionElapsed,
-            bobOffset: interactionPaused || dragging ? 0 : bob
+            bobOffset: movementPaused ? 0 : bob
         )
 
         if dragging { return }
+        if movementPaused { return }
         if var velocity = flingVelocity {
             let intended = NSPoint(x: origin.x + velocity.dx * elapsed, y: origin.y + velocity.dy * elapsed)
             origin = PetMovementGeometry.clamped(intended, to: allowed)
@@ -410,7 +432,7 @@ final class PetPanelController {
             return
         }
 
-        if config.pet.moveAxis == "vertical", movementEnabled, !interactionPaused, !hoverPaused {
+        if config.pet.moveAxis == "vertical", movementEnabled {
             origin.y += movementDirection * step
             if origin.y <= allowed.minY {
                 origin.y = allowed.minY
@@ -423,7 +445,7 @@ final class PetPanelController {
             }
             origin.x = min(max(origin.x, allowed.minX), allowed.maxX)
         } else {
-            if movementEnabled, !interactionPaused, !hoverPaused, config.pet.moveAxis == "horizontal" {
+            if movementEnabled, config.pet.moveAxis == "horizontal" {
                 origin.x += movementDirection * step
                 if origin.x <= allowed.minX {
                     origin.x = allowed.minX

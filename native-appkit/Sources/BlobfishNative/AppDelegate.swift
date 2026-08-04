@@ -1,6 +1,6 @@
 import AppKit
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private enum SpeechPriority {
         static let idle = 10
         static let interaction = 30
@@ -221,6 +221,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.toolTip = "水滴鱼"
 
         let menu = NSMenu()
+        menu.delegate = self
         let heading = NSMenuItem(title: "任务状态", action: nil, keyEquivalent: "")
         heading.isEnabled = false
         menu.addItem(heading)
@@ -309,6 +310,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.menu = menu
         panelController.panel.contentView?.menu = menu
         statusItem = item
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        panelController?.setMenuPaused(true)
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        panelController?.setMenuPaused(false)
     }
 
     private func updateStatusMenu(_ snapshot: TaskSnapshot) {

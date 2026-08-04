@@ -23,6 +23,7 @@ enum SelfCheck {
             ("dragged height preservation", draggedHeightPreservation),
             ("nearest display preserves pet height", nearestDisplayPreservesPetHeight),
             ("display-paced pet motion", displayPacedPetMotion),
+            ("hover and menu pause pet motion", hoverAndMenuPausePetMotion),
             ("display-timed carousel easing", displayTimedCarouselEasing),
             ("unclipped CSS-matched pet shadow", unclippedCSSMatchedPetShadow),
             ("native blush matches Electron CSS", nativeBlushMatchesElectronCSS),
@@ -93,6 +94,14 @@ enum SelfCheck {
         } catch {
             return true
         }
+    }
+
+    private static func hoverAndMenuPausePetMotion() -> Bool {
+        !PetMovementPause.shouldPause(hovering: false, menuOpen: false, interacting: false, dragging: false)
+            && PetMovementPause.shouldPause(hovering: true, menuOpen: false, interacting: false, dragging: false)
+            && PetMovementPause.shouldPause(hovering: false, menuOpen: true, interacting: false, dragging: false)
+            && PetMovementPause.shouldPause(hovering: false, menuOpen: false, interacting: true, dragging: false)
+            && PetMovementPause.shouldPause(hovering: false, menuOpen: false, interacting: false, dragging: true)
     }
 
     private static func privateLeaseRecovery() throws -> Bool {
