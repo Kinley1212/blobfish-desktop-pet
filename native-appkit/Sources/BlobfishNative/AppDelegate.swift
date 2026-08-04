@@ -39,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var clickCount = 0
     private var chatInviteTimer: Timer?
     private var chatInviteUntil = Date.distantPast
+    private var messengerReplyTarget: (contactID: UUID, messageID: UUID)?
     private let soundPlayer = SoundPlayer()
     private let instanceGuard = SingleInstanceGuard()
 
@@ -100,6 +101,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 )
             }
         }
+        panelController.onSpeechBubbleClick = { [weak self] in
+            self?.replyToMessengerBubble()
+        }
         panelController.onPetting = { [weak self] streak in
             guard let self else { return }
             let events = (streak >= 6 ? ["interaction.pettingLots"] : [])
@@ -127,11 +131,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let messenger = FishMessengerService()
         messenger.onMessage = { [weak self] message, contact in
             guard let self, !contact.muted else { return }
+            self.messengerReplyTarget = (contact.id, message.id)
             self.panelController.playEffect(.completed)
             self.panelController.say(
                 "\(message.senderName)：\(message.text)",
                 event: "messenger.received",
-                duration: 10,
+                duration: 20,
                 priority: SpeechPriority.messenger,
                 replaceKey: "messenger.\(message.id.uuidString)"
             )
@@ -616,6 +621,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             showPairingActions(messenger)
             return
         }
+        composeFishMessage(to: contact)
+    }
+
+    @MainActor private func replyToMessengerBubble() {
+        guard let messenger = messengerService,
+              let target = messengerReplyTarget,
+              let profile = messenger.profile,
+              let contact = profile.contacts.first(where: { $0.id == target.contactID && !$0.blocked }) else { return }
+        composeFishMessage(to: contact, replyTo: target.messageID)
+    }
+
+    @MainActor private func composeFishMessage(to contact: FishContact, replyTo: UUID? = nil) {
+        guard let messenger = messengerService else { return }
         guard let text = promptText(
             title: "让鱼传话给 \(contact.invite.displayName)",
             message: "最多 1000 字节；内容会在本机加密后再送出。",
@@ -623,7 +641,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ) else { return }
         Task { @MainActor in
             do {
-                try await messenger.send(text: text, to: contact.id)
+                try await messenger.send(text: text, to: contact.id, replyTo: replyTo)
                 panelController.playEffect(.completed)
                 panelController.say("收到，我去告诉 \(contact.invite.displayName)。", event: "messenger.sent", priority: SpeechPriority.messenger)
             } catch { showMessengerError("这句话暂时没送出去。", error: error) }

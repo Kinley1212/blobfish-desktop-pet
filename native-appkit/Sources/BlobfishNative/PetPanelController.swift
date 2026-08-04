@@ -174,17 +174,22 @@ final class PetPanelController {
     var onClick: (() -> Void)? {
         didSet { petView.onClick = onClick }
     }
+    var onSpeechBubbleClick: (() -> Void)? {
+        didSet { petView.onSpeechBubbleClick = onSpeechBubbleClick }
+    }
     var onPetting: ((Int) -> Void)?
     var moodFaceProvider: ((String) -> String?)?
     private lazy var speechQueue = SpeechQueue(
         deliver: { [weak self] message in
             guard let self else { return }
             self.petView.transientMessage = message.text.isEmpty ? nil : message.text
+            self.petView.transientMessageEvent = message.event
             self.petView.setMoodFace(message.faceID ?? message.event.flatMap { self.moodFaceProvider?($0) })
             self.show()
         },
         onIdle: { [weak self] in
             self?.petView.transientMessage = nil
+            self?.petView.transientMessageEvent = nil
             self?.petView.setMoodFace(nil)
         }
     )
