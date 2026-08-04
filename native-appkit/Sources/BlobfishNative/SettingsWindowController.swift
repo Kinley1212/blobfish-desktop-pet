@@ -36,11 +36,11 @@ final class SettingsViewModel: ObservableObject {
     private let soundPlayer = SoundPlayer()
     private var availableUpdate: (NativeUpdateManifest, NativeUpdateManifest.Asset)?
     private let onApply: () -> Void
-    private let presenceProvider: () -> FishPresence?
+    private let presenceProvider: @MainActor () -> FishPresence?
 
     init(
         runtime: AppRuntime, clockService: ClockService?, messengerService: FishMessengerService?,
-        presenceProvider: @escaping () -> FishPresence?, onApply: @escaping () -> Void
+        presenceProvider: @escaping @MainActor () -> FishPresence?, onApply: @escaping () -> Void
     ) {
         self.runtime = runtime
         self.clockService = clockService
@@ -429,7 +429,14 @@ struct BrandedSettingsView: View {
             title: t("传话与串门", "Messages & Visits"),
             subtitle: t("端到端加密传话、双鱼串门、未读记录和个性气泡。", "Encrypted messages, visits, unread history, and custom bubbles.")
         ) {
-            SettingsCard {
+            fishProfileCard
+            fishContactsCard
+            fishHistoryCard
+        }
+    }
+
+    private var fishProfileCard: some View {
+        SettingsCard {
                 Text(t("我的鱼友资料", "My fish profile")).font(.headline)
                 TextField(t("显示名字", "Display name"), text: $model.fishDisplayName)
                     .textFieldStyle(.roundedBorder)
@@ -449,9 +456,11 @@ struct BrandedSettingsView: View {
                     }
                 }
                 Button(t("保存鱼友设置", "Save fish settings")) { model.saveFishSettings() }
-            }
+        }
+    }
 
-            SettingsCard {
+    private var fishContactsCard: some View {
+        SettingsCard {
                 Text(t("好友与直接聊天", "Friends & direct chat")).font(.headline)
                 if model.fishContacts.isEmpty {
                     Text(t("还没有配对好友，请先从右键菜单导入鱼鱼码。", "No friends yet. Import a fish code from the context menu first."))
@@ -477,9 +486,11 @@ struct BrandedSettingsView: View {
                     }
                     Divider()
                 }
-            }
+        }
+    }
 
-            SettingsCard {
+    private var fishHistoryCard: some View {
+        SettingsCard {
                 HStack {
                     Text(t("消息记录", "Message history")).font(.headline)
                     Spacer()
@@ -503,7 +514,6 @@ struct BrandedSettingsView: View {
                     }
                     Divider()
                 }
-            }
         }
     }
 
@@ -967,7 +977,7 @@ final class SettingsWindowController: NSWindowController {
     private let viewModel: SettingsViewModel
     init(
         runtime: AppRuntime, clockService: ClockService?, messengerService: FishMessengerService?,
-        presenceProvider: @escaping () -> FishPresence?, onApply: @escaping () -> Void
+        presenceProvider: @escaping @MainActor () -> FishPresence?, onApply: @escaping () -> Void
     ) {
         let viewModel = SettingsViewModel(
             runtime: runtime, clockService: clockService, messengerService: messengerService,

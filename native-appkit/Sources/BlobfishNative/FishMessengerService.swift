@@ -313,16 +313,16 @@ final class FishMessengerService: NSObject {
     func poll() async {
         guard let profile else { return }
         do {
-            let records = try await relay.receive(profile: profile)
+            let relayRecords = try await relay.receive(profile: profile)
             var acknowledged: [String] = []
             let identity = try FishMessengerIdentity(rawPrivateKey: Data(base64Encoded: profile.privateKey) ?? Data())
-            for record in records {
+            for record in relayRecords {
                 guard let contact = profile.contacts.first(where: { $0.invite.publicKey == record.envelope.senderPublicKey }) else { continue }
                 acknowledged.append(record.id)
                 guard !contact.blocked,
                       let message = try? identity.decrypt(record.envelope, expectedSenderPublicKey: contact.invite.publicKey) else { continue }
                 let kind = message.kind ?? .text
-                records.append(FishMessageRecord(
+                self.records.append(FishMessageRecord(
                     id: message.id, contactID: contact.id, direction: .incoming, sentAt: message.sentAt,
                     senderName: message.senderName, text: message.text, kind: kind, isRead: false,
                     bubbleColor: message.bubbleColor, presence: message.presence
