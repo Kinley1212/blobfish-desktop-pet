@@ -9,7 +9,7 @@ const infoPlistPath = path.join(root, 'native-appkit', 'App', 'Info.plist');
 const infoPlist = fs.readFileSync(infoPlistPath, 'utf8');
 const versionMatch = infoPlist.match(/<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/);
 
-if (!versionMatch || !/^\d+\.\d+\.\d+$/.test(versionMatch[1])) {
+if (!versionMatch || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(versionMatch[1])) {
   throw new Error('Native CFBundleShortVersionString is missing or invalid');
 }
 
@@ -30,7 +30,7 @@ function assetEntry(architecture) {
     name,
     size: buffer.length,
     digest: `sha256:${crypto.createHash('sha256').update(buffer).digest('hex')}`,
-    url: `https://github.com/${REPOSITORY}/releases/latest/download/${name}`,
+    url: `https://github.com/${REPOSITORY}/releases/download/v${version}/${name}`,
   };
 }
 

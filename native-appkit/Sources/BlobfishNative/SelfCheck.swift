@@ -43,6 +43,8 @@ enum SelfCheck {
             ("speech priority and mood restore", speechPriorityAndMoodRestore),
             ("fish invite validation", fishInviteValidation),
             ("fish message end-to-end encryption", fishMessageEncryption),
+            ("fish visit appearance stays encrypted", fishVisitEncryption),
+            ("fish history preserves unread messages", fishHistoryPersistence),
         ]
         var passed = 0
         for (name, check) in checks {
@@ -93,6 +95,37 @@ enum SelfCheck {
             return false
         } catch {
             return true
+        }
+    }
+
+    private static func fishVisitEncryption() throws -> Bool {
+        let sender = FishMessengerIdentity()
+        let recipient = FishMessengerIdentity()
+        let presence = FishPresence(
+            characterPackID: "blobfish",
+            customization: .object(["body": .object(["width": .number(1.1)])]),
+            accessories: .object(["equipped": .object(["hat": .string("hat-crown")])])
+        )
+        let message = try FishMessage(
+            senderName: "小鱼", text: "来串门啦！", kind: .visitStart,
+            bubbleColor: "#1F7AE8", presence: presence
+        )
+        let envelope = try sender.encrypt(message, for: recipient.publicKey)
+        let decoded = try recipient.decrypt(envelope, expectedSenderPublicKey: sender.publicKey)
+        return decoded.kind == .visitStart && decoded.presence == presence && decoded.bubbleColor == "#1F7AE8"
+    }
+
+    private static func fishHistoryPersistence() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let store = FishFriendStore(directoryURL: directory)
+            let record = FishMessageRecord(
+                id: UUID(), contactID: UUID(), direction: .incoming, sentAt: Date(),
+                senderName: "朋友", text: "别忘了看消息", kind: .text, isRead: false,
+                bubbleColor: "#E65D83", presence: nil
+            )
+            try store.save(preferences: .defaults, records: [record])
+            let loaded = store.load()
+            return loaded.0 == .defaults && loaded.1 == [record] && loaded.1.first?.isRead == false
         }
     }
 
