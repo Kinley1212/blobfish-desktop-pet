@@ -491,30 +491,31 @@ struct BrandedSettingsView: View {
 
     private var fishHistoryCard: some View {
         SettingsCard {
-                HStack {
-                    Text(t("消息记录", "Message history")).font(.headline)
-                    Spacer()
-                    let unread = model.fishRecords.filter { $0.direction == .incoming && !$0.isRead }.count
-                    if unread > 0 { Text(t("\(unread) 条未读", "\(unread) unread")).foregroundStyle(.red) }
-                    Button(t("全部标为已读", "Mark all read")) { model.markFishMessagesRead() }
-                }
-                if model.fishRecords.isEmpty { Text(t("还没有传话记录。", "No messages yet.")).foregroundStyle(.secondary) }
-                ForEach(Array(model.fishRecords.prefix(100))) { record in
-                    HStack(alignment: .top) {
-                        Image(systemName: record.direction == .incoming ? "arrow.down.left.circle.fill" : "arrow.up.right.circle")
-                            .foregroundStyle(record.isRead ? .secondary : .blue)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(record.senderName).font(.caption.weight(.semibold))
-                            Text(record.text).textSelection(.enabled)
-                            Text(record.sentAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption2).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        if record.direction == .incoming && !record.isRead { Text(t("未读", "Unread")).font(.caption).foregroundStyle(.red) }
-                    }
-                    Divider()
-                }
+            fishHistoryHeader
+            if model.fishRecords.isEmpty {
+                Text(t("还没有传话记录。", "No messages yet.")).foregroundStyle(.secondary)
+            }
+            ForEach(model.fishRecords.prefix(100)) { record in
+                FishHistoryRow(record: record, isEnglish: model.isEnglish)
+                Divider()
+            }
         }
+    }
+
+    private var fishHistoryHeader: some View {
+        HStack {
+            Text(t("消息记录", "Message history")).font(.headline)
+            Spacer()
+            if fishUnreadCount > 0 {
+                Text(model.isEnglish ? "\(fishUnreadCount) unread" : "\(fishUnreadCount) 条未读")
+                    .foregroundStyle(.red)
+            }
+            Button(t("全部标为已读", "Mark all read")) { model.markFishMessagesRead() }
+        }
+    }
+
+    private var fishUnreadCount: Int {
+        model.fishRecords.filter { $0.direction == .incoming && !$0.isRead }.count
     }
 
     private var currentCharacter: CharacterPack? {
@@ -970,6 +971,32 @@ struct SettingsCard<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.background.opacity(0.82), in: RoundedRectangle(cornerRadius: 18))
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(.separator.opacity(0.6)))
+    }
+}
+
+private struct FishHistoryRow: View {
+    let record: FishMessageRecord
+    let isEnglish: Bool
+
+    var body: some View {
+        HStack(alignment: .top) {
+            Image(systemName: iconName)
+                .foregroundStyle(record.isRead ? Color.secondary : Color.blue)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(record.senderName).font(.caption.weight(.semibold))
+                Text(record.text).textSelection(.enabled)
+                Text(record.sentAt.formatted(date: .abbreviated, time: .shortened))
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if record.direction == .incoming && !record.isRead {
+                Text(isEnglish ? "Unread" : "未读").font(.caption).foregroundStyle(.red)
+            }
+        }
+    }
+
+    private var iconName: String {
+        record.direction == .incoming ? "arrow.down.left.circle.fill" : "arrow.up.right.circle"
     }
 }
 
