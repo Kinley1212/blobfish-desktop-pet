@@ -23,23 +23,38 @@ permissions:
 
 jobs:
   build-and-check:
+    name: Build and check ${{ matrix.asset_arch }}
     runs-on: macos-15
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - swift_arch: arm64
+            asset_arch: arm64
+          - swift_arch: x86_64
+            asset_arch: x64
     defaults:
       run:
         working-directory: native-appkit
     steps:
       - uses: actions/checkout@v4
       - name: Build native pet
-        run: make build
+        run: make release ARCH=${{ matrix.swift_arch }}
       - name: Run native self-checks
+        if: matrix.swift_arch == 'arm64'
         run: make test
       - name: Package native app
-        run: make archive
+        run: make archive ARCH=${{ matrix.swift_arch }}
+      - name: Verify package architecture and signature
+        run: |
+          test "$(/usr/bin/lipo -archs '.build/水滴鱼.app/Contents/MacOS/BlobfishNative')" = '${{ matrix.swift_arch }}'
+          test "$(/usr/bin/lipo -archs '.build/水滴鱼.app/Contents/Resources/native/blobfish-agent-event-sender')" = '${{ matrix.swift_arch }}'
+          /usr/bin/codesign --verify --deep --strict --verbose=2 '.build/水滴鱼.app'
       - name: Upload native preview
         uses: actions/upload-artifact@v4
         with:
-          name: blobfish-native-${{ runner.arch }}
-          path: native-appkit/.build/BlobfishNative-*-macOS-*.zip
+          name: blobfish-native-${{ matrix.asset_arch }}
+          path: native-appkit/.build/BlobfishNative-*-macOS-${{ matrix.asset_arch }}.zip
           if-no-files-found: error
           include-hidden-files: true
