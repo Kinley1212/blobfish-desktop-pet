@@ -277,12 +277,14 @@ enum ExpressionCanvasGeometry {
 
 final class PetView: NSView, CALayerDelegate {
     var onClick: (() -> Void)?
+    var onSpeechBubbleClick: (() -> Void)?
     var onDragStart: (() -> Void)?
     var onDragMove: ((CGFloat, CGFloat) -> Void)?
     var onDragEnd: ((CGFloat, CGFloat) -> Void)?
     var onClockSnooze: ((String) -> Void)?
     var onClockDismiss: ((String) -> Void)?
     var transientMessage: String? { didSet { invalidateOverlay() } }
+    var transientMessageEvent: String? { didSet { invalidateOverlay() } }
     var character: CharacterPack? {
         didSet {
             guard oldValue != character else { return }
@@ -453,6 +455,8 @@ final class PetView: NSView, CALayerDelegate {
     private var dragSamples: [(time: TimeInterval, dx: CGFloat, dy: CGFloat)] = []
     private enum ClockAction { case snooze(String); case dismiss(String) }
     private var pendingClockAction: ClockAction?
+    private var pendingSpeechBubbleClick = false
+    private var speechBubbleRect = NSRect.zero
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -623,6 +627,10 @@ final class PetView: NSView, CALayerDelegate {
 
     override func mouseDown(with event: NSEvent) {
         let local = convert(event.locationInWindow, from: nil)
+        if transientMessageEvent == "messenger.received", speechBubbleRect.contains(local) {
+            pendingSpeechBubbleClick = true
+            return
+        }
         if let alert = clockAlert {
             if clockSnoozeRect.contains(local) { pendingClockAction = .snooze(alert.id); return }
             if clockDismissRect.contains(local) { pendingClockAction = .dismiss(alert.id); return }
@@ -636,6 +644,7 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        guard !pendingSpeechBubbleClick else { return }
         guard pendingClockAction == nil else { return }
         guard mouseDownScreenPoint != nil, let previous = lastDragScreenPoint else { return }
         let point = NSEvent.mouseLocation
@@ -657,6 +666,14 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if pendingSpeechBubbleClick {
+            pendingSpeechBubbleClick = false
+            let local = convert(event.locationInWindow, from: nil)
+            if transientMessageEvent == "messenger.received", speechBubbleRect.contains(local) {
+                onSpeechBubbleClick?()
+            }
+            return
+        }
         if let pendingClockAction {
             self.pendingClockAction = nil
             switch pendingClockAction {
@@ -1315,14 +1332,20 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func drawSpeechBubble() {
-        guard let transientMessage else { return }
+        guard let transientMessage else {
+            speechBubbleRect = .zero
+            return
+        }
+        let isMessengerMessage = transientMessageEvent == "messenger.received"
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         paragraph.lineBreakMode = .byWordWrapping
         paragraph.lineSpacing = 1.5
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 12, weight: .regular),
-            .foregroundColor: NSColor(calibratedRed: 0.18, green: 0.16, blue: 0.17, alpha: 1),
+            .foregroundColor: isMessengerMessage
+                ? NSColor.white
+                : NSColor(calibratedRed: 0.18, green: 0.16, blue: 0.17, alpha: 1),
             .paragraphStyle: paragraph,
         ]
         let measured = (transientMessage as NSString).boundingRect(
@@ -1334,6 +1357,7 @@ final class PetView: NSView, CALayerDelegate {
         let height = min(60, max(24, ceil(measured.height) + 8))
         let y = snapshot.state == .idle ? characterBounds.maxY + 8 : characterBounds.maxY + 76
         let rect = NSRect(x: bounds.midX - width / 2, y: y, width: width, height: height)
+        speechBubbleRect = rect
 
         NSGraphicsContext.saveGraphicsState()
         let shadow = NSShadow()
@@ -1341,7 +1365,9 @@ final class PetView: NSView, CALayerDelegate {
         shadow.shadowOffset = NSSize(width: 0, height: -1)
         shadow.shadowColor = NSColor.black.withAlphaComponent(0.20)
         shadow.set()
-        NSColor.white.withAlphaComponent(0.98).setFill()
+        (isMessengerMessage
+            ? NSColor(calibratedRed: 0.12, green: 0.48, blue: 0.92, alpha: 0.98)
+            : NSColor.white.withAlphaComponent(0.98)).setFill()
         let bubble = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
         bubble.fill()
         NSGraphicsContext.restoreGraphicsState()
