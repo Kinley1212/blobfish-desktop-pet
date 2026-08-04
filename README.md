@@ -56,6 +56,12 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 - Codex / Claude Code 任务状态桥接，任务完成可播放系统提示音
 - 锁屏唤醒、低电量提醒、日历日程提醒（日历默认关闭）
 
+**鱼鱼传话（开发中）**
+
+- 两位朋友通过私下交换鱼鱼码完成配对，让水滴鱼替自己传一句话
+- 正文在本机端到端加密，中转服务只保存限时密文；设备私钥保存在 macOS Keychain
+- 原生 Intel 与 Apple Silicon 使用同一协议，详见 [鱼鱼传话设计](docs/fish-messenger.md)
+
 **可扩展**
 
 角色、语言、饰品都是独立资源包，加内容不用改代码。

@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         static let schedule = 40
         static let calendar = 50
         static let agent = 60
+        static let messenger = 75
         static let urgent = 90
     }
 
@@ -20,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var routineService: RoutineService?
     private var calendarService: CalendarService?
     private var performanceMonitor: PerformanceMonitor?
+    private var messengerService: FishMessengerService?
     private var statusItem: NSStatusItem?
     private var taskStatusItem: NSMenuItem?
     private var codexStatusItem: NSMenuItem?
@@ -122,6 +124,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureStatusMenu()
         panelController.show()
 
+        let messenger = FishMessengerService()
+        messenger.onMessage = { [weak self] message, contact in
+            guard let self, !contact.muted else { return }
+            self.panelController.playEffect(.success)
+            self.panelController.say(
+                "\(message.senderName)：\(message.text)",
+                event: "messenger.received",
+                duration: 10,
+                priority: SpeechPriority.messenger,
+                replaceKey: "messenger.\(message.id.uuidString)"
+            )
+        }
+        messenger.onError = { [weak self] _ in
+            guard let self else { return }
+            self.panelController.say(
+                self.runtime.config.ui.locale == "en" ? "I couldn't reach your friend's fish." : "刚才没联系上朋友的鱼。",
+                event: "messenger.error",
+                duration: 5,
+                priority: SpeechPriority.interaction,
+                replaceKey: "messenger.error"
+            )
+        }
+        messengerService = messenger
+        messenger.start()
+
         let supportDirectory = runtime.configStore.fileURL.deletingLastPathComponent()
         let clocks = ClockService(directoryURL: supportDirectory)
         panelController.setClockActions(
@@ -183,6 +210,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         routineService?.stop()
         calendarService?.stop()
         performanceMonitor?.stop()
+        messengerService?.stop()
         chatInviteTimer?.invalidate()
         panelController?.stop()
     }
@@ -214,6 +242,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let chat = NSMenuItem(title: "找水滴鱼聊天…", action: #selector(openDialogue), keyEquivalent: "")
         chat.target = self
         menu.addItem(chat)
+
+        let sendMessage = NSMenuItem(title: "让鱼传话…", action: #selector(sendFishMessage), keyEquivalent: "")
+        sendMessage.target = self
+        menu.addItem(sendMessage)
+        let pairFish = NSMenuItem(title: "鱼鱼配对…", action: #selector(pairFishMessenger), keyEquivalent: "")
+        pairFish.target = self
+        menu.addItem(pairFish)
 
         let taskRoam = NSMenuItem(title: "任务进行时游动", action: #selector(toggleTaskRoam), keyEquivalent: "")
         taskRoam.target = self
@@ -507,6 +542,102 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if runtime.config.integrations.codex { providers.insert("codex") }
         if runtime.config.integrations.claudeCode { providers.insert("claude-code") }
         return providers
+    }
+
+    @objc private func pairFishMessenger() {
+        guard let messenger = messengerService else { return }
+        if messenger.profile == nil {
+            guard let name = promptText(
+                title: "给你的鱼起个传话名字",
+                message: "朋友收到消息时会看到这个名字。",
+                placeholder: "例如：Kinley 的鱼"
+            ),
+            let relayText = promptText(
+                title: "连接鱼鱼中转站",
+                message: "请输入你们共同使用的 HTTPS 中转服务地址。",
+                placeholder: "https://fish.example.com"
+            ), let relayURL = URL(string: relayText),
+            let setupToken = promptText(
+                title: "输入建箱密语",
+                message: "这是中转站部署时设置的 SETUP_SECRET，只在创建信箱时发送，不会保存。",
+                placeholder: "至少 16 个字符"
+            ) else { return }
+            Task { @MainActor in
+                do {
+                    try await messenger.createProfile(displayName: name, relayURL: relayURL, setupToken: setupToken)
+                    messenger.start()
+                    self.showPairingActions(messenger)
+                } catch { self.showMessengerError("没能创建鱼鱼信箱。", error: error) }
+            }
+            return
+        }
+        showPairingActions(messenger)
+    }
+
+    private func showPairingActions(_ messenger: FishMessengerService) {
+        let alert = NSAlert()
+        alert.messageText = "鱼鱼配对"
+        alert.informativeText = "你和朋友各自复制一次鱼鱼码，再把对方的码导入。鱼鱼码含投递权限，请只发给你信任的人。"
+        alert.addButton(withTitle: "复制我的鱼鱼码")
+        alert.addButton(withTitle: "导入朋友码")
+        alert.addButton(withTitle: "取消")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            do {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(try messenger.inviteCode(), forType: .string)
+                panelController.say("鱼鱼码复制好了，发给朋友吧。", event: "messenger.inviteCopied", priority: SpeechPriority.interaction)
+            } catch { showMessengerError("鱼鱼码没能生成。", error: error) }
+        case .alertSecondButtonReturn:
+            guard let code = promptText(title: "导入朋友的鱼鱼码", message: "粘贴朋友发给你的完整鱼鱼码。", placeholder: "fish1_…") else { return }
+            do {
+                try messenger.addContact(code: code)
+                panelController.say("配对好了，我可以替你传话了。", event: "messenger.paired", priority: SpeechPriority.messenger)
+            } catch { showMessengerError("这个鱼鱼码无效或已经导入。", error: error) }
+        default: break
+        }
+    }
+
+    @objc private func sendFishMessage() {
+        guard let messenger = messengerService else { return }
+        guard let profile = messenger.profile else { pairFishMessenger(); return }
+        guard let contact = profile.contacts.first(where: { !$0.blocked }) else {
+            showPairingActions(messenger)
+            return
+        }
+        guard let text = promptText(
+            title: "让鱼传话给 \(contact.invite.displayName)",
+            message: "最多 1000 字节；内容会在本机加密后再送出。",
+            placeholder: "想让水滴鱼说什么？"
+        ) else { return }
+        Task { @MainActor in
+            do {
+                try await messenger.send(text: text, to: contact.id)
+                panelController.playEffect(.success)
+                panelController.say("收到，我去告诉 \(contact.invite.displayName)。", event: "messenger.sent", priority: SpeechPriority.messenger)
+            } catch { showMessengerError("这句话暂时没送出去。", error: error) }
+        }
+    }
+
+    private func promptText(title: String, message: String, placeholder: String) -> String? {
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 420, height: 28))
+        field.placeholderString = placeholder
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.accessoryView = field
+        alert.addButton(withTitle: "确定")
+        alert.addButton(withTitle: "取消")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        let value = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
+
+    private func showMessengerError(_ message: String, error: Error) {
+        let alert = NSAlert(error: error)
+        alert.messageText = message
+        alert.runModal()
     }
 
     @objc private func locatePet() {

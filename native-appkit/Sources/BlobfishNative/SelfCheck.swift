@@ -40,6 +40,8 @@ enum SelfCheck {
             ("inactive preview releases without lazy weak crash", inactivePreviewReleasesWithoutLazyWeakCrash),
             ("early app termination tolerates incomplete launch", earlyAppTerminationToleratesIncompleteLaunch),
             ("speech priority and mood restore", speechPriorityAndMoodRestore),
+            ("fish invite validation", fishInviteValidation),
+            ("fish message end-to-end encryption", fishMessageEncryption),
         ]
         var passed = 0
         for (name, check) in checks {
@@ -56,6 +58,41 @@ enum SelfCheck {
         }
         print("Self-check: \(passed)/\(checks.count) passed")
         return passed == checks.count
+    }
+
+    private static func fishInviteValidation() throws -> Bool {
+        let identity = FishMessengerIdentity()
+        let invite = try FishInvite(
+            relayURL: URL(string: "https://fish.example.com")!,
+            inboxID: String(repeating: "i", count: 24),
+            deliveryToken: String(repeating: "t", count: 48),
+            publicKey: identity.publicKey,
+            displayName: "小鱼"
+        )
+        guard try FishInvite.decode(invite.encoded()) == invite else { return false }
+        do {
+            _ = try FishInvite.decode("fish1_not-json")
+            return false
+        } catch {
+            return true
+        }
+    }
+
+    private static func fishMessageEncryption() throws -> Bool {
+        let sender = FishMessengerIdentity()
+        let recipient = FishMessengerIdentity()
+        let message = try FishMessage(senderName: "Kinley", text: "  今晚记得吃饭。  ")
+        let envelope = try sender.encrypt(message, for: recipient.publicKey)
+        guard try recipient.decrypt(envelope, expectedSenderPublicKey: sender.publicKey).text == "今晚记得吃饭。" else {
+            return false
+        }
+        let stranger = FishMessengerIdentity()
+        do {
+            _ = try stranger.decrypt(envelope, expectedSenderPublicKey: sender.publicKey)
+            return false
+        } catch {
+            return true
+        }
     }
 
     private static func privateLeaseRecovery() throws -> Bool {
