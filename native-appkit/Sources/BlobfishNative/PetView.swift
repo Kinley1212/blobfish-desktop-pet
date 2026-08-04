@@ -276,6 +276,7 @@ enum ExpressionCanvasGeometry {
 }
 
 final class PetView: NSView, CALayerDelegate {
+    var ignoresMouseInteraction = false
     var onClick: (() -> Void)?
     var onSpeechBubbleClick: (() -> Void)?
     var onDragStart: (() -> Void)?
@@ -285,6 +286,9 @@ final class PetView: NSView, CALayerDelegate {
     var onClockDismiss: ((String) -> Void)?
     var transientMessage: String? { didSet { invalidateOverlay() } }
     var transientMessageEvent: String? { didSet { invalidateOverlay() } }
+    var transientMessageColor: String? { didSet { invalidateOverlay() } }
+    var unreadMessageCount = 0 { didSet { if oldValue != unreadMessageCount { invalidateOverlay() } } }
+    var visitingFriendName: String? { didSet { if oldValue != visitingFriendName { invalidateOverlay() } } }
     var character: CharacterPack? {
         didSet {
             guard oldValue != character else { return }
@@ -623,6 +627,8 @@ final class PetView: NSView, CALayerDelegate {
         drawSpeechBubble()
         drawTaskBubble()
         drawClockAlert()
+        drawVisitStatus()
+        drawUnreadBadge()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -701,6 +707,10 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        ignoresMouseInteraction ? nil : super.hitTest(point)
+    }
 
     func showBlush(streak: Int) {
         blushTimer?.invalidate()
@@ -1366,7 +1376,7 @@ final class PetView: NSView, CALayerDelegate {
         shadow.shadowColor = NSColor.black.withAlphaComponent(0.20)
         shadow.set()
         (isMessengerMessage
-            ? NSColor(calibratedRed: 0.12, green: 0.48, blue: 0.92, alpha: 0.98)
+            ? NSColor.fishHex(transientMessageColor) ?? NSColor(calibratedRed: 0.12, green: 0.48, blue: 0.92, alpha: 0.98)
             : NSColor.white.withAlphaComponent(0.98)).setFill()
         let bubble = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
         bubble.fill()
@@ -1374,6 +1384,35 @@ final class PetView: NSView, CALayerDelegate {
         (transientMessage as NSString).draw(
             in: rect.insetBy(dx: 8, dy: 4),
             withAttributes: attributes
+        )
+    }
+
+    private func drawUnreadBadge() {
+        guard unreadMessageCount > 0 else { return }
+        let rect = NSRect(x: characterBounds.maxX - 15, y: characterBounds.maxY - 3, width: 30, height: 24)
+        NSColor(calibratedRed: 0.98, green: 0.35, blue: 0.28, alpha: 0.98).setFill()
+        NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
+        let label = unreadMessageCount > 9 ? "✉ 9+" : "✉ \(unreadMessageCount)"
+        (label as NSString).draw(
+            in: rect.insetBy(dx: 3, dy: 4),
+            withAttributes: [
+                .font: NSFont.systemFont(ofSize: 10, weight: .bold),
+                .foregroundColor: NSColor.white,
+            ]
+        )
+    }
+
+    private func drawVisitStatus() {
+        guard let visitingFriendName else { return }
+        let rect = NSRect(x: bounds.midX - 83, y: 2, width: 166, height: 21)
+        NSColor(calibratedRed: 1, green: 0.91, blue: 0.94, alpha: 0.96).setFill()
+        NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
+        ("♡ 与 \(visitingFriendName) 牵手串门中" as NSString).draw(
+            in: rect.insetBy(dx: 6, dy: 3),
+            withAttributes: [
+                .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
+                .foregroundColor: NSColor(calibratedRed: 0.66, green: 0.22, blue: 0.35, alpha: 1),
+            ]
         )
     }
 
@@ -1750,5 +1789,19 @@ final class PetView: NSView, CALayerDelegate {
                 self?.scheduleBlink()
             }
         }
+    }
+}
+
+private extension NSColor {
+    static func fishHex(_ value: String?) -> NSColor? {
+        guard let value else { return nil }
+        let hex = value.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard hex.count == 6, let number = Int(hex, radix: 16) else { return nil }
+        return NSColor(
+            calibratedRed: CGFloat((number >> 16) & 0xff) / 255,
+            green: CGFloat((number >> 8) & 0xff) / 255,
+            blue: CGFloat(number & 0xff) / 255,
+            alpha: 0.98
+        )
     }
 }

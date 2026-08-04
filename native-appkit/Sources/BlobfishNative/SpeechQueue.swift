@@ -7,6 +7,7 @@ struct SpeechMessage: Equatable {
     let priority: Int
     let duration: TimeInterval
     let replaceKey: String?
+    let color: String?
     fileprivate let sequence: Int
 }
 
@@ -30,7 +31,8 @@ final class SpeechQueue {
         faceID: String?,
         priority: Int,
         duration: TimeInterval,
-        replaceKey: String?
+        replaceKey: String?,
+        color: String? = nil
     ) -> Bool {
         guard !text.isEmpty || faceID != nil else { return false }
         let entry = SpeechMessage(
@@ -40,6 +42,7 @@ final class SpeechQueue {
             priority: priority,
             duration: duration,
             replaceKey: replaceKey,
+            color: color,
             sequence: sequence
         )
         sequence += 1

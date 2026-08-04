@@ -6,12 +6,16 @@ struct FishContact: Codable, Equatable, Identifiable {
     var invite: FishInvite
     var muted: Bool
     var blocked: Bool
+    var nickname: String?
+    var lastPresence: FishPresence?
 
     init(id: UUID = UUID(), invite: FishInvite, muted: Bool = false, blocked: Bool = false) {
         self.id = id
         self.invite = invite
         self.muted = muted
         self.blocked = blocked
+        self.nickname = nil
+        self.lastPresence = nil
     }
 }
 
@@ -175,16 +179,60 @@ final class FishRelayClient {
 final class FishMessengerService: NSObject {
     private let vault: FishMessengerVault
     private let relay: FishRelayClient
+    private let friendStore: FishFriendStore
     private(set) var profile: FishMessengerProfile?
+    private(set) var preferences: FishFriendPreferences
+    private(set) var records: [FishMessageRecord]
+    private(set) var activeVisitContactID: UUID?
     private var pollTimer: Timer?
+    private var stateObservers: [() -> Void] = []
     var onMessage: ((FishMessage, FishContact) -> Void)?
     var onError: ((Error) -> Void)?
 
-    init(vault: FishMessengerVault = FishMessengerVault(), relay: FishRelayClient = FishRelayClient()) {
+    init(
+        vault: FishMessengerVault = FishMessengerVault(), relay: FishRelayClient = FishRelayClient(),
+        supportDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/BlobfishDesktopPet", isDirectory: true)
+    ) {
         self.vault = vault
         self.relay = relay
+        friendStore = FishFriendStore(directoryURL: supportDirectory)
+        let state = friendStore.load()
+        preferences = state.0
+        records = state.1
         super.init()
         profile = try? vault.load()
+    }
+
+    var unreadCount: Int { records.filter { $0.direction == .incoming && !$0.isRead }.count }
+
+    func addStateObserver(_ observer: @escaping () -> Void) { stateObservers.append(observer) }
+
+    func updateDisplayName(_ value: String) throws {
+        var next = try requiredProfile()
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty, normalized.utf8.count <= 48 else { throw FishMessengerError.invalidMessage }
+        next.displayName = normalized
+        try vault.save(next); profile = next; notifyState()
+    }
+
+    func updatePreferences(_ value: FishFriendPreferences) {
+        preferences = value
+        persistState(); notifyState()
+    }
+
+    func markRead(_ id: UUID? = nil) {
+        for index in records.indices where records[index].direction == .incoming && (id == nil || records[index].id == id) {
+            records[index].isRead = true
+        }
+        persistState(); notifyState()
+    }
+
+    func updateContact(_ contact: FishContact) throws {
+        var next = try requiredProfile()
+        guard let index = next.contacts.firstIndex(where: { $0.id == contact.id }) else { return }
+        next.contacts[index] = contact
+        try vault.save(next); profile = next; notifyState()
     }
 
     func createProfile(displayName: String, relayURL: URL, setupToken: String) async throws {
@@ -228,13 +276,27 @@ final class FishMessengerService: NSObject {
         profile = next
     }
 
-    func send(text: String, to contactID: UUID, replyTo: UUID? = nil) async throws {
+    func send(
+        text: String, to contactID: UUID, replyTo: UUID? = nil,
+        kind: FishMessageKind = .text, presence: FishPresence? = nil
+    ) async throws {
         let profile = try requiredProfile()
         guard let contact = profile.contacts.first(where: { $0.id == contactID }), !contact.blocked,
               let privateKey = Data(base64Encoded: profile.privateKey) else { throw FishMessengerError.invalidInvite }
-        let message = try FishMessage(senderName: profile.displayName, text: text, replyTo: replyTo)
+        let message = try FishMessage(
+            senderName: profile.displayName, text: text, replyTo: replyTo,
+            kind: kind, bubbleColor: preferences.bubbleColor, presence: presence
+        )
         let envelope = try FishMessengerIdentity(rawPrivateKey: privateKey).encrypt(message, for: contact.invite.publicKey)
         try await relay.deliver(envelope, to: contact.invite)
+        records.append(FishMessageRecord(
+            id: message.id, contactID: contact.id, direction: .outgoing, sentAt: message.sentAt,
+            senderName: profile.displayName, text: message.text, kind: kind, isRead: true,
+            bubbleColor: message.bubbleColor, presence: presence
+        ))
+        if kind == .visitStart || kind == .visitAccept { activeVisitContactID = contact.id }
+        if kind == .visitEnd { activeVisitContactID = nil }
+        persistState(); notifyState()
     }
 
     func start() {
@@ -259,6 +321,19 @@ final class FishMessengerService: NSObject {
                 acknowledged.append(record.id)
                 guard !contact.blocked,
                       let message = try? identity.decrypt(record.envelope, expectedSenderPublicKey: contact.invite.publicKey) else { continue }
+                let kind = message.kind ?? .text
+                records.append(FishMessageRecord(
+                    id: message.id, contactID: contact.id, direction: .incoming, sentAt: message.sentAt,
+                    senderName: message.senderName, text: message.text, kind: kind, isRead: false,
+                    bubbleColor: message.bubbleColor, presence: message.presence
+                ))
+                if let presence = message.presence, let index = self.profile?.contacts.firstIndex(where: { $0.id == contact.id }) {
+                    self.profile?.contacts[index].lastPresence = presence
+                    if let updated = self.profile { try? vault.save(updated) }
+                }
+                if kind == .visitStart || kind == .visitAccept { activeVisitContactID = contact.id }
+                if kind == .visitEnd { activeVisitContactID = nil }
+                persistState(); notifyState()
                 onMessage?(message, contact)
             }
             try await relay.acknowledge(acknowledged, profile: profile)
@@ -269,4 +344,7 @@ final class FishMessengerService: NSObject {
         guard let profile else { throw FishMessengerVaultError.invalidState }
         return profile
     }
+
+    private func persistState() { try? friendStore.save(preferences: preferences, records: records) }
+    private func notifyState() { stateObservers.forEach { $0() } }
 }
