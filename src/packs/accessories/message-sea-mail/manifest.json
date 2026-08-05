@@ -1,0 +1,8 @@
+{
+  "id": "message-sea-mail",
+  "displayName": "漂流瓶信",
+  "version": 1,
+  "slot": "message-indicator",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 50 }
+}

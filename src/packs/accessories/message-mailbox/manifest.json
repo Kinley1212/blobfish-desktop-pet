@@ -1,0 +1,8 @@
+{
+  "id": "message-mailbox",
+  "displayName": "举旗小邮箱",
+  "version": 1,
+  "slot": "message-indicator",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 50 }
+}

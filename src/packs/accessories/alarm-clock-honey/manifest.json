@@ -1,6 +1,6 @@
 {
-  "id": "alarm-clock",
-  "displayName": "珊瑚抱抱钟",
+  "id": "alarm-clock-honey",
+  "displayName": "蜂蜜方钟",
   "version": 1,
   "slot": "clock",
   "art": "art/accessory.svg",

@@ -1,0 +1,8 @@
+{
+  "id": "message-flying-letter",
+  "displayName": "飞来信",
+  "version": 1,
+  "slot": "message-indicator",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 50 }
+}

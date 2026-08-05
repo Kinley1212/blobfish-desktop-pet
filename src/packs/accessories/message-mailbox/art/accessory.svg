@@ -1,0 +1,6 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="舉旗小郵箱消息提示">
+  <path d="M46 75h12v18H46Z" fill="#4E8997" stroke="#355A66" stroke-width="5" stroke-linejoin="round"/><path d="M31 93h42" fill="none" stroke="#355A66" stroke-width="6" stroke-linecap="round"/>
+  <path d="M15 37c0-13 10-23 23-23h28c12 0 22 10 22 22v39H15Z" fill="#69AFC0" stroke="#355A66" stroke-width="5" stroke-linejoin="round"/><path d="M49 15c11 0 20 9 20 20v40H31V35c0-11 7-20 18-20Z" fill="#89C7D3"/>
+  <path d="M31 75V35c0-11 7-20 18-20" fill="none" stroke="#355A66" stroke-width="5" stroke-linecap="round"/><path d="M44 39h27v20H44Z" fill="#FFF4D6" stroke="#355A66" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m45 41 13 10 12-10" fill="none" stroke="#D6A85B" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M70 43V12" fill="none" stroke="#355A66" stroke-width="5" stroke-linecap="round"/><path d="M70 13h22v17H70Z" fill="#FFE5A3" stroke="#355A66" stroke-width="4" stroke-linejoin="round"/>
+</svg>

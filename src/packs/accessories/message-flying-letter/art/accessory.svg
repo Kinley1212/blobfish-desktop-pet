@@ -1,0 +1,5 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="飛來信消息提示">
+  <path d="M7 38h19M4 51h15M10 64h18" fill="none" stroke="#F4C96A" stroke-width="6" stroke-linecap="round"/><path d="M28 21h59c5 0 9 4 9 9v43c0 5-4 9-9 9H28c-5 0-9-4-9-9V30c0-5 4-9 9-9Z" fill="#91CDD2" stroke="#3F6570" stroke-width="5"/>
+  <path d="m23 77 25-23c6-5 14-5 20 0l23 23" fill="#AEE0E1" stroke="#3F6570" stroke-width="4" stroke-linejoin="round"/><path d="m23 27 27 25c5 4 12 4 17 0l24-25" fill="#DDF8F5" stroke="#3F6570" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M32 30h25" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity=".85"/><path d="m82 10 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z" fill="#F4C96A" stroke="#3F6570" stroke-width="3" stroke-linejoin="round"/>
+</svg>
