@@ -1043,6 +1043,11 @@ struct BrandedSettingsView: View {
                         Slider(value: $model.draft.performance.panelVerticalPosition, in: 0...1)
                         Text(t("上", "Top")).font(.caption).foregroundStyle(.secondary)
                     }
+                    HStack(spacing: 10) {
+                        Text(t("贴近", "Near")).font(.caption).foregroundStyle(.secondary)
+                        Slider(value: $model.draft.performance.panelDistance, in: 2...28, step: 1)
+                        Text(t("远离", "Far")).font(.caption).foregroundStyle(.secondary)
+                    }
                     Text(t(
                         "浅色显示整机占用，深色显示其中水滴鱼的占用。",
                         "Light fill shows the Mac total; dark fill shows the pet within it."

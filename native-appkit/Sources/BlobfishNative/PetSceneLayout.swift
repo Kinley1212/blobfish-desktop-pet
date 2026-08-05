@@ -40,7 +40,7 @@ enum PetMessageBubbleStack {
 
 enum PetSceneLayoutCoordinator {
     static let canvasInset: CGFloat = 8
-    static let satelliteGap: CGFloat = 7
+    static let satelliteGap: CGFloat = 6
     static let bubbleGap: CGFloat = 6
 
     static func performancePanelRect(
@@ -49,22 +49,24 @@ enum PetSceneLayoutCoordinator {
         companionBounds: CGRect?,
         size: CGSize,
         preferredSide: String,
-        verticalPosition: Double
+        verticalPosition: Double,
+        distance: Double
     ) -> CGRect {
         let value = CGFloat(min(1, max(0, verticalPosition)))
+        let gap = CGFloat(min(28, max(2, distance)))
         let verticalTravel = min(
             characterBounds.height,
             max(0, canvas.height - size.height - canvasInset * 2)
         )
         let y = characterBounds.midY - size.height / 2 + (value - 0.5) * verticalTravel
         let left = CGRect(
-            x: characterBounds.minX - satelliteGap - size.width,
+            x: characterBounds.minX - gap - size.width,
             y: y,
             width: size.width,
             height: size.height
         )
         let right = CGRect(
-            x: characterBounds.maxX + satelliteGap,
+            x: characterBounds.maxX + gap,
             y: y,
             width: size.width,
             height: size.height

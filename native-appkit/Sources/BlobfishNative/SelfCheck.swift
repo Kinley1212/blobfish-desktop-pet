@@ -359,6 +359,7 @@ enum SelfCheck {
                 && result.config.performance.memoryLimitMb == 1024
                 && result.config.performance.panelSide == "left"
                 && result.config.performance.panelVerticalPosition == 0.5
+                && result.config.performance.panelDistance == 6
                 && result.config.pet.customization["blobfish-wotou"]?.objectValue?["bodyShape"]?.stringValue == "bun"
         }
     }
@@ -526,7 +527,8 @@ enum SelfCheck {
             companionBounds: nil,
             size: panelSize,
             preferredSide: "left",
-            verticalPosition: 0.5
+            verticalPosition: 0.5,
+            distance: 6
         )
         let companion = NSRect(x: 45, y: 10, width: 65, height: 80)
         let avoidingCompanion = PetSceneLayoutCoordinator.performancePanelRect(
@@ -535,7 +537,8 @@ enum SelfCheck {
             companionBounds: companion,
             size: panelSize,
             preferredSide: "left",
-            verticalPosition: 0.5
+            verticalPosition: 0.5,
+            distance: 6
         )
         let bubbles = PetSceneLayoutCoordinator.stackedBubbleRects(
             sizesOldestFirst: [NSSize(width: 120, height: 30), NSSize(width: 130, height: 34)],
@@ -873,13 +876,19 @@ enum SelfCheck {
         let canvas = CGRect(x: 0, y: 0, width: 340, height: 300)
         let character = CGRect(x: 105.5, y: 10, width: 129, height: 90)
         let lowerLeft = PerformancePanelGeometry.rect(
-            in: canvas, characterBounds: character, side: "left", verticalPosition: 0
+            in: canvas, characterBounds: character, side: "left", verticalPosition: 0, distance: 6
         )
         let upperRight = PerformancePanelGeometry.rect(
-            in: canvas, characterBounds: character, side: "right", verticalPosition: 1
+            in: canvas, characterBounds: character, side: "right", verticalPosition: 1, distance: 6
         )
         let clamped = PerformancePanelGeometry.rect(
-            in: canvas, characterBounds: character, side: "left", verticalPosition: 5
+            in: canvas, characterBounds: character, side: "left", verticalPosition: 5, distance: 6
+        )
+        let nearby = PerformancePanelGeometry.rect(
+            in: canvas, characterBounds: character, side: "left", verticalPosition: 0.5, distance: 2
+        )
+        let distant = PerformancePanelGeometry.rect(
+            in: canvas, characterBounds: character, side: "left", verticalPosition: 0.5, distance: 28
         )
         let small = PerformancePanelGeometry.size(for: CGRect(x: 0, y: 0, width: 84, height: 58.5))
         let large = PerformancePanelGeometry.size(for: CGRect(x: 0, y: 0, width: 193.5, height: 135))
@@ -896,6 +905,8 @@ enum SelfCheck {
             && upperRight.minY > lowerLeft.minY
             && abs(clamped.minX - lowerLeft.minX) < 0.001
             && abs(clamped.minY - upperRight.minY) < 0.001
+            && abs(character.minX - nearby.maxX - 2) < 0.001
+            && abs(character.minX - distant.maxX - 28) < 0.001
             && abs(small.width - 46) < 0.001
             && abs(small.height - 58.5) < 0.001
             && abs(large.width - 86.4) < 0.001

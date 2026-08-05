@@ -68,7 +68,8 @@ enum PerformancePanelGeometry {
         characterBounds: CGRect,
         companionBounds: CGRect? = nil,
         side: String,
-        verticalPosition: Double
+        verticalPosition: Double,
+        distance: Double
     ) -> CGRect {
         let size = size(for: characterBounds)
         return PetSceneLayoutCoordinator.performancePanelRect(
@@ -77,7 +78,8 @@ enum PerformancePanelGeometry {
             companionBounds: companionBounds,
             size: size,
             preferredSide: side,
-            verticalPosition: verticalPosition
+            verticalPosition: verticalPosition,
+            distance: distance
         )
     }
 }
@@ -385,6 +387,9 @@ final class PetView: NSView, CALayerDelegate {
     }
     var performancePanelVerticalPosition = 0.5 {
         didSet { if oldValue != performancePanelVerticalPosition { invalidateOverlay() } }
+    }
+    var performancePanelDistance = 6.0 {
+        didSet { if oldValue != performancePanelDistance { invalidateOverlay() } }
     }
     private(set) var visualBobOffset: CGFloat = 0
     var motionState = PetMotionTiming.State.idle {
@@ -1037,7 +1042,8 @@ final class PetView: NSView, CALayerDelegate {
             characterBounds: characterBounds,
             companionBounds: companionCharacterBounds,
             side: performancePanelSide,
-            verticalPosition: performancePanelVerticalPosition
+            verticalPosition: performancePanelVerticalPosition,
+            distance: performancePanelDistance
         )
         let visualScale = min(1.5, max(0.65, rect.height / 90))
         let grassTheme = characterID == "grass-buddy"

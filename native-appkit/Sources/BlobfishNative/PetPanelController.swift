@@ -247,6 +247,7 @@ final class PetPanelController {
         petView.customization = config.pet.customization[config.pet.characterPackId]
         petView.performancePanelSide = config.performance.panelSide
         petView.performancePanelVerticalPosition = config.performance.panelVerticalPosition
+        petView.performancePanelDistance = config.performance.panelDistance
         petView.onDragStart = { [weak self] in self?.beginDrag() }
         petView.onDragMove = { [weak self] dx, dy in self?.dragBy(dx: dx, dy: dy) }
         petView.onDragEnd = { [weak self] vx, vy in self?.endDrag(velocityX: vx, velocityY: vy) }
@@ -279,6 +280,7 @@ final class PetPanelController {
         petView.customization = config.pet.customization[config.pet.characterPackId]
         petView.performancePanelSide = config.performance.panelSide
         petView.performancePanelVerticalPosition = config.performance.panelVerticalPosition
+        petView.performancePanelDistance = config.performance.panelDistance
         petView.locale = config.ui.locale
         bobBaselineY = nil
         preciseOrigin = nil
