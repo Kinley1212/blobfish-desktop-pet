@@ -1,4 +1,5 @@
 import Foundation
+import LocalAuthentication
 import Security
 
 struct FishContact: Codable, Equatable, Identifiable {
@@ -29,19 +30,106 @@ struct FishMessengerProfile: Codable, Equatable {
     var contacts: [FishContact]
 }
 
-enum FishMessengerVaultError: Error { case keychain(OSStatus); case invalidState }
+enum FishMessengerProfileState: String, Equatable {
+    case notConfigured
+    case available
+    case authorizationRequired
+    case locked
+    case corrupt
+    case unavailable
+}
+
+enum FishMessengerVaultInteractionPolicy: Equatable {
+    case nonInteractive
+    case interactive(localizedReason: String)
+
+    var permitsInteraction: Bool {
+        if case .interactive = self { return true }
+        return false
+    }
+
+    func authenticationContext() -> LAContext {
+        let context = LAContext()
+        switch self {
+        case .nonInteractive:
+            context.interactionNotAllowed = true
+        case .interactive(let localizedReason):
+            context.localizedReason = localizedReason
+        }
+        return context
+    }
+}
+
+enum FishMessengerVaultError: LocalizedError {
+    case keychain(OSStatus)
+    case invalidState
+    case profileUnavailable(FishMessengerProfileState)
+
+    var errorDescription: String? {
+        switch self {
+        case .keychain(let status):
+            let detail = SecCopyErrorMessageString(status, nil) as String? ?? "Unknown Keychain error"
+            return "Keychain access failed (\(status)): \(detail)"
+        case .invalidState:
+            return "The fish-message identity stored in Keychain is invalid."
+        case .profileUnavailable(let state):
+            return "The fish-message identity is unavailable (\(state.rawValue))."
+        }
+    }
+}
+
+enum FishMessengerVaultStatePolicy {
+    static func state(for error: Error) -> FishMessengerProfileState {
+        guard let vaultError = error as? FishMessengerVaultError else { return .unavailable }
+        switch vaultError {
+        case .invalidState:
+            return .corrupt
+        case .profileUnavailable(let state):
+            return state
+        case .keychain(let status):
+            return state(for: status)
+        }
+    }
+
+    static func state(for status: OSStatus) -> FishMessengerProfileState {
+        switch status {
+        case errSecItemNotFound:
+            return .notConfigured
+        case errSecInteractionNotAllowed, errSecInteractionRequired, errSecAuthFailed, errSecUserCanceled:
+            return .authorizationRequired
+        case errSecDatabaseLocked, errSecInDarkWake:
+            return .locked
+        case errSecDecode, errSecInvalidData, errSecInvalidDatabaseBlob:
+            return .corrupt
+        default:
+            return .unavailable
+        }
+    }
+}
 
 final class FishMessengerVault {
     private let service = "com.blobfish.desktop-pet.native.fish-messenger"
     private let account = "profile-v1"
 
     func load() throws -> FishMessengerProfile? {
+        try load(using: .nonInteractive)
+    }
+
+    func loadInteractively(localizedReason: String) throws -> FishMessengerProfile? {
+        guard !localizedReason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw FishMessengerVaultError.invalidState
+        }
+        return try load(using: .interactive(localizedReason: localizedReason))
+    }
+
+    private func load(using interaction: FishMessengerVaultInteractionPolicy) throws -> FishMessengerProfile? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationContext as String: interaction.authenticationContext(),
         ]
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -236,6 +324,8 @@ final class FishMessengerService: NSObject {
     private let relay: FishRelayClient
     private let friendStore: FishFriendStore
     private(set) var profile: FishMessengerProfile?
+    private(set) var profileState: FishMessengerProfileState = .notConfigured
+    private(set) var profileDiagnostic: String?
     private(set) var preferences: FishFriendPreferences
     private(set) var records: [FishMessageRecord]
     private(set) var activeVisitContactID: UUID?
@@ -275,12 +365,37 @@ final class FishMessengerService: NSObject {
         }
         do {
             profile = try vault.load()
+            profileState = profile == nil ? .notConfigured : .available
+            profileDiagnostic = nil
         } catch {
+            profileState = FishMessengerVaultStatePolicy.state(for: error)
+            profileDiagnostic = error.localizedDescription
             deferredErrors.append(persistenceError(error, operation: "profile load"))
         }
     }
 
     var unreadCount: Int { records.filter { $0.direction == .incoming && !$0.isRead }.count }
+
+    @discardableResult
+    func unlockProfileInteractively(isEnglish: Bool) throws -> FishMessengerProfileState {
+        guard profileState != .available else { return .available }
+        let localizedReason = isEnglish
+            ? "Allow Blobfish to access your existing fish-message identity."
+            : "允许水滴鱼读取现有的鱼鱼传话身份。"
+        do {
+            profile = try vault.loadInteractively(localizedReason: localizedReason)
+            profileState = profile == nil ? .notConfigured : .available
+            profileDiagnostic = nil
+            notifyState()
+            schedulePollingIfNeeded()
+            return profileState
+        } catch {
+            profileState = FishMessengerVaultStatePolicy.state(for: error)
+            profileDiagnostic = error.localizedDescription
+            notifyState()
+            throw error
+        }
+    }
 
     func addStateObserver(_ observer: @escaping () -> Void) { stateObservers.append(observer) }
 
@@ -289,7 +404,11 @@ final class FishMessengerService: NSObject {
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty, normalized.utf8.count <= 48 else { throw FishMessengerError.invalidMessage }
         next.displayName = normalized
-        try vault.save(next); profile = next; notifyState()
+        try vault.save(next)
+        profile = next
+        profileState = .available
+        profileDiagnostic = nil
+        notifyState()
     }
 
     func updatePreferences(_ value: FishFriendPreferences) throws {
@@ -348,6 +467,8 @@ final class FishMessengerService: NSObject {
         next.contacts[index] = contact
         try vault.save(next)
         profile = next
+        profileState = .available
+        profileDiagnostic = nil
         if activeVisitContactID == contact.id, contact.blocked || contact.muted {
             activeVisitContactID = nil
         }
@@ -355,7 +476,10 @@ final class FishMessengerService: NSObject {
     }
 
     func createProfile(displayName: String, relayURL: URL, setupToken: String) async throws {
-        guard profile == nil else { return }
+        guard profileState != .available else { return }
+        guard profileState == .notConfigured else {
+            throw FishMessengerVaultError.profileUnavailable(profileState)
+        }
         guard !profileCreationInProgress else { throw FishMessengerServiceError.profileCreationInProgress }
         let normalizedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedName.isEmpty, normalizedName.utf8.count <= 48 else {
@@ -376,6 +500,8 @@ final class FishMessengerService: NSObject {
         )
         try vault.save(next)
         profile = next
+        profileState = .available
+        profileDiagnostic = nil
         notifyState()
         schedulePollingIfNeeded()
     }
@@ -400,6 +526,8 @@ final class FishMessengerService: NSObject {
         next.contacts.append(FishContact(invite: invite))
         try vault.save(next)
         profile = next
+        profileState = .available
+        profileDiagnostic = nil
         notifyState()
     }
 
@@ -585,7 +713,7 @@ final class FishMessengerService: NSObject {
     }
 
     private func requiredProfile() throws -> FishMessengerProfile {
-        guard let profile else { throw FishMessengerVaultError.invalidState }
+        guard let profile else { throw FishMessengerVaultError.profileUnavailable(profileState) }
         return profile
     }
 

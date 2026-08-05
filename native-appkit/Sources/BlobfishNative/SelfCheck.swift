@@ -59,6 +59,8 @@ enum SelfCheck {
             ("early app termination tolerates incomplete launch", earlyAppTerminationToleratesIncompleteLaunch),
             ("speech priority and mood restore", speechPriorityAndMoodRestore),
             ("fish invite code stays hidden by default", fishInviteCodeStaysHiddenByDefault),
+            ("fish vault startup never prompts", fishVaultStartupNeverPrompts),
+            ("fish vault errors preserve profile state", fishVaultErrorsPreserveProfileState),
             ("fish invite validation", fishInviteValidation),
             ("fish self invite is rejected", fishSelfInviteIsRejected),
             ("fish message end-to-end encryption", fishMessageEncryption),
@@ -108,6 +110,32 @@ enum SelfCheck {
             && FishInviteCodePresentationPolicy.shouldResetReveal(
                 previousCode: code, nextCode: code, windowReopened: true
             )
+    }
+
+    private static func fishVaultStartupNeverPrompts() -> Bool {
+        let startup = FishMessengerVaultInteractionPolicy.nonInteractive
+        let startupContext = startup.authenticationContext()
+        let interactiveReason = "Allow Blobfish to access your existing fish-message identity."
+        let interactive = FishMessengerVaultInteractionPolicy.interactive(localizedReason: interactiveReason)
+        let interactiveContext = interactive.authenticationContext()
+        return !startup.permitsInteraction
+            && startupContext.interactionNotAllowed
+            && interactive.permitsInteraction
+            && !interactiveContext.interactionNotAllowed
+            && interactiveContext.localizedReason == interactiveReason
+    }
+
+    private static func fishVaultErrorsPreserveProfileState() -> Bool {
+        let diagnostic = FishMessengerVaultError.keychain(errSecInteractionNotAllowed).localizedDescription
+        return FishMessengerVaultStatePolicy.state(for: errSecItemNotFound) == .notConfigured
+            && FishMessengerVaultStatePolicy.state(for: errSecInteractionNotAllowed) == .authorizationRequired
+            && FishMessengerVaultStatePolicy.state(for: errSecInteractionRequired) == .authorizationRequired
+            && FishMessengerVaultStatePolicy.state(for: errSecDatabaseLocked) == .locked
+            && FishMessengerVaultStatePolicy.state(for: FishMessengerVaultError.invalidState) == .corrupt
+            && FishMessengerVaultStatePolicy.state(for: errSecNotAvailable) == .unavailable
+            && diagnostic.contains(String(errSecInteractionNotAllowed))
+            && !diagnostic.contains("profile-v1")
+            && !diagnostic.contains("privateKey")
     }
 
     private static func fishInviteValidation() throws -> Bool {
