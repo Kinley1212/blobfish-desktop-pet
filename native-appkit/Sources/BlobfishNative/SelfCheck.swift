@@ -20,6 +20,7 @@ enum SelfCheck {
             ("custom SVG and accessory rendering", customSVGAndAccessoryRendering),
             ("alarm clock tuning has a wider safe range", alarmClockTuningHasWiderSafeRange),
             ("shared alarm and timer state", sharedAlarmAndTimerState),
+            ("clock sound draft preserves appearance", clockSoundDraftPreservesAppearance),
             ("clock and message styles migrate safely", visualStyleSelectionsMigrateSafely),
             ("clock persistence failure rolls back state", clockPersistenceFailureRollsBackState),
             ("clock reports unsafe state files", clockReportsUnsafeStateFiles),
@@ -653,6 +654,22 @@ enum SelfCheck {
             && friends.effectiveMessageIndicatorID == FishMessageIndicatorStyle.defaultID
             && ClockAccessoryStyle.normalized("unknown") == ClockAccessoryStyle.defaultID
             && FishMessageIndicatorStyle.normalized("unknown") == FishMessageIndicatorStyle.defaultID
+    }
+
+    private static func clockSoundDraftPreservesAppearance() -> Bool {
+        var preferences = ClockState.empty.preferences
+        preferences.alarmAccessoryID = "alarm-clock-plum-night"
+        preferences.defaultSnoozeMinutes = 12
+        var draft = ClockSoundPreferencesDraft(preferences)
+        draft.alarmSound.soundId = "Bottle"
+        draft.timerSound.enabled = false
+        draft.allowSoundDuringQuietHours = false
+        let merged = draft.applying(to: preferences)
+        return merged.alarmAccessoryID == "alarm-clock-plum-night"
+            && merged.defaultSnoozeMinutes == 12
+            && merged.alarmSound.soundId == "Bottle"
+            && merged.timerSound.enabled == false
+            && merged.allowSoundDuringQuietHours == false
     }
 
     private static func alarmClockTuningHasWiderSafeRange() -> Bool {

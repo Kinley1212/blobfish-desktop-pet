@@ -37,6 +37,7 @@ final class SettingsViewModel: ObservableObject {
     @Published var message = ""
     @Published var selectedSection = SettingsSection.character
     @Published var clockState: ClockState
+    @Published var clockSoundDraft: ClockSoundPreferencesDraft
     @Published var timerMinutes = 25
     @Published var timerLabel = ""
     @Published var alarmLabel = ""
@@ -80,7 +81,9 @@ final class SettingsViewModel: ObservableObject {
         self.clockService = clockService
         self.messengerService = messengerService
         integrationManager = IntegrationManager(supportDirectory: runtime.configStore.fileURL.deletingLastPathComponent())
-        clockState = clockService?.state ?? .empty
+        let initialClockState = clockService?.state ?? .empty
+        clockState = initialClockState
+        clockSoundDraft = ClockSoundPreferencesDraft(initialClockState.preferences)
         draft = runtime.config
         characters = (try? runtime.catalog?.characters()) ?? []
         languages = (try? runtime.catalog?.languages()) ?? []
@@ -280,6 +283,7 @@ final class SettingsViewModel: ObservableObject {
         hideFishInviteCodeForWindowReopen()
         draft = runtime.config
         refreshClock()
+        clockSoundDraft = ClockSoundPreferencesDraft(clockState.preferences)
         loadFishDrafts()
         refreshFishState()
         refreshIntegrations()
@@ -398,8 +402,17 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func saveClockPreferences() {
-        do { try clockService?.updatePreferences(clockState.preferences); refreshClock() }
-        catch { message = String(describing: error) }
+        guard let clockService else {
+            message = isEnglish ? "Alarm clock settings are unavailable." : "闹钟设置暂时不可用。"
+            return
+        }
+        do {
+            try clockService.updatePreferences(clockSoundDraft.applying(to: clockService.state.preferences))
+            refreshClock()
+            clockSoundDraft = ClockSoundPreferencesDraft(clockState.preferences)
+        } catch {
+            message = String(describing: error)
+        }
     }
 
     func selectAlarmAccessory(_ id: String) {
@@ -1174,11 +1187,11 @@ struct BrandedSettingsView: View {
             }
             SettingsCard {
                 Text(t("响铃", "Sounds")).font(.headline)
-                Toggle(t("闹钟声音", "Alarm sound"), isOn: $model.clockState.preferences.alarmSound.enabled)
-                soundPicker(selection: $model.clockState.preferences.alarmSound.soundId)
-                Toggle(t("计时结束声音", "Timer sound"), isOn: $model.clockState.preferences.timerSound.enabled)
-                soundPicker(selection: $model.clockState.preferences.timerSound.soundId)
-                Toggle(t("安静时段也响", "Allow during quiet hours"), isOn: $model.clockState.preferences.allowSoundDuringQuietHours)
+                Toggle(t("闹钟声音", "Alarm sound"), isOn: $model.clockSoundDraft.alarmSound.enabled)
+                soundPicker(selection: $model.clockSoundDraft.alarmSound.soundId)
+                Toggle(t("计时结束声音", "Timer sound"), isOn: $model.clockSoundDraft.timerSound.enabled)
+                soundPicker(selection: $model.clockSoundDraft.timerSound.soundId)
+                Toggle(t("安静时段也响", "Allow during quiet hours"), isOn: $model.clockSoundDraft.allowSoundDuringQuietHours)
                 Button(t("保存响铃设置", "Save sound settings")) { model.saveClockPreferences() }
                 if !model.clockState.alerts.isEmpty { Button(t("停止响铃", "Stop ringing")) { model.dismissClockAlerts() } }
             }

@@ -47,6 +47,26 @@ struct ClockState: Codable, Equatable {
     )
 }
 
+struct ClockSoundPreferencesDraft: Equatable {
+    var alarmSound: AppConfig.SoundChoice
+    var timerSound: AppConfig.SoundChoice
+    var allowSoundDuringQuietHours: Bool
+
+    init(_ preferences: ClockState.Preferences) {
+        alarmSound = preferences.alarmSound
+        timerSound = preferences.timerSound
+        allowSoundDuringQuietHours = preferences.allowSoundDuringQuietHours
+    }
+
+    func applying(to preferences: ClockState.Preferences) -> ClockState.Preferences {
+        var next = preferences
+        next.alarmSound = alarmSound
+        next.timerSound = timerSound
+        next.allowSoundDuringQuietHours = allowSoundDuringQuietHours
+        return next
+    }
+}
+
 enum ClockAccessoryStyle {
     static let defaultID = "alarm-clock"
     static let ids = [defaultID, "alarm-clock-seafoam", "alarm-clock-honey", "alarm-clock-plum-night"]
