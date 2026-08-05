@@ -741,8 +741,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func openSettings() {
         if settingsController == nil {
             settingsController = SettingsWindowController(
-                runtime: runtime, clockService: clockService, messengerService: messengerService,
-                presenceProvider: { [weak self] in self?.currentFishPresence() }
+                runtime: runtime, clockService: clockService, messengerService: messengerService
             ) { [weak self] in
                 guard let self else { return }
                 self.panelController.apply(runtime: self.runtime)
