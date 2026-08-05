@@ -4,5 +4,5 @@
   "version": 1,
   "slot": "clock",
   "art": "art/accessory.svg",
-  "anchor": { "x": 50, "y": 82 }
+  "anchor": { "x": 16, "y": 27 }
 }
