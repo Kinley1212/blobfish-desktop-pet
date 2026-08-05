@@ -12,16 +12,37 @@ enum SelfCheck {
             ("unsafe input rejection", unsafeInputRejection),
             ("shared config migration", sharedConfigMigration),
             ("config round trip", configRoundTrip),
+            ("quick settings merge preserves unrelated draft", quickSettingsMergePreservesUnrelatedDraft),
             ("unsafe config rejection", unsafeConfigRejection),
             ("shared pack compatibility", sharedPackCompatibility),
             ("phrase rules and templates", phraseRulesAndTemplates),
             ("shared runtime recovery", sharedRuntimeRecovery),
             ("custom SVG and accessory rendering", customSVGAndAccessoryRendering),
+            ("alarm clock tuning has a wider safe range", alarmClockTuningHasWiderSafeRange),
+            ("alarm clock position uses fish center", alarmClockPositionUsesFishCenter),
             ("shared alarm and timer state", sharedAlarmAndTimerState),
+            ("clock sound draft preserves appearance", clockSoundDraftPreservesAppearance),
+            ("clock and message styles migrate safely", visualStyleSelectionsMigrateSafely),
+            ("clock persistence failure rolls back state", clockPersistenceFailureRollsBackState),
+            ("clock reports unsafe state files", clockReportsUnsafeStateFiles),
+            ("quick timer clock threshold", quickTimerClockThreshold),
             ("native update channel isolation", nativeUpdateChannelIsolation),
+            ("native prerelease versions compare correctly", nativePrereleaseVersionsCompareCorrectly),
+            ("directory install restores backup on failure", directoryInstallRestoresBackupOnFailure),
+            ("native updater cleans install staging on failure", nativeUpdaterCleansInstallStagingOnFailure),
             ("single instance lock", singleInstanceLock),
+            ("login item setting rolls back on save failure", loginItemSettingRollsBackOnSaveFailure),
             ("dragged height preservation", draggedHeightPreservation),
             ("nearest display preserves pet height", nearestDisplayPreservesPetHeight),
+            ("visit formation joins movement bounds", visitFormationJoinsMovementBounds),
+            ("scene layout coordinates satellites", sceneLayoutCoordinatesSatellites),
+            ("scene layout stays clear on four screen edges", sceneLayoutStaysClearOnFourScreenEdges),
+            ("scene layout separates timer and visit", sceneLayoutSeparatesTimerAndVisit),
+            ("scene layout avoids visit companion", sceneLayoutAvoidsVisitCompanion),
+            ("overlay geometry follows current display", overlayGeometryFollowsCurrentDisplay),
+            ("overlay hit testing leaves transparent gaps", overlayHitTestingLeavesTransparentGaps),
+            ("overlay hit testing skips noninteractive layout", overlayHitTestingSkipsNoninteractiveLayout),
+            ("friend messages stack and expire", friendMessagesStackAndExpire),
             ("display-paced pet motion", displayPacedPetMotion),
             ("hover and menu pause pet motion", hoverAndMenuPausePetMotion),
             ("display-timed carousel easing", displayTimedCarouselEasing),
@@ -41,10 +62,21 @@ enum SelfCheck {
             ("inactive preview releases without lazy weak crash", inactivePreviewReleasesWithoutLazyWeakCrash),
             ("early app termination tolerates incomplete launch", earlyAppTerminationToleratesIncompleteLaunch),
             ("speech priority and mood restore", speechPriorityAndMoodRestore),
+            ("fish invite code stays hidden by default", fishInviteCodeStaysHiddenByDefault),
+            ("fish vault startup never prompts", fishVaultStartupNeverPrompts),
+            ("fish vault errors preserve profile state", fishVaultErrorsPreserveProfileState),
             ("fish invite validation", fishInviteValidation),
+            ("fish self invite is rejected", fishSelfInviteIsRejected),
             ("fish message end-to-end encryption", fishMessageEncryption),
             ("fish visit appearance stays encrypted", fishVisitEncryption),
             ("fish history preserves unread messages", fishHistoryPersistence),
+            ("fish history rejects unsafe state files", fishHistoryRejectsUnsafeStateFiles),
+            ("fish message duration migrates from old preferences", fishMessageDurationMigration),
+            ("fish acknowledgement waits for persistence", fishAcknowledgementWaitsForPersistence),
+            ("fish polling waits for profile without losing start intent", fishPollingWaitsForProfile),
+            ("fish chat preserves a changed draft", fishChatPreservesChangedDraft),
+            ("task monitor drops callbacks after stop", taskMonitorDropsCallbacksAfterStop),
+            ("bounded reminder history keeps recent deduplication", boundedReminderHistoryKeepsRecentDeduplication),
         ]
         var passed = 0
         for (name, check) in checks {
@@ -63,6 +95,53 @@ enum SelfCheck {
         return passed == checks.count
     }
 
+    private static func fishInviteCodeStaysHiddenByDefault() -> Bool {
+        let code = "fish1_0123456789abcdefghijklmnopqrstuvwxyz"
+        let hidden = FishInviteCodePresentationPolicy.displayedCode(code, revealed: false)
+        let revealed = FishInviteCodePresentationPolicy.displayedCode(code, revealed: true)
+        let shortSecret = FishInviteCodePresentationPolicy.displayedCode("secret", revealed: false)
+        return FishInviteCodePresentationPolicy.displayedCode("", revealed: false) == nil
+            && hidden == "fish1_0123…uvwxyz"
+            && hidden != code
+            && revealed == code
+            && shortSecret != "secret"
+            && !FishInviteCodePresentationPolicy.shouldResetReveal(
+                previousCode: code, nextCode: code, windowReopened: false
+            )
+            && FishInviteCodePresentationPolicy.shouldResetReveal(
+                previousCode: code, nextCode: code + "x", windowReopened: false
+            )
+            && FishInviteCodePresentationPolicy.shouldResetReveal(
+                previousCode: code, nextCode: code, windowReopened: true
+            )
+    }
+
+    private static func fishVaultStartupNeverPrompts() -> Bool {
+        let startup = FishMessengerVaultInteractionPolicy.nonInteractive
+        let startupContext = startup.authenticationContext()
+        let interactiveReason = "Allow Blobfish to access your existing fish-message identity."
+        let interactive = FishMessengerVaultInteractionPolicy.interactive(localizedReason: interactiveReason)
+        let interactiveContext = interactive.authenticationContext()
+        return !startup.permitsInteraction
+            && startupContext.interactionNotAllowed
+            && interactive.permitsInteraction
+            && !interactiveContext.interactionNotAllowed
+            && interactiveContext.localizedReason == interactiveReason
+    }
+
+    private static func fishVaultErrorsPreserveProfileState() -> Bool {
+        let diagnostic = FishMessengerVaultError.keychain(errSecInteractionNotAllowed).localizedDescription
+        return FishMessengerVaultStatePolicy.state(for: errSecItemNotFound) == .notConfigured
+            && FishMessengerVaultStatePolicy.state(for: errSecInteractionNotAllowed) == .authorizationRequired
+            && FishMessengerVaultStatePolicy.state(for: errSecInteractionRequired) == .authorizationRequired
+            && FishMessengerVaultStatePolicy.state(for: errSecDatabaseLocked) == .locked
+            && FishMessengerVaultStatePolicy.state(for: FishMessengerVaultError.invalidState) == .corrupt
+            && FishMessengerVaultStatePolicy.state(for: errSecNotAvailable) == .unavailable
+            && diagnostic.contains(String(errSecInteractionNotAllowed))
+            && !diagnostic.contains("profile-v1")
+            && !diagnostic.contains("privateKey")
+    }
+
     private static func fishInviteValidation() throws -> Bool {
         let identity = FishMessengerIdentity()
         let invite = try FishInvite(
@@ -79,6 +158,43 @@ enum SelfCheck {
         } catch {
             return true
         }
+    }
+
+    private static func fishSelfInviteIsRejected() throws -> Bool {
+        let owner = FishMessengerIdentity()
+        let friend = FishMessengerIdentity()
+        let relayURL = URL(string: "https://fish.example.com")!
+        let profile = FishMessengerProfile(
+            relayURL: relayURL,
+            inboxID: String(repeating: "i", count: 24),
+            readToken: String(repeating: "r", count: 48),
+            deliveryToken: String(repeating: "t", count: 48),
+            privateKey: owner.rawPrivateKey.base64EncodedString(),
+            displayName: "我的鱼",
+            contacts: []
+        )
+        let ownInvite = try FishInvite(
+            relayURL: relayURL,
+            inboxID: String(repeating: "o", count: 24),
+            deliveryToken: String(repeating: "d", count: 48),
+            publicKey: owner.publicKey,
+            displayName: "我的鱼"
+        )
+        do {
+            try FishContactImportPolicy.validate(ownInvite, for: profile)
+            return false
+        } catch FishMessengerError.invalidInvite {
+            // Expected: importing your own delivery capability must fail closed.
+        }
+        let friendInvite = try FishInvite(
+            relayURL: relayURL,
+            inboxID: String(repeating: "f", count: 24),
+            deliveryToken: String(repeating: "p", count: 48),
+            publicKey: friend.publicKey,
+            displayName: "朋友的鱼"
+        )
+        try FishContactImportPolicy.validate(friendInvite, for: profile)
+        return true
     }
 
     private static func fishMessageEncryption() throws -> Bool {
@@ -124,9 +240,107 @@ enum SelfCheck {
                 bubbleColor: "#E65D83", presence: nil
             )
             try store.save(preferences: .defaults, records: [record])
-            let loaded = store.load()
+            let loaded = try store.load()
             return loaded.0 == .defaults && loaded.1 == [record] && loaded.1.first?.isRead == false
         }
+    }
+
+    private static func fishHistoryRejectsUnsafeStateFiles() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let file = directory.appendingPathComponent("fish-friends.json")
+            try Data("{}".utf8).write(to: file)
+            try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path)
+            do {
+                _ = try FishFriendStore(directoryURL: directory).load()
+                return false
+            } catch FishFriendStore.StoreError.invalidStateFile {
+                return true
+            }
+        }
+    }
+
+    private static func fishMessageDurationMigration() throws -> Bool {
+        let oldJSON = Data("""
+        {
+            "bubbleColor":"#1F7AE8",
+            "incomingSoundEnabled":true,
+            "incomingSoundID":"Submarine",
+            "visitsEnabled":true
+        }
+        """.utf8)
+        let migrated = try JSONDecoder().decode(FishFriendPreferences.self, from: oldJSON)
+        var configured = migrated
+        configured.messageDisplaySeconds = 36
+        let roundTrip = try JSONDecoder().decode(
+            FishFriendPreferences.self,
+            from: JSONEncoder().encode(configured)
+        )
+        configured.messageDisplaySeconds = -5
+        return migrated.messageDisplaySeconds == nil
+            && migrated.effectiveMessageDisplaySeconds == 20
+            && roundTrip.effectiveMessageDisplaySeconds == 36
+            && configured.effectiveMessageDisplaySeconds == 1
+    }
+
+    private static func fishAcknowledgementWaitsForPersistence() -> Bool {
+        let failed = Set(FishRelayAcknowledgementPolicy.resolved(
+            immediatelySafe: ["rejected", "duplicate"],
+            requiringPersistence: ["new-message", "new-message-copy"],
+            persistenceSucceeded: false
+        ))
+        let saved = Set(FishRelayAcknowledgementPolicy.resolved(
+            immediatelySafe: ["rejected", "duplicate"],
+            requiringPersistence: ["new-message", "new-message-copy"],
+            persistenceSucceeded: true
+        ))
+        return failed == ["rejected", "duplicate"]
+            && saved == ["rejected", "duplicate", "new-message", "new-message-copy"]
+    }
+
+    private static func fishPollingWaitsForProfile() -> Bool {
+        !FishMessengerPollingPolicy.shouldSchedule(
+            startRequested: true,
+            hasProfile: false,
+            hasTimer: false
+        )
+            && FishMessengerPollingPolicy.shouldSchedule(
+                startRequested: true,
+                hasProfile: true,
+                hasTimer: false
+            )
+            && !FishMessengerPollingPolicy.shouldSchedule(
+                startRequested: true,
+                hasProfile: true,
+                hasTimer: true
+            )
+            && !FishMessengerPollingPolicy.shouldSchedule(
+                startRequested: false,
+                hasProfile: true,
+                hasTimer: false
+            )
+    }
+
+    private static func fishChatPreservesChangedDraft() -> Bool {
+        let sentContactID = UUID()
+        return FishChatDraftPolicy.shouldClear(
+            currentDraft: "原消息",
+            draftAtSend: "原消息",
+            selectedContactID: sentContactID,
+            sentContactID: sentContactID
+        )
+            && !FishChatDraftPolicy.shouldClear(
+                currentDraft: "新消息",
+                draftAtSend: "原消息",
+                selectedContactID: sentContactID,
+                sentContactID: sentContactID
+            )
+            && !FishChatDraftPolicy.shouldClear(
+                currentDraft: "原消息",
+                draftAtSend: "原消息",
+                selectedContactID: UUID(),
+                sentContactID: sentContactID
+            )
+            && String(repeating: "鱼", count: 334).utf8.count > FishMessage.maximumTextBytes
     }
 
     private static func hoverAndMenuPausePetMotion() -> Bool {
@@ -293,6 +507,7 @@ enum SelfCheck {
                 && result.config.performance.memoryLimitMb == 1024
                 && result.config.performance.panelSide == "left"
                 && result.config.performance.panelVerticalPosition == 0.5
+                && result.config.performance.panelDistance == 6
                 && result.config.pet.customization["blobfish-wotou"]?.objectValue?["bodyShape"]?.stringValue == "bun"
         }
     }
@@ -309,6 +524,24 @@ enum SelfCheck {
             guard lstat(store.fileURL.path, &info) == 0, info.st_mode & 0o777 == 0o600 else { return false }
             return store.load().config == config
         }
+    }
+
+    private static func quickSettingsMergePreservesUnrelatedDraft() -> Bool {
+        var runtime = AppConfig.defaults
+        runtime.pet.roamWhenNoTasks = false
+        runtime.pet.roamWhenTasks = true
+        runtime.performance.panelEnabled = true
+        runtime.startup.launchAtLogin = true
+        var draft = AppConfig.defaults
+        draft.pet.speed = 9.5
+        draft.language.idleEnabled = false
+        let merged = QuickSettingsDraftMerge.merge(runtime: runtime, into: draft)
+        return !merged.pet.roamWhenNoTasks
+            && merged.pet.roamWhenTasks
+            && merged.performance.panelEnabled
+            && merged.startup.launchAtLogin
+            && merged.pet.speed == 9.5
+            && !merged.language.idleEnabled
     }
 
     private static func unsafeConfigRejection() throws -> Bool {
@@ -386,14 +619,108 @@ enum SelfCheck {
         let restingSVG = restingData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
         let coveredSVG = coveredData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
         let accessories = try catalog.accessories()
-        let hasClock = accessories.contains(where: { $0.id == "alarm-clock" && $0.manifest.slot == "clock" })
+        let clockIDs = Set(accessories.filter { $0.manifest.slot == "clock" }.map(\.id))
+        let indicatorIDs = Set(accessories.filter { $0.manifest.slot == "message-indicator" }.map(\.id))
+        let hasClock = Set(ClockAccessoryStyle.ids).isSubset(of: clockIDs)
+        let hasIndicators = Set(FishMessageIndicatorStyle.ids).isSubset(of: indicatorIDs)
         let restingFaceIsNeutral = !restingSVG.contains("tear") && restingSVG.contains("eye-left")
         let selectedFaceCoversEyes = !coveredSVG.contains("eye-left") && !coveredSVG.contains("tear")
-        if image == nil || accessories.count < 80 || !hasClock || !restingFaceIsNeutral || !selectedFaceCoversEyes {
-            print("  renderer=\(image != nil), accessories=\(accessories.count), clock=\(hasClock), neutral=\(restingFaceIsNeutral), covered=\(selectedFaceCoversEyes)")
+        if image == nil || accessories.count < 80 || !hasClock || !hasIndicators || !restingFaceIsNeutral || !selectedFaceCoversEyes {
+            print("  renderer=\(image != nil), accessories=\(accessories.count), clock=\(hasClock), indicators=\(hasIndicators), neutral=\(restingFaceIsNeutral), covered=\(selectedFaceCoversEyes)")
             return false
         }
         return true
+    }
+
+    private static func visualStyleSelectionsMigrateSafely() throws -> Bool {
+        let legacyClock = Data(#"""
+        {
+          "alarmSound":{"enabled":true,"soundId":"Ping"},
+          "timerSound":{"enabled":true,"soundId":"Glass"},
+          "allowSoundDuringQuietHours":true,
+          "defaultSnoozeMinutes":5
+        }
+        """#.utf8)
+        let legacyFriends = Data(#"""
+        {
+          "bubbleColor":"#1F7AE8",
+          "incomingSoundEnabled":true,
+          "incomingSoundID":"Submarine",
+          "visitsEnabled":true
+        }
+        """#.utf8)
+        let clock = try JSONDecoder().decode(ClockState.Preferences.self, from: legacyClock)
+        let friends = try JSONDecoder().decode(FishFriendPreferences.self, from: legacyFriends)
+        return clock.effectiveAlarmAccessoryID == ClockAccessoryStyle.defaultID
+            && friends.effectiveMessageIndicatorID == FishMessageIndicatorStyle.defaultID
+            && ClockAccessoryStyle.normalized("unknown") == ClockAccessoryStyle.defaultID
+            && FishMessageIndicatorStyle.normalized("unknown") == FishMessageIndicatorStyle.defaultID
+    }
+
+    private static func clockSoundDraftPreservesAppearance() -> Bool {
+        var preferences = ClockState.empty.preferences
+        preferences.alarmAccessoryID = "alarm-clock-plum-night"
+        preferences.defaultSnoozeMinutes = 12
+        var draft = ClockSoundPreferencesDraft(preferences)
+        draft.alarmSound.soundId = "Bottle"
+        draft.timerSound.enabled = false
+        draft.allowSoundDuringQuietHours = false
+        let merged = draft.applying(to: preferences)
+        return merged.alarmAccessoryID == "alarm-clock-plum-night"
+            && merged.defaultSnoozeMinutes == 12
+            && merged.alarmSound.soundId == "Bottle"
+            && merged.timerSound.enabled == false
+            && merged.allowSoundDuringQuietHours == false
+    }
+
+    private static func alarmClockTuningHasWiderSafeRange() -> Bool {
+        let specification: JSONValue = .object([
+            "offsetX": .number(96),
+            "offsetY": .number(-74),
+            "width": .number(0.5),
+            "height": .number(1.8),
+        ])
+        let clock = AccessoryTuning(specification, accessoryID: "alarm-clock-seafoam")
+        let ordinary = AccessoryTuning(specification, accessoryID: "crown")
+        let clampedClock = AccessoryTuning(.object([
+            "offsetX": .number(999),
+            "offsetY": .number(-999),
+        ]), accessoryID: "alarm-clock")
+        return clock.offsetX == 96
+            && clock.offsetY == -74
+            && clock.width == 1
+            && clock.height == 1
+            && ordinary.offsetX == 30
+            && ordinary.offsetY == -30
+            && ordinary.width == 0.5
+            && ordinary.height == 1.8
+            && clampedClock.offsetX == 240
+            && clampedClock.offsetY == -180
+    }
+
+    private static func alarmClockPositionUsesFishCenter() -> Bool {
+        let container = CGRect(x: 0, y: 0, width: 340, height: 165)
+        let character = CGRect(x: 117.5, y: 10, width: 105, height: 90)
+        let canvas = CGRect(x: 0, y: 0, width: 140, height: 120)
+        let size = CGSize(width: 38, height: 38)
+        let centered = ClockAccessoryPositionGeometry.centeredRect(
+            offsetX: 0, offsetY: 0, canvas: canvas,
+            characterBounds: character, containerBounds: container, renderedSize: size
+        )
+        let farTopRight = ClockAccessoryPositionGeometry.centeredRect(
+            offsetX: 999, offsetY: -999, canvas: canvas,
+            characterBounds: character, containerBounds: container, renderedSize: size
+        )
+        let farBottomLeft = ClockAccessoryPositionGeometry.centeredRect(
+            offsetX: -999, offsetY: 999, canvas: canvas,
+            characterBounds: character, containerBounds: container, renderedSize: size
+        )
+        return abs(centered.midX - character.midX) < 0.001
+            && abs(centered.midY - character.midY) < 0.001
+            && abs(farTopRight.maxX - container.maxX) < 0.001
+            && abs(farTopRight.maxY - container.maxY) < 0.001
+            && abs(farBottomLeft.minX - container.minX) < 0.001
+            && abs(farBottomLeft.minY - container.minY) < 0.001
     }
 
     private static func sharedAlarmAndTimerState() throws -> Bool {
@@ -406,6 +733,7 @@ enum SelfCheck {
             try service.resumeTimer()
             var preferences = service.state.preferences
             preferences.alarmSound.soundId = "Bottle"
+            preferences.alarmAccessoryID = "alarm-clock-honey"
             try service.updatePreferences(preferences)
             let reloaded = ClockService(directoryURL: directory)
             let file = directory.appendingPathComponent("clock-state.json")
@@ -413,6 +741,7 @@ enum SelfCheck {
             guard reloaded.state.alarms.first?.time == "09:30"
                 && reloaded.state.timer?.state == "running"
                 && reloaded.state.preferences.alarmSound.soundId == "Bottle"
+                && reloaded.state.preferences.effectiveAlarmAccessoryID == "alarm-clock-honey"
                 && lstat(file.path, &info) == 0
                 && info.st_mode & 0o777 == 0o600 else { return false }
             var fixture = reloaded.state
@@ -431,6 +760,336 @@ enum SelfCheck {
             try alerts.dismissAlert(id: "alert:test")
             return alerts.state.alerts.isEmpty
         }
+    }
+
+    private static func clockPersistenceFailureRollsBackState() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let blocker = directory.appendingPathComponent("not-a-directory")
+            try Data("blocker".utf8).write(to: blocker)
+
+            let controls = ClockService(directoryURL: blocker, initialState: .empty, nowMs: 1_000)
+            do {
+                try controls.createAlarm(label: "should-not-stick", mode: "daily", time: "09:00", date: nil, weekdays: [])
+                return false
+            } catch {
+                guard controls.state.alarms.isEmpty else { return false }
+            }
+
+            var dueState = ClockState.empty
+            dueState.timer = .init(
+                id: "timer:test", label: "durable first", durationMs: 500,
+                state: "running", createdAtMs: 1_000, dueAtMs: 1_500,
+                remainingMs: nil, source: ClockTimerSource.quick
+            )
+            let polling = ClockService(directoryURL: blocker, initialState: dueState, nowMs: 1_000)
+            var dueEvents = 0
+            var persistenceErrors = 0
+            polling.onEvent = { event, _ in
+                if case .timerDue = event { dueEvents += 1 }
+            }
+            polling.onError = { _ in persistenceErrors += 1 }
+            polling.poll(nowMs: 2_000)
+            polling.poll(nowMs: 3_000)
+            return polling.state.timer?.id == "timer:test"
+                && polling.state.alerts.isEmpty
+                && dueEvents == 0
+                && persistenceErrors == 1
+        }
+    }
+
+    private static func clockReportsUnsafeStateFiles() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let file = directory.appendingPathComponent("clock-state.json")
+            try Data("{}".utf8).write(to: file)
+            try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path)
+            let service = ClockService(directoryURL: directory, nowMs: 1_000)
+            var errors = 0
+            service.onError = { _ in errors += 1 }
+            return service.state == .empty && errors == 1
+        }
+    }
+
+    private static func visitFormationJoinsMovementBounds() -> Bool {
+        let primary = NSRect(x: 110, y: 10, width: 100, height: 95)
+        let companionFrame = NSRect(x: 168, y: 0, width: 170, height: 165)
+        let companion = NSRect(x: 48, y: 10, width: 82, height: 79)
+        let result = PetFormationGeometry.movementBounds(
+            primaryBounds: primary,
+            companionFrame: companionFrame,
+            companionBounds: companion
+        )
+        return result == NSRect(x: 110, y: 10, width: 188, height: 95)
+            && PetFormationGeometry.movementBounds(
+                primaryBounds: primary,
+                companionFrame: nil,
+                companionBounds: nil
+            ) == primary
+    }
+
+    private static func sceneLayoutCoordinatesSatellites() -> Bool {
+        let canvas = NSRect(x: 0, y: 0, width: 340, height: 300)
+        let character = NSRect(x: 117.5, y: 10, width: 105, height: 90)
+        let panelSize = NSSize(width: 58, height: 90)
+        func makeLayout(companion: NSRect?) -> PetSceneLayout {
+            PetSceneLayoutCoordinator.layout(PetSceneLayoutInput(
+                canvas: canvas,
+                characterBounds: character,
+                companionBounds: companion,
+                timerSize: nil,
+                visitStatusSize: nil,
+                clockAlertSize: nil,
+                taskStackSize: nil,
+                ownerSpeechSize: nil,
+                ownerFriendBubbleSizes: [
+                    NSSize(width: 120, height: 30),
+                    NSSize(width: 130, height: 34),
+                ],
+                visitorFriendBubbleSizes: [],
+                performancePanelSize: panelSize,
+                performancePanelSide: "left",
+                performancePanelVerticalPosition: 0.5,
+                performancePanelDistance: 6
+            ))
+        }
+        let layout = makeLayout(companion: nil)
+        let companion = NSRect(x: 45, y: 10, width: 65, height: 80)
+        let companionLayout = makeLayout(companion: companion)
+        guard let left = layout.performancePanelRect,
+              let avoidingCompanion = companionLayout.performancePanelRect else { return false }
+        let bubbles = layout.ownerFriendBubbleRects
+        return abs(character.minX - left.maxX - PetSceneLayoutCoordinator.satelliteGap) < 0.001
+            && !avoidingCompanion.intersects(companion)
+            && !avoidingCompanion.intersects(character)
+            && bubbles.count == 2
+            && bubbles[0].minY > bubbles[1].maxY
+            && bubbles.allSatisfy { canvas.insetBy(dx: 8, dy: 8).contains($0) }
+    }
+
+    private static func sceneLayoutStaysClearOnFourScreenEdges() -> Bool {
+        let canvas = NSRect(x: 0, y: 0, width: 800, height: 600)
+        let characters = [
+            NSRect(x: 8, y: 255, width: 105, height: 90),
+            NSRect(x: 687, y: 255, width: 105, height: 90),
+            NSRect(x: 347, y: 8, width: 105, height: 90),
+            NSRect(x: 347, y: 502, width: 105, height: 90),
+        ]
+        return characters.allSatisfy { character in
+            let layout = fullSceneLayout(canvas: canvas, character: character, companion: nil)
+            return sceneLayoutIsContainedAndDisjoint(layout, canvas: canvas, formation: character)
+                && layout.ownerFriendBubbleRects.count == 2
+                && squaredRectDistance(layout.ownerFriendBubbleRects[1], character)
+                    <= squaredRectDistance(layout.ownerFriendBubbleRects[0], character)
+        }
+    }
+
+    private static func sceneLayoutSeparatesTimerAndVisit() -> Bool {
+        let canvas = NSRect(x: 0, y: 0, width: 800, height: 600)
+        let character = NSRect(x: 347, y: 8, width: 105, height: 90)
+        let layout = fullSceneLayout(canvas: canvas, character: character, companion: nil)
+        guard let timer = layout.timerRect, let visit = layout.visitStatusRect else { return false }
+        return !timer.intersects(visit)
+            && abs(timer.midY - visit.midY) < 0.001
+            && visit.minX - timer.maxX >= PetSceneLayoutCoordinator.satelliteGap
+    }
+
+    private static func sceneLayoutAvoidsVisitCompanion() -> Bool {
+        let canvas = NSRect(x: 0, y: 0, width: 800, height: 600)
+        let character = NSRect(x: 280, y: 255, width: 105, height: 90)
+        let companion = NSRect(x: 405, y: 260, width: 82, height: 79)
+        let formation = character.union(companion)
+        let layout = fullSceneLayout(canvas: canvas, character: character, companion: companion)
+        return sceneLayoutIsContainedAndDisjoint(layout, canvas: canvas, formation: formation)
+            && layout.visitorFriendBubbleRects.count == 1
+    }
+
+    private static func overlayGeometryFollowsCurrentDisplay() -> Bool {
+        let left = NSRect(x: -1_280, y: 0, width: 1_280, height: 800)
+        let primary = NSRect(x: 0, y: 23, width: 1_440, height: 877)
+        let formation = NSRect(x: -160, y: 240, width: 188, height: 95)
+        guard PetOverlayScreenGeometry.visibleFrame(
+            for: formation,
+            from: [primary, left]
+        ) == left else { return false }
+        let local = PetOverlayScreenGeometry.localRect(
+            for: NSRect(x: -150, y: 250, width: 105, height: 90),
+            visibleFrame: left
+        )
+        let scene = PetOverlayScreenGeometry.sceneFrame(
+            around: NSRect(x: -150, y: 250, width: 105, height: 90),
+            inside: left
+        )
+        let sceneLocal = PetOverlayScreenGeometry.localRect(
+            for: NSRect(x: -150, y: 250, width: 105, height: 90),
+            visibleFrame: scene
+        )
+        return local == NSRect(x: 1_130, y: 250, width: 105, height: 90)
+            && left.contains(scene)
+            && scene.size == PetOverlayScreenGeometry.maximumSceneSize
+            && scene.contains(NSRect(x: -150, y: 250, width: 105, height: 90))
+            && NSRect(origin: .zero, size: scene.size).contains(sceneLocal)
+    }
+
+    private static func overlayHitTestingLeavesTransparentGaps() -> Bool {
+        let rects = [
+            NSRect(x: 10, y: 10, width: 40, height: 30),
+            NSRect(x: 150, y: 120, width: 50, height: 40),
+        ]
+        return PetOverlayHitTesting.contains(NSPoint(x: 20, y: 20), in: rects)
+            && PetOverlayHitTesting.contains(NSPoint(x: 180, y: 140), in: rects)
+            && !PetOverlayHitTesting.contains(NSPoint(x: 100, y: 80), in: rects)
+    }
+
+    private static func overlayHitTestingSkipsNoninteractiveLayout() -> Bool {
+        !PetOverlayHitTesting.needsSceneLayout(
+            hasClockAlert: false,
+            unreadCount: 0,
+            hasClickableMessengerSpeech: false,
+            friendBubbleCount: 0
+        )
+            && PetOverlayHitTesting.needsSceneLayout(
+                hasClockAlert: false,
+                unreadCount: 1,
+                hasClickableMessengerSpeech: false,
+                friendBubbleCount: 0
+            )
+            && PetOverlayHitTesting.needsSceneLayout(
+                hasClockAlert: false,
+                unreadCount: 0,
+                hasClickableMessengerSpeech: true,
+                friendBubbleCount: 0
+            )
+            && PetOverlayHitTesting.needsSceneLayout(
+                hasClockAlert: false,
+                unreadCount: 0,
+                hasClickableMessengerSpeech: false,
+                friendBubbleCount: 1
+            )
+    }
+
+    private static func fullSceneLayout(
+        canvas: NSRect,
+        character: NSRect,
+        companion: NSRect?
+    ) -> PetSceneLayout {
+        PetSceneLayoutCoordinator.layout(PetSceneLayoutInput(
+            canvas: canvas,
+            characterBounds: character,
+            companionBounds: companion,
+            timerSize: NSSize(width: 80, height: 25),
+            visitStatusSize: NSSize(width: 166, height: 21),
+            clockAlertSize: NSSize(width: 276, height: 70),
+            taskStackSize: NSSize(width: 294, height: 61),
+            ownerSpeechSize: NSSize(width: 240, height: 50),
+            ownerFriendBubbleSizes: [
+                NSSize(width: 180, height: 42),
+                NSSize(width: 190, height: 46),
+            ],
+            visitorFriendBubbleSizes: [NSSize(width: 170, height: 44)],
+            performancePanelSize: NSSize(width: 58, height: 90),
+            performancePanelSide: "left",
+            performancePanelVerticalPosition: 0.5,
+            performancePanelDistance: 6
+        ))
+    }
+
+    private static func sceneLayoutIsContainedAndDisjoint(
+        _ layout: PetSceneLayout,
+        canvas: NSRect,
+        formation: NSRect
+    ) -> Bool {
+        let container = canvas.insetBy(
+            dx: PetSceneLayoutCoordinator.canvasInset,
+            dy: PetSceneLayoutCoordinator.canvasInset
+        )
+        let rects = layout.overlayRects
+        guard rects.allSatisfy({ container.contains($0) && !$0.intersects(formation) }) else {
+            return false
+        }
+        for leftIndex in rects.indices {
+            for rightIndex in rects.indices where rightIndex > leftIndex {
+                if rects[leftIndex].intersects(rects[rightIndex]) { return false }
+            }
+        }
+        return true
+    }
+
+    private static func squaredRectDistance(_ left: NSRect, _ right: NSRect) -> CGFloat {
+        let dx = max(0, max(left.minX - right.maxX, right.minX - left.maxX))
+        let dy = max(0, max(left.minY - right.maxY, right.minY - left.maxY))
+        return dx * dx + dy * dy
+    }
+
+    private static func friendMessagesStackAndExpire() -> Bool {
+        let now = Date(timeIntervalSince1970: 1_000)
+        var stack: [PetMessageBubble] = []
+        for index in 0..<4 {
+            stack = PetMessageBubbleStack.inserting(
+                PetMessageBubble(
+                    id: UUID(),
+                    text: "message-\(index)",
+                    color: nil,
+                    speaker: index.isMultiple(of: 2) ? .owner : .visitor,
+                    expiresAt: now.addingTimeInterval(TimeInterval(index + 1))
+                ),
+                into: stack,
+                now: now
+            )
+        }
+        let afterTwoSeconds = PetMessageBubbleStack.active(
+            stack,
+            now: now.addingTimeInterval(2.5)
+        )
+        return stack.map(\.text) == ["message-1", "message-2", "message-3"]
+            && afterTwoSeconds.map(\.text) == ["message-2", "message-3"]
+            && PetMessageBubbleStack.opacity(distanceFromNewest: 0) == 1
+            && PetMessageBubbleStack.opacity(distanceFromNewest: 1) == 0.68
+            && PetMessageBubbleStack.opacity(distanceFromNewest: 2) == 0.38
+    }
+
+    private static func quickTimerClockThreshold() -> Bool {
+        let now = 1_000_000.0
+        func state(source: String?, remainingMs: Double, timerState: String = "running") -> ClockState {
+            ClockState(
+                version: 1,
+                preferences: .init(
+                    alarmSound: .init(enabled: true, soundId: "Ping"),
+                    timerSound: .init(enabled: true, soundId: "Glass"),
+                    allowSoundDuringQuietHours: true,
+                    defaultSnoozeMinutes: 5
+                ),
+                alarms: [],
+                timer: .init(
+                    id: "timer:test", label: "", durationMs: remainingMs, state: timerState,
+                    createdAtMs: 0,
+                    dueAtMs: timerState == "running" ? now + remainingMs : nil,
+                    remainingMs: timerState == "paused" ? remainingMs : nil,
+                    source: source
+                ),
+                alerts: [],
+                lastReconciledAtMs: 0
+            )
+        }
+
+        return !ClockAccessoryPolicy.shouldShowClock(
+            state: state(source: ClockTimerSource.quick, remainingMs: 900_001),
+            nowMs: now
+        )
+            && ClockAccessoryPolicy.shouldShowClock(
+                state: state(source: ClockTimerSource.quick, remainingMs: 900_000),
+                nowMs: now
+            )
+            && ClockAccessoryPolicy.shouldShowClock(
+                state: state(source: ClockTimerSource.quick, remainingMs: 600_000, timerState: "paused"),
+                nowMs: now
+            )
+            && !ClockAccessoryPolicy.shouldShowClock(
+                state: state(source: ClockTimerSource.settings, remainingMs: 60_000),
+                nowMs: now
+            )
+            && !ClockAccessoryPolicy.shouldShowClock(
+                state: state(source: nil, remainingMs: 60_000),
+                nowMs: now
+            )
     }
 
     private static func nativeUpdateChannelIsolation() throws -> Bool {
@@ -455,6 +1114,94 @@ enum SelfCheck {
         } catch UpdaterError.invalidManifest { return true }
     }
 
+    private static func nativePrereleaseVersionsCompareCorrectly() -> Bool {
+        NativeUpdater.compareVersions("2.3.0", "2.3.0-beta.1") == 1
+            && NativeUpdater.compareVersions("2.3.0-beta.2", "2.3.0-beta.10") == -1
+            && NativeUpdater.compareVersions("2.3.1-beta.1", "2.3.0") == 1
+            && NativeUpdater.compareVersions("2.3", "2.3.0") == nil
+    }
+
+    private static func directoryInstallRestoresBackupOnFailure() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let target = directory.appendingPathComponent("managed", isDirectory: true)
+            let temporary = directory.appendingPathComponent("installing", isDirectory: true)
+            let backup = directory.appendingPathComponent("backup", isDirectory: true)
+            try FileManager.default.createDirectory(at: target, withIntermediateDirectories: false)
+            try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: false)
+            let marker = target.appendingPathComponent("original.txt")
+            try Data("original".utf8).write(to: marker)
+            do {
+                try RecoverableDirectoryInstaller.replace(
+                    target: target,
+                    with: temporary,
+                    backup: backup,
+                    moveIntoPlace: { _, _, _ in throw CocoaError(.fileWriteUnknown) }
+                )
+                return false
+            } catch {
+                return FileManager.default.fileExists(atPath: marker.path)
+                    && !FileManager.default.fileExists(atPath: backup.path)
+                    && !FileManager.default.fileExists(atPath: temporary.path)
+            }
+        }
+    }
+
+    private static func nativeUpdaterCleansInstallStagingOnFailure() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let candidate = directory.appendingPathComponent("candidate.app", isDirectory: true)
+            try FileManager.default.createDirectory(at: candidate, withIntermediateDirectories: false)
+            try Data("candidate".utf8).write(to: candidate.appendingPathComponent("marker.txt"))
+            let target = directory.appendingPathComponent("水滴鱼.app", isDirectory: true)
+            try FileManager.default.createDirectory(at: target, withIntermediateDirectories: false)
+            let marker = target.appendingPathComponent("original.txt")
+            try Data("original".utf8).write(to: marker)
+
+            do {
+                _ = try NativeUpdater.installVerifiedBundle(
+                    at: candidate,
+                    in: directory,
+                    currentBundle: candidate,
+                    replace: { _, _, _ in throw CocoaError(.fileWriteUnknown) }
+                )
+                return false
+            } catch {
+                let leftovers = try FileManager.default.contentsOfDirectory(
+                    at: directory,
+                    includingPropertiesForKeys: nil
+                ).filter { $0.lastPathComponent.hasPrefix(".水滴鱼-installing-") }
+                return leftovers.isEmpty && FileManager.default.fileExists(atPath: marker.path)
+            }
+        }
+    }
+
+    private static func taskMonitorDropsCallbacksAfterStop() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let monitor = TaskMonitor(directoryURL: directory)
+            var updates = 0
+            monitor.onUpdate = { _ in updates += 1 }
+            monitor.start()
+            monitor.stop()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+            guard updates == 0 else { return false }
+
+            monitor.start()
+            monitor.start()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.35))
+            monitor.stop()
+            return updates == 1
+        }
+    }
+
+    private static func boundedReminderHistoryKeepsRecentDeduplication() -> Bool {
+        var history = BoundedKeyHistory(limit: 2)
+        return history.insert("old")
+            && history.insert("recent")
+            && history.insert("newest")
+            && !history.insert("recent")
+            && !history.insert("newest")
+            && history.insert("old")
+    }
+
     private static func singleInstanceLock() throws -> Bool {
         try withPrivateDirectory { directory in
             var first: SingleInstanceGuard? = SingleInstanceGuard()
@@ -463,6 +1210,25 @@ enum SelfCheck {
             first = nil
             let third = SingleInstanceGuard()
             return third.acquire(in: directory)
+        }
+    }
+
+    private static func loginItemSettingRollsBackOnSaveFailure() -> Bool {
+        var systemEnabled = false
+        var savedEnabled = false
+        do {
+            try LoginItemSettingTransaction.apply(
+                previous: false,
+                desired: true,
+                updateSystem: { systemEnabled = $0 },
+                saveConfiguration: { enabled in
+                    savedEnabled = enabled
+                    throw CocoaError(.fileWriteUnknown)
+                }
+            )
+            return false
+        } catch {
+            return !systemEnabled && savedEnabled
         }
     }
 
@@ -682,29 +1448,56 @@ enum SelfCheck {
     private static func performancePanelStaysOnCanvas() -> Bool {
         let canvas = CGRect(x: 0, y: 0, width: 340, height: 300)
         let character = CGRect(x: 105.5, y: 10, width: 129, height: 90)
-        let lowerLeft = PerformancePanelGeometry.rect(
-            in: canvas, characterBounds: character, side: "left", verticalPosition: 0
-        )
-        let upperRight = PerformancePanelGeometry.rect(
-            in: canvas, characterBounds: character, side: "right", verticalPosition: 1
-        )
-        let clamped = PerformancePanelGeometry.rect(
-            in: canvas, characterBounds: character, side: "left", verticalPosition: 5
-        )
+        func rect(side: String, verticalPosition: Double, distance: Double) -> CGRect? {
+            PetSceneLayoutCoordinator.layout(PetSceneLayoutInput(
+                canvas: canvas,
+                characterBounds: character,
+                companionBounds: nil,
+                timerSize: nil,
+                visitStatusSize: nil,
+                clockAlertSize: nil,
+                taskStackSize: nil,
+                ownerSpeechSize: nil,
+                ownerFriendBubbleSizes: [],
+                visitorFriendBubbleSizes: [],
+                performancePanelSize: PerformancePanelGeometry.size(for: character),
+                performancePanelSide: side,
+                performancePanelVerticalPosition: verticalPosition,
+                performancePanelDistance: distance
+            )).performancePanelRect
+        }
+        guard let lowerLeft = rect(side: "left", verticalPosition: 0, distance: 6),
+              let upperRight = rect(side: "right", verticalPosition: 1, distance: 6),
+              let clamped = rect(side: "left", verticalPosition: 5, distance: 6),
+              let nearby = rect(side: "left", verticalPosition: 0.5, distance: 2),
+              let distant = rect(side: "left", verticalPosition: 0.5, distance: 28) else { return false }
         let small = PerformancePanelGeometry.size(for: CGRect(x: 0, y: 0, width: 84, height: 58.5))
         let large = PerformancePanelGeometry.size(for: CGRect(x: 0, y: 0, width: 193.5, height: 135))
-        return abs(lowerLeft.minX - 8) < 0.001
+        let safeCanvas = canvas.insetBy(dx: PerformancePanelGeometry.margin, dy: PerformancePanelGeometry.margin)
+        func containsInclusively(_ outer: CGRect, _ inner: CGRect) -> Bool {
+            inner.minX >= outer.minX && inner.maxX <= outer.maxX
+                && inner.minY >= outer.minY && inner.maxY <= outer.maxY
+        }
+        let valid = abs(character.minX - lowerLeft.maxX - PetSceneLayoutCoordinator.satelliteGap) < 0.001
             && abs(lowerLeft.minY - 8) < 0.001
             && abs(lowerLeft.width - 57.6) < 0.001
             && abs(lowerLeft.height - character.height) < 0.001
-            && abs(upperRight.maxX - (canvas.maxX - PerformancePanelGeometry.margin)) < 0.001
-            && abs(upperRight.maxY - (canvas.maxY - PerformancePanelGeometry.margin)) < 0.001
-            && abs(clamped.maxY - (canvas.maxY - PerformancePanelGeometry.margin)) < 0.001
-            && small == CGSize(width: 46, height: 58.5)
+            && abs(upperRight.minX - character.maxX - PetSceneLayoutCoordinator.satelliteGap) < 0.001
+            && upperRight.minY > lowerLeft.minY
+            && abs(clamped.minX - lowerLeft.minX) < 0.001
+            && abs(clamped.minY - upperRight.minY) < 0.001
+            && abs(character.minX - nearby.maxX - 2) < 0.001
+            && abs(character.minX - distant.maxX - 28) < 0.001
+            && abs(small.width - 46) < 0.001
+            && abs(small.height - 58.5) < 0.001
             && abs(large.width - 86.4) < 0.001
-            && large.height == 135
-            && canvas.contains(lowerLeft)
-            && canvas.contains(upperRight)
+            && abs(large.height - 135) < 0.001
+            && containsInclusively(safeCanvas, lowerLeft)
+            && containsInclusively(safeCanvas, upperRight)
+        if !valid {
+            print("  lower=\(lowerLeft), upper=\(upperRight), clamped=\(clamped), safe=\(safeCanvas)")
+        }
+        return valid
     }
 
     private static func performanceBarsNestAndAnimate() -> Bool {

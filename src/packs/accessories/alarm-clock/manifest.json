@@ -1,8 +1,8 @@
 {
   "id": "alarm-clock",
-  "displayName": "小闹钟",
+  "displayName": "珊瑚抱抱钟",
   "version": 1,
   "slot": "clock",
   "art": "art/accessory.svg",
-  "anchor": { "x": 50, "y": 82 }
+  "anchor": { "x": 16, "y": 27 }
 }

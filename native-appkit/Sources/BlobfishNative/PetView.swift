@@ -62,21 +62,6 @@ enum PerformancePanelGeometry {
         let height = characterBounds.height
         return CGSize(width: max(46, height * 0.64), height: height)
     }
-
-    static func rect(
-        in bounds: CGRect,
-        characterBounds: CGRect,
-        side: String,
-        verticalPosition: Double
-    ) -> CGRect {
-        let size = size(for: characterBounds)
-        let availableY = max(0, bounds.height - size.height - margin * 2)
-        let y = bounds.minY + margin + availableY * CGFloat(min(1, max(0, verticalPosition)))
-        let x = side == "right"
-            ? bounds.maxX - margin - size.width
-            : bounds.minX + margin
-        return CGRect(origin: CGPoint(x: x, y: y), size: size)
-    }
 }
 
 enum PerformancePanelAnimation {
@@ -275,10 +260,80 @@ enum ExpressionCanvasGeometry {
     }
 }
 
+enum ClockAccessoryPositionGeometry {
+    static func centeredRect(
+        offsetX: CGFloat,
+        offsetY: CGFloat,
+        canvas: CGRect,
+        characterBounds: CGRect,
+        containerBounds: CGRect,
+        renderedSize: CGSize
+    ) -> CGRect {
+        guard canvas.width > 0, canvas.height > 0,
+              characterBounds.width > 0, characterBounds.height > 0 else {
+            return CGRect(
+                x: containerBounds.midX - renderedSize.width / 2,
+                y: containerBounds.midY - renderedSize.height / 2,
+                width: renderedSize.width,
+                height: renderedSize.height
+            )
+        }
+        let scaleX = characterBounds.width / canvas.width
+        let scaleY = characterBounds.height / canvas.height
+        let halfWidth = renderedSize.width / 2
+        let halfHeight = renderedSize.height / 2
+        let allowedX = centerRange(
+            minimum: containerBounds.minX,
+            maximum: containerBounds.maxX,
+            halfExtent: halfWidth
+        )
+        let allowedY = centerRange(
+            minimum: containerBounds.minY,
+            maximum: containerBounds.maxY,
+            halfExtent: halfHeight
+        )
+        let requestedX = characterBounds.midX + offsetX * scaleX
+        let requestedY = characterBounds.midY - offsetY * scaleY
+        let centerX = min(allowedX.upperBound, max(allowedX.lowerBound, requestedX))
+        let centerY = min(allowedY.upperBound, max(allowedY.lowerBound, requestedY))
+        return CGRect(
+            x: centerX - halfWidth,
+            y: centerY - halfHeight,
+            width: renderedSize.width,
+            height: renderedSize.height
+        )
+    }
+
+    private static func centerRange(
+        minimum: CGFloat,
+        maximum: CGFloat,
+        halfExtent: CGFloat
+    ) -> ClosedRange<CGFloat> {
+        let lower = minimum + halfExtent
+        let upper = maximum - halfExtent
+        guard lower <= upper else {
+            let center = (minimum + maximum) / 2
+            return center...center
+        }
+        return lower...upper
+    }
+}
+
+enum PetViewContentMode {
+    case artwork
+    case overlay
+    case combined
+
+    var drawsArtwork: Bool { self != .overlay }
+    var drawsOverlay: Bool { self != .artwork }
+}
+
 final class PetView: NSView, CALayerDelegate {
+    private let contentMode: PetViewContentMode
     var ignoresMouseInteraction = false
     var onClick: (() -> Void)?
     var onSpeechBubbleClick: (() -> Void)?
+    var onUnreadBadgeClick: (() -> Void)?
     var onDragStart: (() -> Void)?
     var onDragMove: ((CGFloat, CGFloat) -> Void)?
     var onDragEnd: ((CGFloat, CGFloat) -> Void)?
@@ -288,12 +343,32 @@ final class PetView: NSView, CALayerDelegate {
     var transientMessageEvent: String? { didSet { invalidateOverlay() } }
     var transientMessageColor: String? { didSet { invalidateOverlay() } }
     var unreadMessageCount = 0 { didSet { if oldValue != unreadMessageCount { invalidateOverlay() } } }
+    var messageIndicatorID = FishMessageIndicatorStyle.defaultID {
+        didSet {
+            let normalized = FishMessageIndicatorStyle.normalized(messageIndicatorID)
+            if normalized != messageIndicatorID { messageIndicatorID = normalized; return }
+            guard oldValue != messageIndicatorID else { return }
+            rebuildMessageIndicatorImage()
+            invalidateOverlay()
+        }
+    }
     var visitingFriendName: String? { didSet { if oldValue != visitingFriendName { invalidateOverlay() } } }
+    var companionCharacterBounds: NSRect? {
+        didSet { if oldValue != companionCharacterBounds { invalidateOverlay() } }
+    }
+    var sceneCharacterBounds: NSRect? {
+        didSet { if oldValue != sceneCharacterBounds { invalidateOverlay() } }
+    }
+    var friendMessageBubbles: [PetMessageBubble] = [] {
+        didSet { if oldValue != friendMessageBubbles { invalidateOverlay() } }
+    }
     var character: CharacterPack? {
         didSet {
             guard oldValue != character else { return }
-            characterViewBox = character.flatMap(SVGAppearanceRenderer.viewBox)
-            rebuildCharacterImage()
+            if contentMode.drawsArtwork {
+                characterViewBox = character.flatMap(SVGAppearanceRenderer.viewBox)
+                rebuildCharacterImage()
+            }
             invalidateOverlay()
         }
     }
@@ -307,7 +382,10 @@ final class PetView: NSView, CALayerDelegate {
     var accessoryPacks: [AccessoryPack] = [] {
         didSet {
             guard oldValue != accessoryPacks else { return }
-            rebuildAccessoryImages(); rebuildCharacterImage()
+            if contentMode.drawsArtwork {
+                rebuildAccessoryImages(); rebuildCharacterImage()
+            }
+            rebuildMessageIndicatorImage()
         }
     }
     var accessorySpec = CharacterAccessories(nil) {
@@ -326,6 +404,14 @@ final class PetView: NSView, CALayerDelegate {
         didSet {
             guard oldValue != alarmClockVisible else { return }
             startAlarmClockTransition(appearing: alarmClockVisible)
+        }
+    }
+    var alarmClockAccessoryID = ClockAccessoryStyle.defaultID {
+        didSet {
+            let normalized = ClockAccessoryStyle.normalized(alarmClockAccessoryID)
+            if normalized != alarmClockAccessoryID { alarmClockAccessoryID = normalized; return }
+            guard oldValue != alarmClockAccessoryID else { return }
+            rebuildAccessoryImages()
         }
     }
     var alarmRinging = false {
@@ -376,6 +462,9 @@ final class PetView: NSView, CALayerDelegate {
     var performancePanelVerticalPosition = 0.5 {
         didSet { if oldValue != performancePanelVerticalPosition { invalidateOverlay() } }
     }
+    var performancePanelDistance = 6.0 {
+        didSet { if oldValue != performancePanelDistance { invalidateOverlay() } }
+    }
     private(set) var visualBobOffset: CGFloat = 0
     var motionState = PetMotionTiming.State.idle {
         didSet {
@@ -385,17 +474,48 @@ final class PetView: NSView, CALayerDelegate {
     }
     private(set) var motionElapsed: TimeInterval = 0
     var characterID: String { character?.id ?? "blobfish" }
-    var interactiveBounds: NSRect {
-        var result = characterBounds.offsetBy(dx: 0, dy: visualBobOffset).insetBy(dx: -8, dy: -8)
-        if clockAlert != nil { result = result.union(clockAlertRect) }
-        return result
+    func containsInteractivePoint(_ point: NSPoint) -> Bool {
+        PetOverlayHitTesting.contains(point, in: interactiveRects)
+    }
+    private var interactiveRects: [NSRect] {
+        var rects: [NSRect] = []
+        if contentMode.drawsArtwork {
+            rects.append(visibleCharacterBounds.insetBy(dx: -8, dy: -8))
+        }
+        let needsOverlayLayout = PetOverlayHitTesting.needsSceneLayout(
+            hasClockAlert: clockAlert != nil,
+            unreadCount: unreadMessageCount,
+            hasClickableMessengerSpeech: transientMessage != nil
+                && transientMessageEvent == "messenger.received",
+            friendBubbleCount: friendMessageBubbles.count
+        )
+        if contentMode.drawsOverlay, needsOverlayLayout {
+            let layout = currentSceneLayout()
+            if clockAlert != nil {
+                rects += [clockSnoozeRect(in: layout), clockDismissRect(in: layout)]
+            }
+            if unreadMessageCount > 0 { rects.append(unreadBadgeRect) }
+            if transientMessageEvent == "messenger.received", let speech = layout.ownerSpeechRect {
+                rects.append(speech)
+            }
+            rects += layout.ownerFriendBubbleRects + layout.visitorFriendBubbleRects
+        }
+        return rects
     }
 
     var characterBounds: NSRect {
+        if let sceneCharacterBounds { return sceneCharacterBounds }
         let size = character?.manifest.size ?? CharacterPack.Size(width: 105, height: 90)
         let scaled = NSSize(width: size.width * characterScale, height: size.height * characterScale)
-        let bottom = PetShadowStyle.bottomInset + (timerText == nil ? 0 : 20)
-        return NSRect(x: bounds.midX - scaled.width / 2, y: bottom, width: scaled.width, height: scaled.height)
+        return NSRect(
+            x: bounds.midX - scaled.width / 2,
+            y: PetShadowStyle.bottomInset,
+            width: scaled.width,
+            height: scaled.height
+        )
+    }
+    var visibleCharacterBounds: NSRect {
+        characterBounds.offsetBy(dx: 0, dy: visualBobOffset)
     }
     var movementBounds: NSRect {
         let art = characterBounds
@@ -430,6 +550,7 @@ final class PetView: NSView, CALayerDelegate {
     private var characterImage: NSImage?
     private var characterViewBox: CGRect?
     private var accessoryImages: [(AccessoryPack, NSImage)] = []
+    private var messageIndicatorImage: NSImage?
     private let artworkLayer = CALayer()
     private let overlayLayer = CALayer()
     private var artworkBackingScale: CGFloat = 0
@@ -460,9 +581,10 @@ final class PetView: NSView, CALayerDelegate {
     private enum ClockAction { case snooze(String); case dismiss(String) }
     private var pendingClockAction: ClockAction?
     private var pendingSpeechBubbleClick = false
-    private var speechBubbleRect = NSRect.zero
+    private var pendingUnreadBadgeClick = false
 
-    override init(frame frameRect: NSRect) {
+    init(frame frameRect: NSRect, contentMode: PetViewContentMode = .combined) {
+        self.contentMode = contentMode
         super.init(frame: frameRect)
         configureLayers()
     }
@@ -475,6 +597,7 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     required init?(coder: NSCoder) {
+        contentMode = .combined
         super.init(coder: coder)
         configureLayers()
     }
@@ -485,16 +608,20 @@ final class PetView: NSView, CALayerDelegate {
         rootLayer.backgroundColor = NSColor.clear.cgColor
         rootLayer.masksToBounds = false
 
-        artworkLayer.contentsGravity = .resize
-        artworkLayer.magnificationFilter = .linear
-        artworkLayer.minificationFilter = .trilinear
-        artworkLayer.masksToBounds = false
-        overlayLayer.delegate = self
-        overlayLayer.masksToBounds = false
-        rootLayer.addSublayer(artworkLayer)
-        rootLayer.addSublayer(overlayLayer)
+        if contentMode.drawsArtwork {
+            artworkLayer.contentsGravity = .resize
+            artworkLayer.magnificationFilter = .linear
+            artworkLayer.minificationFilter = .trilinear
+            artworkLayer.masksToBounds = false
+            rootLayer.addSublayer(artworkLayer)
+        }
+        if contentMode.drawsOverlay {
+            overlayLayer.delegate = self
+            overlayLayer.masksToBounds = false
+            rootLayer.addSublayer(overlayLayer)
+        }
         updateLayerGeometry()
-        scheduleBlink()
+        if contentMode.drawsArtwork { scheduleBlink() }
     }
 
     private func invalidateOverlay() {
@@ -508,9 +635,11 @@ final class PetView: NSView, CALayerDelegate {
             ?? 2
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        artworkLayer.bounds = bounds
-        overlayLayer.frame = bounds
-        overlayLayer.contentsScale = backingScale
+        if contentMode.drawsArtwork { artworkLayer.bounds = bounds }
+        if contentMode.drawsOverlay {
+            overlayLayer.frame = bounds
+            overlayLayer.contentsScale = backingScale
+        }
         CATransaction.commit()
 
         let sizeChanged = artworkCanvasSize != bounds.size
@@ -518,10 +647,10 @@ final class PetView: NSView, CALayerDelegate {
         if sizeChanged || scaleChanged {
             artworkCanvasSize = bounds.size
             artworkBackingScale = backingScale
-            rebuildArtworkLayer()
-            invalidateOverlay()
+            if contentMode.drawsArtwork { rebuildArtworkLayer() }
+            if contentMode.drawsOverlay { invalidateOverlay() }
         }
-        updateArtworkTransform()
+        if contentMode.drawsArtwork { updateArtworkTransform() }
     }
 
     private func rebuildArtworkLayer() {
@@ -595,7 +724,7 @@ final class PetView: NSView, CALayerDelegate {
         clockAnimationTimer?.invalidate()
         alarmClockTransitionTimer?.invalidate()
         blushTimer?.invalidate()
-        overlayLayer.delegate = nil
+        if contentMode.drawsOverlay { overlayLayer.delegate = nil }
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -621,25 +750,68 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func drawOverlay() {
+        let layout = currentSceneLayout()
         drawCompletionEffect()
-        drawTimerDisplay()
-        drawPerformancePanel()
-        drawSpeechBubble()
-        drawTaskBubble()
-        drawClockAlert()
-        drawVisitStatus()
+        drawTimerDisplay(in: layout)
+        drawPerformancePanel(in: layout)
+        drawSpeechBubble(in: layout)
+        drawTaskBubble(in: layout)
+        drawClockAlert(in: layout)
+        drawVisitStatus(in: layout)
+        drawFriendMessageBubbles(in: layout)
         drawUnreadBadge()
+    }
+
+    private func currentSceneLayout() -> PetSceneLayout {
+        let active = Array(friendMessageBubbles.suffix(PetMessageBubbleStack.maximumVisible))
+        let ownerSizes = active
+            .filter { $0.speaker == .owner }
+            .map { friendBubbleMetrics(text: $0.text).size }
+        let visitorSizes = active
+            .filter { $0.speaker == .visitor }
+            .map { friendBubbleMetrics(text: $0.text).size }
+        return PetSceneLayoutCoordinator.layout(PetSceneLayoutInput(
+            canvas: bounds,
+            characterBounds: characterBounds,
+            companionBounds: companionCharacterBounds,
+            timerSize: timerText == nil ? nil : CGSize(width: 80, height: 25),
+            visitStatusSize: visitingFriendName == nil ? nil : CGSize(width: 166, height: 21),
+            clockAlertSize: clockAlert == nil ? nil : CGSize(width: 276, height: 70),
+            taskStackSize: snapshot.state == .idle || snapshot.tasks.isEmpty
+                ? nil
+                : CGSize(width: 294, height: 61),
+            ownerSpeechSize: speechBubbleMetrics()?.size,
+            ownerFriendBubbleSizes: ownerSizes,
+            visitorFriendBubbleSizes: visitorSizes,
+            performancePanelSize: performanceSample == nil
+                ? nil
+                : PerformancePanelGeometry.size(for: characterBounds),
+            performancePanelSide: performancePanelSide,
+            performancePanelVerticalPosition: performancePanelVerticalPosition,
+            performancePanelDistance: performancePanelDistance
+        ))
     }
 
     override func mouseDown(with event: NSEvent) {
         let local = convert(event.locationInWindow, from: nil)
-        if transientMessageEvent == "messenger.received", speechBubbleRect.contains(local) {
+        let layout = currentSceneLayout()
+        if unreadMessageCount > 0, unreadBadgeRect.contains(local) {
+            pendingUnreadBadgeClick = true
+            return
+        }
+        if transientMessageEvent == "messenger.received",
+           layout.ownerSpeechRect?.contains(local) == true {
+            pendingSpeechBubbleClick = true
+            return
+        }
+        let friendRects = layout.ownerFriendBubbleRects + layout.visitorFriendBubbleRects
+        if PetOverlayHitTesting.contains(local, in: friendRects) {
             pendingSpeechBubbleClick = true
             return
         }
         if let alert = clockAlert {
-            if clockSnoozeRect.contains(local) { pendingClockAction = .snooze(alert.id); return }
-            if clockDismissRect.contains(local) { pendingClockAction = .dismiss(alert.id); return }
+            if clockSnoozeRect(in: layout).contains(local) { pendingClockAction = .snooze(alert.id); return }
+            if clockDismissRect(in: layout).contains(local) { pendingClockAction = .dismiss(alert.id); return }
         }
         let point = NSEvent.mouseLocation
         mouseDownScreenPoint = point
@@ -650,6 +822,7 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        guard !pendingUnreadBadgeClick else { return }
         guard !pendingSpeechBubbleClick else { return }
         guard pendingClockAction == nil else { return }
         guard mouseDownScreenPoint != nil, let previous = lastDragScreenPoint else { return }
@@ -672,10 +845,21 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if pendingUnreadBadgeClick {
+            pendingUnreadBadgeClick = false
+            let local = convert(event.locationInWindow, from: nil)
+            if unreadMessageCount > 0, unreadBadgeRect.contains(local) {
+                onUnreadBadgeClick?()
+            }
+            return
+        }
         if pendingSpeechBubbleClick {
             pendingSpeechBubbleClick = false
             let local = convert(event.locationInWindow, from: nil)
-            if transientMessageEvent == "messenger.received", speechBubbleRect.contains(local) {
+            let layout = currentSceneLayout()
+            let friendRects = layout.ownerFriendBubbleRects + layout.visitorFriendBubbleRects
+            if transientMessageEvent == "messenger.received", layout.ownerSpeechRect?.contains(local) == true
+                || PetOverlayHitTesting.contains(local, in: friendRects) {
                 onSpeechBubbleClick?()
             }
             return
@@ -828,7 +1012,7 @@ final class PetView: NSView, CALayerDelegate {
         if let moodFaceID { equipped["face"] = moodFaceID }
         let ids = AccessoryLayerOrder.orderedIDs(
             equipped: equipped,
-            systemAccessoryIDs: alarmClockRenderVisible ? ["alarm-clock"] : []
+            systemAccessoryIDs: alarmClockRenderVisible ? [alarmClockAccessoryID] : []
         )
         accessoryImages = ids.compactMap { id in
             guard let pack = byID[id], let image = NSImage(contentsOf: pack.artURL) else { return nil }
@@ -873,23 +1057,35 @@ final class PetView: NSView, CALayerDelegate {
             // face's, or accessories on that origin end up shifted relative
             // to the body. Tunable props keep their existing offset contract
             // and remain independent.
-            let targetAnchor = ExpressionCanvasGeometry.targetAnchor(
-                slotX: slot.x + tuning.offsetX,
-                slotY: slot.y + tuning.offsetY,
-                canvas: canvas,
-                target: target
-            )
-            let targetX = targetAnchor.x
-            let targetY = targetAnchor.y
             let imageSize = image.size
-            let isClock = pack.id == "alarm-clock"
+            let isClock = pack.manifest.slot == "clock"
             let shake = alarmRinging && isClock ? sin(clockShakePhase) * 3 : 0
-            var rect = NSRect(
-                x: targetX - pack.manifest.anchor.x * unitX + shake,
-                y: targetY - (imageSize.height - pack.manifest.anchor.y) * unitY,
-                width: imageSize.width * unitX,
-                height: imageSize.height * unitY
-            )
+            let renderedSize = NSSize(width: imageSize.width * unitX, height: imageSize.height * unitY)
+            var rect: NSRect
+            if isClock {
+                rect = ClockAccessoryPositionGeometry.centeredRect(
+                    offsetX: tuning.offsetX,
+                    offsetY: tuning.offsetY,
+                    canvas: canvas,
+                    characterBounds: target,
+                    containerBounds: bounds,
+                    renderedSize: renderedSize
+                )
+                rect.origin.x += shake
+            } else {
+                let targetAnchor = ExpressionCanvasGeometry.targetAnchor(
+                    slotX: slot.x + tuning.offsetX,
+                    slotY: slot.y + tuning.offsetY,
+                    canvas: canvas,
+                    target: target
+                )
+                rect = NSRect(
+                    x: targetAnchor.x - pack.manifest.anchor.x * unitX,
+                    y: targetAnchor.y - (imageSize.height - pack.manifest.anchor.y) * unitY,
+                    width: renderedSize.width,
+                    height: renderedSize.height
+                )
+            }
             var alpha: CGFloat = 1
             var rotation: CGFloat = 0
             if isClock, let phase = alarmClockTransitionPhase {
@@ -914,6 +1110,17 @@ final class PetView: NSView, CALayerDelegate {
             image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: alpha)
             NSGraphicsContext.restoreGraphicsState()
         }
+    }
+
+    private func rebuildMessageIndicatorImage() {
+        guard contentMode.drawsOverlay,
+              let pack = accessoryPacks.first(where: {
+                  $0.id == messageIndicatorID && $0.manifest.slot == "message-indicator"
+              }) else {
+            messageIndicatorImage = nil
+            return
+        }
+        messageIndicatorImage = NSImage(contentsOf: pack.artURL)
     }
 
     private func startAlarmClockTransition(appearing: Bool) {
@@ -959,9 +1166,8 @@ final class PetView: NSView, CALayerDelegate {
         return (1.08 - 0.08 * local, 1, 2 - 2 * local, 3 - 3 * local)
     }
 
-    private func drawTimerDisplay() {
-        guard let timerText else { return }
-        let rect = NSRect(x: bounds.midX - 40, y: 1, width: 80, height: 25)
+    private func drawTimerDisplay(in layout: PetSceneLayout) {
+        guard let timerText, let rect = layout.timerRect else { return }
         NSColor(calibratedRed: 0.94, green: 0.96, blue: 0.94, alpha: 0.98).setFill()
         let calendar = NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5)
         calendar.fill()
@@ -976,8 +1182,8 @@ final class PetView: NSView, CALayerDelegate {
         value.draw(at: NSPoint(x: rect.midX - size.width / 2, y: rect.minY + 3), withAttributes: attributes)
     }
 
-    private func drawPerformancePanel() {
-        guard let target = performanceSample else { return }
+    private func drawPerformancePanel(in layout: PetSceneLayout) {
+        guard let target = performanceSample, let rect = layout.performancePanelRect else { return }
         let source = performanceFromSample ?? target
         let elapsed = performanceAnimationElapsed
         let cpuTotal = PerformancePanelAnimation.interpolate(
@@ -999,12 +1205,6 @@ final class PetView: NSView, CALayerDelegate {
             source.appRAMPercent,
             target.appRAMPercent,
             progress: PerformancePanelAnimation.progress(elapsed: elapsed, delay: 0.16)
-        )
-        let rect = PerformancePanelGeometry.rect(
-            in: bounds,
-            characterBounds: characterBounds,
-            side: performancePanelSide,
-            verticalPosition: performancePanelVerticalPosition
         )
         let visualScale = min(1.5, max(0.65, rect.height / 90))
         let grassTheme = characterID == "grass-buddy"
@@ -1294,8 +1494,8 @@ final class PetView: NSView, CALayerDelegate {
         mouth.stroke()
     }
 
-    private func drawTaskBubble() {
-        guard snapshot.state != .idle, clockAlert == nil else { return }
+    private func drawTaskBubble(in layout: PetSceneLayout) {
+        guard snapshot.state != .idle, let taskStackRect = layout.taskStackRect else { return }
         let cards = snapshot.tasks
         guard !cards.isEmpty else { return }
         let entries: [(index: Int, placement: TaskCarouselPlacement, showsPosition: Bool)]
@@ -1326,7 +1526,8 @@ final class PetView: NSView, CALayerDelegate {
                 placement: entry.placement,
                 position: entry.index + 1,
                 total: cards.count,
-                showsPosition: entry.showsPosition
+                showsPosition: entry.showsPosition,
+                taskStackRect: taskStackRect
             )
         }
     }
@@ -1341,11 +1542,8 @@ final class PetView: NSView, CALayerDelegate {
         )
     }
 
-    private func drawSpeechBubble() {
-        guard let transientMessage else {
-            speechBubbleRect = .zero
-            return
-        }
+    private func speechBubbleMetrics() -> (size: CGSize, attributes: [NSAttributedString.Key: Any])? {
+        guard let transientMessage else { return nil }
         let isMessengerMessage = transientMessageEvent == "messenger.received"
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
@@ -1363,11 +1561,22 @@ final class PetView: NSView, CALayerDelegate {
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: attributes
         )
-        let width = min(260, max(32, ceil(measured.width) + 16))
-        let height = min(60, max(24, ceil(measured.height) + 8))
-        let y = snapshot.state == .idle ? characterBounds.maxY + 8 : characterBounds.maxY + 76
-        let rect = NSRect(x: bounds.midX - width / 2, y: y, width: width, height: height)
-        speechBubbleRect = rect
+        return (
+            CGSize(
+                width: min(260, max(32, ceil(measured.width) + 16)),
+                height: min(60, max(24, ceil(measured.height) + 8))
+            ),
+            attributes
+        )
+    }
+
+    private func drawSpeechBubble(in layout: PetSceneLayout) {
+        guard let transientMessage,
+              let rect = layout.ownerSpeechRect,
+              let metrics = speechBubbleMetrics() else {
+            return
+        }
+        let isMessengerMessage = transientMessageEvent == "messenger.received"
 
         NSGraphicsContext.saveGraphicsState()
         let shadow = NSShadow()
@@ -1383,28 +1592,158 @@ final class PetView: NSView, CALayerDelegate {
         NSGraphicsContext.restoreGraphicsState()
         (transientMessage as NSString).draw(
             in: rect.insetBy(dx: 8, dy: 4),
-            withAttributes: attributes
+            withAttributes: metrics.attributes
         )
     }
 
     private func drawUnreadBadge() {
         guard unreadMessageCount > 0 else { return }
-        let rect = NSRect(x: characterBounds.maxX - 15, y: characterBounds.maxY - 3, width: 30, height: 24)
-        NSColor(calibratedRed: 0.98, green: 0.35, blue: 0.28, alpha: 0.98).setFill()
-        NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
-        let label = unreadMessageCount > 9 ? "✉ 9+" : "✉ \(unreadMessageCount)"
+        let rect = unreadBadgeRect
+        if let messageIndicatorImage {
+            messageIndicatorImage.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+        } else {
+            NSColor(calibratedWhite: 0.96, alpha: 0.98).setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9).fill()
+        }
+        let label = unreadMessageCount > 9 ? "9+" : String(unreadMessageCount)
+        let font = NSFont.systemFont(ofSize: label.count > 1 ? 7.5 : 9, weight: .heavy)
+        let color = messageIndicatorID == "message-envelope" ? NSColor.white : NSColor.fishHex("#355A66")!
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: color,
+        ]
+        let countRect = unreadCountRect(in: rect)
+        let size = (label as NSString).size(withAttributes: attributes)
         (label as NSString).draw(
-            in: rect.insetBy(dx: 3, dy: 4),
-            withAttributes: [
-                .font: NSFont.systemFont(ofSize: 10, weight: .bold),
-                .foregroundColor: NSColor.white,
-            ]
+            at: NSPoint(x: countRect.midX - size.width / 2, y: countRect.midY - size.height / 2),
+            withAttributes: attributes
         )
     }
 
-    private func drawVisitStatus() {
-        guard let visitingFriendName else { return }
-        let rect = NSRect(x: bounds.midX - 83, y: 2, width: 166, height: 21)
+    private var unreadBadgeRect: NSRect {
+        NSRect(x: characterBounds.maxX - 13, y: characterBounds.maxY - 5, width: 42, height: 42)
+    }
+
+    private func unreadCountRect(in rect: NSRect) -> NSRect {
+        let source: NSRect
+        switch messageIndicatorID {
+        case "message-envelope": source = NSRect(x: 38, y: 57, width: 24, height: 24)
+        case "message-flying-letter": source = NSRect(x: 48, y: 47, width: 26, height: 22)
+        case "message-sea-mail": source = NSRect(x: 31, y: 55, width: 39, height: 27)
+        default: source = NSRect(x: 70, y: 13, width: 22, height: 17)
+        }
+        return NSRect(
+            x: rect.minX + source.minX / 100 * rect.width,
+            y: rect.maxY - source.maxY / 100 * rect.height,
+            width: source.width / 100 * rect.width,
+            height: source.height / 100 * rect.height
+        )
+    }
+
+    private func drawFriendMessageBubbles(in layout: PetSceneLayout) {
+        let active = Array(friendMessageBubbles.suffix(PetMessageBubbleStack.maximumVisible))
+        guard !active.isEmpty else { return }
+
+        for speaker in [PetMessageSpeaker.owner, .visitor] {
+            let entries = active.filter { $0.speaker == speaker }
+            guard !entries.isEmpty else { continue }
+            let anchor = speaker == .visitor ? companionCharacterBounds ?? characterBounds : characterBounds
+            let metrics = entries.map { friendBubbleMetrics(text: $0.text) }
+            let rects = speaker == .visitor
+                ? layout.visitorFriendBubbleRects
+                : layout.ownerFriendBubbleRects
+            guard rects.count == entries.count else { continue }
+            for (localIndex, entry) in entries.enumerated() {
+                let globalIndex = active.firstIndex(where: { $0.id == entry.id }) ?? 0
+                let distance = active.count - 1 - globalIndex
+                drawFriendBubble(
+                    entry,
+                    rect: rects[localIndex],
+                    attributes: metrics[localIndex].attributes,
+                    opacity: PetMessageBubbleStack.opacity(distanceFromNewest: distance),
+                    anchor: anchor
+                )
+            }
+        }
+    }
+
+    private func friendBubbleMetrics(
+        text: String
+    ) -> (size: CGSize, attributes: [NSAttributedString.Key: Any]) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byWordWrapping
+        paragraph.lineSpacing = 1.2
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11.5, weight: .medium),
+            .foregroundColor: NSColor.white,
+            .paragraphStyle: paragraph,
+        ]
+        let measured = (text as NSString).boundingRect(
+            with: NSSize(width: 210, height: 48),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: attributes
+        )
+        return (
+            NSSize(width: min(226, max(42, ceil(measured.width) + 18)), height: min(56, max(26, ceil(measured.height) + 10))),
+            attributes
+        )
+    }
+
+    private func drawFriendBubble(
+        _ bubble: PetMessageBubble,
+        rect: NSRect,
+        attributes: [NSAttributedString.Key: Any],
+        opacity: CGFloat,
+        anchor: NSRect
+    ) {
+        let color = (NSColor.fishHex(bubble.color)
+            ?? NSColor(calibratedRed: 0.12, green: 0.48, blue: 0.92, alpha: 0.98))
+            .withAlphaComponent(opacity)
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowBlurRadius = 4
+        shadow.shadowOffset = NSSize(width: 0, height: -1)
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.16 * opacity)
+        shadow.set()
+        color.setFill()
+        NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
+        let tail = NSBezierPath()
+        if rect.minY >= anchor.maxY {
+            let center = min(max(anchor.midX, rect.minX + 14), rect.maxX - 14)
+            tail.move(to: NSPoint(x: center - 6, y: rect.minY + 1))
+            tail.line(to: NSPoint(x: center, y: max(anchor.maxY, rect.minY - 6)))
+            tail.line(to: NSPoint(x: center + 6, y: rect.minY + 1))
+        } else if rect.maxY <= anchor.minY {
+            let center = min(max(anchor.midX, rect.minX + 14), rect.maxX - 14)
+            tail.move(to: NSPoint(x: center - 6, y: rect.maxY - 1))
+            tail.line(to: NSPoint(x: center, y: min(anchor.minY, rect.maxY + 6)))
+            tail.line(to: NSPoint(x: center + 6, y: rect.maxY - 1))
+        } else if rect.midX < anchor.midX {
+            let center = min(max(anchor.midY, rect.minY + 14), rect.maxY - 14)
+            tail.move(to: NSPoint(x: rect.maxX - 1, y: center - 6))
+            tail.line(to: NSPoint(x: min(anchor.minX, rect.maxX + 6), y: center))
+            tail.line(to: NSPoint(x: rect.maxX - 1, y: center + 6))
+        } else {
+            let center = min(max(anchor.midY, rect.minY + 14), rect.maxY - 14)
+            tail.move(to: NSPoint(x: rect.minX + 1, y: center - 6))
+            tail.line(to: NSPoint(x: max(anchor.maxX, rect.minX - 6), y: center))
+            tail.line(to: NSPoint(x: rect.minX + 1, y: center + 6))
+        }
+        tail.close()
+        tail.fill()
+        NSGraphicsContext.restoreGraphicsState()
+
+        var fadedAttributes = attributes
+        fadedAttributes[.foregroundColor] = NSColor.white.withAlphaComponent(opacity)
+        (bubble.text as NSString).draw(
+            in: rect.insetBy(dx: 9, dy: 5),
+            withAttributes: fadedAttributes
+        )
+    }
+
+    private func drawVisitStatus(in layout: PetSceneLayout) {
+        guard let visitingFriendName, let rect = layout.visitStatusRect else { return }
         NSColor(calibratedRed: 1, green: 0.91, blue: 0.94, alpha: 0.96).setFill()
         NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
         ("♡ 与 \(visitingFriendName) 牵手串门中" as NSString).draw(
@@ -1416,23 +1755,18 @@ final class PetView: NSView, CALayerDelegate {
         )
     }
 
-    private var clockAlertRect: NSRect {
-        NSRect(x: bounds.midX - 138, y: characterBounds.maxY + 10, width: 276, height: 70)
-    }
-
-    private var clockSnoozeRect: NSRect {
-        let rect = clockAlertRect
+    private func clockSnoozeRect(in layout: PetSceneLayout) -> NSRect {
+        guard let rect = layout.clockAlertRect else { return .zero }
         return NSRect(x: rect.minX + 10, y: rect.minY + 9, width: 124, height: 25)
     }
 
-    private var clockDismissRect: NSRect {
-        let rect = clockAlertRect
+    private func clockDismissRect(in layout: PetSceneLayout) -> NSRect {
+        guard let rect = layout.clockAlertRect else { return .zero }
         return NSRect(x: rect.midX + 3, y: rect.minY + 9, width: 128, height: 25)
     }
 
-    private func drawClockAlert() {
-        guard let alert = clockAlert else { return }
-        let rect = clockAlertRect
+    private func drawClockAlert(in layout: PetSceneLayout) {
+        guard let alert = clockAlert, let rect = layout.clockAlertRect else { return }
         NSGraphicsContext.saveGraphicsState()
         let shadow = NSShadow()
         shadow.shadowBlurRadius = 18
@@ -1461,8 +1795,8 @@ final class PetView: NSView, CALayerDelegate {
             .font: NSFont.systemFont(ofSize: 12, weight: .bold),
             .foregroundColor: NSColor(calibratedRed: 0.35, green: 0.29, blue: 0.21, alpha: 1),
         ])
-        drawClockButton(clockSnoozeRect, title: english ? "Snooze 5 min" : "再等 5 分钟", primary: false)
-        drawClockButton(clockDismissRect, title: english ? "Dismiss" : "知道了", primary: true)
+        drawClockButton(clockSnoozeRect(in: layout), title: english ? "Snooze 5 min" : "再等 5 分钟", primary: false)
+        drawClockButton(clockDismissRect(in: layout), title: english ? "Dismiss" : "知道了", primary: true)
     }
 
     private func drawClockButton(_ rect: NSRect, title: String, primary: Bool) {
@@ -1489,7 +1823,8 @@ final class PetView: NSView, CALayerDelegate {
         placement: TaskCarouselPlacement,
         position: Int,
         total: Int,
-        showsPosition: Bool
+        showsPosition: Bool,
+        taskStackRect: NSRect
     ) {
         let font = NSFont.systemFont(ofSize: 11, weight: placement.depth == 0 ? .semibold : .medium)
         let countWidth: CGFloat = showsPosition && total > 1 ? 34 : 0
@@ -1497,9 +1832,9 @@ final class PetView: NSView, CALayerDelegate {
         let unscaledWidth = min(270, max(178, measuredTitle + 42 + countWidth))
         let width = unscaledWidth * placement.scale
         let height = 26 * placement.scale
-        let frontY = characterBounds.maxY + 43
+        let frontY = taskStackRect.minY + 31
         let rect = NSRect(
-            x: bounds.midX + placement.horizontalOffset - width / 2,
+            x: taskStackRect.midX + placement.horizontalOffset - width / 2,
             y: frontY - placement.downwardOffset,
             width: width,
             height: height
@@ -1562,7 +1897,7 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     func playCompletionEffect(all: Bool) {
-        playEffect(.completed)
+        if contentMode.drawsArtwork { playEffect(.completed) }
         completionTimer?.invalidate()
         completionAll = all
         completionPhase = 0

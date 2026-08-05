@@ -8,25 +8,41 @@ final class CalendarService {
     private let runtime: AppRuntime
     private let store = EKEventStore()
     private var timer: Timer?
-    private var delivered = Set<String>()
+    private var delivered = BoundedKeyHistory(limit: 512)
+    private var isRunning = false
+    private var runGeneration = 0
 
     init(runtime: AppRuntime) { self.runtime = runtime }
 
     func start() {
+        guard !isRunning else { return }
         guard runtime.config.integrations.calendar else { onStatus?("disabled"); return }
+        isRunning = true
+        runGeneration += 1
+        let generation = runGeneration
         requestAccess { [weak self] granted in
             DispatchQueue.main.async {
                 guard let self else { return }
-                guard granted else { self.onStatus?("denied"); return }
+                guard self.isRunning, self.runGeneration == generation else { return }
+                guard granted else {
+                    self.isRunning = false
+                    self.onStatus?("denied")
+                    return
+                }
                 self.onStatus?("connected")
                 self.poll()
                 self.timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.poll() }
-                RunLoop.main.add(self.timer!, forMode: .common)
+                if let timer = self.timer { RunLoop.main.add(timer, forMode: .common) }
             }
         }
     }
 
-    func stop() { timer?.invalidate(); timer = nil }
+    func stop() {
+        isRunning = false
+        runGeneration += 1
+        timer?.invalidate()
+        timer = nil
+    }
 
     private func requestAccess(completion: @escaping (Bool) -> Void) {
         if #available(macOS 14.0, *) {
@@ -37,6 +53,7 @@ final class CalendarService {
     }
 
     private func poll() {
+        guard isRunning else { return }
         let now = Date(), end = now.addingTimeInterval(24 * 60 * 60)
         let events = store.events(matching: store.predicateForEvents(withStart: now.addingTimeInterval(-60), end: end, calendars: nil))
             .filter { !$0.isAllDay }
@@ -57,8 +74,7 @@ final class CalendarService {
     }
 
     private func emitOnce(key: String, event: String, context: [String: JSONValue]) {
-        guard delivered.insert(key).inserted else { return }
-        if delivered.count > 512 { delivered.removeAll(keepingCapacity: true) }
+        guard delivered.insert(key) else { return }
         onPhrase?(event, context)
     }
 

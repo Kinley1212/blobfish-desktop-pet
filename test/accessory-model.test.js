@@ -16,6 +16,7 @@ const {
   normalizeAccessories,
   normalizeAccessoryMap,
   supportsAccessories,
+  tuningFieldsForAccessory,
   withAccessoryEquipped,
 } = require('../src/core/accessory-model');
 const { loadAccessory, loadAccessoryCatalog, validateAccessoryManifest } = require('../src/core/accessory-loader');
@@ -62,6 +63,32 @@ test('a system prop can be equipped temporarily without mutating the saved spec'
   assert.equal(runtime.equipped.clock, 'alarm-clock');
   assert.equal(runtime.equipped.hand, 'coffee');
   assert.equal(getTuning(runtime, 'alarm-clock').offsetX, 4);
+});
+
+test('alarm clocks keep a wider movement range without widening ordinary accessories', () => {
+  const spec = normalizeAccessories({
+    tuning: {
+      'alarm-clock-plum-night': { width: 0.5, height: 1.8, offsetX: 999, offsetY: -999 },
+      crown: { width: 0.5, height: 1.8, offsetX: 96, offsetY: -74 },
+    },
+  });
+
+  assert.equal(getTuning(spec, 'alarm-clock-plum-night').offsetX, 240);
+  assert.equal(getTuning(spec, 'alarm-clock-plum-night').offsetY, -180);
+  assert.equal(getTuning(spec, 'alarm-clock-plum-night').width, 1);
+  assert.equal(getTuning(spec, 'alarm-clock-plum-night').height, 1);
+  assert.equal(getTuning(spec, 'crown').offsetX, 30);
+  assert.equal(getTuning(spec, 'crown').offsetY, -30);
+  assert.equal(getTuning(spec, 'crown').width, 0.5);
+  assert.equal(getTuning(spec, 'crown').height, 1.8);
+  assert.deepEqual(
+    tuningFieldsForAccessory('alarm-clock-honey').map(({ key, min, max }) => ({ key, min, max })),
+    [
+      { key: 'size', min: 0.4, max: 2 },
+      { key: 'offsetX', min: -240, max: 240 },
+      { key: 'offsetY', min: -180, max: 180 },
+    ],
+  );
 });
 
 test('out-of-range and unreadable values are clamped instead of rejected', () => {
@@ -131,6 +158,18 @@ test('size scales both axes and width and height stretch on top of it', () => {
   );
 });
 
+test('clock transforms use the character center as the zero point', () => {
+  assert.equal(
+    accessoryTransform(
+      { x: 20, y: 79, scale: 0.38 },
+      { x: 16, y: 27 },
+      { size: 1, width: 1, height: 1, offsetX: 0, offsetY: 0 },
+      { x: 70, y: 60 },
+    ),
+    'translate(70 60) scale(0.38 0.38) translate(-50 -50)',
+  );
+});
+
 test('a late DIY art request cannot replace the newest character selection', async () => {
   const gate = createLatestRequestGate();
   const pending = new Map();
@@ -171,10 +210,17 @@ test('SVG safety rules reject active content and external references without rem
 test('every bundled accessory declares a slot, an anchor and real art', () => {
   const catalog = loadAccessoryCatalog(accessoriesRoot);
 
-  assert.equal(catalog.length, 89);
+  assert.equal(catalog.length, 96);
   const counts = {};
   for (const item of catalog) counts[item.slot] = (counts[item.slot] || 0) + 1;
-  assert.deepEqual(counts, { face: 31, hat: 30, eyewear: 10, hand: 17, clock: 1 });
+  assert.deepEqual(counts, {
+    face: 31,
+    hat: 30,
+    eyewear: 10,
+    hand: 17,
+    clock: 4,
+    'message-indicator': 4,
+  });
   assert.equal(new Set(catalog.map((item) => item.id)).size, catalog.length, 'ids must be unique');
   for (const item of catalog) {
     assert.match(item.svg, /^<svg viewBox="0 0 100 100"/, `${item.id} must be drawn in the shared 100x100 box`);

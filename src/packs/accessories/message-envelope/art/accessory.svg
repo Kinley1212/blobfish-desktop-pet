@@ -1,0 +1,5 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="軟角信封消息提示">
+  <path d="M15 28h70c6 0 10 4 10 10v43c0 6-4 10-10 10H15C9 91 5 87 5 81V38c0-6 4-10 10-10Z" fill="#DCCFED" stroke="#594E69" stroke-width="5"/><path d="M13 23h70c6 0 10 4 10 10v43c0 6-4 10-10 10H13C7 86 3 82 3 76V33c0-6 4-10 10-10Z" fill="#FFF0CF" stroke="#594E69" stroke-width="5"/>
+  <path d="m8 80 29-27c7-6 18-6 25 0l26 27" fill="#F7DFAE" stroke="#594E69" stroke-width="4" stroke-linejoin="round"/><path d="m8 29 31 27c6 5 15 5 21 0l28-27" fill="#FFF8E7" stroke="#594E69" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M19 31h28" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity=".85"/><path d="M50 57c7 0 12 5 12 12 0 6-5 11-12 11s-12-5-12-11c0-7 5-12 12-12Z" fill="#9A83B5" stroke="#594E69" stroke-width="4"/>
+</svg>

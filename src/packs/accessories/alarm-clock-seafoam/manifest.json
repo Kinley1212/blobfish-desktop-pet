@@ -1,0 +1,8 @@
+{
+  "id": "alarm-clock-seafoam",
+  "displayName": "海沫小钟",
+  "version": 1,
+  "slot": "clock",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 16, "y": 27 }
+}

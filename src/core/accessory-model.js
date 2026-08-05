@@ -102,13 +102,36 @@
     return typeof value === 'string' && ID_PATTERN.test(value) ? value : null;
   }
 
-  function normalizeTuning(input) {
+  function isClockAccessory(accessoryId) {
+    return accessoryId === 'alarm-clock'
+      || (typeof accessoryId === 'string' && accessoryId.startsWith('alarm-clock-'));
+  }
+
+  function fieldRange(field, accessoryId) {
+    if (!isClockAccessory(accessoryId)) return field;
+    if (field.key === 'offsetX') return { ...field, min: -240, max: 240 };
+    if (field.key === 'offsetY') return { ...field, min: -180, max: 180 };
+    return field;
+  }
+
+  function tuningFieldsForAccessory(accessoryId) {
+    return ACCESSORY_FIELDS
+      .filter((field) => !isClockAccessory(accessoryId) || !['width', 'height'].includes(field.key))
+      .map((field) => fieldRange(field, accessoryId));
+  }
+
+  function normalizeTuning(input, accessoryId = null) {
     const tuning = defaultTuning();
     if (!input || typeof input !== 'object' || Array.isArray(input)) return tuning;
     for (const field of ACCESSORY_FIELDS) {
+      if (isClockAccessory(accessoryId) && ['width', 'height'].includes(field.key)) {
+        tuning[field.key] = 1;
+        continue;
+      }
       const value = Number(input[field.key]);
       if (!Number.isFinite(value)) continue;
-      tuning[field.key] = quantize(clamp(value, field.min, field.max), field.step);
+      const range = fieldRange(field, accessoryId);
+      tuning[field.key] = quantize(clamp(value, range.min, range.max), field.step);
     }
     return tuning;
   }
@@ -128,7 +151,7 @@
       spec.equipped[slot.key] = id;
       if (!id || !slot.tunable) continue;
 
-      const tuning = normalizeTuning(source);
+      const tuning = normalizeTuning(source, id);
       if (!isDefaultTuning(tuning)) spec.tuning[id] = tuning;
     }
     return spec;
@@ -153,7 +176,7 @@
       : {};
     for (const key of Object.keys(tuning)) {
       if (!ID_PATTERN.test(key)) continue;
-      const normalized = normalizeTuning(tuning[key]);
+      const normalized = normalizeTuning(tuning[key], key);
       // A piece left at its defaults needs no entry: picking it again gives the
       // same result, and the settings file stays small.
       if (!isDefaultTuning(normalized)) spec.tuning[key] = normalized;
@@ -205,13 +228,23 @@
   }
 
   // `size` scales both axes together; `width` and `height` stretch on top of it.
-  function accessoryTransform(slotAnchor, accessoryAnchor, tuning) {
+  function accessoryTransform(slotAnchor, accessoryAnchor, tuning, centerOrigin = null) {
     const base = (Number.isFinite(slotAnchor.scale) ? slotAnchor.scale : 1) * tuning.size;
-    const x = slotAnchor.x + tuning.offsetX;
-    const y = slotAnchor.y + tuning.offsetY;
+    const x = (centerOrigin?.x ?? slotAnchor.x) + tuning.offsetX;
+    const y = (centerOrigin?.y ?? slotAnchor.y) + tuning.offsetY;
+    const anchor = centerOrigin ? { x: 50, y: 50 } : accessoryAnchor;
     return `translate(${round(x)} ${round(y)}) `
       + `scale(${round(base * tuning.width)} ${round(base * tuning.height)}) `
-      + `translate(${round(-accessoryAnchor.x)} ${round(-accessoryAnchor.y)})`;
+      + `translate(${round(-anchor.x)} ${round(-anchor.y)})`;
+  }
+
+  function characterCenter(svgRoot) {
+    const values = String(svgRoot?.getAttribute?.('viewBox') || '')
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number);
+    if (values.length !== 4 || !values.every(Number.isFinite) || values[2] <= 0 || values[3] <= 0) return null;
+    return { x: values[0] + values[2] / 2, y: values[1] + values[3] / 2 };
   }
 
   // --- DOM side -----------------------------------------------------------
@@ -287,7 +320,12 @@
       art.setAttribute('data-accessory-slot', slot.key);
       art.setAttribute('data-accessory-id', id);
       art.setAttribute('class', `accessory accessory-${slot.key}`);
-      art.setAttribute('transform', accessoryTransform(slotAnchor, accessory.anchor, tuning));
+      art.setAttribute('transform', accessoryTransform(
+        slotAnchor,
+        accessory.anchor,
+        tuning,
+        slot.key === 'clock' ? characterCenter(svgRoot) : null,
+      ));
       svgRoot.appendChild(art);
     }
   }
@@ -313,6 +351,7 @@
     normalizeTuning,
     sanitizeSvgTree,
     supportsAccessories,
+    tuningFieldsForAccessory,
     withAccessoryEquipped,
   });
 }));

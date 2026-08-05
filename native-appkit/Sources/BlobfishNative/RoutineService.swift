@@ -2,18 +2,57 @@ import AppKit
 import Darwin
 import Foundation
 
+enum RoutineServiceError: Error, LocalizedError {
+    case unsafeGreetingState
+
+    var errorDescription: String? {
+        "Startup greeting state is not a private regular file."
+    }
+}
+
+struct BoundedKeyHistory {
+    let limit: Int
+    private var keys = Set<String>()
+    private var insertionOrder: [String] = []
+
+    init(limit: Int) {
+        self.limit = max(1, limit)
+    }
+
+    mutating func insert(_ key: String) -> Bool {
+        guard keys.insert(key).inserted else { return false }
+        insertionOrder.append(key)
+        let overflow = insertionOrder.count - limit
+        if overflow > 0 {
+            for expired in insertionOrder.prefix(overflow) { keys.remove(expired) }
+            insertionOrder.removeFirst(overflow)
+        }
+        return true
+    }
+}
+
 final class RoutineService {
     var onPhrase: ((String, [String: JSONValue]) -> Void)?
+    var onError: ((Error) -> Void)?
     var hasActiveTasks = false
 
     private let runtime: AppRuntime
     private let supportDirectory: URL
     private var timer: Timer?
     private var nextIdleAt = Date.distantFuture
-    private var deliveredReminderKeys = Set<String>()
+    private var deliveredReminderKeys = BoundedKeyHistory(limit: 256)
     private var notifiedBatteryThresholds = Set<Int>()
     private var lockedAt: Date?
     private let batteryQueue = DispatchQueue(label: "com.blobfish.native.battery", qos: .utility)
+    private var isRunning = false
+    private var runGeneration = 0
+    private var batteryPollGeneration: Int?
+
+    private enum BatterySample {
+        case battery(Int)
+        case externalPower
+        case unavailable
+    }
 
     init(runtime: AppRuntime) {
         self.runtime = runtime
@@ -21,11 +60,14 @@ final class RoutineService {
     }
 
     func start() {
+        guard !isRunning else { return }
+        isRunning = true
+        runGeneration += 1
         deliverStartupGreetingIfNeeded()
         scheduleNextIdle()
         poll()
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.poll() }
-        RunLoop.main.add(timer!, forMode: .common)
+        if let timer { RunLoop.main.add(timer, forMode: .common) }
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(screenLocked), name: .init("com.apple.screenIsLocked"), object: nil
         )
@@ -35,11 +77,15 @@ final class RoutineService {
     }
 
     func stop() {
+        isRunning = false
+        runGeneration += 1
+        lockedAt = nil
         timer?.invalidate(); timer = nil
         DistributedNotificationCenter.default().removeObserver(self)
     }
 
     private func poll() {
+        guard isRunning else { return }
         let now = Date()
         if !isQuiet(now), let reminder = scheduleReminder(at: now) {
             onPhrase?(reminder.0, reminder.1)
@@ -68,9 +114,9 @@ final class RoutineService {
         else if schedule.halfHourReminders, minute == 0 || minute == 30 { event = "schedule.halfHour" }
         else { event = nil }
         guard let event else { return nil }
-        let key = "\(components.year!)-\(components.month!)-\(components.day!)-\(hour)-\(minute)-\(event)"
-        guard deliveredReminderKeys.insert(key).inserted else { return nil }
-        if deliveredReminderKeys.count > 256 { deliveredReminderKeys.removeAll(keepingCapacity: true) }
+        guard let year = components.year, let month = components.month, let day = components.day else { return nil }
+        let key = "\(year)-\(month)-\(day)-\(hour)-\(minute)-\(event)"
+        guard deliveredReminderKeys.insert(key) else { return nil }
         return (event, context)
     }
 
@@ -86,6 +132,10 @@ final class RoutineService {
             && info.st_uid == getuid()
             && info.st_mode & 0o077 == 0
             && info.st_size >= 0 && info.st_size <= 16 * 1024
+        if FileManager.default.fileExists(atPath: file.path), !safeState {
+            onError?(RoutineServiceError.unsafeGreetingState)
+            return
+        }
         if safeState, let data = try? Data(contentsOf: file),
            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            object["version"] as? Int == 1, object["lastGreetingDate"] as? String == dateKey { return }
@@ -94,13 +144,21 @@ final class RoutineService {
         let range = isWorkday ? runtime.config.greetings.workday : runtime.config.greetings.dayOff
         let current = Calendar.current.component(.hour, from: now) * 60 + Calendar.current.component(.minute, from: now)
         guard range.enabled, current >= Self.minutes(range.start), current < Self.minutes(range.end) else { return }
-        onPhrase?(isWorkday ? "startup.workdayMorning" : "startup.dayOff", dateContext(now))
         let object: [String: Any] = ["version": 1, "lastGreetingDate": dateKey]
-        if let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]) {
-            try? FileManager.default.createDirectory(at: supportDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            try? data.write(to: file, options: .atomic)
-            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        do {
+            let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+            try FileManager.default.createDirectory(
+                at: supportDirectory,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
+            try data.write(to: file, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        } catch {
+            onError?(error)
+            return
         }
+        onPhrase?(isWorkday ? "startup.workdayMorning" : "startup.dayOff", dateContext(now))
     }
 
     private func scheduleNextIdle() {
@@ -119,22 +177,48 @@ final class RoutineService {
     }
 
     private func readBattery() {
+        guard batteryPollGeneration == nil else { return }
+        let generation = runGeneration
+        batteryPollGeneration = generation
         batteryQueue.async { [weak self] in
+            let sample: BatterySample
             let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/pmset"); process.arguments = ["-g", "batt"]
             let pipe = Pipe(); process.standardOutput = pipe; process.standardError = Pipe()
             do {
                 try process.run(); process.waitUntilExit()
                 guard process.terminationStatus == 0,
-                      let text = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) else { return }
+                      let text = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) else {
+                    sample = .unavailable
+                    DispatchQueue.main.async { self?.finishBatteryPoll(sample, generation: generation) }
+                    return
+                }
                 guard text.lowercased().contains("battery power") else {
-                    DispatchQueue.main.async { self?.notifiedBatteryThresholds.removeAll() }
+                    sample = .externalPower
+                    DispatchQueue.main.async { self?.finishBatteryPoll(sample, generation: generation) }
                     return
                 }
                 guard
                       let match = text.range(of: #"\b\d{1,3}%"#, options: .regularExpression),
-                      let percentage = Int(text[match].dropLast()) else { return }
-                DispatchQueue.main.async { self?.handleBattery(percentage) }
-            } catch { return }
+                      let percentage = Int(text[match].dropLast()) else {
+                    sample = .unavailable
+                    DispatchQueue.main.async { self?.finishBatteryPoll(sample, generation: generation) }
+                    return
+                }
+                sample = .battery(percentage)
+            } catch {
+                sample = .unavailable
+            }
+            DispatchQueue.main.async { self?.finishBatteryPoll(sample, generation: generation) }
+        }
+    }
+
+    private func finishBatteryPoll(_ sample: BatterySample, generation: Int) {
+        if batteryPollGeneration == generation { batteryPollGeneration = nil }
+        guard isRunning, runGeneration == generation else { return }
+        switch sample {
+        case .battery(let percentage): handleBattery(percentage)
+        case .externalPower: notifiedBatteryThresholds.removeAll()
+        case .unavailable: break
         }
     }
 
@@ -145,9 +229,13 @@ final class RoutineService {
         onPhrase?("system.battery", ["battery": .number(Double(selected))])
     }
 
-    @objc private func screenLocked() { lockedAt = Date() }
+    @objc private func screenLocked() {
+        guard isRunning else { return }
+        lockedAt = Date()
+    }
 
     @objc private func screenUnlocked() {
+        guard isRunning else { return }
         let seconds = lockedAt.map { max(0, Int(Date().timeIntervalSince($0))) } ?? 0
         lockedAt = nil
         onPhrase?("system.unlocked", ["lockedSeconds": .number(Double(seconds))])

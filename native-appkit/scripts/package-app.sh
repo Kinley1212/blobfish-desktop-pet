@@ -25,5 +25,14 @@ swiftc -parse-as-library -target "$TARGET_ARCH-apple-macosx13.0" \
   -o "$CONTENTS/Resources/native/blobfish-agent-event-sender"
 chmod 700 "$CONTENTS/Resources/native/blobfish-agent-event-sender"
 chmod 755 "$CONTENTS/MacOS/BlobfishNative"
-codesign --force --deep --sign - "$APP"
+SIGN_IDENTITY=${CODE_SIGN_IDENTITY:--}
+if [ "$SIGN_IDENTITY" = "-" ]; then
+  codesign --force --sign - "$CONTENTS/Resources/native/blobfish-agent-event-sender"
+  codesign --force --sign - "$APP"
+  printf '%s\n' 'Warning: packaged with an ad-hoc signature for local development only.' >&2
+else
+  codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" \
+    "$CONTENTS/Resources/native/blobfish-agent-event-sender"
+  codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP"
+fi
 printf '%s\n' "$APP"

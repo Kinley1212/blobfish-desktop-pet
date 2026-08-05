@@ -5,6 +5,7 @@ const { assertInside } = require('./pack-loader');
 
 const ACCESSORY_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MAX_ART_BYTES = 64 * 1024;
+const SYSTEM_OVERLAY_SLOTS = new Set(['message-indicator']);
 
 function validateAccessoryManifest(manifest, expectedId) {
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
@@ -16,7 +17,8 @@ function validateAccessoryManifest(manifest, expectedId) {
   if (typeof manifest.displayName !== 'string' || manifest.displayName.trim().length === 0 || manifest.displayName.length > 24) {
     throw new Error('Accessory manifest requires a short displayName');
   }
-  if (!ACCESSORY_SLOTS.some((slot) => slot.key === manifest.slot)) {
+  if (!ACCESSORY_SLOTS.some((slot) => slot.key === manifest.slot)
+      && !SYSTEM_OVERLAY_SLOTS.has(manifest.slot)) {
     throw new Error(`Unsupported accessory slot: ${manifest.slot}`);
   }
   if (typeof manifest.art !== 'string' || !manifest.art.endsWith('.svg')) {

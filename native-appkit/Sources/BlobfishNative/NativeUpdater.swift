@@ -101,28 +101,33 @@ final class NativeUpdater {
             installDirectory = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Applications", isDirectory: true)
             try FileManager.default.createDirectory(at: installDirectory, withIntermediateDirectories: true)
         }
+        return try installVerifiedBundle(
+            at: candidates[0],
+            in: installDirectory,
+            currentBundle: currentBundle
+        )
+    }
+
+    static func installVerifiedBundle(
+        at candidate: URL,
+        in installDirectory: URL,
+        currentBundle: URL,
+        replace: (URL, URL, URL) throws -> Void = { target, temporary, backup in
+            try RecoverableDirectoryInstaller.replace(target: target, with: temporary, backup: backup)
+        }
+    ) throws -> URL {
         let target = installDirectory.appendingPathComponent("水滴鱼.app", isDirectory: true)
         let temporary = installDirectory.appendingPathComponent(".水滴鱼-installing-\(UUID().uuidString).app", isDirectory: true)
         let backup = installDirectory.appendingPathComponent(".水滴鱼-backup-\(UUID().uuidString).app", isDirectory: true)
-        try FileManager.default.copyItem(at: candidates[0], to: temporary)
-        var movedExisting = false
-        do {
-            if FileManager.default.fileExists(atPath: target.path) {
-                try FileManager.default.moveItem(at: target, to: backup); movedExisting = true
-            }
-            try FileManager.default.moveItem(at: temporary, to: target)
-            if movedExisting { try? FileManager.default.removeItem(at: backup) }
-            if currentBundle != target,
-               currentBundle.pathExtension == "app",
-               currentBundle.deletingLastPathComponent() == installDirectory {
-                try? FileManager.default.removeItem(at: currentBundle)
-            }
-            return target
-        } catch {
-            try? FileManager.default.removeItem(at: temporary)
-            if movedExisting, !FileManager.default.fileExists(atPath: target.path) { try? FileManager.default.moveItem(at: backup, to: target) }
-            throw error
+        try FileManager.default.copyItem(at: candidate, to: temporary)
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        try replace(target, temporary, backup)
+        if currentBundle != target,
+           currentBundle.pathExtension == "app",
+           currentBundle.deletingLastPathComponent() == installDirectory {
+            try? FileManager.default.removeItem(at: currentBundle)
         }
+        return target
     }
 
     private static func sha256(of url: URL) throws -> String {
@@ -147,7 +152,10 @@ final class NativeUpdater {
 
     static func select(manifest: NativeUpdateManifest, currentVersion: String, architecture: String) throws -> NativeUpdateResult {
         try validate(manifest)
-        guard compare(manifest.version, currentVersion) > 0 else { return .upToDate(currentVersion) }
+        guard let comparison = compareVersions(manifest.version, currentVersion) else {
+            throw UpdaterError.invalidCurrentVersion(currentVersion)
+        }
+        guard comparison > 0 else { return .upToDate(currentVersion) }
         guard let asset = manifest.assets[architecture] else { throw UpdaterError.noAsset(architecture) }
         try validate(asset: asset, version: manifest.version, architecture: architecture)
         return .available(manifest, asset)
@@ -166,20 +174,65 @@ final class NativeUpdater {
               url.path.hasPrefix("/\(repository)/releases/") else { throw UpdaterError.invalidAsset }
     }
 
-    private static func parseVersion(_ value: String) -> [Int]? {
-        let parts = value.split(separator: ".").compactMap { Int($0) }
-        return parts.count == 3 && parts.allSatisfy({ $0 >= 0 }) ? parts : nil
+    private struct SemanticVersion {
+        let core: [Int]
+        let prerelease: [String]?
     }
 
-    private static func compare(_ left: String, _ right: String) -> Int {
-        guard let lhs = parseVersion(left), let rhs = parseVersion(right) else { return 0 }
-        for index in 0..<3 where lhs[index] != rhs[index] { return lhs[index] < rhs[index] ? -1 : 1 }
+    private static func parseVersion(_ value: String) -> SemanticVersion? {
+        let withoutBuild = value.split(separator: "+", maxSplits: 1, omittingEmptySubsequences: false)
+        guard let version = withoutBuild.first, !version.isEmpty else { return nil }
+        let parts = version.split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+        let coreStrings = parts[0].split(separator: ".", omittingEmptySubsequences: false)
+        guard coreStrings.count == 3,
+              coreStrings.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isNumber) }),
+              let major = Int(coreStrings[0]),
+              let minor = Int(coreStrings[1]),
+              let patch = Int(coreStrings[2]) else { return nil }
+        var prerelease: [String]?
+        if parts.count == 2 {
+            let identifiers = parts[1].split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+            let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-"))
+            guard !identifiers.isEmpty,
+                  identifiers.allSatisfy({ !$0.isEmpty && $0.unicodeScalars.allSatisfy(allowed.contains) }) else {
+                return nil
+            }
+            prerelease = identifiers
+        }
+        return SemanticVersion(core: [major, minor, patch], prerelease: prerelease)
+    }
+
+    static func compareVersions(_ left: String, _ right: String) -> Int? {
+        guard let lhs = parseVersion(left), let rhs = parseVersion(right) else { return nil }
+        for index in 0..<3 where lhs.core[index] != rhs.core[index] {
+            return lhs.core[index] < rhs.core[index] ? -1 : 1
+        }
+        switch (lhs.prerelease, rhs.prerelease) {
+        case (nil, nil): return 0
+        case (nil, _?): return 1
+        case (_?, nil): return -1
+        case (.some(let leftIdentifiers), .some(let rightIdentifiers)):
+            for index in 0..<max(leftIdentifiers.count, rightIdentifiers.count) {
+                guard index < leftIdentifiers.count else { return -1 }
+                guard index < rightIdentifiers.count else { return 1 }
+                let left = leftIdentifiers[index]
+                let right = rightIdentifiers[index]
+                if left == right { continue }
+                switch (Int(left), Int(right)) {
+                case (.some(let leftNumber), .some(let rightNumber)):
+                    return leftNumber < rightNumber ? -1 : 1
+                case (.some, .none): return -1
+                case (.none, .some): return 1
+                case (.none, .none): return left < right ? -1 : 1
+                }
+            }
+        }
         return 0
     }
 }
 
 enum UpdaterError: Error, LocalizedError {
-    case channelNotPublished, invalidResponse, http(Int), invalidManifest, noAsset(String), invalidAsset
+    case channelNotPublished, invalidResponse, http(Int), invalidManifest, invalidCurrentVersion(String), noAsset(String), invalidAsset
     case invalidDownload, digestMismatch, extractFailed, invalidBundle
     var errorDescription: String? {
         switch self {
@@ -187,6 +240,7 @@ enum UpdaterError: Error, LocalizedError {
         case .invalidResponse: return "GitHub 返回了无效响应"
         case .http(let code): return "GitHub 返回了 \(code)"
         case .invalidManifest: return "原生版更新清单无效"
+        case .invalidCurrentVersion(let version): return "当前版本号无法比较：\(version)"
         case .noAsset(let architecture): return "没有适用于 \(architecture) Mac 的原生安装包"
         case .invalidAsset: return "原生安装包信息无效"
         case .invalidDownload: return "下载的安装包大小不符"

@@ -1,0 +1,8 @@
+{
+  "id": "message-envelope",
+  "displayName": "软角信封",
+  "version": 1,
+  "slot": "message-indicator",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 50 }
+}

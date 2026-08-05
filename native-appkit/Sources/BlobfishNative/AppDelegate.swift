@@ -15,7 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var runtime: AppRuntime!
     private var panelController: PetPanelController!
     private var settingsController: SettingsWindowController?
+    private var clockQuickController: ClockQuickWindowController?
     private var dialogueController: DialogueWindowController?
+    private var fishChatController: FishChatWindowController?
     private var taskMonitor: TaskMonitor?
     private var clockService: ClockService?
     private var routineService: RoutineService?
@@ -23,9 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var performanceMonitor: PerformanceMonitor?
     private var messengerService: FishMessengerService?
     private var statusItem: NSStatusItem?
-    private var taskStatusItem: NSMenuItem?
-    private var codexStatusItem: NSMenuItem?
-    private var claudeStatusItem: NSMenuItem?
+    private var messengerMenuItem: NSMenuItem?
     private var pauseItem: NSMenuItem?
     private var taskRoamItem: NSMenuItem?
     private var performanceItem: NSMenuItem?
@@ -39,7 +39,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var clickCount = 0
     private var chatInviteTimer: Timer?
     private var chatInviteUntil = Date.distantPast
-    private var messengerReplyTarget: (contactID: UUID, messageID: UUID)?
     private let soundPlayer = SoundPlayer()
     private let instanceGuard = SingleInstanceGuard()
 
@@ -101,8 +100,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 )
             }
         }
-        panelController.onSpeechBubbleClick = { [weak self] in
-            self?.replyToMessengerBubble()
+        panelController.onUnreadBadgeClick = { [weak self] in
+            self?.openFishChat()
         }
         panelController.onPetting = { [weak self] streak in
             guard let self else { return }
@@ -133,7 +132,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         messenger.addStateObserver { [weak self, weak messenger] in
             guard let self, let messenger else { return }
-            self.panelController.updateUnreadCount(messenger.unreadCount)
+            self.panelController.updateUnreadCount(
+                messenger.unreadCount,
+                indicatorID: messenger.preferences.effectiveMessageIndicatorID
+            )
+            self.updateMessengerMenu(unreadCount: messenger.unreadCount)
             if let contactID = messenger.activeVisitContactID,
                let contact = messenger.profile?.contacts.first(where: { $0.id == contactID }),
                let presence = contact.lastPresence {
@@ -146,42 +149,99 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.panelController.endVisit()
             }
         }
-        panelController.updateUnreadCount(messenger.unreadCount)
-        messenger.onMessage = { [weak self] message, contact in
-            guard let self, !contact.muted else { return }
-            self.messengerReplyTarget = (contact.id, message.id)
+        panelController.updateUnreadCount(
+            messenger.unreadCount,
+            indicatorID: messenger.preferences.effectiveMessageIndicatorID
+        )
+        updateMessengerMenu(unreadCount: messenger.unreadCount)
+        messenger.onMessage = { [weak self, weak messenger] message, contact in
+            guard let self, let messenger, !contact.muted else { return }
             if messenger.preferences.incomingSoundEnabled, !self.isQuietNow() {
                 self.soundPlayer.play(id: messenger.preferences.incomingSoundID)
             }
             let kind = message.kind ?? .text
-            if messenger.preferences.visitsEnabled,
-               (kind == .visitStart || kind == .visitAccept), let presence = message.presence {
-                self.panelController.showVisit(presence: presence, friendName: message.senderName, runtime: self.runtime)
-            }
             if kind == .visitStart, messenger.preferences.visitsEnabled {
                 Task { @MainActor in
-                    try? await messenger.send(
-                        text: "我来啦！", to: contact.id, kind: .visitAccept,
-                        presence: self.currentFishPresence()
-                    )
+                    let reply = self.runtime.config.ui.locale == "en" ? "I'm here!" : "我来啦！"
+                    do {
+                        try await messenger.send(
+                            text: reply, to: contact.id, kind: .visitAccept,
+                            presence: self.currentFishPresence()
+                        )
+                        self.panelController.showFriendMessage(
+                            id: UUID(), text: reply,
+                            color: messenger.preferences.bubbleColor,
+                            speaker: .owner,
+                            duration: messenger.preferences.effectiveMessageDisplaySeconds
+                        )
+                    } catch {
+                        self.panelController.say(
+                            self.runtime.config.ui.locale == "en"
+                                ? "I couldn't answer the visit invitation."
+                                : "刚才没能回应串门邀请。",
+                            event: "messenger.error",
+                            duration: 5,
+                            priority: SpeechPriority.interaction,
+                            replaceKey: "messenger.visitAccept.error"
+                        )
+                    }
                 }
             }
-            if kind == .visitEnd {
-                self.panelController.endVisit()
-            }
             self.panelController.playEffect(.completed)
-            self.panelController.say(
-                kind == .visitStart ? "\(message.senderName) 来串门啦，正在和你牵手。" :
-                    (kind == .visitEnd ? "\(message.senderName) 回家啦，下次再玩。" : "\(message.senderName)：\(message.text)"),
-                event: "messenger.received",
-                duration: 20,
-                priority: SpeechPriority.messenger,
-                replaceKey: "messenger.\(message.id.uuidString)",
-                color: message.bubbleColor
-            )
+            switch kind {
+            case .text:
+                let visiting = messenger.activeVisitContactID == contact.id
+                self.panelController.showFriendMessage(
+                    id: message.id,
+                    text: visiting ? message.text : "\(message.senderName)：\(message.text)",
+                    color: message.bubbleColor,
+                    speaker: visiting ? .visitor : .owner,
+                    duration: messenger.preferences.effectiveMessageDisplaySeconds
+                )
+            case .visitStart, .visitAccept:
+                self.panelController.showFriendMessage(
+                    id: message.id,
+                    text: message.text,
+                    color: message.bubbleColor,
+                    speaker: .visitor,
+                    duration: messenger.preferences.effectiveMessageDisplaySeconds
+                )
+            case .visitEnd:
+                self.panelController.say(
+                    "\(message.senderName) 回家啦，下次再玩。",
+                    event: "messenger.visitEnd",
+                    duration: 5,
+                    priority: SpeechPriority.messenger,
+                    replaceKey: "messenger.\(message.id.uuidString)",
+                    color: message.bubbleColor
+                )
+            }
         }
-        messenger.onError = { [weak self] _ in
+        messenger.onError = { [weak self] error in
             guard let self else { return }
+            if let serviceError = error as? FishMessengerServiceError {
+                switch serviceError {
+                case .rejectedUnknownSender, .rejectedInvalidEnvelope:
+                    NSLog("Fish messenger rejected an unauthenticated relay record: %@", error.localizedDescription)
+                    return
+                case .persistenceFailed(let operation, _) where operation == "profile load":
+                    NSLog("Fish identity is not available at launch: %@", error.localizedDescription)
+                    return
+                case .persistenceFailed:
+                    self.panelController.say(
+                        self.runtime.config.ui.locale == "en"
+                            ? "I couldn't save the latest fish-message state."
+                            : "刚才的鱼鱼消息状态没有保存好。",
+                        event: "messenger.persistenceError",
+                        duration: 5,
+                        priority: SpeechPriority.urgent,
+                        replaceKey: "messenger.persistenceError"
+                    )
+                    return
+                case .visitsUnavailable, .profileCreationInProgress:
+                    return
+                }
+            }
             self.panelController.say(
                 self.runtime.config.ui.locale == "en" ? "I couldn't reach your friend's fish." : "刚才没联系上朋友的鱼。",
                 event: "messenger.error",
@@ -196,8 +256,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let supportDirectory = runtime.configStore.fileURL.deletingLastPathComponent()
         let clocks = ClockService(directoryURL: supportDirectory)
         panelController.setClockActions(
-            snooze: { [weak clocks] id in try? clocks?.snoozeAlert(id: id, minutes: 5) },
-            dismiss: { [weak clocks] id in try? clocks?.dismissAlert(id: id) }
+            snooze: { [weak self, weak clocks] id in
+                do { try clocks?.snoozeAlert(id: id, minutes: 5) }
+                catch { self?.reportClockPersistenceError(error) }
+            },
+            dismiss: { [weak self, weak clocks] id in
+                do { try clocks?.dismissAlert(id: id) }
+                catch { self?.reportClockPersistenceError(error) }
+            }
         )
         clocks.workdays = runtime.config.schedule.workdays
         clocks.onTick = { [weak self] state, text in
@@ -205,11 +271,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.updateClockMenu(state)
         }
         clocks.onEvent = { [weak self] event, state in self?.handleClockEvent(event, state: state) }
+        clocks.onError = { [weak self] error in self?.reportClockPersistenceError(error) }
         clockService = clocks
         clocks.start()
 
         let routine = RoutineService(runtime: runtime)
         routine.onPhrase = { [weak self] event, context in self?.deliverPhrase(event: event, context: context) }
+        routine.onError = { error in
+            NSLog("Routine state could not be persisted: %@", error.localizedDescription)
+        }
         routineService = routine
         routine.start()
 
@@ -238,7 +308,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.handleTaskFeedback(snapshot)
             self?.routineService?.hasActiveTasks = snapshot.activeCount > 0
             self?.panelController.update(snapshot: snapshot)
-            self?.updateStatusMenu(snapshot)
         }
         taskMonitor = monitor
         monitor.start()
@@ -266,19 +335,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
-        let heading = NSMenuItem(title: "任务状态", action: nil, keyEquivalent: "")
-        heading.isEnabled = false
-        menu.addItem(heading)
-        taskStatusItem = heading
-        let codex = NSMenuItem(title: "Codex · 没有运行中的任务", action: nil, keyEquivalent: "")
-        codex.isEnabled = false
-        menu.addItem(codex)
-        codexStatusItem = codex
-        let claude = NSMenuItem(title: "Claude · 没有运行中的任务", action: nil, keyEquivalent: "")
-        claude.isEnabled = false
-        menu.addItem(claude)
-        claudeStatusItem = claude
-        menu.addItem(.separator())
 
         let settings = NSMenuItem(title: "设置…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
@@ -288,12 +344,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         chat.target = self
         menu.addItem(chat)
 
-        let sendMessage = NSMenuItem(title: "让鱼传话…", action: #selector(sendFishMessage), keyEquivalent: "")
-        sendMessage.target = self
-        menu.addItem(sendMessage)
-        let pairFish = NSMenuItem(title: "鱼鱼配对…", action: #selector(pairFishMessenger), keyEquivalent: "")
-        pairFish.target = self
-        menu.addItem(pairFish)
+        let messages = NSMenuItem(title: "消息", action: #selector(openFishChat), keyEquivalent: "")
+        messages.target = self
+        menu.addItem(messages)
+        messengerMenuItem = messages
 
         let taskRoam = NSMenuItem(title: "任务进行时游动", action: #selector(toggleTaskRoam), keyEquivalent: "")
         taskRoam.target = self
@@ -364,28 +418,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         panelController?.setMenuPaused(false)
     }
 
-    private func updateStatusMenu(_ snapshot: TaskSnapshot) {
-        taskStatusItem?.title = runtime.config.ui.locale == "en" ? "Task status" : "任务状态"
-        codexStatusItem?.title = providerSummary(
-            name: "Codex", provider: "codex", enabled: runtime.config.integrations.codex, snapshot: snapshot
-        )
-        claudeStatusItem?.title = providerSummary(
-            name: "Claude", provider: "claude-code", enabled: runtime.config.integrations.claudeCode, snapshot: snapshot
-        )
-    }
-
-    private func providerSummary(name: String, provider: String, enabled: Bool, snapshot: TaskSnapshot) -> String {
-        let english = runtime.config.ui.locale == "en"
-        guard enabled else { return "\(name) · \(english ? "Off" : "已关闭")" }
-        let tasks = snapshot.tasks.filter { $0.provider == provider }
-        guard let first = tasks.first else { return "\(name) · \(english ? "No active tasks" : "没有运行中的任务")" }
-        let state: String
-        if tasks.contains(where: { $0.state == .waiting }) { state = english ? "Needs confirmation" : "等待确认" }
-        else if tasks.contains(where: { $0.state == .failed }) { state = english ? "Failed" : "失败" }
-        else if tasks.contains(where: { $0.state == .completed }) { state = english ? "Completed" : "已完成" }
-        else { state = english ? "Running" : "进行中" }
-        let count = tasks.count > 1 ? " \(tasks.count)" : ""
-        return "\(name) · \(state)\(count) · \(first.title)"
+    private func updateMessengerMenu(unreadCount: Int) {
+        let title = runtime.config.ui.locale == "en" ? "Messages" : "消息"
+        messengerMenuItem?.title = unreadCount > 0
+            ? "\(title) · \(unreadCount > 99 ? "99+" : String(unreadCount))"
+            : title
     }
 
     private func handleTaskFeedback(_ snapshot: TaskSnapshot) {
@@ -449,6 +486,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             defer { self.scheduleChatInvite() }
             guard self.previousSnapshot.activeCount == 0,
                   self.settingsController?.window?.isVisible != true,
+                  self.clockQuickController?.window?.isVisible != true,
                   self.dialogueController?.window?.isVisible != true,
                   self.clockService?.state.alerts.contains(where: { $0.state == "ringing" }) != true,
                   !self.isQuietNow(),
@@ -509,6 +547,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    private func reportClockPersistenceError(_ error: Error) {
+        NSLog("Clock state could not be persisted: %@", error.localizedDescription)
+        panelController.say(
+            runtime.config.ui.locale == "en"
+                ? "I couldn't save that clock change. Please try again."
+                : "闹钟状态没有保存好，请再试一次。",
+            event: "clock.persistenceError",
+            duration: 5,
+            priority: SpeechPriority.urgent,
+            replaceKey: "clock.persistenceError"
+        )
+    }
+
     private func deliverPhrase(event: String, context: [String: JSONValue]) {
         if event.hasPrefix("schedule."), !runtime.config.language.categories.schedule { return }
         if event.hasPrefix("system."), !runtime.config.language.categories.system { return }
@@ -530,6 +581,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func handleSustainedMemoryLimit() {
         guard previousSnapshot.activeCount == 0,
               settingsController?.window?.isVisible != true,
+              clockQuickController?.window?.isVisible != true,
               clockService?.state.alerts.isEmpty != false else { return }
         panelController.say(runtime.phrase(event: "system.memoryExit") ?? "内存一直太高。我先沉下去。", event: "system.memoryExit", duration: 5, priority: SpeechPriority.urgent, replaceKey: "system.memoryExit")
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
@@ -557,10 +609,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func toggleLaunchAtLogin() {
+        let previous = runtime.config.startup.launchAtLogin
+        let desired = !previous
         do {
-            try runtime.update { $0.startup.launchAtLogin.toggle() }
-            try LoginItemController.sync(enabled: runtime.config.startup.launchAtLogin)
+            try LoginItemSettingTransaction.apply(
+                previous: previous,
+                desired: desired,
+                updateSystem: { try LoginItemController.sync(enabled: $0) },
+                saveConfiguration: { enabled in
+                    try self.runtime.update { $0.startup.launchAtLogin = enabled }
+                }
+            )
             syncQuickSettingsMenu()
+            settingsController?.mergeQuickSettingsFromRuntime()
         } catch {
             panelController.say("开机启动设置没有改成功。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
         }
@@ -571,6 +632,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             try runtime.update(change)
             panelController.apply(runtime: runtime)
             syncQuickSettingsMenu()
+            settingsController?.mergeQuickSettingsFromRuntime()
             if let phrase = runtime.phrase(event: event) {
                 panelController.say(phrase, event: event, priority: SpeechPriority.interaction, replaceKey: event)
             }
@@ -597,132 +659,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return providers
     }
 
-    @MainActor @objc private func pairFishMessenger() {
-        guard let messenger = messengerService else { return }
-        if messenger.profile == nil {
-            guard let name = promptText(
-                title: "给你的鱼起个传话名字",
-                message: "朋友收到消息时会看到这个名字。",
-                placeholder: "例如：Kinley 的鱼"
-            ),
-            let relayText = promptText(
-                title: "连接鱼鱼中转站",
-                message: "请输入你们共同使用的 HTTPS 中转服务地址。",
-                placeholder: "https://fish.example.com",
-                defaultValue: "https://blobfish-fish-messenger.blobfish-kinley1212.workers.dev"
-            ), let relayURL = URL(string: relayText),
-            let setupToken = promptText(
-                title: "输入建箱密语",
-                message: "这是中转站部署时设置的 SETUP_SECRET，只在创建信箱时发送，不会保存。",
-                placeholder: "至少 16 个字符",
-                secure: true
-            ) else { return }
-            Task { @MainActor in
-                do {
-                    try await messenger.createProfile(displayName: name, relayURL: relayURL, setupToken: setupToken)
-                    messenger.start()
-                    self.showPairingActions(messenger)
-                } catch { self.showMessengerError("没能创建鱼鱼信箱。", error: error) }
-            }
-            return
-        }
-        showPairingActions(messenger)
-    }
-
-    @MainActor private func showPairingActions(_ messenger: FishMessengerService) {
-        let alert = NSAlert()
-        alert.messageText = "鱼鱼配对"
-        alert.informativeText = "你和朋友各自复制一次鱼鱼码，再把对方的码导入。鱼鱼码含投递权限，请只发给你信任的人。"
-        alert.addButton(withTitle: "复制我的鱼鱼码")
-        alert.addButton(withTitle: "导入朋友码")
-        alert.addButton(withTitle: "取消")
-        switch alert.runModal() {
-        case .alertFirstButtonReturn:
-            do {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(try messenger.inviteCode(), forType: .string)
-                panelController.say("鱼鱼码复制好了，发给朋友吧。", event: "messenger.inviteCopied", priority: SpeechPriority.interaction)
-            } catch { showMessengerError("鱼鱼码没能生成。", error: error) }
-        case .alertSecondButtonReturn:
-            guard let code = promptText(title: "导入朋友的鱼鱼码", message: "粘贴朋友发给你的完整鱼鱼码。", placeholder: "fish1_…") else { return }
-            do {
-                try messenger.addContact(code: code)
-                panelController.say("配对好了，我可以替你传话了。", event: "messenger.paired", priority: SpeechPriority.messenger)
-            } catch { showMessengerError("这个鱼鱼码无效或已经导入。", error: error) }
-        default: break
-        }
-    }
-
-    @MainActor @objc private func sendFishMessage() {
-        guard let messenger = messengerService else { return }
-        guard let profile = messenger.profile else { pairFishMessenger(); return }
-        guard let contact = profile.contacts.first(where: { !$0.blocked }) else {
-            showPairingActions(messenger)
-            return
-        }
-        composeFishMessage(to: contact)
-    }
-
-    @MainActor private func replyToMessengerBubble() {
-        guard let messenger = messengerService,
-              let target = messengerReplyTarget,
-              let profile = messenger.profile,
-              let contact = profile.contacts.first(where: { $0.id == target.contactID && !$0.blocked }) else { return }
-        messenger.markRead(target.messageID)
-        composeFishMessage(to: contact, replyTo: target.messageID)
-    }
-
     @MainActor private func currentFishPresence() -> FishPresence {
         FishPresence(
             characterPackID: runtime.config.pet.characterPackId,
             customization: runtime.config.pet.customization[runtime.config.pet.characterPackId],
             accessories: runtime.config.pet.accessories[runtime.config.pet.characterPackId]
         )
-    }
-
-    @MainActor private func composeFishMessage(to contact: FishContact, replyTo: UUID? = nil) {
-        guard let messenger = messengerService else { return }
-        guard let text = promptText(
-            title: "让鱼传话给 \(contact.invite.displayName)",
-            message: "最多 1000 字节；内容会在本机加密后再送出。",
-            placeholder: "想让水滴鱼说什么？"
-        ) else { return }
-        Task { @MainActor in
-            do {
-                try await messenger.send(text: text, to: contact.id, replyTo: replyTo)
-                panelController.playEffect(.completed)
-                panelController.say("收到，我去告诉 \(contact.invite.displayName)。", event: "messenger.sent", priority: SpeechPriority.messenger)
-            } catch { showMessengerError("这句话暂时没送出去。", error: error) }
-        }
-    }
-
-    @MainActor private func promptText(
-        title: String,
-        message: String,
-        placeholder: String,
-        defaultValue: String = "",
-        secure: Bool = false
-    ) -> String? {
-        let frame = NSRect(x: 0, y: 0, width: 420, height: 28)
-        let field: NSTextField = secure ? NSSecureTextField(frame: frame) : NSTextField(frame: frame)
-        field.placeholderString = placeholder
-        field.stringValue = defaultValue
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        alert.accessoryView = field
-        alert.addButton(withTitle: "确定")
-        alert.addButton(withTitle: "取消")
-        alert.window.initialFirstResponder = field
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        let value = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
-    }
-
-    @MainActor private func showMessengerError(_ message: String, error: Error) {
-        let alert = NSAlert(error: error)
-        alert.messageText = message
-        alert.runModal()
     }
 
     @objc private func locatePet() {
@@ -733,7 +675,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func startQuickTimer(_ sender: NSMenuItem) {
         guard let minutes = sender.representedObject as? Int else { return }
         let label = minutes == 25 ? (runtime.config.ui.locale == "en" ? "Focus" : "专注") : ""
-        do { try clockService?.startTimer(minutes: minutes, label: label); panelController.say("计时开始了。", event: "clock.timerStarted", priority: SpeechPriority.schedule, replaceKey: "clock.control") }
+        do {
+            try clockService?.startTimer(minutes: minutes, label: label, source: ClockTimerSource.quick)
+            panelController.say("计时开始了。", event: "clock.timerStarted", priority: SpeechPriority.schedule, replaceKey: "clock.control")
+        }
         catch { panelController.say("计时器没能开始。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
     }
 
@@ -799,7 +744,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         catch { panelController.say("计时器没有取消。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
     }
 
-    @objc private func openClocks() { openSettings(); settingsController?.select(.clocks) }
+    @MainActor @objc private func openClocks() {
+        guard let clockService else { return }
+        if clockQuickController == nil {
+            clockQuickController = ClockQuickWindowController(
+                service: clockService,
+                locale: runtime.config.ui.locale
+            )
+        }
+        clockQuickController?.updateLocale(runtime.config.ui.locale)
+        clockQuickController?.showWindow(nil)
+        clockQuickController?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @MainActor @objc private func openFishChat() {
+        guard let messenger = messengerService else { return }
+        if fishChatController == nil {
+            fishChatController = FishChatWindowController(
+                messengerService: messenger,
+                locale: runtime.config.ui.locale,
+                presenceProvider: { [weak self] in self?.currentFishPresence() },
+                onSent: { [weak self, weak messenger] text, _ in
+                    guard let self, let messenger else { return }
+                    self.panelController.playEffect(.completed)
+                    self.panelController.showFriendMessage(
+                        id: UUID(),
+                        text: text,
+                        color: messenger.preferences.bubbleColor,
+                        speaker: .owner,
+                        duration: messenger.preferences.effectiveMessageDisplaySeconds
+                    )
+                }
+            )
+        }
+        fishChatController?.showWindow(nil)
+        fishChatController?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
 
     @MainActor @objc private func openDialogue() {
         if let window = dialogueController?.window, window.isVisible {
@@ -836,8 +818,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func openSettings() {
         if settingsController == nil {
             settingsController = SettingsWindowController(
-                runtime: runtime, clockService: clockService, messengerService: messengerService,
-                presenceProvider: { [weak self] in self?.currentFishPresence() }
+                runtime: runtime, clockService: clockService, messengerService: messengerService
             ) { [weak self] in
                 guard let self else { return }
                 self.panelController.apply(runtime: self.runtime)
@@ -845,14 +826,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.taskMonitor?.enabledProviders = self.enabledProviders()
                 self.clockService?.workdays = self.runtime.config.schedule.workdays
                 self.syncQuickSettingsMenu()
-                self.updateStatusMenu(self.previousSnapshot)
+                Task { @MainActor in
+                    self.updateMessengerMenu(unreadCount: self.messengerService?.unreadCount ?? 0)
+                    self.fishChatController?.updateLocale(self.runtime.config.ui.locale)
+                    self.clockQuickController?.updateLocale(self.runtime.config.ui.locale)
+                }
                 self.performanceMonitor?.memoryLimitMB = self.runtime.config.performance.memoryLimitMb
                 self.performanceMonitor?.autoQuitEnabled = self.runtime.config.performance.autoQuitEnabled
                 if !self.runtime.config.performance.panelEnabled { self.panelController.updatePerformance(nil) }
                 self.calendarService?.stop()
                 self.calendarService?.start()
-                do { try LoginItemController.sync(enabled: self.runtime.config.startup.launchAtLogin) }
-                catch { self.panelController.say("开机启动设置没有改成功。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
             }
         }
         settingsController?.showWindow(nil)

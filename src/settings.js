@@ -630,7 +630,7 @@ function renderAccessoryControls() {
 
       const sliders = document.createElement('div');
       sliders.className = 'range-stack accessory-sliders';
-      for (const sliderField of accessoryModel.ACCESSORY_FIELDS) {
+      for (const sliderField of accessoryModel.tuningFieldsForAccessory(slot.systemAccessoryId)) {
         sliders.appendChild(buildAccessorySlider(() => slot.systemAccessoryId, sliderField));
       }
       container.appendChild(sliders);
