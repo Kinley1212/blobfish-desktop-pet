@@ -142,6 +142,19 @@ enum PetMovementGeometry {
     }
 }
 
+enum PetFormationGeometry {
+    static func movementBounds(
+        primaryBounds: NSRect,
+        companionFrame: NSRect?,
+        companionBounds: NSRect?
+    ) -> NSRect {
+        guard let companionFrame, let companionBounds else { return primaryBounds }
+        return primaryBounds.union(
+            companionBounds.offsetBy(dx: companionFrame.minX, dy: companionFrame.minY)
+        )
+    }
+}
+
 final class PetPanelController {
     let panel: NSPanel
     private let petView: PetView
@@ -171,7 +184,6 @@ final class PetPanelController {
     private var pettingStreak = 0
     private var lastPettingAt: TimeInterval = 0
     private var motionState = PetMotionTiming.State.idle
-    private var visitPaused = false
 
     var onClick: (() -> Void)? {
         didSet { petView.onClick = onClick }
@@ -273,8 +285,11 @@ final class PetPanelController {
 
     func centerOnPrimaryScreen() {
         guard let visibleFrame = NSScreen.main?.visibleFrame else { return }
-        let x = visibleFrame.midX - panel.frame.width / 2
-        panel.setFrameOrigin(NSPoint(x: x, y: visibleFrame.minY - petView.movementBounds.minY))
+        let movementBounds = currentMovementBounds
+        panel.setFrameOrigin(NSPoint(
+            x: visibleFrame.midX - movementBounds.midX,
+            y: visibleFrame.minY - movementBounds.minY
+        ))
         bobBaselineY = nil
         preciseOrigin = nil
         lastFrameUptime = nil
@@ -362,14 +377,15 @@ final class PetPanelController {
         guestView.updateMotion(elapsed: 0, bobOffset: 0)
         guestView.isHidden = false
         petView.visitingFriendName = friendName
-        visitPaused = true
-        flingVelocity = nil
+        preciseOrigin = nil
+        bobBaselineY = nil
     }
 
     func endVisit() {
         guestView.isHidden = true
         petView.visitingFriendName = nil
-        visitPaused = false
+        preciseOrigin = nil
+        bobBaselineY = nil
     }
 
     func animateExit(completion: @escaping () -> Void) {
@@ -400,7 +416,7 @@ final class PetPanelController {
     }
 
     private func moveOneFrame() {
-        let visualBounds = petView.movementBounds
+        let visualBounds = currentMovementBounds
         let actualOrigin = panel.frame.origin
         guard let allowed = PetMovementGeometry.allowedOrigins(
             visibleFrames: NSScreen.screens.map(\.visibleFrame),
@@ -423,7 +439,7 @@ final class PetPanelController {
             menuOpen: menuPaused,
             interacting: interactionPaused,
             dragging: dragging
-        ) || visitPaused
+        )
         let externallyMoved = lastAutomaticOrigin.map {
             abs(actualOrigin.x - $0.x) > 1.5 || abs(actualOrigin.y - $0.y) > 1.5
         } ?? true
@@ -436,6 +452,10 @@ final class PetPanelController {
             elapsed: motionElapsed,
             bobOffset: movementPaused ? 0 : bob
         )
+        if !guestView.isHidden {
+            guestView.motionState = motionState
+            guestView.updateMotion(elapsed: motionElapsed, bobOffset: movementPaused ? 0 : bob)
+        }
 
         if dragging { return }
         if movementPaused { return }
@@ -461,6 +481,7 @@ final class PetPanelController {
                 flingVelocity = velocity
             }
             petView.direction = velocity.dx >= 0 ? 1 : -1
+            guestView.direction = petView.direction
             setPanelOriginIfChanged(origin)
             preciseOrigin = origin
             // A fling is also a deliberate placement. Keep its latest height
@@ -502,6 +523,7 @@ final class PetPanelController {
             origin.x = min(max(origin.x, allowed.minX), allowed.maxX)
         }
         petView.direction = movementDirection
+        guestView.direction = movementDirection
         setPanelOriginIfChanged(origin)
         preciseOrigin = origin
         bobBaselineY = origin.y
@@ -519,7 +541,7 @@ final class PetPanelController {
 
     private func dragBy(dx: CGFloat, dy: CGFloat) {
         guard dragging else { return }
-        let visualBounds = petView.movementBounds
+        let visualBounds = currentMovementBounds
         let current = panel.frame.origin
         guard let allowed = PetMovementGeometry.allowedOrigins(
             visibleFrames: NSScreen.screens.map(\.visibleFrame),
@@ -592,5 +614,13 @@ final class PetPanelController {
         let current = panel.frame.origin
         guard abs(current.x - origin.x) > 0.001 || abs(current.y - origin.y) > 0.001 else { return }
         panel.setFrameOrigin(origin)
+    }
+
+    private var currentMovementBounds: NSRect {
+        PetFormationGeometry.movementBounds(
+            primaryBounds: petView.movementBounds,
+            companionFrame: guestView.isHidden ? nil : guestView.frame,
+            companionBounds: guestView.isHidden ? nil : guestView.movementBounds
+        )
     }
 }

@@ -23,6 +23,7 @@ enum SelfCheck {
             ("single instance lock", singleInstanceLock),
             ("dragged height preservation", draggedHeightPreservation),
             ("nearest display preserves pet height", nearestDisplayPreservesPetHeight),
+            ("visit formation joins movement bounds", visitFormationJoinsMovementBounds),
             ("display-paced pet motion", displayPacedPetMotion),
             ("hover and menu pause pet motion", hoverAndMenuPausePetMotion),
             ("display-timed carousel easing", displayTimedCarouselEasing),
@@ -432,6 +433,23 @@ enum SelfCheck {
             try alerts.dismissAlert(id: "alert:test")
             return alerts.state.alerts.isEmpty
         }
+    }
+
+    private static func visitFormationJoinsMovementBounds() -> Bool {
+        let primary = NSRect(x: 110, y: 10, width: 100, height: 95)
+        let companionFrame = NSRect(x: 168, y: 0, width: 170, height: 165)
+        let companion = NSRect(x: 48, y: 10, width: 82, height: 79)
+        let result = PetFormationGeometry.movementBounds(
+            primaryBounds: primary,
+            companionFrame: companionFrame,
+            companionBounds: companion
+        )
+        return result == NSRect(x: 110, y: 10, width: 188, height: 95)
+            && PetFormationGeometry.movementBounds(
+                primaryBounds: primary,
+                companionFrame: nil,
+                companionBounds: nil
+            ) == primary
     }
 
     private static func quickTimerClockThreshold() -> Bool {
