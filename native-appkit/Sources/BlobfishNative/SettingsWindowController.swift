@@ -13,6 +13,24 @@ enum QuickSettingsDraftMerge {
     }
 }
 
+enum FishInviteCodePresentationPolicy {
+    private static let prefixLength = 10
+    private static let suffixLength = 6
+
+    static func displayedCode(_ code: String, revealed: Bool) -> String? {
+        guard !code.isEmpty else { return nil }
+        if revealed { return code }
+        guard code.count > prefixLength + suffixLength else {
+            return String(repeating: "•", count: min(8, max(1, code.count)))
+        }
+        return "\(code.prefix(prefixLength))…\(code.suffix(suffixLength))"
+    }
+
+    static func shouldResetReveal(previousCode: String, nextCode: String, windowReopened: Bool) -> Bool {
+        windowReopened || previousCode != nextCode
+    }
+}
+
 @MainActor
 final class SettingsViewModel: ObservableObject {
     @Published var draft: AppConfig
@@ -37,6 +55,7 @@ final class SettingsViewModel: ObservableObject {
     @Published var fishSetupToken = ""
     @Published var fishInviteInput = ""
     @Published var fishInviteCode = ""
+    @Published private(set) var fishInviteCodeRevealed = false
     @Published var fishIdentityStatus = ""
     @Published var fishInviteStatus = ""
     @Published var fishSetupBusy = false
@@ -83,18 +102,51 @@ final class SettingsViewModel: ObservableObject {
     func refreshFishState() {
         fishContacts = messengerService?.profile?.contacts ?? []
         guard let messengerService, messengerService.profile != nil else {
-            fishInviteCode = ""
+            replaceFishInviteCode("")
             fishIdentityStatus = isEnglish ? "Not configured" : "尚未建立身份"
             return
         }
         do {
-            fishInviteCode = try messengerService.inviteCode()
+            replaceFishInviteCode(try messengerService.inviteCode())
             fishIdentityStatus = isEnglish
                 ? "Valid · private key protected by Keychain"
                 : "有效 · 私钥由系统钥匙串保护"
         } catch {
-            fishInviteCode = ""
+            replaceFishInviteCode("")
             fishIdentityStatus = isEnglish ? "Identity is invalid" : "身份资料无效"
+        }
+    }
+
+    var displayedFishInviteCode: String? {
+        FishInviteCodePresentationPolicy.displayedCode(
+            fishInviteCode,
+            revealed: fishInviteCodeRevealed
+        )
+    }
+
+    func toggleFishInviteCodeReveal() {
+        guard !fishInviteCode.isEmpty else { return }
+        fishInviteCodeRevealed.toggle()
+    }
+
+    private func replaceFishInviteCode(_ nextCode: String) {
+        if FishInviteCodePresentationPolicy.shouldResetReveal(
+            previousCode: fishInviteCode,
+            nextCode: nextCode,
+            windowReopened: false
+        ) {
+            fishInviteCodeRevealed = false
+        }
+        fishInviteCode = nextCode
+    }
+
+    private func hideFishInviteCodeForWindowReopen() {
+        if FishInviteCodePresentationPolicy.shouldResetReveal(
+            previousCode: fishInviteCode,
+            nextCode: fishInviteCode,
+            windowReopened: true
+        ) {
+            fishInviteCodeRevealed = false
         }
     }
 
@@ -189,6 +241,7 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func reloadFromRuntime() {
+        hideFishInviteCodeForWindowReopen()
         draft = runtime.config
         refreshClock()
         loadFishDrafts()
@@ -577,17 +630,24 @@ struct BrandedSettingsView: View {
                     Text(model.messengerService?.profile?.relayURL.host ?? "—")
                         .textSelection(.enabled)
                 }
-                Text(t("我的鱼鱼码", "My fish code")).font(.subheadline.weight(.semibold))
-                HStack(alignment: .top) {
-                    Text(model.fishInviteCode)
-                        .font(.caption.monospaced())
-                        .lineLimit(2)
-                        .textSelection(.enabled)
-                    Spacer(minLength: 8)
-                    Button(t("复制", "Copy")) { model.copyFishInviteCode() }
+                if let displayedCode = model.displayedFishInviteCode {
+                    Text(t("我的鱼鱼码", "My fish code")).font(.subheadline.weight(.semibold))
+                    HStack(alignment: .top) {
+                        Text(displayedCode)
+                            .font(.caption.monospaced())
+                            .lineLimit(2)
+                            .textSelection(.enabled)
+                        Spacer(minLength: 8)
+                        Button(
+                            model.fishInviteCodeRevealed
+                                ? t("隐藏完整鱼鱼码", "Hide full fish code")
+                                : t("显示完整鱼鱼码", "Show full fish code")
+                        ) { model.toggleFishInviteCodeReveal() }
+                        Button(t("复制", "Copy")) { model.copyFishInviteCode() }
+                    }
+                    Text(t("鱼鱼码包含向你投递消息的权限，只发给你信任的人。", "A fish code grants permission to deliver messages to you; share it only with people you trust."))
+                        .font(.caption).foregroundStyle(.secondary)
                 }
-                Text(t("鱼鱼码包含向你投递消息的权限，只发给你信任的人。", "A fish code grants permission to deliver messages to you; share it only with people you trust."))
-                    .font(.caption).foregroundStyle(.secondary)
             }
         }
     }

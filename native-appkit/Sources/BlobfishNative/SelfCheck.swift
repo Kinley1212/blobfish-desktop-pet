@@ -58,6 +58,7 @@ enum SelfCheck {
             ("inactive preview releases without lazy weak crash", inactivePreviewReleasesWithoutLazyWeakCrash),
             ("early app termination tolerates incomplete launch", earlyAppTerminationToleratesIncompleteLaunch),
             ("speech priority and mood restore", speechPriorityAndMoodRestore),
+            ("fish invite code stays hidden by default", fishInviteCodeStaysHiddenByDefault),
             ("fish invite validation", fishInviteValidation),
             ("fish self invite is rejected", fishSelfInviteIsRejected),
             ("fish message end-to-end encryption", fishMessageEncryption),
@@ -86,6 +87,27 @@ enum SelfCheck {
         }
         print("Self-check: \(passed)/\(checks.count) passed")
         return passed == checks.count
+    }
+
+    private static func fishInviteCodeStaysHiddenByDefault() -> Bool {
+        let code = "fish1_0123456789abcdefghijklmnopqrstuvwxyz"
+        let hidden = FishInviteCodePresentationPolicy.displayedCode(code, revealed: false)
+        let revealed = FishInviteCodePresentationPolicy.displayedCode(code, revealed: true)
+        let shortSecret = FishInviteCodePresentationPolicy.displayedCode("secret", revealed: false)
+        return FishInviteCodePresentationPolicy.displayedCode("", revealed: false) == nil
+            && hidden == "fish1_0123…uvwxyz"
+            && hidden != code
+            && revealed == code
+            && shortSecret != "secret"
+            && !FishInviteCodePresentationPolicy.shouldResetReveal(
+                previousCode: code, nextCode: code, windowReopened: false
+            )
+            && FishInviteCodePresentationPolicy.shouldResetReveal(
+                previousCode: code, nextCode: code + "x", windowReopened: false
+            )
+            && FishInviteCodePresentationPolicy.shouldResetReveal(
+                previousCode: code, nextCode: code, windowReopened: true
+            )
     }
 
     private static func fishInviteValidation() throws -> Bool {
