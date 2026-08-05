@@ -18,6 +18,7 @@ enum SelfCheck {
             ("shared runtime recovery", sharedRuntimeRecovery),
             ("custom SVG and accessory rendering", customSVGAndAccessoryRendering),
             ("shared alarm and timer state", sharedAlarmAndTimerState),
+            ("quick timer clock threshold", quickTimerClockThreshold),
             ("native update channel isolation", nativeUpdateChannelIsolation),
             ("single instance lock", singleInstanceLock),
             ("dragged height preservation", draggedHeightPreservation),
@@ -431,6 +432,52 @@ enum SelfCheck {
             try alerts.dismissAlert(id: "alert:test")
             return alerts.state.alerts.isEmpty
         }
+    }
+
+    private static func quickTimerClockThreshold() -> Bool {
+        let now = 1_000_000.0
+        func state(source: String?, remainingMs: Double, timerState: String = "running") -> ClockState {
+            ClockState(
+                version: 1,
+                preferences: .init(
+                    alarmSound: .init(enabled: true, soundId: "Ping"),
+                    timerSound: .init(enabled: true, soundId: "Glass"),
+                    allowSoundDuringQuietHours: true,
+                    defaultSnoozeMinutes: 5
+                ),
+                alarms: [],
+                timer: .init(
+                    id: "timer:test", label: "", durationMs: remainingMs, state: timerState,
+                    createdAtMs: 0,
+                    dueAtMs: timerState == "running" ? now + remainingMs : nil,
+                    remainingMs: timerState == "paused" ? remainingMs : nil,
+                    source: source
+                ),
+                alerts: [],
+                lastReconciledAtMs: 0
+            )
+        }
+
+        return !ClockAccessoryPolicy.shouldShowClock(
+            state: state(source: ClockTimerSource.quick, remainingMs: 900_001),
+            nowMs: now
+        )
+            && ClockAccessoryPolicy.shouldShowClock(
+                state: state(source: ClockTimerSource.quick, remainingMs: 900_000),
+                nowMs: now
+            )
+            && ClockAccessoryPolicy.shouldShowClock(
+                state: state(source: ClockTimerSource.quick, remainingMs: 600_000, timerState: "paused"),
+                nowMs: now
+            )
+            && !ClockAccessoryPolicy.shouldShowClock(
+                state: state(source: ClockTimerSource.settings, remainingMs: 60_000),
+                nowMs: now
+            )
+            && !ClockAccessoryPolicy.shouldShowClock(
+                state: state(source: nil, remainingMs: 60_000),
+                nowMs: now
+            )
     }
 
     private static func nativeUpdateChannelIsolation() throws -> Bool {

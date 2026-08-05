@@ -15,6 +15,7 @@ struct ClockState: Codable, Equatable {
     struct TimerState: Codable, Equatable, Identifiable {
         var id: String; var label: String; var durationMs: Double; var state: String
         var createdAtMs: Double; var dueAtMs: Double?; var remainingMs: Double?
+        var source: String? = nil
     }
     struct Alert: Codable, Equatable, Identifiable {
         var id: String; var sourceType: String; var sourceId: String; var label: String
@@ -42,6 +43,29 @@ struct ClockState: Codable, Equatable {
 
 enum ClockEvent { case alarmDue(ClockState.Alert); case timerDue(ClockState.Alert); case changed(String) }
 enum ClockError: Error { case invalid(String); case unsafeFile }
+
+enum ClockTimerSource {
+    static let quick = "quick"
+    static let settings = "settings"
+}
+
+enum ClockAccessoryPolicy {
+    static let quickTimerThresholdMs: Double = 15 * 60 * 1_000
+
+    static func shouldShowClock(state: ClockState, nowMs: Double) -> Bool {
+        if state.alarms.contains(where: \.enabled) { return true }
+        if state.alerts.contains(where: { $0.state == "ringing" || $0.state == "snoozed" }) { return true }
+        guard let timer = state.timer, timer.source == ClockTimerSource.quick else { return false }
+        return remainingMs(for: timer, nowMs: nowMs) <= quickTimerThresholdMs
+    }
+
+    static func remainingMs(for timer: ClockState.TimerState, nowMs: Double) -> Double {
+        if timer.state == "running" {
+            return max(0, (timer.dueAtMs ?? nowMs) - nowMs)
+        }
+        return max(0, timer.remainingMs ?? 0)
+    }
+}
 
 final class ClockService {
     var onEvent: ((ClockEvent, ClockState) -> Void)?
@@ -96,14 +120,18 @@ final class ClockService {
         try persist(reason: "alarm-deleted")
     }
 
-    func startTimer(minutes: Int, label: String) throws {
+    func startTimer(minutes: Int, label: String, source: String = ClockTimerSource.settings) throws {
         guard state.timer == nil else { throw ClockError.invalid("已经有一个计时器在运行") }
         guard (1...(7 * 24 * 60)).contains(minutes) else { throw ClockError.invalid("计时时长无效") }
+        guard source == ClockTimerSource.settings || source == ClockTimerSource.quick else {
+            throw ClockError.invalid("计时来源无效")
+        }
         let now = Date().timeIntervalSince1970 * 1_000
         let duration = Double(minutes * 60 * 1_000)
         state.timer = .init(
             id: UUID().uuidString.lowercased(), label: Self.cleanLabel(label), durationMs: duration,
-            state: "running", createdAtMs: now, dueAtMs: now + duration, remainingMs: nil
+            state: "running", createdAtMs: now, dueAtMs: now + duration, remainingMs: nil,
+            source: source
         )
         try persist(reason: "timer-started")
     }

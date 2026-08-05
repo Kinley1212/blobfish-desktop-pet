@@ -333,9 +333,11 @@ final class PetPanelController {
     }
 
     func updateClock(state: ClockState, timerText: String?) {
-        petView.alarmClockVisible = state.alarms.contains(where: \.enabled)
-            || state.alerts.contains(where: { $0.sourceType == "alarm" })
-        petView.alarmRinging = state.alerts.contains(where: { $0.sourceType == "alarm" && $0.state == "ringing" })
+        petView.alarmClockVisible = ClockAccessoryPolicy.shouldShowClock(
+            state: state,
+            nowMs: Date().timeIntervalSince1970 * 1_000
+        )
+        petView.alarmRinging = state.alerts.contains(where: { $0.state == "ringing" })
         petView.clockAlert = state.alerts.first(where: { $0.state == "ringing" })
         petView.timerText = timerText
     }

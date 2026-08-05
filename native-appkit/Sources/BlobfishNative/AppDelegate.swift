@@ -733,7 +733,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func startQuickTimer(_ sender: NSMenuItem) {
         guard let minutes = sender.representedObject as? Int else { return }
         let label = minutes == 25 ? (runtime.config.ui.locale == "en" ? "Focus" : "专注") : ""
-        do { try clockService?.startTimer(minutes: minutes, label: label); panelController.say("计时开始了。", event: "clock.timerStarted", priority: SpeechPriority.schedule, replaceKey: "clock.control") }
+        do {
+            try clockService?.startTimer(minutes: minutes, label: label, source: ClockTimerSource.quick)
+            panelController.say("计时开始了。", event: "clock.timerStarted", priority: SpeechPriority.schedule, replaceKey: "clock.control")
+        }
         catch { panelController.say("计时器没能开始。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
     }
 
