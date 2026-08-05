@@ -1,0 +1,12 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="蜂蜜方鐘">
+  <path d="M28 85 21 94h14l4-9Z" fill="#D99A3D" stroke="#694D34" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m72 85 7 9H65l-4-9Z" fill="#D99A3D" stroke="#694D34" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M34 24C28 11 15 12 11 24c-2 7 2 12 10 14Z" fill="#FFD878" stroke="#694D34" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M66 24C72 11 85 12 89 24c2 7-2 12-10 14Z" fill="#FFD878" stroke="#694D34" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M45 18V9h10v9" fill="#F5BD55" stroke="#694D34" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="15" y="27" width="70" height="62" rx="20" fill="#D99A3D" stroke="#694D34" stroke-width="5"/>
+  <rect x="22" y="32" width="56" height="49" rx="17" fill="#FFF7DF" stroke="#694D34" stroke-width="4"/>
+  <path d="M29 46c5-7 12-10 21-10" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity=".82"/>
+  <path d="M50 43v15l13 7" fill="none" stroke="#694D34" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50" cy="58" r="4" fill="#E9765B"/>
+</svg>

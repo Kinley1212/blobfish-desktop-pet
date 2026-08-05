@@ -1,0 +1,12 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="梅子夜鐘">
+  <path d="M28 84 22 94h13l4-10Z" fill="#684F76" stroke="#4D3A59" stroke-width="4" stroke-linejoin="round"/>
+  <path d="m72 84 6 10H65l-4-10Z" fill="#684F76" stroke="#4D3A59" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M34 23C27 10 14 12 10 24c-2 7 2 12 10 14Z" fill="#A98AB8" stroke="#4D3A59" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M66 23C73 10 86 12 90 24c2 7-2 12-10 14Z" fill="#A98AB8" stroke="#4D3A59" stroke-width="5" stroke-linejoin="round"/>
+  <rect x="42" y="7" width="16" height="13" rx="6.5" fill="#D6B6DF" stroke="#4D3A59" stroke-width="4"/>
+  <circle cx="50" cy="58" r="33" fill="#684F76" stroke="#4D3A59" stroke-width="5"/>
+  <circle cx="50" cy="55" r="27" fill="#F8F0FF" stroke="#4D3A59" stroke-width="4"/>
+  <path d="M32 47c5-9 13-14 23-14" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity=".78"/>
+  <path d="M50 39v17l-10 9" fill="none" stroke="#4D3A59" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="50" cy="56" r="4" fill="#B77BAA"/>
+</svg>
