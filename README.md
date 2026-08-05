@@ -89,7 +89,7 @@ make archive ARCH=x86_64  # Intel
 
 > 原生 App 最低支持 macOS 13；macOS 14 及更新系统会使用新版 EventKit 日历授权接口。
 >
-> ad-hoc 签名适合本机验收和开发者之间传递。面向普通用户分发仍需 Apple Developer ID 证书签名并完成 notarization。
+> 本项目是自用桌宠，正式 GitHub Release 同样采用 ad-hoc 签名，不使用付费 Apple Developer ID，也不做 Apple notarization。macOS 首次打开时可能显示“无法验证开发者”，可在“系统设置 → 隐私与安全性”中确认打开。
 
 ### 发布可自动更新的版本
 
@@ -229,7 +229,7 @@ Each command creates the matching pure Swift / AppKit app, applies an ad-hoc loc
 
 > The native app supports macOS 13 and uses the newer EventKit calendar authorization API on macOS 14 and later.
 >
-> Ad-hoc signing is fine for local acceptance and passing builds between developers. Distributing to ordinary users still needs an Apple Developer ID certificate and notarization.
+> This is a personal-use desktop pet. Formal GitHub Releases also use ad-hoc signing and are not notarized with a paid Apple Developer ID. On first launch, macOS may report that it cannot verify the developer; the app can be explicitly allowed in System Settings → Privacy & Security.
 
 ### Publishing an auto-updatable version
 
