@@ -42,9 +42,53 @@ struct FishFriendPreferences: Codable, Equatable {
     )
 }
 
+enum FishMessageHistory {
+    static let maximumRecords = 500
+
+    static func bounded(_ records: [FishMessageRecord]) -> [FishMessageRecord] {
+        Array(records.suffix(maximumRecords))
+    }
+
+    static func append(_ record: FishMessageRecord, to records: inout [FishMessageRecord]) {
+        records.append(record)
+        let overflow = records.count - maximumRecords
+        if overflow > 0 { records.removeFirst(overflow) }
+    }
+}
+
+enum FishVisitPolicy {
+    static func canActivate(contact: FishContact, preferences: FishFriendPreferences) -> Bool {
+        preferences.visitsEnabled && !contact.blocked && !contact.muted
+    }
+
+    static func activeContactID(
+        after kind: FishMessageKind,
+        from contact: FishContact,
+        current: UUID?,
+        preferences: FishFriendPreferences
+    ) -> UUID? {
+        switch kind {
+        case .visitStart, .visitAccept:
+            return canActivate(contact: contact, preferences: preferences) ? contact.id : current
+        case .visitEnd:
+            return current == contact.id ? nil : current
+        case .text:
+            return current
+        }
+    }
+
+    static func shouldPresent(
+        kind: FishMessageKind,
+        from contact: FishContact,
+        preferences: FishFriendPreferences
+    ) -> Bool {
+        guard !contact.blocked, !contact.muted else { return false }
+        return kind == .text || preferences.visitsEnabled
+    }
+}
+
 final class FishFriendStore {
     private let fileURL: URL
-    private let maximumRecords = 500
 
     init(directoryURL: URL) {
         fileURL = directoryURL.appendingPathComponent("fish-friends.json")
@@ -56,7 +100,7 @@ final class FishFriendStore {
               let state = try? JSONDecoder().decode(State.self, from: data) else {
             return (.defaults, [])
         }
-        return (state.preferences, Array(state.records.suffix(maximumRecords)))
+        return (state.preferences, FishMessageHistory.bounded(state.records))
     }
 
     func save(preferences: FishFriendPreferences, records: [FishMessageRecord]) throws {
@@ -69,9 +113,8 @@ final class FishFriendStore {
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(State(preferences: preferences, records: Array(records.suffix(maximumRecords))))
+        try encoder.encode(State(preferences: preferences, records: FishMessageHistory.bounded(records)))
             .write(to: fileURL, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
     }
 }
-
