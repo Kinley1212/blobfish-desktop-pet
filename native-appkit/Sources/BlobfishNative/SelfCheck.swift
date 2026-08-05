@@ -32,6 +32,12 @@ enum SelfCheck {
             ("nearest display preserves pet height", nearestDisplayPreservesPetHeight),
             ("visit formation joins movement bounds", visitFormationJoinsMovementBounds),
             ("scene layout coordinates satellites", sceneLayoutCoordinatesSatellites),
+            ("scene layout stays clear on four screen edges", sceneLayoutStaysClearOnFourScreenEdges),
+            ("scene layout separates timer and visit", sceneLayoutSeparatesTimerAndVisit),
+            ("scene layout avoids visit companion", sceneLayoutAvoidsVisitCompanion),
+            ("overlay geometry follows current display", overlayGeometryFollowsCurrentDisplay),
+            ("overlay hit testing leaves transparent gaps", overlayHitTestingLeavesTransparentGaps),
+            ("overlay hit testing skips noninteractive layout", overlayHitTestingSkipsNoninteractiveLayout),
             ("friend messages stack and expire", friendMessagesStackAndExpire),
             ("display-paced pet motion", displayPacedPetMotion),
             ("hover and menu pause pet motion", hoverAndMenuPausePetMotion),
@@ -674,36 +680,193 @@ enum SelfCheck {
         let canvas = NSRect(x: 0, y: 0, width: 340, height: 300)
         let character = NSRect(x: 117.5, y: 10, width: 105, height: 90)
         let panelSize = NSSize(width: 58, height: 90)
-        let left = PetSceneLayoutCoordinator.performancePanelRect(
-            in: canvas,
-            characterBounds: character,
-            companionBounds: nil,
-            size: panelSize,
-            preferredSide: "left",
-            verticalPosition: 0.5,
-            distance: 6
-        )
+        func makeLayout(companion: NSRect?) -> PetSceneLayout {
+            PetSceneLayoutCoordinator.layout(PetSceneLayoutInput(
+                canvas: canvas,
+                characterBounds: character,
+                companionBounds: companion,
+                timerSize: nil,
+                visitStatusSize: nil,
+                clockAlertSize: nil,
+                taskStackSize: nil,
+                ownerSpeechSize: nil,
+                ownerFriendBubbleSizes: [
+                    NSSize(width: 120, height: 30),
+                    NSSize(width: 130, height: 34),
+                ],
+                visitorFriendBubbleSizes: [],
+                performancePanelSize: panelSize,
+                performancePanelSide: "left",
+                performancePanelVerticalPosition: 0.5,
+                performancePanelDistance: 6
+            ))
+        }
+        let layout = makeLayout(companion: nil)
         let companion = NSRect(x: 45, y: 10, width: 65, height: 80)
-        let avoidingCompanion = PetSceneLayoutCoordinator.performancePanelRect(
-            in: canvas,
-            characterBounds: character,
-            companionBounds: companion,
-            size: panelSize,
-            preferredSide: "left",
-            verticalPosition: 0.5,
-            distance: 6
-        )
-        let bubbles = PetSceneLayoutCoordinator.stackedBubbleRects(
-            sizesOldestFirst: [NSSize(width: 120, height: 30), NSSize(width: 130, height: 34)],
-            anchor: character,
-            in: canvas,
-            avoiding: []
-        )
+        let companionLayout = makeLayout(companion: companion)
+        guard let left = layout.performancePanelRect,
+              let avoidingCompanion = companionLayout.performancePanelRect else { return false }
+        let bubbles = layout.ownerFriendBubbleRects
         return abs(character.minX - left.maxX - PetSceneLayoutCoordinator.satelliteGap) < 0.001
-            && avoidingCompanion.minX > character.maxX
+            && !avoidingCompanion.intersects(companion)
+            && !avoidingCompanion.intersects(character)
             && bubbles.count == 2
             && bubbles[0].minY > bubbles[1].maxY
             && bubbles.allSatisfy { canvas.insetBy(dx: 8, dy: 8).contains($0) }
+    }
+
+    private static func sceneLayoutStaysClearOnFourScreenEdges() -> Bool {
+        let canvas = NSRect(x: 0, y: 0, width: 800, height: 600)
+        let characters = [
+            NSRect(x: 8, y: 255, width: 105, height: 90),
+            NSRect(x: 687, y: 255, width: 105, height: 90),
+            NSRect(x: 347, y: 8, width: 105, height: 90),
+            NSRect(x: 347, y: 502, width: 105, height: 90),
+        ]
+        return characters.allSatisfy { character in
+            let layout = fullSceneLayout(canvas: canvas, character: character, companion: nil)
+            return sceneLayoutIsContainedAndDisjoint(layout, canvas: canvas, formation: character)
+                && layout.ownerFriendBubbleRects.count == 2
+                && squaredRectDistance(layout.ownerFriendBubbleRects[1], character)
+                    <= squaredRectDistance(layout.ownerFriendBubbleRects[0], character)
+        }
+    }
+
+    private static func sceneLayoutSeparatesTimerAndVisit() -> Bool {
+        let canvas = NSRect(x: 0, y: 0, width: 800, height: 600)
+        let character = NSRect(x: 347, y: 8, width: 105, height: 90)
+        let layout = fullSceneLayout(canvas: canvas, character: character, companion: nil)
+        guard let timer = layout.timerRect, let visit = layout.visitStatusRect else { return false }
+        return !timer.intersects(visit)
+            && abs(timer.midY - visit.midY) < 0.001
+            && visit.minX - timer.maxX >= PetSceneLayoutCoordinator.satelliteGap
+    }
+
+    private static func sceneLayoutAvoidsVisitCompanion() -> Bool {
+        let canvas = NSRect(x: 0, y: 0, width: 800, height: 600)
+        let character = NSRect(x: 280, y: 255, width: 105, height: 90)
+        let companion = NSRect(x: 405, y: 260, width: 82, height: 79)
+        let formation = character.union(companion)
+        let layout = fullSceneLayout(canvas: canvas, character: character, companion: companion)
+        return sceneLayoutIsContainedAndDisjoint(layout, canvas: canvas, formation: formation)
+            && layout.visitorFriendBubbleRects.count == 1
+    }
+
+    private static func overlayGeometryFollowsCurrentDisplay() -> Bool {
+        let left = NSRect(x: -1_280, y: 0, width: 1_280, height: 800)
+        let primary = NSRect(x: 0, y: 23, width: 1_440, height: 877)
+        let formation = NSRect(x: -160, y: 240, width: 188, height: 95)
+        guard PetOverlayScreenGeometry.visibleFrame(
+            for: formation,
+            from: [primary, left]
+        ) == left else { return false }
+        let local = PetOverlayScreenGeometry.localRect(
+            for: NSRect(x: -150, y: 250, width: 105, height: 90),
+            visibleFrame: left
+        )
+        let scene = PetOverlayScreenGeometry.sceneFrame(
+            around: NSRect(x: -150, y: 250, width: 105, height: 90),
+            inside: left
+        )
+        let sceneLocal = PetOverlayScreenGeometry.localRect(
+            for: NSRect(x: -150, y: 250, width: 105, height: 90),
+            visibleFrame: scene
+        )
+        return local == NSRect(x: 1_130, y: 250, width: 105, height: 90)
+            && left.contains(scene)
+            && scene.size == PetOverlayScreenGeometry.maximumSceneSize
+            && scene.contains(NSRect(x: -150, y: 250, width: 105, height: 90))
+            && NSRect(origin: .zero, size: scene.size).contains(sceneLocal)
+    }
+
+    private static func overlayHitTestingLeavesTransparentGaps() -> Bool {
+        let rects = [
+            NSRect(x: 10, y: 10, width: 40, height: 30),
+            NSRect(x: 150, y: 120, width: 50, height: 40),
+        ]
+        return PetOverlayHitTesting.contains(NSPoint(x: 20, y: 20), in: rects)
+            && PetOverlayHitTesting.contains(NSPoint(x: 180, y: 140), in: rects)
+            && !PetOverlayHitTesting.contains(NSPoint(x: 100, y: 80), in: rects)
+    }
+
+    private static func overlayHitTestingSkipsNoninteractiveLayout() -> Bool {
+        !PetOverlayHitTesting.needsSceneLayout(
+            hasClockAlert: false,
+            unreadCount: 0,
+            hasClickableMessengerSpeech: false,
+            friendBubbleCount: 0
+        )
+            && PetOverlayHitTesting.needsSceneLayout(
+                hasClockAlert: false,
+                unreadCount: 1,
+                hasClickableMessengerSpeech: false,
+                friendBubbleCount: 0
+            )
+            && PetOverlayHitTesting.needsSceneLayout(
+                hasClockAlert: false,
+                unreadCount: 0,
+                hasClickableMessengerSpeech: true,
+                friendBubbleCount: 0
+            )
+            && PetOverlayHitTesting.needsSceneLayout(
+                hasClockAlert: false,
+                unreadCount: 0,
+                hasClickableMessengerSpeech: false,
+                friendBubbleCount: 1
+            )
+    }
+
+    private static func fullSceneLayout(
+        canvas: NSRect,
+        character: NSRect,
+        companion: NSRect?
+    ) -> PetSceneLayout {
+        PetSceneLayoutCoordinator.layout(PetSceneLayoutInput(
+            canvas: canvas,
+            characterBounds: character,
+            companionBounds: companion,
+            timerSize: NSSize(width: 80, height: 25),
+            visitStatusSize: NSSize(width: 166, height: 21),
+            clockAlertSize: NSSize(width: 276, height: 70),
+            taskStackSize: NSSize(width: 294, height: 61),
+            ownerSpeechSize: NSSize(width: 240, height: 50),
+            ownerFriendBubbleSizes: [
+                NSSize(width: 180, height: 42),
+                NSSize(width: 190, height: 46),
+            ],
+            visitorFriendBubbleSizes: [NSSize(width: 170, height: 44)],
+            performancePanelSize: NSSize(width: 58, height: 90),
+            performancePanelSide: "left",
+            performancePanelVerticalPosition: 0.5,
+            performancePanelDistance: 6
+        ))
+    }
+
+    private static func sceneLayoutIsContainedAndDisjoint(
+        _ layout: PetSceneLayout,
+        canvas: NSRect,
+        formation: NSRect
+    ) -> Bool {
+        let container = canvas.insetBy(
+            dx: PetSceneLayoutCoordinator.canvasInset,
+            dy: PetSceneLayoutCoordinator.canvasInset
+        )
+        let rects = layout.overlayRects
+        guard rects.allSatisfy({ container.contains($0) && !$0.intersects(formation) }) else {
+            return false
+        }
+        for leftIndex in rects.indices {
+            for rightIndex in rects.indices where rightIndex > leftIndex {
+                if rects[leftIndex].intersects(rects[rightIndex]) { return false }
+            }
+        }
+        return true
+    }
+
+    private static func squaredRectDistance(_ left: NSRect, _ right: NSRect) -> CGFloat {
+        let dx = max(0, max(left.minX - right.maxX, right.minX - left.maxX))
+        let dy = max(0, max(left.minY - right.maxY, right.minY - left.maxY))
+        return dx * dx + dy * dy
     }
 
     private static func friendMessagesStackAndExpire() -> Bool {
@@ -1135,21 +1298,29 @@ enum SelfCheck {
     private static func performancePanelStaysOnCanvas() -> Bool {
         let canvas = CGRect(x: 0, y: 0, width: 340, height: 300)
         let character = CGRect(x: 105.5, y: 10, width: 129, height: 90)
-        let lowerLeft = PerformancePanelGeometry.rect(
-            in: canvas, characterBounds: character, side: "left", verticalPosition: 0, distance: 6
-        )
-        let upperRight = PerformancePanelGeometry.rect(
-            in: canvas, characterBounds: character, side: "right", verticalPosition: 1, distance: 6
-        )
-        let clamped = PerformancePanelGeometry.rect(
-            in: canvas, characterBounds: character, side: "left", verticalPosition: 5, distance: 6
-        )
-        let nearby = PerformancePanelGeometry.rect(
-            in: canvas, characterBounds: character, side: "left", verticalPosition: 0.5, distance: 2
-        )
-        let distant = PerformancePanelGeometry.rect(
-            in: canvas, characterBounds: character, side: "left", verticalPosition: 0.5, distance: 28
-        )
+        func rect(side: String, verticalPosition: Double, distance: Double) -> CGRect? {
+            PetSceneLayoutCoordinator.layout(PetSceneLayoutInput(
+                canvas: canvas,
+                characterBounds: character,
+                companionBounds: nil,
+                timerSize: nil,
+                visitStatusSize: nil,
+                clockAlertSize: nil,
+                taskStackSize: nil,
+                ownerSpeechSize: nil,
+                ownerFriendBubbleSizes: [],
+                visitorFriendBubbleSizes: [],
+                performancePanelSize: PerformancePanelGeometry.size(for: character),
+                performancePanelSide: side,
+                performancePanelVerticalPosition: verticalPosition,
+                performancePanelDistance: distance
+            )).performancePanelRect
+        }
+        guard let lowerLeft = rect(side: "left", verticalPosition: 0, distance: 6),
+              let upperRight = rect(side: "right", verticalPosition: 1, distance: 6),
+              let clamped = rect(side: "left", verticalPosition: 5, distance: 6),
+              let nearby = rect(side: "left", verticalPosition: 0.5, distance: 2),
+              let distant = rect(side: "left", verticalPosition: 0.5, distance: 28) else { return false }
         let small = PerformancePanelGeometry.size(for: CGRect(x: 0, y: 0, width: 84, height: 58.5))
         let large = PerformancePanelGeometry.size(for: CGRect(x: 0, y: 0, width: 193.5, height: 135))
         let safeCanvas = canvas.insetBy(dx: PerformancePanelGeometry.margin, dy: PerformancePanelGeometry.margin)

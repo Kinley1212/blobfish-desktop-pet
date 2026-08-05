@@ -157,8 +157,10 @@ enum PetFormationGeometry {
 
 final class PetPanelController {
     let panel: NSPanel
+    private let overlayPanel: NSPanel
     private let petView: PetView
     private let guestView: PetView
+    private let overlayView: PetView
     private lazy var movementDisplayLink = DisplayLinkDriver { [weak self] _ in
         self?.moveOneFrame()
     }
@@ -190,45 +192,59 @@ final class PetPanelController {
         didSet { petView.onClick = onClick }
     }
     var onSpeechBubbleClick: (() -> Void)? {
-        didSet { petView.onSpeechBubbleClick = onSpeechBubbleClick }
+        didSet { overlayView.onSpeechBubbleClick = onSpeechBubbleClick }
     }
     var onUnreadBadgeClick: (() -> Void)? {
-        didSet { petView.onUnreadBadgeClick = onUnreadBadgeClick }
+        didSet { overlayView.onUnreadBadgeClick = onUnreadBadgeClick }
     }
     var onPetting: ((Int) -> Void)?
     var moodFaceProvider: ((String) -> String?)?
     private lazy var speechQueue = SpeechQueue(
         deliver: { [weak self] message in
             guard let self else { return }
-            self.petView.transientMessage = message.text.isEmpty ? nil : message.text
-            self.petView.transientMessageEvent = message.event
-            self.petView.transientMessageColor = message.color
+            self.overlayView.transientMessage = message.text.isEmpty ? nil : message.text
+            self.overlayView.transientMessageEvent = message.event
+            self.overlayView.transientMessageColor = message.color
             self.petView.setMoodFace(message.faceID ?? message.event.flatMap { self.moodFaceProvider?($0) })
             self.show()
         },
         onIdle: { [weak self] in
-            self?.petView.transientMessage = nil
-            self?.petView.transientMessageEvent = nil
-            self?.petView.transientMessageColor = nil
+            self?.overlayView.transientMessage = nil
+            self?.overlayView.transientMessageEvent = nil
+            self?.overlayView.transientMessageColor = nil
             self?.petView.setMoodFace(nil)
         }
     )
 
     init(runtime: AppRuntime) {
         config = runtime.config
-        // The extra transparent height is reserved for a speech bubble plus the
-        // four-card task carousel. Collision still uses movementBounds, so this
-        // does not create an invisible wall around the pet.
-        let size = NSSize(width: 340, height: 300)
+        let size = NSSize(width: 340, height: 165)
+        let initialVisibleFrame = NSScreen.main?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 800, height: 600)
         panel = PetPanel(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
-        petView = PetView(frame: NSRect(origin: .zero, size: size))
-        guestView = PetView(frame: NSRect(x: 168, y: 0, width: 170, height: 165))
+        overlayPanel = PetPanel(
+            contentRect: initialVisibleFrame,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        petView = PetView(frame: NSRect(origin: .zero, size: size), contentMode: .artwork)
+        guestView = PetView(
+            frame: NSRect(x: 168, y: 0, width: 170, height: 165),
+            contentMode: .artwork
+        )
+        overlayView = PetView(
+            frame: NSRect(origin: .zero, size: initialVisibleFrame.size),
+            contentMode: .overlay
+        )
+        overlayView.autoresizingMask = [.width, .height]
         panel.contentView = petView
+        overlayPanel.contentView = overlayView
         petView.addSubview(guestView)
         guestView.isHidden = true
         guestView.ignoresMouseInteraction = true
@@ -240,28 +256,41 @@ final class PetPanelController {
         panel.isMovableByWindowBackground = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.title = "水滴鱼"
+        overlayPanel.backgroundColor = .clear
+        overlayPanel.isOpaque = false
+        overlayPanel.hasShadow = false
+        overlayPanel.level = .floating
+        overlayPanel.hidesOnDeactivate = false
+        overlayPanel.isMovableByWindowBackground = false
+        overlayPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        overlayPanel.ignoresMouseEvents = true
+        overlayPanel.title = "水滴鱼场景层"
         petView.character = runtime.character
+        overlayView.character = runtime.character
         petView.characterScale = config.pet.scale
         petView.accessoryPacks = runtime.accessories
         petView.accessorySpec = AppearanceJSON.accessorySpec(in: config, characterID: config.pet.characterPackId)
         petView.customization = config.pet.customization[config.pet.characterPackId]
-        petView.performancePanelSide = config.performance.panelSide
-        petView.performancePanelVerticalPosition = config.performance.panelVerticalPosition
-        petView.performancePanelDistance = config.performance.panelDistance
+        overlayView.performancePanelSide = config.performance.panelSide
+        overlayView.performancePanelVerticalPosition = config.performance.panelVerticalPosition
+        overlayView.performancePanelDistance = config.performance.panelDistance
         petView.onDragStart = { [weak self] in self?.beginDrag() }
         petView.onDragMove = { [weak self] dx, dy in self?.dragBy(dx: dx, dy: dy) }
         petView.onDragEnd = { [weak self] vx, vy in self?.endDrag(velocityX: vx, velocityY: vy) }
-        petView.locale = config.ui.locale
+        overlayView.locale = config.ui.locale
         centerOnPrimaryScreen()
+        syncSceneOverlay()
         syncMovementTimer()
     }
 
     func show() {
         panel.orderFrontRegardless()
+        overlayPanel.orderFrontRegardless()
+        syncSceneOverlay()
     }
 
     func update(snapshot: TaskSnapshot) {
-        petView.snapshot = snapshot
+        overlayView.snapshot = snapshot
         hasActiveTasks = snapshot.activeCount > 0
         taskWantsMovement = snapshot.state == .running
         motionState = snapshot.activeCount > 0
@@ -274,18 +303,20 @@ final class PetPanelController {
     func apply(runtime: AppRuntime) {
         config = runtime.config
         petView.character = runtime.character
+        overlayView.character = runtime.character
         petView.characterScale = config.pet.scale
         petView.accessoryPacks = runtime.accessories
         petView.accessorySpec = AppearanceJSON.accessorySpec(in: config, characterID: config.pet.characterPackId)
         petView.customization = config.pet.customization[config.pet.characterPackId]
-        petView.performancePanelSide = config.performance.panelSide
-        petView.performancePanelVerticalPosition = config.performance.panelVerticalPosition
-        petView.performancePanelDistance = config.performance.panelDistance
-        petView.locale = config.ui.locale
+        overlayView.performancePanelSide = config.performance.panelSide
+        overlayView.performancePanelVerticalPosition = config.performance.panelVerticalPosition
+        overlayView.performancePanelDistance = config.performance.panelDistance
+        overlayView.locale = config.ui.locale
         bobBaselineY = nil
         preciseOrigin = nil
         lastFrameUptime = nil
         lastAutomaticOrigin = nil
+        syncSceneOverlay()
         syncMovementTimer()
     }
 
@@ -300,6 +331,7 @@ final class PetPanelController {
         preciseOrigin = nil
         lastFrameUptime = nil
         lastAutomaticOrigin = nil
+        syncSceneOverlay()
     }
 
     func stop() {
@@ -310,6 +342,7 @@ final class PetPanelController {
         friendBubbleTimer = nil
         speechQueue.clear()
         panel.orderOut(nil)
+        overlayPanel.orderOut(nil)
     }
 
     func say(
@@ -334,7 +367,10 @@ final class PetPanelController {
 
     func playEffect(_ state: TaskDisplayState) { petView.playEffect(state) }
 
-    func playCompletionEffect(all: Bool) { petView.playCompletionEffect(all: all) }
+    func playCompletionEffect(all: Bool) {
+        petView.playEffect(.completed)
+        overlayView.playCompletionEffect(all: all)
+    }
 
     func playClickReaction() {
         interactionTimer?.invalidate()
@@ -352,6 +388,7 @@ final class PetPanelController {
         if paused {
             flingVelocity = nil
             petView.updateMotion(elapsed: petView.motionElapsed, bobOffset: 0)
+            syncSceneOverlay()
         }
     }
 
@@ -361,18 +398,18 @@ final class PetPanelController {
             nowMs: Date().timeIntervalSince1970 * 1_000
         )
         petView.alarmRinging = state.alerts.contains(where: { $0.state == "ringing" })
-        petView.clockAlert = state.alerts.first(where: { $0.state == "ringing" })
-        petView.timerText = timerText
+        overlayView.clockAlert = state.alerts.first(where: { $0.state == "ringing" })
+        overlayView.timerText = timerText
     }
 
     func setClockActions(snooze: @escaping (String) -> Void, dismiss: @escaping (String) -> Void) {
-        petView.onClockSnooze = snooze
-        petView.onClockDismiss = dismiss
+        overlayView.onClockSnooze = snooze
+        overlayView.onClockDismiss = dismiss
     }
 
-    func updatePerformance(_ sample: PerformanceSample?) { petView.performanceSample = sample }
+    func updatePerformance(_ sample: PerformanceSample?) { overlayView.performanceSample = sample }
 
-    func updateUnreadCount(_ count: Int) { petView.unreadMessageCount = count }
+    func updateUnreadCount(_ count: Int) { overlayView.unreadMessageCount = count }
 
     func showFriendMessage(
         id: UUID,
@@ -389,9 +426,9 @@ final class PetPanelController {
             speaker: speaker,
             expiresAt: now.addingTimeInterval(max(1, duration))
         )
-        petView.friendMessageBubbles = PetMessageBubbleStack.inserting(
+        overlayView.friendMessageBubbles = PetMessageBubbleStack.inserting(
             bubble,
-            into: petView.friendMessageBubbles,
+            into: overlayView.friendMessageBubbles,
             now: now
         )
         scheduleFriendBubbleExpiry()
@@ -408,19 +445,20 @@ final class PetPanelController {
         guestView.motionState = .idle
         guestView.updateMotion(elapsed: 0, bobOffset: 0)
         guestView.isHidden = false
-        petView.visitingFriendName = friendName
-        syncCompanionBounds()
+        overlayView.visitingFriendName = friendName
+        syncSceneOverlay()
         preciseOrigin = nil
         bobBaselineY = nil
     }
 
     func endVisit() {
         guestView.isHidden = true
-        petView.visitingFriendName = nil
-        petView.companionCharacterBounds = nil
-        petView.friendMessageBubbles.removeAll { $0.speaker == .visitor }
+        overlayView.visitingFriendName = nil
+        overlayView.companionCharacterBounds = nil
+        overlayView.friendMessageBubbles.removeAll { $0.speaker == .visitor }
         preciseOrigin = nil
         bobBaselineY = nil
+        syncSceneOverlay()
     }
 
     func animateExit(completion: @escaping () -> Void) {
@@ -432,7 +470,9 @@ final class PetPanelController {
             guard let self else { value.invalidate(); completion(); return }
             let progress = min(1, Date().timeIntervalSince(started) / 0.75)
             self.panel.alphaValue = 1 - progress
+            self.overlayPanel.alphaValue = 1 - progress
             self.panel.setFrameOrigin(NSPoint(x: initialFrame.minX, y: initialFrame.minY - progress * 18))
+            self.syncSceneOverlay()
             if progress >= 1 {
                 value.invalidate(); timer = nil; completion()
             }
@@ -490,8 +530,8 @@ final class PetPanelController {
         if !guestView.isHidden {
             guestView.motionState = motionState
             guestView.updateMotion(elapsed: motionElapsed, bobOffset: movementPaused ? 0 : bob)
-            syncCompanionBounds()
         }
+        syncSceneOverlay()
 
         if dragging { return }
         if movementPaused { return }
@@ -571,6 +611,7 @@ final class PetPanelController {
         hoverPaused = false
         flingVelocity = nil
         petView.updateMotion(elapsed: petView.motionElapsed, bobOffset: 0)
+        syncSceneOverlay()
         preciseOrigin = panel.frame.origin
         lastAutomaticOrigin = panel.frame.origin
     }
@@ -608,14 +649,21 @@ final class PetPanelController {
     }
 
     private func updatePointerInteraction() {
-        let point = panel.convertPoint(fromScreen: NSEvent.mouseLocation)
-        let hovering = petView.interactiveBounds.contains(point) && !dragging
-        let shouldIgnoreMouse = !(hovering || dragging)
+        let pointer = NSEvent.mouseLocation
+        let point = panel.convertPoint(fromScreen: pointer)
+        let overlayPoint = overlayPanel.convertPoint(fromScreen: pointer)
+        let artworkHovering = petView.containsInteractivePoint(point) && !dragging
+        let overlayHovering = overlayView.containsInteractivePoint(overlayPoint) && !dragging
+        let shouldIgnoreMouse = !(artworkHovering || dragging)
         if panel.ignoresMouseEvents != shouldIgnoreMouse {
             panel.ignoresMouseEvents = shouldIgnoreMouse
         }
-        hoverPaused = hovering
-        guard hovering else {
+        let shouldIgnoreOverlay = !overlayHovering
+        if overlayPanel.ignoresMouseEvents != shouldIgnoreOverlay {
+            overlayPanel.ignoresMouseEvents = shouldIgnoreOverlay
+        }
+        hoverPaused = artworkHovering || overlayHovering
+        guard artworkHovering else {
             lastPointerX = nil
             pettingHistory.removeAll(keepingCapacity: true)
             return
@@ -650,6 +698,7 @@ final class PetPanelController {
         let current = panel.frame.origin
         guard abs(current.x - origin.x) > 0.001 || abs(current.y - origin.y) > 0.001 else { return }
         panel.setFrameOrigin(origin)
+        syncSceneOverlay()
     }
 
     private var currentMovementBounds: NSRect {
@@ -660,25 +709,47 @@ final class PetPanelController {
         )
     }
 
-    private func syncCompanionBounds() {
-        guard !guestView.isHidden else {
-            petView.companionCharacterBounds = nil
-            return
-        }
-        petView.companionCharacterBounds = guestView.characterBounds.offsetBy(
-            dx: guestView.frame.minX,
-            dy: guestView.frame.minY
+    private func syncSceneOverlay() {
+        // Overlay cards follow the panel/formation, not the five-point artwork
+        // bob. This preserves the previous stable-card behavior and avoids a
+        // full visible-frame redraw on every idle display-link tick.
+        let primary = petView.characterBounds.offsetBy(
+            dx: panel.frame.minX,
+            dy: panel.frame.minY
         )
+        let companion: NSRect? = guestView.isHidden ? nil : guestView.characterBounds.offsetBy(
+            dx: panel.frame.minX + guestView.frame.minX,
+            dy: panel.frame.minY + guestView.frame.minY
+        )
+        let formation = companion.map { primary.union($0) } ?? primary
+        guard let visibleFrame = PetOverlayScreenGeometry.visibleFrame(
+            for: formation,
+            from: NSScreen.screens.map(\.visibleFrame)
+        ) else { return }
+        let sceneFrame = PetOverlayScreenGeometry.sceneFrame(
+            around: formation,
+            inside: visibleFrame
+        )
+        if overlayPanel.frame != sceneFrame {
+            overlayPanel.setFrame(sceneFrame, display: false)
+        }
+        overlayView.sceneCharacterBounds = PetOverlayScreenGeometry.localRect(
+            for: primary,
+            visibleFrame: sceneFrame
+        )
+        overlayView.companionCharacterBounds = companion.map {
+            PetOverlayScreenGeometry.localRect(for: $0, visibleFrame: sceneFrame)
+        }
     }
 
     private func scheduleFriendBubbleExpiry() {
         friendBubbleTimer?.invalidate()
         let now = Date()
-        petView.friendMessageBubbles = PetMessageBubbleStack.active(
-            petView.friendMessageBubbles,
+        overlayView.friendMessageBubbles = PetMessageBubbleStack.active(
+            overlayView.friendMessageBubbles,
             now: now
         )
-        guard let next = petView.friendMessageBubbles.map(\.expiresAt).min() else {
+        guard let next = overlayView.friendMessageBubbles.map(\.expiresAt).min() else {
             friendBubbleTimer = nil
             return
         }
