@@ -269,6 +269,7 @@ final class PetPanelController {
         overlayView.character = runtime.character
         petView.characterScale = config.pet.scale
         petView.accessoryPacks = runtime.accessories
+        overlayView.accessoryPacks = runtime.accessories
         petView.accessorySpec = AppearanceJSON.accessorySpec(in: config, characterID: config.pet.characterPackId)
         petView.customization = config.pet.customization[config.pet.characterPackId]
         overlayView.performancePanelSide = config.performance.panelSide
@@ -306,6 +307,7 @@ final class PetPanelController {
         overlayView.character = runtime.character
         petView.characterScale = config.pet.scale
         petView.accessoryPacks = runtime.accessories
+        overlayView.accessoryPacks = runtime.accessories
         petView.accessorySpec = AppearanceJSON.accessorySpec(in: config, characterID: config.pet.characterPackId)
         petView.customization = config.pet.customization[config.pet.characterPackId]
         overlayView.performancePanelSide = config.performance.panelSide
@@ -393,6 +395,7 @@ final class PetPanelController {
     }
 
     func updateClock(state: ClockState, timerText: String?) {
+        petView.alarmClockAccessoryID = state.preferences.effectiveAlarmAccessoryID
         petView.alarmClockVisible = ClockAccessoryPolicy.shouldShowClock(
             state: state,
             nowMs: Date().timeIntervalSince1970 * 1_000
@@ -409,7 +412,12 @@ final class PetPanelController {
 
     func updatePerformance(_ sample: PerformanceSample?) { overlayView.performanceSample = sample }
 
-    func updateUnreadCount(_ count: Int) { overlayView.unreadMessageCount = count }
+    func updateUnreadCount(_ count: Int, indicatorID: String? = nil) {
+        if let indicatorID {
+            overlayView.messageIndicatorID = FishMessageIndicatorStyle.normalized(indicatorID)
+        }
+        overlayView.unreadMessageCount = count
+    }
 
     func showFriendMessage(
         id: UUID,

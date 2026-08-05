@@ -7,6 +7,11 @@ struct ClockState: Codable, Equatable {
         var timerSound: AppConfig.SoundChoice
         var allowSoundDuringQuietHours: Bool
         var defaultSnoozeMinutes: Int
+        var alarmAccessoryID: String? = nil
+
+        var effectiveAlarmAccessoryID: String {
+            ClockAccessoryStyle.normalized(alarmAccessoryID)
+        }
     }
     struct Alarm: Codable, Equatable, Identifiable {
         var id: String; var label: String; var enabled: Bool; var mode: String; var time: String
@@ -35,10 +40,21 @@ struct ClockState: Codable, Equatable {
             alarmSound: .init(enabled: true, soundId: "Ping"),
             timerSound: .init(enabled: true, soundId: "Glass"),
             allowSoundDuringQuietHours: true,
-            defaultSnoozeMinutes: 5
+            defaultSnoozeMinutes: 5,
+            alarmAccessoryID: ClockAccessoryStyle.defaultID
         ),
         alarms: [], timer: nil, alerts: [], lastReconciledAtMs: 0
     )
+}
+
+enum ClockAccessoryStyle {
+    static let defaultID = "alarm-clock"
+    static let ids = [defaultID, "alarm-clock-seafoam", "alarm-clock-honey", "alarm-clock-plum-night"]
+
+    static func normalized(_ value: String?) -> String {
+        guard let value, ids.contains(value) else { return defaultID }
+        return value
+    }
 }
 
 enum ClockEvent { case alarmDue(ClockState.Alert); case timerDue(ClockState.Alert); case changed(String) }

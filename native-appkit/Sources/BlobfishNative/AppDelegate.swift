@@ -131,7 +131,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         messenger.addStateObserver { [weak self, weak messenger] in
             guard let self, let messenger else { return }
-            self.panelController.updateUnreadCount(messenger.unreadCount)
+            self.panelController.updateUnreadCount(
+                messenger.unreadCount,
+                indicatorID: messenger.preferences.effectiveMessageIndicatorID
+            )
             self.updateMessengerMenu(unreadCount: messenger.unreadCount)
             if let contactID = messenger.activeVisitContactID,
                let contact = messenger.profile?.contacts.first(where: { $0.id == contactID }),
@@ -145,7 +148,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.panelController.endVisit()
             }
         }
-        panelController.updateUnreadCount(messenger.unreadCount)
+        panelController.updateUnreadCount(
+            messenger.unreadCount,
+            indicatorID: messenger.preferences.effectiveMessageIndicatorID
+        )
         updateMessengerMenu(unreadCount: messenger.unreadCount)
         messenger.onMessage = { [weak self, weak messenger] message, contact in
             guard let self, let messenger, !contact.muted else { return }
@@ -216,6 +222,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 switch serviceError {
                 case .rejectedUnknownSender, .rejectedInvalidEnvelope:
                     NSLog("Fish messenger rejected an unauthenticated relay record: %@", error.localizedDescription)
+                    return
+                case .persistenceFailed(let operation, _) where operation == "profile load":
+                    NSLog("Fish identity is not available at launch: %@", error.localizedDescription)
                     return
                 case .persistenceFailed:
                     self.panelController.say(

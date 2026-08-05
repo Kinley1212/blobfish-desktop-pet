@@ -35,9 +35,14 @@ struct FishFriendPreferences: Codable, Equatable {
     var incomingSoundID: String
     var visitsEnabled: Bool
     var messageDisplaySeconds: Double? = nil
+    var messageIndicatorID: String? = nil
 
     var effectiveMessageDisplaySeconds: TimeInterval {
         min(120, max(1, messageDisplaySeconds ?? 20))
+    }
+
+    var effectiveMessageIndicatorID: String {
+        FishMessageIndicatorStyle.normalized(messageIndicatorID)
     }
 
     static let defaults = FishFriendPreferences(
@@ -45,8 +50,19 @@ struct FishFriendPreferences: Codable, Equatable {
         incomingSoundEnabled: true,
         incomingSoundID: "Submarine",
         visitsEnabled: true,
-        messageDisplaySeconds: 20
+        messageDisplaySeconds: 20,
+        messageIndicatorID: FishMessageIndicatorStyle.defaultID
     )
+}
+
+enum FishMessageIndicatorStyle {
+    static let defaultID = "message-mailbox"
+    static let ids = [defaultID, "message-envelope", "message-flying-letter", "message-sea-mail"]
+
+    static func normalized(_ value: String?) -> String {
+        guard let value, ids.contains(value) else { return defaultID }
+        return value
+    }
 }
 
 enum FishMessageHistory {

@@ -101,9 +101,27 @@ final class SettingsViewModel: ObservableObject {
 
     func refreshFishState() {
         fishContacts = messengerService?.profile?.contacts ?? []
-        guard let messengerService, messengerService.profile != nil else {
+        guard let messengerService else {
             replaceFishInviteCode("")
-            fishIdentityStatus = isEnglish ? "Not configured" : "尚未建立身份"
+            fishIdentityStatus = isEnglish ? "Unavailable" : "功能不可用"
+            return
+        }
+        guard messengerService.profileState == .available, messengerService.profile != nil else {
+            replaceFishInviteCode("")
+            switch messengerService.profileState {
+            case .notConfigured:
+                fishIdentityStatus = isEnglish ? "Not configured" : "尚未建立身份"
+            case .authorizationRequired:
+                fishIdentityStatus = isEnglish ? "Authorization required" : "需要明确授权读取现有身份"
+            case .locked:
+                fishIdentityStatus = isEnglish ? "Keychain is locked" : "系统钥匙串尚未解锁"
+            case .corrupt:
+                fishIdentityStatus = isEnglish ? "Stored identity is invalid" : "已保存的身份资料无效"
+            case .unavailable:
+                fishIdentityStatus = isEnglish ? "Keychain is unavailable" : "系统钥匙串暂时不可用"
+            case .available:
+                fishIdentityStatus = isEnglish ? "Identity is unavailable" : "身份暂时不可用"
+            }
             return
         }
         do {
@@ -153,16 +171,34 @@ final class SettingsViewModel: ObservableObject {
     func saveFishSettings() {
         guard let messengerService else { return }
         do {
-            try messengerService.updateDisplayName(fishDisplayName)
+            if messengerService.profile != nil {
+                try messengerService.updateDisplayName(fishDisplayName)
+            }
             try messengerService.updatePreferences(fishPreferences)
             message = isEnglish ? "Fish friend settings saved." : "鱼友设置已保存。"
         } catch { message = error.localizedDescription }
+    }
+
+    func unlockFishProfile() {
+        guard let messengerService else { return }
+        do {
+            _ = try messengerService.unlockProfileInteractively(isEnglish: isEnglish)
+            loadFishDrafts()
+            refreshFishState()
+            message = isEnglish ? "Fish identity is available." : "鱼鱼身份已恢复。"
+        } catch {
+            refreshFishState()
+            message = isEnglish
+                ? "Authorization was not completed. The existing identity was kept unchanged."
+                : "未完成授权；现有身份保持不变。"
+        }
     }
 
     func createFishProfile() {
         let name = fishDisplayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let token = fishSetupToken
         guard let messengerService,
+              messengerService.profileState == .notConfigured,
               !name.isEmpty, name.utf8.count <= 48,
               let relayURL = URL(string: fishRelayURL.trimmingCharacters(in: .whitespacesAndNewlines)),
               relayURL.scheme == "https", relayURL.host != nil,
@@ -607,7 +643,7 @@ struct BrandedSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(model.fishInviteCode.isEmpty ? Color.secondary : Color.green)
             }
-            if model.messengerService?.profile == nil {
+            if model.messengerService?.profileState == .notConfigured {
                 LabeledContent(t("显示名称", "Display name")) {
                     TextField("", text: $model.fishDisplayName).textFieldStyle(.roundedBorder)
                 }
@@ -625,7 +661,7 @@ struct BrandedSettingsView: View {
                     Button(t("验证并建立", "Verify & create")) { model.createFishProfile() }
                         .disabled(model.fishSetupBusy)
                 }
-            } else {
+            } else if model.messengerService?.profileState == .available {
                 LabeledContent(t("中转站", "Relay")) {
                     Text(model.messengerService?.profile?.relayURL.host ?? "—")
                         .textSelection(.enabled)
@@ -647,6 +683,19 @@ struct BrandedSettingsView: View {
                     }
                     Text(t("鱼鱼码包含向你投递消息的权限，只发给你信任的人。", "A fish code grants permission to deliver messages to you; share it only with people you trust."))
                         .font(.caption).foregroundStyle(.secondary)
+                }
+            } else {
+                Text(t(
+                    "水滴鱼启动时不会再主动弹出电脑密码。只有你点击下方按钮，系统才会请求读取现有身份；取消不会删除或重建私钥。",
+                    "Blobfish no longer requests your computer password at launch. The system asks only after you click below; cancelling never deletes or replaces the private key."
+                ))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                if model.messengerService?.profileState == .authorizationRequired
+                    || model.messengerService?.profileState == .locked {
+                    Button(t("授权读取现有身份", "Authorize existing identity")) {
+                        model.unlockFishProfile()
+                    }
                 }
             }
         }
@@ -678,6 +727,14 @@ struct BrandedSettingsView: View {
                 .pickerStyle(.segmented)
                 Text(t("每条消息独立计时；新消息会顶开旧消息，不会覆盖。", "Each message has its own timer; new messages push older ones aside instead of replacing them."))
                     .font(.caption).foregroundStyle(.secondary)
+                visualStylePicker(
+                    title: t("未读消息提示", "Unread message indicator"),
+                    ids: FishMessageIndicatorStyle.ids,
+                    selection: Binding(
+                        get: { model.fishPreferences.effectiveMessageIndicatorID },
+                        set: { model.fishPreferences.messageIndicatorID = $0 }
+                    )
+                )
                 Toggle(t("好友来信播放音效", "Play sound for friend messages"), isOn: $model.fishPreferences.incomingSoundEnabled)
                 if model.fishPreferences.incomingSoundEnabled {
                     HStack {
@@ -686,7 +743,6 @@ struct BrandedSettingsView: View {
                     }
                 }
                 Button(t("保存鱼友设置", "Save fish settings")) { model.saveFishSettings() }
-                    .disabled(model.messengerService?.profile == nil)
         }
     }
 
@@ -832,7 +888,7 @@ struct BrandedSettingsView: View {
             }
             Divider()
             Text(t("闹钟位置", "Alarm clock position")).font(.subheadline.weight(.semibold))
-            accessoryTuningEditor(id: "alarm-clock")
+            accessoryTuningEditor(id: model.clockState.preferences.effectiveAlarmAccessoryID)
         }
     }
 
@@ -1042,6 +1098,18 @@ struct BrandedSettingsView: View {
     private var clocksSection: some View {
         SettingsPage(title: t("闹钟与计时器", "Alarms & Timers"), subtitle: t("到点后闹钟会震动；快速计时只在最后 15 分钟拿起闹钟。", "The clock shakes when due; quick timers hold it only during their final 15 minutes.")) {
             SettingsCard {
+                visualStylePicker(
+                    title: t("闹钟外观", "Clock appearance"),
+                    ids: ClockAccessoryStyle.ids,
+                    selection: Binding(
+                        get: { model.clockState.preferences.effectiveAlarmAccessoryID },
+                        set: { model.clockState.preferences.alarmAccessoryID = $0 }
+                    )
+                )
+                Text(t("选择后请点击下方“保存响铃设置”一并保存。", "Use “Save sound settings” below to save the selected appearance."))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            SettingsCard {
                 Text(t("计时器", "Timer")).font(.headline)
                 if let timer = model.clockState.timer {
                     Text(timer.label.isEmpty ? (model.clockService?.remainingTimerText() ?? "—") : "\(timer.label) · \(model.clockService?.remainingTimerText() ?? "—")")
@@ -1104,6 +1172,58 @@ struct BrandedSettingsView: View {
         Picker(t("声音", "Sound"), selection: selection) {
             ForEach(["Glass", "Ping", "Hero", "Submarine", "Tink", "Pop", "Purr", "Bottle", "Funk"], id: \.self) { Text($0).tag($0) }
         }
+    }
+
+    private func visualStylePicker(title: String, ids: [String], selection: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.headline)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+                ForEach(ids, id: \.self) { id in
+                    Button {
+                        selection.wrappedValue = id
+                    } label: {
+                        VStack(spacing: 5) {
+                            if let image = accessoryPreviewImage(id: id) {
+                                Image(nsImage: image)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 36, height: 36)
+                            }
+                            Text(accessoryDisplayName(id: id))
+                                .font(.caption2)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 7)
+                        .background(
+                            selection.wrappedValue == id
+                                ? Color.accentColor.opacity(0.14)
+                                : Color.black.opacity(0.035),
+                            in: RoundedRectangle(cornerRadius: 10)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(
+                                    selection.wrappedValue == id ? Color.accentColor : Color.black.opacity(0.08),
+                                    lineWidth: selection.wrappedValue == id ? 1.5 : 1
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(accessoryDisplayName(id: id))
+                    .accessibilityValue(selection.wrappedValue == id ? t("已选择", "Selected") : "")
+                }
+            }
+        }
+    }
+
+    private func accessoryPreviewImage(id: String) -> NSImage? {
+        guard let accessory = model.accessories.first(where: { $0.id == id }) else { return nil }
+        return NSImage(contentsOf: accessory.artURL)
+    }
+
+    private func accessoryDisplayName(id: String) -> String {
+        model.accessories.first(where: { $0.id == id })?.manifest.displayName ?? id
     }
 
     private func alarmModeName(_ mode: String) -> String {

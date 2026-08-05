@@ -59,6 +59,10 @@
 ## 5. 鱼鱼传话与串门
 
 - 身份私钥、收件权限和好友资料保存在 Keychain；不得改为普通明文配置。
+- macOS `SecItem` 若未指定 `kSecUseDataProtectionKeychain`，默认仍使用 file-based Keychain；它按创建应用的代码签名 designated requirement 建立 ACL。ad-hoc 签名的 DR 绑定每次构建的 cdhash，因此重建后会被当作新应用并要求电脑密码。
+- 启动时的身份读取必须使用 `LAContext.interactionNotAllowed = true`；若需授权，状态记为 `authorizationRequired`，不得自动弹窗、删除 item 或误建新身份。只有用户在设置页明确点击「授权读取现有身份」才允许交互式读取。
+- 身份状态区分 `notConfigured / available / authorizationRequired / locked / corrupt / unavailable`。只有真正 `notConfigured` 可建立新身份；取消授权或钥匙串暂不可用时必须保留旧 item。
+- 旧 ad-hoc `profile-v1` 无法安全静默交给正式签名版；未来迁移到 data-protection Keychain v2 时必须按「明确授权读旧项→验证→写新项→读回比对→最后删除旧项」交易执行，任一步失败都保留旧项。
 - 设置页可以提供安全导入、有效性和指纹状态，但不默认展示私钥原文。重建身份必须二次确认。
 - `FishMessengerService.poll()` 已加单飞保护，并依据本机历史中的 message ID 去重。
 - 新收到的有效消息只有在本地历史保存成功后才向中转站确认；保存失败时回滚内存状态并保留远程投递，下轮重试。
@@ -99,8 +103,9 @@
 
 ## 7. 闹钟与快速计时
 
-- `alarm-clock` 已替换为 Microsoft Fluent Emoji Flat 红色双铃 SVG，并保留既有进场、退场和响铃震动动画。
-- 素材固定于 Microsoft Fluent Emoji 提交 `e8a613a0baedbca8f144fa70950714f2583318a8`，采用 MIT 许可；来源和许可保存在饰品目录。
+- `alarm-clock` 已替换为项目原创建模的「珊瑚抱抱钟」，保留既有进场、退场和响铃震动动画；素材不含 Apple 或第三方 SVG 路径，使用 CC0-1.0。
+- 内建闹钟样式为 `alarm-clock`、`alarm-clock-seafoam`、`alarm-clock-honey`、`alarm-clock-plum-night`；旧时钟状态缺少 `alarmAccessoryID` 时安全回落到 `alarm-clock`。
+- 未读提示不再使用红色胶囊，内建 `message-mailbox`、`message-envelope`、`message-flying-letter`、`message-sea-mail`；默认是举旗小邮箱，数字直接印在物件预留区域。
 - 正式闹钟只要存在启用项便会让角色持钟。
 - 快速计时当前只显示下方倒数牌，不会让角色持钟。
 - 新规则：快速计时剩余时间 `<= 15 分钟` 时持钟，超过 15 分钟不持钟；暂停、恢复、延长、取消及到期都必须重新计算。
@@ -137,6 +142,9 @@
 
 ## 10. 当前发布限制
 
-- 当前仍使用 ad-hoc 签名，没有 Apple Developer ID 和公证。
+- 本地开发包仍允许 ad-hoc 签名，但启动 Keychain 探测禁止交互，因此不会自动弹出电脑密码；这种构建不能验证更新后的稳定身份。
+- tag 发布流程已改为缺少 Developer ID 或公证凭据便失败关闭，并要求 inside-out 签名、Hardened Runtime、secure timestamp、Apple notarization 与 staple。禁止用 `--deep` 进行正式签名。
+- GitHub Actions 需要 secrets：`MACOS_CERTIFICATE_P12`、`MACOS_CERTIFICATE_PASSWORD`、`MACOS_KEYCHAIN_PASSWORD`、`MACOS_DEVELOPER_ID_APPLICATION`、`MACOS_NOTARY_APPLE_ID`、`MACOS_NOTARY_TEAM_ID`、`MACOS_NOTARY_PASSWORD`。
+- 当前开发机没有有效 code-signing identity，因此尚不能实测 Developer ID 版跨版本无提示读取；首次从旧 ad-hoc item 迁移仍可能需要一次由用户明确触发的授权。
 - 不得为了简化安装而关闭 Gatekeeper、绕过完整性校验或降低更新校验。
 - 一键更新依赖与芯片匹配的完整 ZIP、正确 SHA-256 和更新清单。

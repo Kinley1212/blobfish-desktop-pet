@@ -160,7 +160,7 @@ final class PackCatalog {
             let manifest: AccessoryPack.Manifest = try self.decodeJSON(directory.appendingPathComponent("manifest.json"))
             guard Self.isPackID(manifest.id), directory.lastPathComponent == manifest.id,
                   manifest.version == 1,
-                  ["face", "hat", "eyewear", "hand", "clock"].contains(manifest.slot) else {
+                  ["face", "hat", "eyewear", "hand", "clock", "message-indicator"].contains(manifest.slot) else {
                 throw PackCatalogError.invalidManifest(directory.lastPathComponent)
             }
             let art = try self.safeChild(manifest.art, of: directory)

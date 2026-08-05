@@ -284,6 +284,15 @@ final class PetView: NSView, CALayerDelegate {
     var transientMessageEvent: String? { didSet { invalidateOverlay() } }
     var transientMessageColor: String? { didSet { invalidateOverlay() } }
     var unreadMessageCount = 0 { didSet { if oldValue != unreadMessageCount { invalidateOverlay() } } }
+    var messageIndicatorID = FishMessageIndicatorStyle.defaultID {
+        didSet {
+            let normalized = FishMessageIndicatorStyle.normalized(messageIndicatorID)
+            if normalized != messageIndicatorID { messageIndicatorID = normalized; return }
+            guard oldValue != messageIndicatorID else { return }
+            rebuildMessageIndicatorImage()
+            invalidateOverlay()
+        }
+    }
     var visitingFriendName: String? { didSet { if oldValue != visitingFriendName { invalidateOverlay() } } }
     var companionCharacterBounds: NSRect? {
         didSet { if oldValue != companionCharacterBounds { invalidateOverlay() } }
@@ -314,7 +323,10 @@ final class PetView: NSView, CALayerDelegate {
     var accessoryPacks: [AccessoryPack] = [] {
         didSet {
             guard oldValue != accessoryPacks else { return }
-            rebuildAccessoryImages(); rebuildCharacterImage()
+            if contentMode.drawsArtwork {
+                rebuildAccessoryImages(); rebuildCharacterImage()
+            }
+            rebuildMessageIndicatorImage()
         }
     }
     var accessorySpec = CharacterAccessories(nil) {
@@ -333,6 +345,14 @@ final class PetView: NSView, CALayerDelegate {
         didSet {
             guard oldValue != alarmClockVisible else { return }
             startAlarmClockTransition(appearing: alarmClockVisible)
+        }
+    }
+    var alarmClockAccessoryID = ClockAccessoryStyle.defaultID {
+        didSet {
+            let normalized = ClockAccessoryStyle.normalized(alarmClockAccessoryID)
+            if normalized != alarmClockAccessoryID { alarmClockAccessoryID = normalized; return }
+            guard oldValue != alarmClockAccessoryID else { return }
+            rebuildAccessoryImages()
         }
     }
     var alarmRinging = false {
@@ -471,6 +491,7 @@ final class PetView: NSView, CALayerDelegate {
     private var characterImage: NSImage?
     private var characterViewBox: CGRect?
     private var accessoryImages: [(AccessoryPack, NSImage)] = []
+    private var messageIndicatorImage: NSImage?
     private let artworkLayer = CALayer()
     private let overlayLayer = CALayer()
     private var artworkBackingScale: CGFloat = 0
@@ -932,7 +953,7 @@ final class PetView: NSView, CALayerDelegate {
         if let moodFaceID { equipped["face"] = moodFaceID }
         let ids = AccessoryLayerOrder.orderedIDs(
             equipped: equipped,
-            systemAccessoryIDs: alarmClockRenderVisible ? ["alarm-clock"] : []
+            systemAccessoryIDs: alarmClockRenderVisible ? [alarmClockAccessoryID] : []
         )
         accessoryImages = ids.compactMap { id in
             guard let pack = byID[id], let image = NSImage(contentsOf: pack.artURL) else { return nil }
@@ -986,7 +1007,7 @@ final class PetView: NSView, CALayerDelegate {
             let targetX = targetAnchor.x
             let targetY = targetAnchor.y
             let imageSize = image.size
-            let isClock = pack.id == "alarm-clock"
+            let isClock = pack.manifest.slot == "clock"
             let shake = alarmRinging && isClock ? sin(clockShakePhase) * 3 : 0
             var rect = NSRect(
                 x: targetX - pack.manifest.anchor.x * unitX + shake,
@@ -1018,6 +1039,17 @@ final class PetView: NSView, CALayerDelegate {
             image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: alpha)
             NSGraphicsContext.restoreGraphicsState()
         }
+    }
+
+    private func rebuildMessageIndicatorImage() {
+        guard contentMode.drawsOverlay,
+              let pack = accessoryPacks.first(where: {
+                  $0.id == messageIndicatorID && $0.manifest.slot == "message-indicator"
+              }) else {
+            messageIndicatorImage = nil
+            return
+        }
+        messageIndicatorImage = NSImage(contentsOf: pack.artURL)
     }
 
     private func startAlarmClockTransition(appearing: Bool) {
@@ -1496,20 +1528,45 @@ final class PetView: NSView, CALayerDelegate {
     private func drawUnreadBadge() {
         guard unreadMessageCount > 0 else { return }
         let rect = unreadBadgeRect
-        NSColor(calibratedRed: 0.98, green: 0.35, blue: 0.28, alpha: 0.98).setFill()
-        NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
-        let label = unreadMessageCount > 9 ? "✉ 9+" : "✉ \(unreadMessageCount)"
+        if let messageIndicatorImage {
+            messageIndicatorImage.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
+        } else {
+            NSColor(calibratedWhite: 0.96, alpha: 0.98).setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9).fill()
+        }
+        let label = unreadMessageCount > 9 ? "9+" : String(unreadMessageCount)
+        let font = NSFont.systemFont(ofSize: label.count > 1 ? 7.5 : 9, weight: .heavy)
+        let color = messageIndicatorID == "message-envelope" ? NSColor.white : NSColor.fishHex("#355A66")!
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: color,
+        ]
+        let countRect = unreadCountRect(in: rect)
+        let size = (label as NSString).size(withAttributes: attributes)
         (label as NSString).draw(
-            in: rect.insetBy(dx: 3, dy: 4),
-            withAttributes: [
-                .font: NSFont.systemFont(ofSize: 10, weight: .bold),
-                .foregroundColor: NSColor.white,
-            ]
+            at: NSPoint(x: countRect.midX - size.width / 2, y: countRect.midY - size.height / 2),
+            withAttributes: attributes
         )
     }
 
     private var unreadBadgeRect: NSRect {
-        NSRect(x: characterBounds.maxX - 15, y: characterBounds.maxY - 3, width: 30, height: 24)
+        NSRect(x: characterBounds.maxX - 13, y: characterBounds.maxY - 5, width: 42, height: 42)
+    }
+
+    private func unreadCountRect(in rect: NSRect) -> NSRect {
+        let source: NSRect
+        switch messageIndicatorID {
+        case "message-envelope": source = NSRect(x: 38, y: 57, width: 24, height: 24)
+        case "message-flying-letter": source = NSRect(x: 48, y: 47, width: 26, height: 22)
+        case "message-sea-mail": source = NSRect(x: 31, y: 55, width: 39, height: 27)
+        default: source = NSRect(x: 70, y: 13, width: 22, height: 17)
+        }
+        return NSRect(
+            x: rect.minX + source.minX / 100 * rect.width,
+            y: rect.maxY - source.maxY / 100 * rect.height,
+            width: source.width / 100 * rect.width,
+            height: source.height / 100 * rect.height
+        )
     }
 
     private func drawFriendMessageBubbles(in layout: PetSceneLayout) {

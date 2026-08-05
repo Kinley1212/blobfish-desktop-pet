@@ -19,6 +19,7 @@ enum SelfCheck {
             ("shared runtime recovery", sharedRuntimeRecovery),
             ("custom SVG and accessory rendering", customSVGAndAccessoryRendering),
             ("shared alarm and timer state", sharedAlarmAndTimerState),
+            ("clock and message styles migrate safely", visualStyleSelectionsMigrateSafely),
             ("clock persistence failure rolls back state", clockPersistenceFailureRollsBackState),
             ("clock reports unsafe state files", clockReportsUnsafeStateFiles),
             ("quick timer clock threshold", quickTimerClockThreshold),
@@ -615,14 +616,42 @@ enum SelfCheck {
         let restingSVG = restingData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
         let coveredSVG = coveredData.flatMap { String(data: $0, encoding: .utf8) } ?? ""
         let accessories = try catalog.accessories()
-        let hasClock = accessories.contains(where: { $0.id == "alarm-clock" && $0.manifest.slot == "clock" })
+        let clockIDs = Set(accessories.filter { $0.manifest.slot == "clock" }.map(\.id))
+        let indicatorIDs = Set(accessories.filter { $0.manifest.slot == "message-indicator" }.map(\.id))
+        let hasClock = Set(ClockAccessoryStyle.ids).isSubset(of: clockIDs)
+        let hasIndicators = Set(FishMessageIndicatorStyle.ids).isSubset(of: indicatorIDs)
         let restingFaceIsNeutral = !restingSVG.contains("tear") && restingSVG.contains("eye-left")
         let selectedFaceCoversEyes = !coveredSVG.contains("eye-left") && !coveredSVG.contains("tear")
-        if image == nil || accessories.count < 80 || !hasClock || !restingFaceIsNeutral || !selectedFaceCoversEyes {
-            print("  renderer=\(image != nil), accessories=\(accessories.count), clock=\(hasClock), neutral=\(restingFaceIsNeutral), covered=\(selectedFaceCoversEyes)")
+        if image == nil || accessories.count < 80 || !hasClock || !hasIndicators || !restingFaceIsNeutral || !selectedFaceCoversEyes {
+            print("  renderer=\(image != nil), accessories=\(accessories.count), clock=\(hasClock), indicators=\(hasIndicators), neutral=\(restingFaceIsNeutral), covered=\(selectedFaceCoversEyes)")
             return false
         }
         return true
+    }
+
+    private static func visualStyleSelectionsMigrateSafely() throws -> Bool {
+        let legacyClock = Data(#"""
+        {
+          "alarmSound":{"enabled":true,"soundId":"Ping"},
+          "timerSound":{"enabled":true,"soundId":"Glass"},
+          "allowSoundDuringQuietHours":true,
+          "defaultSnoozeMinutes":5
+        }
+        """#.utf8)
+        let legacyFriends = Data(#"""
+        {
+          "bubbleColor":"#1F7AE8",
+          "incomingSoundEnabled":true,
+          "incomingSoundID":"Submarine",
+          "visitsEnabled":true
+        }
+        """#.utf8)
+        let clock = try JSONDecoder().decode(ClockState.Preferences.self, from: legacyClock)
+        let friends = try JSONDecoder().decode(FishFriendPreferences.self, from: legacyFriends)
+        return clock.effectiveAlarmAccessoryID == ClockAccessoryStyle.defaultID
+            && friends.effectiveMessageIndicatorID == FishMessageIndicatorStyle.defaultID
+            && ClockAccessoryStyle.normalized("unknown") == ClockAccessoryStyle.defaultID
+            && FishMessageIndicatorStyle.normalized("unknown") == FishMessageIndicatorStyle.defaultID
     }
 
     private static func sharedAlarmAndTimerState() throws -> Bool {
