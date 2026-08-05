@@ -173,6 +173,7 @@ final class PetPanelController {
     private var lastAutomaticOrigin: NSPoint?
     private var config: AppConfig
     private var interactionTimer: Timer?
+    private var friendBubbleTimer: Timer?
     private var interactionPaused = false
     private var hoverPaused = false
     private var menuPaused = false
@@ -300,6 +301,8 @@ final class PetPanelController {
         movementDisplayLink.stop()
         interactionTimer?.invalidate()
         interactionTimer = nil
+        friendBubbleTimer?.invalidate()
+        friendBubbleTimer = nil
         speechQueue.clear()
         panel.orderOut(nil)
     }
@@ -366,6 +369,30 @@ final class PetPanelController {
 
     func updateUnreadCount(_ count: Int) { petView.unreadMessageCount = count }
 
+    func showFriendMessage(
+        id: UUID,
+        text: String,
+        color: String?,
+        speaker: PetMessageSpeaker,
+        duration: TimeInterval
+    ) {
+        let now = Date()
+        let bubble = PetMessageBubble(
+            id: id,
+            text: text,
+            color: color,
+            speaker: speaker,
+            expiresAt: now.addingTimeInterval(max(1, duration))
+        )
+        petView.friendMessageBubbles = PetMessageBubbleStack.inserting(
+            bubble,
+            into: petView.friendMessageBubbles,
+            now: now
+        )
+        scheduleFriendBubbleExpiry()
+        show()
+    }
+
     func showVisit(presence: FishPresence, friendName: String, runtime: AppRuntime) {
         guard let character = try? runtime.catalog?.character(id: presence.characterPackID) else { return }
         guestView.character = character
@@ -377,6 +404,7 @@ final class PetPanelController {
         guestView.updateMotion(elapsed: 0, bobOffset: 0)
         guestView.isHidden = false
         petView.visitingFriendName = friendName
+        syncCompanionBounds()
         preciseOrigin = nil
         bobBaselineY = nil
     }
@@ -384,6 +412,8 @@ final class PetPanelController {
     func endVisit() {
         guestView.isHidden = true
         petView.visitingFriendName = nil
+        petView.companionCharacterBounds = nil
+        petView.friendMessageBubbles.removeAll { $0.speaker == .visitor }
         preciseOrigin = nil
         bobBaselineY = nil
     }
@@ -455,6 +485,7 @@ final class PetPanelController {
         if !guestView.isHidden {
             guestView.motionState = motionState
             guestView.updateMotion(elapsed: motionElapsed, bobOffset: movementPaused ? 0 : bob)
+            syncCompanionBounds()
         }
 
         if dragging { return }
@@ -622,5 +653,37 @@ final class PetPanelController {
             companionFrame: guestView.isHidden ? nil : guestView.frame,
             companionBounds: guestView.isHidden ? nil : guestView.movementBounds
         )
+    }
+
+    private func syncCompanionBounds() {
+        guard !guestView.isHidden else {
+            petView.companionCharacterBounds = nil
+            return
+        }
+        petView.companionCharacterBounds = guestView.characterBounds.offsetBy(
+            dx: guestView.frame.minX,
+            dy: guestView.frame.minY
+        )
+    }
+
+    private func scheduleFriendBubbleExpiry() {
+        friendBubbleTimer?.invalidate()
+        let now = Date()
+        petView.friendMessageBubbles = PetMessageBubbleStack.active(
+            petView.friendMessageBubbles,
+            now: now
+        )
+        guard let next = petView.friendMessageBubbles.map(\.expiresAt).min() else {
+            friendBubbleTimer = nil
+            return
+        }
+        friendBubbleTimer = Timer.scheduledTimer(
+            withTimeInterval: max(0.05, next.timeIntervalSince(now)),
+            repeats: false
+        ) { [weak self] _ in
+            self?.friendBubbleTimer = nil
+            self?.scheduleFriendBubbleExpiry()
+        }
+        if let friendBubbleTimer { RunLoop.main.add(friendBubbleTimer, forMode: .common) }
     }
 }

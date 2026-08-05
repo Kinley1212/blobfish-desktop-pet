@@ -66,16 +66,19 @@ enum PerformancePanelGeometry {
     static func rect(
         in bounds: CGRect,
         characterBounds: CGRect,
+        companionBounds: CGRect? = nil,
         side: String,
         verticalPosition: Double
     ) -> CGRect {
         let size = size(for: characterBounds)
-        let availableY = max(0, bounds.height - size.height - margin * 2)
-        let y = bounds.minY + margin + availableY * CGFloat(min(1, max(0, verticalPosition)))
-        let x = side == "right"
-            ? bounds.maxX - margin - size.width
-            : bounds.minX + margin
-        return CGRect(origin: CGPoint(x: x, y: y), size: size)
+        return PetSceneLayoutCoordinator.performancePanelRect(
+            in: bounds,
+            characterBounds: characterBounds,
+            companionBounds: companionBounds,
+            size: size,
+            preferredSide: side,
+            verticalPosition: verticalPosition
+        )
     }
 }
 
@@ -289,6 +292,12 @@ final class PetView: NSView, CALayerDelegate {
     var transientMessageColor: String? { didSet { invalidateOverlay() } }
     var unreadMessageCount = 0 { didSet { if oldValue != unreadMessageCount { invalidateOverlay() } } }
     var visitingFriendName: String? { didSet { if oldValue != visitingFriendName { invalidateOverlay() } } }
+    var companionCharacterBounds: NSRect? {
+        didSet { if oldValue != companionCharacterBounds { invalidateOverlay() } }
+    }
+    var friendMessageBubbles: [PetMessageBubble] = [] {
+        didSet { if oldValue != friendMessageBubbles { invalidateOverlay() } }
+    }
     var character: CharacterPack? {
         didSet {
             guard oldValue != character else { return }
@@ -461,6 +470,7 @@ final class PetView: NSView, CALayerDelegate {
     private var pendingClockAction: ClockAction?
     private var pendingSpeechBubbleClick = false
     private var speechBubbleRect = NSRect.zero
+    private var friendBubbleRects: [UUID: NSRect] = [:]
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -628,12 +638,17 @@ final class PetView: NSView, CALayerDelegate {
         drawTaskBubble()
         drawClockAlert()
         drawVisitStatus()
+        drawFriendMessageBubbles()
         drawUnreadBadge()
     }
 
     override func mouseDown(with event: NSEvent) {
         let local = convert(event.locationInWindow, from: nil)
         if transientMessageEvent == "messenger.received", speechBubbleRect.contains(local) {
+            pendingSpeechBubbleClick = true
+            return
+        }
+        if friendBubbleRects.values.contains(where: { $0.contains(local) }) {
             pendingSpeechBubbleClick = true
             return
         }
@@ -675,7 +690,8 @@ final class PetView: NSView, CALayerDelegate {
         if pendingSpeechBubbleClick {
             pendingSpeechBubbleClick = false
             let local = convert(event.locationInWindow, from: nil)
-            if transientMessageEvent == "messenger.received", speechBubbleRect.contains(local) {
+            if transientMessageEvent == "messenger.received", speechBubbleRect.contains(local)
+                || friendBubbleRects.values.contains(where: { $0.contains(local) }) {
                 onSpeechBubbleClick?()
             }
             return
@@ -1003,6 +1019,7 @@ final class PetView: NSView, CALayerDelegate {
         let rect = PerformancePanelGeometry.rect(
             in: bounds,
             characterBounds: characterBounds,
+            companionBounds: companionCharacterBounds,
             side: performancePanelSide,
             verticalPosition: performancePanelVerticalPosition
         )
@@ -1399,6 +1416,100 @@ final class PetView: NSView, CALayerDelegate {
                 .font: NSFont.systemFont(ofSize: 10, weight: .bold),
                 .foregroundColor: NSColor.white,
             ]
+        )
+    }
+
+    private func drawFriendMessageBubbles() {
+        friendBubbleRects.removeAll(keepingCapacity: true)
+        let active = Array(friendMessageBubbles.suffix(PetMessageBubbleStack.maximumVisible))
+        guard !active.isEmpty else { return }
+
+        let taskBounds = snapshot.state == .idle
+            ? nil
+            : PetSceneLayoutCoordinator.taskStackBounds(in: bounds, characterBounds: characterBounds)
+        let occupied = [clockAlert == nil ? nil : clockAlertRect, taskBounds].compactMap { $0 }
+
+        for speaker in [PetMessageSpeaker.owner, .visitor] {
+            let entries = active.filter { $0.speaker == speaker }
+            guard !entries.isEmpty else { continue }
+            let anchor = speaker == .visitor ? companionCharacterBounds ?? characterBounds : characterBounds
+            let metrics = entries.map { friendBubbleMetrics(text: $0.text) }
+            let rects = PetSceneLayoutCoordinator.stackedBubbleRects(
+                sizesOldestFirst: metrics.map(\.size),
+                anchor: anchor,
+                in: bounds,
+                avoiding: occupied
+            )
+            for (localIndex, entry) in entries.enumerated() {
+                let globalIndex = active.firstIndex(where: { $0.id == entry.id }) ?? 0
+                let distance = active.count - 1 - globalIndex
+                drawFriendBubble(
+                    entry,
+                    rect: rects[localIndex],
+                    attributes: metrics[localIndex].attributes,
+                    opacity: PetMessageBubbleStack.opacity(distanceFromNewest: distance),
+                    anchor: anchor
+                )
+                friendBubbleRects[entry.id] = rects[localIndex]
+            }
+        }
+    }
+
+    private func friendBubbleMetrics(
+        text: String
+    ) -> (size: CGSize, attributes: [NSAttributedString.Key: Any]) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byWordWrapping
+        paragraph.lineSpacing = 1.2
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11.5, weight: .medium),
+            .foregroundColor: NSColor.white,
+            .paragraphStyle: paragraph,
+        ]
+        let measured = (text as NSString).boundingRect(
+            with: NSSize(width: 210, height: 48),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: attributes
+        )
+        return (
+            NSSize(width: min(226, max(42, ceil(measured.width) + 18)), height: min(56, max(26, ceil(measured.height) + 10))),
+            attributes
+        )
+    }
+
+    private func drawFriendBubble(
+        _ bubble: PetMessageBubble,
+        rect: NSRect,
+        attributes: [NSAttributedString.Key: Any],
+        opacity: CGFloat,
+        anchor: NSRect
+    ) {
+        let color = (NSColor.fishHex(bubble.color)
+            ?? NSColor(calibratedRed: 0.12, green: 0.48, blue: 0.92, alpha: 0.98))
+            .withAlphaComponent(opacity)
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow()
+        shadow.shadowBlurRadius = 4
+        shadow.shadowOffset = NSSize(width: 0, height: -1)
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.16 * opacity)
+        shadow.set()
+        color.setFill()
+        NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
+        let tailCenter = min(max(anchor.midX, rect.minX + 14), rect.maxX - 14)
+        let tail = NSBezierPath()
+        tail.move(to: NSPoint(x: tailCenter - 6, y: rect.minY + 1))
+        tail.line(to: NSPoint(x: tailCenter, y: max(anchor.maxY, rect.minY - 6)))
+        tail.line(to: NSPoint(x: tailCenter + 6, y: rect.minY + 1))
+        tail.close()
+        tail.fill()
+        NSGraphicsContext.restoreGraphicsState()
+
+        var fadedAttributes = attributes
+        fadedAttributes[.foregroundColor] = NSColor.white.withAlphaComponent(opacity)
+        (bubble.text as NSString).draw(
+            in: rect.insetBy(dx: 9, dy: 5),
+            withAttributes: fadedAttributes
         )
     }
 

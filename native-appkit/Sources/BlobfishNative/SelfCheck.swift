@@ -24,6 +24,8 @@ enum SelfCheck {
             ("dragged height preservation", draggedHeightPreservation),
             ("nearest display preserves pet height", nearestDisplayPreservesPetHeight),
             ("visit formation joins movement bounds", visitFormationJoinsMovementBounds),
+            ("scene layout coordinates satellites", sceneLayoutCoordinatesSatellites),
+            ("friend messages stack and expire", friendMessagesStackAndExpire),
             ("display-paced pet motion", displayPacedPetMotion),
             ("hover and menu pause pet motion", hoverAndMenuPausePetMotion),
             ("display-timed carousel easing", displayTimedCarouselEasing),
@@ -452,6 +454,67 @@ enum SelfCheck {
             ) == primary
     }
 
+    private static func sceneLayoutCoordinatesSatellites() -> Bool {
+        let canvas = NSRect(x: 0, y: 0, width: 340, height: 300)
+        let character = NSRect(x: 117.5, y: 10, width: 105, height: 90)
+        let panelSize = NSSize(width: 58, height: 90)
+        let left = PetSceneLayoutCoordinator.performancePanelRect(
+            in: canvas,
+            characterBounds: character,
+            companionBounds: nil,
+            size: panelSize,
+            preferredSide: "left",
+            verticalPosition: 0.5
+        )
+        let companion = NSRect(x: 45, y: 10, width: 65, height: 80)
+        let avoidingCompanion = PetSceneLayoutCoordinator.performancePanelRect(
+            in: canvas,
+            characterBounds: character,
+            companionBounds: companion,
+            size: panelSize,
+            preferredSide: "left",
+            verticalPosition: 0.5
+        )
+        let bubbles = PetSceneLayoutCoordinator.stackedBubbleRects(
+            sizesOldestFirst: [NSSize(width: 120, height: 30), NSSize(width: 130, height: 34)],
+            anchor: character,
+            in: canvas,
+            avoiding: []
+        )
+        return abs(character.minX - left.maxX - PetSceneLayoutCoordinator.satelliteGap) < 0.001
+            && avoidingCompanion.minX > character.maxX
+            && bubbles.count == 2
+            && bubbles[0].minY > bubbles[1].maxY
+            && bubbles.allSatisfy { canvas.insetBy(dx: 8, dy: 8).contains($0) }
+    }
+
+    private static func friendMessagesStackAndExpire() -> Bool {
+        let now = Date(timeIntervalSince1970: 1_000)
+        var stack: [PetMessageBubble] = []
+        for index in 0..<4 {
+            stack = PetMessageBubbleStack.inserting(
+                PetMessageBubble(
+                    id: UUID(),
+                    text: "message-\(index)",
+                    color: nil,
+                    speaker: index.isMultiple(of: 2) ? .owner : .visitor,
+                    expiresAt: now.addingTimeInterval(TimeInterval(index + 1))
+                ),
+                into: stack,
+                now: now
+            )
+        }
+        let afterTwoSeconds = PetMessageBubbleStack.active(
+            stack,
+            now: now.addingTimeInterval(2.5)
+        )
+        return stack.map(\.text) == ["message-1", "message-2", "message-3"]
+            && afterTwoSeconds.map(\.text) == ["message-2", "message-3"]
+            && PetMessageBubbleStack.opacity(distanceFromNewest: 0) == 1
+            && PetMessageBubbleStack.opacity(distanceFromNewest: 1) == 0.68
+            && PetMessageBubbleStack.opacity(distanceFromNewest: 2) == 0.38
+    }
+
     private static func quickTimerClockThreshold() -> Bool {
         let now = 1_000_000.0
         func state(source: String?, remainingMs: Double, timerState: String = "running") -> ClockState {
@@ -758,18 +821,29 @@ enum SelfCheck {
         )
         let small = PerformancePanelGeometry.size(for: CGRect(x: 0, y: 0, width: 84, height: 58.5))
         let large = PerformancePanelGeometry.size(for: CGRect(x: 0, y: 0, width: 193.5, height: 135))
-        return abs(lowerLeft.minX - 8) < 0.001
+        let safeCanvas = canvas.insetBy(dx: PerformancePanelGeometry.margin, dy: PerformancePanelGeometry.margin)
+        func containsInclusively(_ outer: CGRect, _ inner: CGRect) -> Bool {
+            inner.minX >= outer.minX && inner.maxX <= outer.maxX
+                && inner.minY >= outer.minY && inner.maxY <= outer.maxY
+        }
+        let valid = abs(character.minX - lowerLeft.maxX - PetSceneLayoutCoordinator.satelliteGap) < 0.001
             && abs(lowerLeft.minY - 8) < 0.001
             && abs(lowerLeft.width - 57.6) < 0.001
             && abs(lowerLeft.height - character.height) < 0.001
-            && abs(upperRight.maxX - (canvas.maxX - PerformancePanelGeometry.margin)) < 0.001
-            && abs(upperRight.maxY - (canvas.maxY - PerformancePanelGeometry.margin)) < 0.001
-            && abs(clamped.maxY - (canvas.maxY - PerformancePanelGeometry.margin)) < 0.001
-            && small == CGSize(width: 46, height: 58.5)
+            && abs(upperRight.minX - character.maxX - PetSceneLayoutCoordinator.satelliteGap) < 0.001
+            && upperRight.minY > lowerLeft.minY
+            && abs(clamped.minX - lowerLeft.minX) < 0.001
+            && abs(clamped.minY - upperRight.minY) < 0.001
+            && abs(small.width - 46) < 0.001
+            && abs(small.height - 58.5) < 0.001
             && abs(large.width - 86.4) < 0.001
-            && large.height == 135
-            && canvas.contains(lowerLeft)
-            && canvas.contains(upperRight)
+            && abs(large.height - 135) < 0.001
+            && containsInclusively(safeCanvas, lowerLeft)
+            && containsInclusively(safeCanvas, upperRight)
+        if !valid {
+            print("  lower=\(lowerLeft), upper=\(upperRight), clamped=\(clamped), safe=\(safeCanvas)")
+        }
+        return valid
     }
 
     private static func performanceBarsNestAndAnimate() -> Bool {
