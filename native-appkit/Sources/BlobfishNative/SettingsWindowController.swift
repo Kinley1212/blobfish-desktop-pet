@@ -402,6 +402,23 @@ final class SettingsViewModel: ObservableObject {
         catch { message = String(describing: error) }
     }
 
+    func selectAlarmAccessory(_ id: String) {
+        guard let clockService else {
+            message = isEnglish ? "Alarm clock settings are unavailable." : "闹钟设置暂时不可用。"
+            return
+        }
+        var preferences = clockService.state.preferences
+        preferences.alarmAccessoryID = ClockAccessoryStyle.normalized(id)
+        do {
+            try clockService.updatePreferences(preferences)
+            refreshClock()
+            message = isEnglish ? "Clock appearance saved." : "闹钟外观已保存。"
+        } catch {
+            refreshClock()
+            message = (isEnglish ? "Could not save clock appearance: " : "无法保存闹钟外观：") + error.localizedDescription
+        }
+    }
+
     func dismissClockAlerts() { do { try clockService?.dismissAlerts(); refreshClock() } catch { message = String(describing: error) } }
 
     func previewSound(_ id: String) { soundPlayer.play(id: id) }
@@ -806,7 +823,8 @@ struct BrandedSettingsView: View {
                             in: model.draft,
                             characterID: model.draft.pet.characterPackId
                         ),
-                        customization: model.draft.pet.customization[model.draft.pet.characterPackId]
+                        customization: model.draft.pet.customization[model.draft.pet.characterPackId],
+                        alarmClockAccessoryID: model.clockState.preferences.effectiveAlarmAccessoryID
                     )
                     .frame(width: 220, height: 140)
                     Text(currentCharacter?.manifest.displayName ?? t("角色预览", "Character preview"))
@@ -887,7 +905,16 @@ struct BrandedSettingsView: View {
                 }
             }
             Divider()
-            Text(t("闹钟位置", "Alarm clock position")).font(.subheadline.weight(.semibold))
+            visualStylePicker(
+                title: t("闹钟样式", "Alarm clock style"),
+                ids: ClockAccessoryStyle.ids,
+                selection: Binding(
+                    get: { model.clockState.preferences.effectiveAlarmAccessoryID },
+                    set: { model.selectAlarmAccessory($0) }
+                )
+            )
+            Text(t("样式会立即保存；位置与大小请点下方的“应用”保存。", "The style saves immediately; use Apply below to save its size and position."))
+                .font(.caption).foregroundStyle(.secondary)
             accessoryTuningEditor(id: model.clockState.preferences.effectiveAlarmAccessoryID)
         }
     }
@@ -1099,18 +1126,6 @@ struct BrandedSettingsView: View {
 
     private var clocksSection: some View {
         SettingsPage(title: t("闹钟与计时器", "Alarms & Timers"), subtitle: t("到点后闹钟会震动；快速计时只在最后 15 分钟拿起闹钟。", "The clock shakes when due; quick timers hold it only during their final 15 minutes.")) {
-            SettingsCard {
-                visualStylePicker(
-                    title: t("闹钟外观", "Clock appearance"),
-                    ids: ClockAccessoryStyle.ids,
-                    selection: Binding(
-                        get: { model.clockState.preferences.effectiveAlarmAccessoryID },
-                        set: { model.clockState.preferences.alarmAccessoryID = $0 }
-                    )
-                )
-                Text(t("选择后请点击下方“保存响铃设置”一并保存。", "Use “Save sound settings” below to save the selected appearance."))
-                    .font(.caption).foregroundStyle(.secondary)
-            }
             SettingsCard {
                 Text(t("计时器", "Timer")).font(.headline)
                 if let timer = model.clockState.timer {

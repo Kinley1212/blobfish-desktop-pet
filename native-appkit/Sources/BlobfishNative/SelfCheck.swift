@@ -684,6 +684,7 @@ enum SelfCheck {
             try service.resumeTimer()
             var preferences = service.state.preferences
             preferences.alarmSound.soundId = "Bottle"
+            preferences.alarmAccessoryID = "alarm-clock-honey"
             try service.updatePreferences(preferences)
             let reloaded = ClockService(directoryURL: directory)
             let file = directory.appendingPathComponent("clock-state.json")
@@ -691,6 +692,7 @@ enum SelfCheck {
             guard reloaded.state.alarms.first?.time == "09:30"
                 && reloaded.state.timer?.state == "running"
                 && reloaded.state.preferences.alarmSound.soundId == "Bottle"
+                && reloaded.state.preferences.effectiveAlarmAccessoryID == "alarm-clock-honey"
                 && lstat(file.path, &info) == 0
                 && info.st_mode & 0o777 == 0o600 else { return false }
             var fixture = reloaded.state
