@@ -64,6 +64,20 @@ test('a system prop can be equipped temporarily without mutating the saved spec'
   assert.equal(getTuning(runtime, 'alarm-clock').offsetX, 4);
 });
 
+test('alarm clocks keep a wider movement range without widening ordinary accessories', () => {
+  const spec = normalizeAccessories({
+    tuning: {
+      'alarm-clock-plum-night': { offsetX: 96, offsetY: -74 },
+      crown: { offsetX: 96, offsetY: -74 },
+    },
+  });
+
+  assert.equal(getTuning(spec, 'alarm-clock-plum-night').offsetX, 96);
+  assert.equal(getTuning(spec, 'alarm-clock-plum-night').offsetY, -74);
+  assert.equal(getTuning(spec, 'crown').offsetX, 30);
+  assert.equal(getTuning(spec, 'crown').offsetY, -30);
+});
+
 test('out-of-range and unreadable values are clamped instead of rejected', () => {
   const spec = normalizeAccessories({
     equipped: { hat: 'straw-hat', eyewear: '../secret', hand: 42 },

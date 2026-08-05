@@ -102,13 +102,26 @@
     return typeof value === 'string' && ID_PATTERN.test(value) ? value : null;
   }
 
-  function normalizeTuning(input) {
+  function isClockAccessory(accessoryId) {
+    return accessoryId === 'alarm-clock'
+      || (typeof accessoryId === 'string' && accessoryId.startsWith('alarm-clock-'));
+  }
+
+  function fieldRange(field, accessoryId) {
+    if (!isClockAccessory(accessoryId)) return field;
+    if (field.key === 'offsetX') return { ...field, min: -100, max: 100 };
+    if (field.key === 'offsetY') return { ...field, min: -80, max: 80 };
+    return field;
+  }
+
+  function normalizeTuning(input, accessoryId = null) {
     const tuning = defaultTuning();
     if (!input || typeof input !== 'object' || Array.isArray(input)) return tuning;
     for (const field of ACCESSORY_FIELDS) {
       const value = Number(input[field.key]);
       if (!Number.isFinite(value)) continue;
-      tuning[field.key] = quantize(clamp(value, field.min, field.max), field.step);
+      const range = fieldRange(field, accessoryId);
+      tuning[field.key] = quantize(clamp(value, range.min, range.max), field.step);
     }
     return tuning;
   }
@@ -128,7 +141,7 @@
       spec.equipped[slot.key] = id;
       if (!id || !slot.tunable) continue;
 
-      const tuning = normalizeTuning(source);
+      const tuning = normalizeTuning(source, id);
       if (!isDefaultTuning(tuning)) spec.tuning[id] = tuning;
     }
     return spec;
@@ -153,7 +166,7 @@
       : {};
     for (const key of Object.keys(tuning)) {
       if (!ID_PATTERN.test(key)) continue;
-      const normalized = normalizeTuning(tuning[key]);
+      const normalized = normalizeTuning(tuning[key], key);
       // A piece left at its defaults needs no entry: picking it again gives the
       // same result, and the settings file stays small.
       if (!isDefaultTuning(normalized)) spec.tuning[key] = normalized;

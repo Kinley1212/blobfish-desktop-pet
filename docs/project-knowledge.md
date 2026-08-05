@@ -105,6 +105,7 @@
 
 - `alarm-clock` 已替换为项目原创建模的「珊瑚抱抱钟」，保留既有进场、退场和响铃震动动画；素材不含 Apple 或第三方 SVG 路径，使用 CC0-1.0。
 - 内建闹钟样式为 `alarm-clock`、`alarm-clock-seafoam`、`alarm-clock-honey`、`alarm-clock-plum-night`；旧时钟状态缺少 `alarmAccessoryID` 时安全回落到 `alarm-clock`。
+- 闹钟位置使用独立调节范围：水平 `-100...100`、垂直 `-80...80`；普通饰品继续限制在 `-30...30`。原生解析器与共享 Electron 配置正规化必须使用同一规则，避免保存或切换版本后被夹回旧范围。
 - 未读提示不再使用红色胶囊，内建 `message-mailbox`、`message-envelope`、`message-flying-letter`、`message-sea-mail`；默认是举旗小邮箱，数字直接印在物件预留区域。
 - 正式闹钟只要存在启用项便会让角色持钟。
 - 快速计时当前只显示下方倒数牌，不会让角色持钟。

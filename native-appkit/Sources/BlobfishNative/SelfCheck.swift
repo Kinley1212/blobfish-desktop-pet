@@ -18,6 +18,7 @@ enum SelfCheck {
             ("phrase rules and templates", phraseRulesAndTemplates),
             ("shared runtime recovery", sharedRuntimeRecovery),
             ("custom SVG and accessory rendering", customSVGAndAccessoryRendering),
+            ("alarm clock tuning has a wider safe range", alarmClockTuningHasWiderSafeRange),
             ("shared alarm and timer state", sharedAlarmAndTimerState),
             ("clock and message styles migrate safely", visualStyleSelectionsMigrateSafely),
             ("clock persistence failure rolls back state", clockPersistenceFailureRollsBackState),
@@ -652,6 +653,25 @@ enum SelfCheck {
             && friends.effectiveMessageIndicatorID == FishMessageIndicatorStyle.defaultID
             && ClockAccessoryStyle.normalized("unknown") == ClockAccessoryStyle.defaultID
             && FishMessageIndicatorStyle.normalized("unknown") == FishMessageIndicatorStyle.defaultID
+    }
+
+    private static func alarmClockTuningHasWiderSafeRange() -> Bool {
+        let specification: JSONValue = .object([
+            "offsetX": .number(96),
+            "offsetY": .number(-74),
+        ])
+        let clock = AccessoryTuning(specification, accessoryID: "alarm-clock-seafoam")
+        let ordinary = AccessoryTuning(specification, accessoryID: "crown")
+        let clampedClock = AccessoryTuning(.object([
+            "offsetX": .number(999),
+            "offsetY": .number(-999),
+        ]), accessoryID: "alarm-clock")
+        return clock.offsetX == 96
+            && clock.offsetY == -74
+            && ordinary.offsetX == 30
+            && ordinary.offsetY == -30
+            && clampedClock.offsetX == 100
+            && clampedClock.offsetY == -80
     }
 
     private static func sharedAlarmAndTimerState() throws -> Bool {
