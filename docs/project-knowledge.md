@@ -146,8 +146,8 @@
 ## 10. 当前发布限制
 
 - 本地开发包仍允许 ad-hoc 签名，但启动 Keychain 探测禁止交互，因此不会自动弹出电脑密码；这种构建不能验证更新后的稳定身份。
-- tag 发布流程已改为缺少 Developer ID 或公证凭据便失败关闭，并要求 inside-out 签名、Hardened Runtime、secure timestamp、Apple notarization 与 staple。禁止用 `--deep` 进行正式签名。
-- GitHub Actions 需要 secrets：`MACOS_CERTIFICATE_P12`、`MACOS_CERTIFICATE_PASSWORD`、`MACOS_KEYCHAIN_PASSWORD`、`MACOS_DEVELOPER_ID_APPLICATION`、`MACOS_NOTARY_APPLE_ID`、`MACOS_NOTARY_TEAM_ID`、`MACOS_NOTARY_PASSWORD`。
-- 当前开发机没有有效 code-signing identity，因此尚不能实测 Developer ID 版跨版本无提示读取；首次从旧 ad-hoc item 迁移仍可能需要一次由用户明确触发的授权。
-- 不得为了简化安装而关闭 Gatekeeper、绕过完整性校验或降低更新校验。
+- 项目明确不购买 Apple Developer ID；正式 tag 与本地包都使用 ad-hoc 签名，不做 notarization，也不依赖 Apple/GitHub 签名 secrets。Release 页面和 README 必须如实标示这一点。
+- GitHub Actions 必须分别构建 arm64/x64、验证准确架构并确认签名类型为 `adhoc`；不能把 ad-hoc 包描述成 Developer ID 或已公证安装包。
+- ad-hoc 身份无法保证跨版本稳定；私钥读取只允许在用户明确点击解锁后发生，首次解锁或身份变化时仍可能出现系统授权。
+- macOS 首次打开可能要求用户在“系统设置 → 隐私与安全性”中明确允许；项目不得自动执行 `xattr`、关闭 Gatekeeper、绕过完整性校验或降低更新校验。
 - 一键更新依赖与芯片匹配的完整 ZIP、正确 SHA-256 和更新清单。
