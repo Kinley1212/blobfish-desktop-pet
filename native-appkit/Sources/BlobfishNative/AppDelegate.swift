@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var runtime: AppRuntime!
     private var panelController: PetPanelController!
     private var settingsController: SettingsWindowController?
+    private var clockQuickController: ClockQuickWindowController?
     private var dialogueController: DialogueWindowController?
     private var fishChatController: FishChatWindowController?
     private var taskMonitor: TaskMonitor?
@@ -485,6 +486,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             defer { self.scheduleChatInvite() }
             guard self.previousSnapshot.activeCount == 0,
                   self.settingsController?.window?.isVisible != true,
+                  self.clockQuickController?.window?.isVisible != true,
                   self.dialogueController?.window?.isVisible != true,
                   self.clockService?.state.alerts.contains(where: { $0.state == "ringing" }) != true,
                   !self.isQuietNow(),
@@ -579,6 +581,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func handleSustainedMemoryLimit() {
         guard previousSnapshot.activeCount == 0,
               settingsController?.window?.isVisible != true,
+              clockQuickController?.window?.isVisible != true,
               clockService?.state.alerts.isEmpty != false else { return }
         panelController.say(runtime.phrase(event: "system.memoryExit") ?? "内存一直太高。我先沉下去。", event: "system.memoryExit", duration: 5, priority: SpeechPriority.urgent, replaceKey: "system.memoryExit")
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
@@ -741,7 +744,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         catch { panelController.say("计时器没有取消。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
     }
 
-    @objc private func openClocks() { openSettings(); settingsController?.select(.clocks) }
+    @MainActor @objc private func openClocks() {
+        guard let clockService else { return }
+        if clockQuickController == nil {
+            clockQuickController = ClockQuickWindowController(
+                service: clockService,
+                locale: runtime.config.ui.locale
+            )
+        }
+        clockQuickController?.updateLocale(runtime.config.ui.locale)
+        clockQuickController?.showWindow(nil)
+        clockQuickController?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
 
     @MainActor @objc private func openFishChat() {
         guard let messenger = messengerService else { return }
@@ -814,6 +829,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 Task { @MainActor in
                     self.updateMessengerMenu(unreadCount: self.messengerService?.unreadCount ?? 0)
                     self.fishChatController?.updateLocale(self.runtime.config.ui.locale)
+                    self.clockQuickController?.updateLocale(self.runtime.config.ui.locale)
                 }
                 self.performanceMonitor?.memoryLimitMB = self.runtime.config.performance.memoryLimitMb
                 self.performanceMonitor?.autoQuitEnabled = self.runtime.config.performance.autoQuitEnabled
