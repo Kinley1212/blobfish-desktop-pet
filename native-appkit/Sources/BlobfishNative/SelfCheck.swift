@@ -46,9 +46,11 @@ enum SelfCheck {
             ("early app termination tolerates incomplete launch", earlyAppTerminationToleratesIncompleteLaunch),
             ("speech priority and mood restore", speechPriorityAndMoodRestore),
             ("fish invite validation", fishInviteValidation),
+            ("fish self invite is rejected", fishSelfInviteIsRejected),
             ("fish message end-to-end encryption", fishMessageEncryption),
             ("fish visit appearance stays encrypted", fishVisitEncryption),
             ("fish history preserves unread messages", fishHistoryPersistence),
+            ("fish message duration migrates from old preferences", fishMessageDurationMigration),
         ]
         var passed = 0
         for (name, check) in checks {
@@ -83,6 +85,43 @@ enum SelfCheck {
         } catch {
             return true
         }
+    }
+
+    private static func fishSelfInviteIsRejected() throws -> Bool {
+        let owner = FishMessengerIdentity()
+        let friend = FishMessengerIdentity()
+        let relayURL = URL(string: "https://fish.example.com")!
+        let profile = FishMessengerProfile(
+            relayURL: relayURL,
+            inboxID: String(repeating: "i", count: 24),
+            readToken: String(repeating: "r", count: 48),
+            deliveryToken: String(repeating: "t", count: 48),
+            privateKey: owner.rawPrivateKey.base64EncodedString(),
+            displayName: "我的鱼",
+            contacts: []
+        )
+        let ownInvite = try FishInvite(
+            relayURL: relayURL,
+            inboxID: String(repeating: "o", count: 24),
+            deliveryToken: String(repeating: "d", count: 48),
+            publicKey: owner.publicKey,
+            displayName: "我的鱼"
+        )
+        do {
+            try FishContactImportPolicy.validate(ownInvite, for: profile)
+            return false
+        } catch FishMessengerError.invalidInvite {
+            // Expected: importing your own delivery capability must fail closed.
+        }
+        let friendInvite = try FishInvite(
+            relayURL: relayURL,
+            inboxID: String(repeating: "f", count: 24),
+            deliveryToken: String(repeating: "p", count: 48),
+            publicKey: friend.publicKey,
+            displayName: "朋友的鱼"
+        )
+        try FishContactImportPolicy.validate(friendInvite, for: profile)
+        return true
     }
 
     private static func fishMessageEncryption() throws -> Bool {
@@ -131,6 +170,29 @@ enum SelfCheck {
             let loaded = store.load()
             return loaded.0 == .defaults && loaded.1 == [record] && loaded.1.first?.isRead == false
         }
+    }
+
+    private static func fishMessageDurationMigration() throws -> Bool {
+        let oldJSON = Data("""
+        {
+            "bubbleColor":"#1F7AE8",
+            "incomingSoundEnabled":true,
+            "incomingSoundID":"Submarine",
+            "visitsEnabled":true
+        }
+        """.utf8)
+        let migrated = try JSONDecoder().decode(FishFriendPreferences.self, from: oldJSON)
+        var configured = migrated
+        configured.messageDisplaySeconds = 36
+        let roundTrip = try JSONDecoder().decode(
+            FishFriendPreferences.self,
+            from: JSONEncoder().encode(configured)
+        )
+        configured.messageDisplaySeconds = -5
+        return migrated.messageDisplaySeconds == nil
+            && migrated.effectiveMessageDisplaySeconds == 20
+            && roundTrip.effectiveMessageDisplaySeconds == 36
+            && configured.effectiveMessageDisplaySeconds == 1
     }
 
     private static func hoverAndMenuPausePetMotion() -> Bool {

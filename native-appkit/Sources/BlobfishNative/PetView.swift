@@ -282,6 +282,7 @@ final class PetView: NSView, CALayerDelegate {
     var ignoresMouseInteraction = false
     var onClick: (() -> Void)?
     var onSpeechBubbleClick: (() -> Void)?
+    var onUnreadBadgeClick: (() -> Void)?
     var onDragStart: (() -> Void)?
     var onDragMove: ((CGFloat, CGFloat) -> Void)?
     var onDragEnd: ((CGFloat, CGFloat) -> Void)?
@@ -397,6 +398,7 @@ final class PetView: NSView, CALayerDelegate {
     var interactiveBounds: NSRect {
         var result = characterBounds.offsetBy(dx: 0, dy: visualBobOffset).insetBy(dx: -8, dy: -8)
         if clockAlert != nil { result = result.union(clockAlertRect) }
+        if unreadMessageCount > 0 { result = result.union(unreadBadgeRect) }
         return result
     }
 
@@ -469,6 +471,7 @@ final class PetView: NSView, CALayerDelegate {
     private enum ClockAction { case snooze(String); case dismiss(String) }
     private var pendingClockAction: ClockAction?
     private var pendingSpeechBubbleClick = false
+    private var pendingUnreadBadgeClick = false
     private var speechBubbleRect = NSRect.zero
     private var friendBubbleRects: [UUID: NSRect] = [:]
 
@@ -644,6 +647,10 @@ final class PetView: NSView, CALayerDelegate {
 
     override func mouseDown(with event: NSEvent) {
         let local = convert(event.locationInWindow, from: nil)
+        if unreadMessageCount > 0, unreadBadgeRect.contains(local) {
+            pendingUnreadBadgeClick = true
+            return
+        }
         if transientMessageEvent == "messenger.received", speechBubbleRect.contains(local) {
             pendingSpeechBubbleClick = true
             return
@@ -665,6 +672,7 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        guard !pendingUnreadBadgeClick else { return }
         guard !pendingSpeechBubbleClick else { return }
         guard pendingClockAction == nil else { return }
         guard mouseDownScreenPoint != nil, let previous = lastDragScreenPoint else { return }
@@ -687,6 +695,14 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if pendingUnreadBadgeClick {
+            pendingUnreadBadgeClick = false
+            let local = convert(event.locationInWindow, from: nil)
+            if unreadMessageCount > 0, unreadBadgeRect.contains(local) {
+                onUnreadBadgeClick?()
+            }
+            return
+        }
         if pendingSpeechBubbleClick {
             pendingSpeechBubbleClick = false
             let local = convert(event.locationInWindow, from: nil)
@@ -1406,7 +1422,7 @@ final class PetView: NSView, CALayerDelegate {
 
     private func drawUnreadBadge() {
         guard unreadMessageCount > 0 else { return }
-        let rect = NSRect(x: characterBounds.maxX - 15, y: characterBounds.maxY - 3, width: 30, height: 24)
+        let rect = unreadBadgeRect
         NSColor(calibratedRed: 0.98, green: 0.35, blue: 0.28, alpha: 0.98).setFill()
         NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
         let label = unreadMessageCount > 9 ? "✉ 9+" : "✉ \(unreadMessageCount)"
@@ -1417,6 +1433,10 @@ final class PetView: NSView, CALayerDelegate {
                 .foregroundColor: NSColor.white,
             ]
         )
+    }
+
+    private var unreadBadgeRect: NSRect {
+        NSRect(x: characterBounds.maxX - 15, y: characterBounds.maxY - 3, width: 30, height: 24)
     }
 
     private func drawFriendMessageBubbles() {

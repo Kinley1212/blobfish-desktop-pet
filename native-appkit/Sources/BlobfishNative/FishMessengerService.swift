@@ -127,6 +127,21 @@ enum FishMessengerServiceError: LocalizedError {
     }
 }
 
+enum FishContactImportPolicy {
+    static func validate(_ invite: FishInvite, for profile: FishMessengerProfile) throws {
+        guard let privateKey = Data(base64Encoded: profile.privateKey),
+              let identity = try? FishMessengerIdentity(rawPrivateKey: privateKey) else {
+            throw FishMessengerVaultError.invalidState
+        }
+        guard invite.relayURL == profile.relayURL,
+              invite.publicKey != identity.publicKey,
+              !profile.contacts.contains(where: { $0.invite.publicKey == invite.publicKey }),
+              profile.contacts.count < 32 else {
+            throw FishMessengerError.invalidInvite
+        }
+    }
+}
+
 final class FishRelayClient {
     private let session: URLSession
     init(session: URLSession = .shared) { self.session = session }
@@ -265,6 +280,20 @@ final class FishMessengerService: NSObject {
         notifyState()
     }
 
+    func markRead(contactID: UUID) {
+        var changed = false
+        for index in records.indices
+        where records[index].contactID == contactID
+            && records[index].direction == .incoming
+            && !records[index].isRead {
+            records[index].isRead = true
+            changed = true
+        }
+        guard changed else { return }
+        persistState(operation: "contact read state update")
+        notifyState()
+    }
+
     func updateContact(_ contact: FishContact) throws {
         var next = try requiredProfile()
         guard let index = next.contacts.firstIndex(where: { $0.id == contact.id }) else { return }
@@ -311,9 +340,7 @@ final class FishMessengerService: NSObject {
     func addContact(code: String) throws {
         var next = try requiredProfile()
         let invite = try FishInvite.decode(code.trimmingCharacters(in: .whitespacesAndNewlines))
-        guard invite.relayURL == next.relayURL,
-              !next.contacts.contains(where: { $0.invite.publicKey == invite.publicKey }),
-              next.contacts.count < 32 else { throw FishMessengerError.invalidInvite }
+        try FishContactImportPolicy.validate(invite, for: next)
         next.contacts.append(FishContact(invite: invite))
         try vault.save(next)
         profile = next

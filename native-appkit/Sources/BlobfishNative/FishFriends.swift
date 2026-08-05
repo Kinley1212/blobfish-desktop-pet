@@ -33,12 +33,18 @@ struct FishFriendPreferences: Codable, Equatable {
     var incomingSoundEnabled: Bool
     var incomingSoundID: String
     var visitsEnabled: Bool
+    var messageDisplaySeconds: Double? = nil
+
+    var effectiveMessageDisplaySeconds: TimeInterval {
+        min(120, max(1, messageDisplaySeconds ?? 20))
+    }
 
     static let defaults = FishFriendPreferences(
         bubbleColor: "#1F7AE8",
         incomingSoundEnabled: true,
         incomingSoundID: "Submarine",
-        visitsEnabled: true
+        visitsEnabled: true,
+        messageDisplaySeconds: 20
     )
 }
 

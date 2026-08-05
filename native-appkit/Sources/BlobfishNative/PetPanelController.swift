@@ -192,6 +192,9 @@ final class PetPanelController {
     var onSpeechBubbleClick: (() -> Void)? {
         didSet { petView.onSpeechBubbleClick = onSpeechBubbleClick }
     }
+    var onUnreadBadgeClick: (() -> Void)? {
+        didSet { petView.onUnreadBadgeClick = onUnreadBadgeClick }
+    }
     var onPetting: ((Int) -> Void)?
     var moodFaceProvider: ((String) -> String?)?
     private lazy var speechQueue = SpeechQueue(
