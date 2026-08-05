@@ -1,11 +1,20 @@
 import CryptoKit
 import Foundation
 
-enum FishMessengerError: Error, Equatable {
+enum FishMessengerError: Error, Equatable, LocalizedError {
     case invalidInvite
     case invalidMessage
     case unsupportedVersion
     case decryptionFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidInvite: return "The fish code or contact is invalid."
+        case .invalidMessage: return "The fish message is empty or too long."
+        case .unsupportedVersion: return "This fish message version is not supported."
+        case .decryptionFailed: return "The fish message failed authentication."
+        }
+    }
 }
 
 struct FishInvite: Codable, Equatable {

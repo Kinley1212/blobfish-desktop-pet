@@ -210,8 +210,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 )
             }
         }
-        messenger.onError = { [weak self] _ in
+        messenger.onError = { [weak self] error in
             guard let self else { return }
+            if let serviceError = error as? FishMessengerServiceError {
+                switch serviceError {
+                case .rejectedUnknownSender, .rejectedInvalidEnvelope:
+                    NSLog("Fish messenger rejected an unauthenticated relay record: %@", error.localizedDescription)
+                    return
+                case .persistenceFailed:
+                    self.panelController.say(
+                        self.runtime.config.ui.locale == "en"
+                            ? "I couldn't save the latest fish-message state."
+                            : "刚才的鱼鱼消息状态没有保存好。",
+                        event: "messenger.persistenceError",
+                        duration: 5,
+                        priority: SpeechPriority.urgent,
+                        replaceKey: "messenger.persistenceError"
+                    )
+                    return
+                case .visitsUnavailable, .profileCreationInProgress:
+                    return
+                }
+            }
             self.panelController.say(
                 self.runtime.config.ui.locale == "en" ? "I couldn't reach your friend's fish." : "刚才没联系上朋友的鱼。",
                 event: "messenger.error",
@@ -226,8 +246,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let supportDirectory = runtime.configStore.fileURL.deletingLastPathComponent()
         let clocks = ClockService(directoryURL: supportDirectory)
         panelController.setClockActions(
-            snooze: { [weak clocks] id in try? clocks?.snoozeAlert(id: id, minutes: 5) },
-            dismiss: { [weak clocks] id in try? clocks?.dismissAlert(id: id) }
+            snooze: { [weak self, weak clocks] id in
+                do { try clocks?.snoozeAlert(id: id, minutes: 5) }
+                catch { self?.reportClockPersistenceError(error) }
+            },
+            dismiss: { [weak self, weak clocks] id in
+                do { try clocks?.dismissAlert(id: id) }
+                catch { self?.reportClockPersistenceError(error) }
+            }
         )
         clocks.workdays = runtime.config.schedule.workdays
         clocks.onTick = { [weak self] state, text in
@@ -235,11 +261,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.updateClockMenu(state)
         }
         clocks.onEvent = { [weak self] event, state in self?.handleClockEvent(event, state: state) }
+        clocks.onError = { [weak self] error in self?.reportClockPersistenceError(error) }
         clockService = clocks
         clocks.start()
 
         let routine = RoutineService(runtime: runtime)
         routine.onPhrase = { [weak self] event, context in self?.deliverPhrase(event: event, context: context) }
+        routine.onError = { error in
+            NSLog("Routine state could not be persisted: %@", error.localizedDescription)
+        }
         routineService = routine
         routine.start()
 
@@ -506,6 +536,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    private func reportClockPersistenceError(_ error: Error) {
+        NSLog("Clock state could not be persisted: %@", error.localizedDescription)
+        panelController.say(
+            runtime.config.ui.locale == "en"
+                ? "I couldn't save that clock change. Please try again."
+                : "闹钟状态没有保存好，请再试一次。",
+            event: "clock.persistenceError",
+            duration: 5,
+            priority: SpeechPriority.urgent,
+            replaceKey: "clock.persistenceError"
+        )
+    }
+
     private func deliverPhrase(event: String, context: [String: JSONValue]) {
         if event.hasPrefix("schedule."), !runtime.config.language.categories.schedule { return }
         if event.hasPrefix("system."), !runtime.config.language.categories.system { return }
@@ -554,10 +597,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func toggleLaunchAtLogin() {
+        let previous = runtime.config.startup.launchAtLogin
+        let desired = !previous
         do {
-            try runtime.update { $0.startup.launchAtLogin.toggle() }
-            try LoginItemController.sync(enabled: runtime.config.startup.launchAtLogin)
+            try LoginItemSettingTransaction.apply(
+                previous: previous,
+                desired: desired,
+                updateSystem: { try LoginItemController.sync(enabled: $0) },
+                saveConfiguration: { enabled in
+                    try self.runtime.update { $0.startup.launchAtLogin = enabled }
+                }
+            )
             syncQuickSettingsMenu()
+            settingsController?.mergeQuickSettingsFromRuntime()
         } catch {
             panelController.say("开机启动设置没有改成功。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
         }
@@ -568,6 +620,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             try runtime.update(change)
             panelController.apply(runtime: runtime)
             syncQuickSettingsMenu()
+            settingsController?.mergeQuickSettingsFromRuntime()
             if let phrase = runtime.phrase(event: event) {
                 panelController.say(phrase, event: event, priority: SpeechPriority.interaction, replaceKey: event)
             }
@@ -751,14 +804,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.syncQuickSettingsMenu()
                 Task { @MainActor in
                     self.updateMessengerMenu(unreadCount: self.messengerService?.unreadCount ?? 0)
+                    self.fishChatController?.updateLocale(self.runtime.config.ui.locale)
                 }
                 self.performanceMonitor?.memoryLimitMB = self.runtime.config.performance.memoryLimitMb
                 self.performanceMonitor?.autoQuitEnabled = self.runtime.config.performance.autoQuitEnabled
                 if !self.runtime.config.performance.panelEnabled { self.panelController.updatePerformance(nil) }
                 self.calendarService?.stop()
                 self.calendarService?.start()
-                do { try LoginItemController.sync(enabled: self.runtime.config.startup.launchAtLogin) }
-                catch { self.panelController.say("开机启动设置没有改成功。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
             }
         }
         settingsController?.showWindow(nil)

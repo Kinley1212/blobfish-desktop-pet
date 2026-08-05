@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 enum FishMessageKind: String, Codable {
@@ -94,17 +95,37 @@ enum FishVisitPolicy {
 }
 
 final class FishFriendStore {
+    enum StoreError: Error, LocalizedError {
+        case invalidStateFile
+
+        var errorDescription: String? {
+            "Fish message history is not a private, valid state file."
+        }
+    }
+
+    private static let maximumFileBytes = 2 * 1024 * 1024
     private let fileURL: URL
 
     init(directoryURL: URL) {
         fileURL = directoryURL.appendingPathComponent("fish-friends.json")
     }
 
-    func load() -> (FishFriendPreferences, [FishMessageRecord]) {
+    func load() throws -> (FishFriendPreferences, [FishMessageRecord]) {
         struct State: Codable { let preferences: FishFriendPreferences; let records: [FishMessageRecord] }
-        guard let data = try? Data(contentsOf: fileURL), data.count <= 2 * 1024 * 1024,
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return (.defaults, []) }
+        var info = stat()
+        guard lstat(fileURL.path, &info) == 0,
+              info.st_mode & S_IFMT == S_IFREG,
+              info.st_uid == getuid(),
+              info.st_mode & 0o077 == 0,
+              info.st_size >= 0,
+              info.st_size <= Self.maximumFileBytes else {
+            throw StoreError.invalidStateFile
+        }
+        let data = try Data(contentsOf: fileURL)
+        guard data.count <= Self.maximumFileBytes,
               let state = try? JSONDecoder().decode(State.self, from: data) else {
-            return (.defaults, [])
+            throw StoreError.invalidStateFile
         }
         return (state.preferences, FishMessageHistory.bounded(state.records))
     }
@@ -117,6 +138,15 @@ final class FishFriendStore {
             withIntermediateDirectories: true,
             attributes: [.posixPermissions: 0o700]
         )
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            var info = stat()
+            guard lstat(fileURL.path, &info) == 0,
+                  info.st_mode & S_IFMT == S_IFREG,
+                  info.st_uid == getuid(),
+                  info.st_mode & 0o077 == 0 else {
+                throw StoreError.invalidStateFile
+            }
+        }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(State(preferences: preferences, records: FishMessageHistory.bounded(records)))

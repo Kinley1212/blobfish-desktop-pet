@@ -2,6 +2,17 @@ import AppKit
 import Combine
 import SwiftUI
 
+enum FishChatDraftPolicy {
+    static func shouldClear(
+        currentDraft: String,
+        draftAtSend: String,
+        selectedContactID: UUID?,
+        sentContactID: UUID
+    ) -> Bool {
+        selectedContactID == sentContactID && currentDraft == draftAtSend
+    }
+}
+
 @MainActor
 final class FishChatViewModel: ObservableObject {
     @Published private(set) var contacts: [FishContact] = []
@@ -11,7 +22,7 @@ final class FishChatViewModel: ObservableObject {
     @Published private(set) var isSending = false
     @Published private(set) var errorMessage = ""
 
-    let locale: String
+    @Published private(set) var locale: String
     private let messengerService: FishMessengerService
     private let presenceProvider: @MainActor () -> FishPresence?
     private let onSent: @MainActor (String, FishContact) -> Void
@@ -32,6 +43,12 @@ final class FishChatViewModel: ObservableObject {
     }
 
     var isEnglish: Bool { locale == "en" }
+    var draftByteCount: Int { draft.trimmingCharacters(in: .whitespacesAndNewlines).utf8.count }
+    var draftExceedsLimit: Bool { draftByteCount > FishMessage.maximumTextBytes }
+
+    func updateLocale(_ value: String) {
+        locale = value
+    }
 
     var selectedContact: FishContact? {
         guard let selectedContactID else { return nil }
@@ -90,10 +107,24 @@ final class FishChatViewModel: ObservableObject {
 
     func sendMessage() {
         guard let contact = selectedContact else { return }
+        let draftAtSend = draft
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !contact.blocked, !isSending else { return }
+        guard text.utf8.count <= FishMessage.maximumTextBytes else {
+            errorMessage = isEnglish
+                ? "Messages are limited to 1,000 UTF-8 bytes."
+                : "传话内容不能超过 1,000 个 UTF-8 字节。"
+            return
+        }
         performSend(text: text, contact: contact, kind: .text, presence: nil) { [weak self] in
-            self?.draft = ""
+            guard let self,
+                  FishChatDraftPolicy.shouldClear(
+                    currentDraft: self.draft,
+                    draftAtSend: draftAtSend,
+                    selectedContactID: self.selectedContactID,
+                    sentContactID: contact.id
+                  ) else { return }
+            self.draft = ""
         }
     }
 
@@ -342,6 +373,14 @@ struct FishChatView: View {
                     .foregroundStyle(.red)
                     .lineLimit(2)
             }
+            if model.draftExceedsLimit {
+                Text(t(
+                    "\(model.draftByteCount) / \(FishMessage.maximumTextBytes) UTF-8 字节",
+                    "\(model.draftByteCount) / \(FishMessage.maximumTextBytes) UTF-8 bytes"
+                ))
+                .font(.caption)
+                .foregroundStyle(.red)
+            }
             HStack(spacing: 10) {
                 TextField(t("輸入傳話內容…", "Type a message…"), text: $model.draft)
                     .textFieldStyle(.roundedBorder)
@@ -352,6 +391,7 @@ struct FishChatView: View {
                         model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             || model.isSending
                             || contact.blocked
+                            || model.draftExceedsLimit
                     )
             }
         }
@@ -464,6 +504,11 @@ final class FishChatWindowController: NSWindowController, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         viewModel.setWindowActive(false)
+    }
+
+    func updateLocale(_ locale: String) {
+        viewModel.updateLocale(locale)
+        window?.title = locale == "en" ? "Fish Messages" : "魚魚消息"
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }

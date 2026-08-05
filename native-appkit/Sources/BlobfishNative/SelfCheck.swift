@@ -12,15 +12,22 @@ enum SelfCheck {
             ("unsafe input rejection", unsafeInputRejection),
             ("shared config migration", sharedConfigMigration),
             ("config round trip", configRoundTrip),
+            ("quick settings merge preserves unrelated draft", quickSettingsMergePreservesUnrelatedDraft),
             ("unsafe config rejection", unsafeConfigRejection),
             ("shared pack compatibility", sharedPackCompatibility),
             ("phrase rules and templates", phraseRulesAndTemplates),
             ("shared runtime recovery", sharedRuntimeRecovery),
             ("custom SVG and accessory rendering", customSVGAndAccessoryRendering),
             ("shared alarm and timer state", sharedAlarmAndTimerState),
+            ("clock persistence failure rolls back state", clockPersistenceFailureRollsBackState),
+            ("clock reports unsafe state files", clockReportsUnsafeStateFiles),
             ("quick timer clock threshold", quickTimerClockThreshold),
             ("native update channel isolation", nativeUpdateChannelIsolation),
+            ("native prerelease versions compare correctly", nativePrereleaseVersionsCompareCorrectly),
+            ("directory install restores backup on failure", directoryInstallRestoresBackupOnFailure),
+            ("native updater cleans install staging on failure", nativeUpdaterCleansInstallStagingOnFailure),
             ("single instance lock", singleInstanceLock),
+            ("login item setting rolls back on save failure", loginItemSettingRollsBackOnSaveFailure),
             ("dragged height preservation", draggedHeightPreservation),
             ("nearest display preserves pet height", nearestDisplayPreservesPetHeight),
             ("visit formation joins movement bounds", visitFormationJoinsMovementBounds),
@@ -50,7 +57,13 @@ enum SelfCheck {
             ("fish message end-to-end encryption", fishMessageEncryption),
             ("fish visit appearance stays encrypted", fishVisitEncryption),
             ("fish history preserves unread messages", fishHistoryPersistence),
+            ("fish history rejects unsafe state files", fishHistoryRejectsUnsafeStateFiles),
             ("fish message duration migrates from old preferences", fishMessageDurationMigration),
+            ("fish acknowledgement waits for persistence", fishAcknowledgementWaitsForPersistence),
+            ("fish polling waits for profile without losing start intent", fishPollingWaitsForProfile),
+            ("fish chat preserves a changed draft", fishChatPreservesChangedDraft),
+            ("task monitor drops callbacks after stop", taskMonitorDropsCallbacksAfterStop),
+            ("bounded reminder history keeps recent deduplication", boundedReminderHistoryKeepsRecentDeduplication),
         ]
         var passed = 0
         for (name, check) in checks {
@@ -167,8 +180,22 @@ enum SelfCheck {
                 bubbleColor: "#E65D83", presence: nil
             )
             try store.save(preferences: .defaults, records: [record])
-            let loaded = store.load()
+            let loaded = try store.load()
             return loaded.0 == .defaults && loaded.1 == [record] && loaded.1.first?.isRead == false
+        }
+    }
+
+    private static func fishHistoryRejectsUnsafeStateFiles() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let file = directory.appendingPathComponent("fish-friends.json")
+            try Data("{}".utf8).write(to: file)
+            try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path)
+            do {
+                _ = try FishFriendStore(directoryURL: directory).load()
+                return false
+            } catch FishFriendStore.StoreError.invalidStateFile {
+                return true
+            }
         }
     }
 
@@ -193,6 +220,67 @@ enum SelfCheck {
             && migrated.effectiveMessageDisplaySeconds == 20
             && roundTrip.effectiveMessageDisplaySeconds == 36
             && configured.effectiveMessageDisplaySeconds == 1
+    }
+
+    private static func fishAcknowledgementWaitsForPersistence() -> Bool {
+        let failed = Set(FishRelayAcknowledgementPolicy.resolved(
+            immediatelySafe: ["rejected", "duplicate"],
+            requiringPersistence: ["new-message", "new-message-copy"],
+            persistenceSucceeded: false
+        ))
+        let saved = Set(FishRelayAcknowledgementPolicy.resolved(
+            immediatelySafe: ["rejected", "duplicate"],
+            requiringPersistence: ["new-message", "new-message-copy"],
+            persistenceSucceeded: true
+        ))
+        return failed == ["rejected", "duplicate"]
+            && saved == ["rejected", "duplicate", "new-message", "new-message-copy"]
+    }
+
+    private static func fishPollingWaitsForProfile() -> Bool {
+        !FishMessengerPollingPolicy.shouldSchedule(
+            startRequested: true,
+            hasProfile: false,
+            hasTimer: false
+        )
+            && FishMessengerPollingPolicy.shouldSchedule(
+                startRequested: true,
+                hasProfile: true,
+                hasTimer: false
+            )
+            && !FishMessengerPollingPolicy.shouldSchedule(
+                startRequested: true,
+                hasProfile: true,
+                hasTimer: true
+            )
+            && !FishMessengerPollingPolicy.shouldSchedule(
+                startRequested: false,
+                hasProfile: true,
+                hasTimer: false
+            )
+    }
+
+    private static func fishChatPreservesChangedDraft() -> Bool {
+        let sentContactID = UUID()
+        return FishChatDraftPolicy.shouldClear(
+            currentDraft: "原消息",
+            draftAtSend: "原消息",
+            selectedContactID: sentContactID,
+            sentContactID: sentContactID
+        )
+            && !FishChatDraftPolicy.shouldClear(
+                currentDraft: "新消息",
+                draftAtSend: "原消息",
+                selectedContactID: sentContactID,
+                sentContactID: sentContactID
+            )
+            && !FishChatDraftPolicy.shouldClear(
+                currentDraft: "原消息",
+                draftAtSend: "原消息",
+                selectedContactID: UUID(),
+                sentContactID: sentContactID
+            )
+            && String(repeating: "鱼", count: 334).utf8.count > FishMessage.maximumTextBytes
     }
 
     private static func hoverAndMenuPausePetMotion() -> Bool {
@@ -378,6 +466,24 @@ enum SelfCheck {
         }
     }
 
+    private static func quickSettingsMergePreservesUnrelatedDraft() -> Bool {
+        var runtime = AppConfig.defaults
+        runtime.pet.roamWhenNoTasks = false
+        runtime.pet.roamWhenTasks = true
+        runtime.performance.panelEnabled = true
+        runtime.startup.launchAtLogin = true
+        var draft = AppConfig.defaults
+        draft.pet.speed = 9.5
+        draft.language.idleEnabled = false
+        let merged = QuickSettingsDraftMerge.merge(runtime: runtime, into: draft)
+        return !merged.pet.roamWhenNoTasks
+            && merged.pet.roamWhenTasks
+            && merged.performance.panelEnabled
+            && merged.startup.launchAtLogin
+            && merged.pet.speed == 9.5
+            && !merged.language.idleEnabled
+    }
+
     private static func unsafeConfigRejection() throws -> Bool {
         try withPrivateDirectory { directory in
             let target = directory.appendingPathComponent("target.json")
@@ -497,6 +603,53 @@ enum SelfCheck {
                   (alerts.state.alerts.first?.dueAtMs ?? 0) > Date().timeIntervalSince1970 * 1_000 else { return false }
             try alerts.dismissAlert(id: "alert:test")
             return alerts.state.alerts.isEmpty
+        }
+    }
+
+    private static func clockPersistenceFailureRollsBackState() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let blocker = directory.appendingPathComponent("not-a-directory")
+            try Data("blocker".utf8).write(to: blocker)
+
+            let controls = ClockService(directoryURL: blocker, initialState: .empty, nowMs: 1_000)
+            do {
+                try controls.createAlarm(label: "should-not-stick", mode: "daily", time: "09:00", date: nil, weekdays: [])
+                return false
+            } catch {
+                guard controls.state.alarms.isEmpty else { return false }
+            }
+
+            var dueState = ClockState.empty
+            dueState.timer = .init(
+                id: "timer:test", label: "durable first", durationMs: 500,
+                state: "running", createdAtMs: 1_000, dueAtMs: 1_500,
+                remainingMs: nil, source: ClockTimerSource.quick
+            )
+            let polling = ClockService(directoryURL: blocker, initialState: dueState, nowMs: 1_000)
+            var dueEvents = 0
+            var persistenceErrors = 0
+            polling.onEvent = { event, _ in
+                if case .timerDue = event { dueEvents += 1 }
+            }
+            polling.onError = { _ in persistenceErrors += 1 }
+            polling.poll(nowMs: 2_000)
+            polling.poll(nowMs: 3_000)
+            return polling.state.timer?.id == "timer:test"
+                && polling.state.alerts.isEmpty
+                && dueEvents == 0
+                && persistenceErrors == 1
+        }
+    }
+
+    private static func clockReportsUnsafeStateFiles() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let file = directory.appendingPathComponent("clock-state.json")
+            try Data("{}".utf8).write(to: file)
+            try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: file.path)
+            let service = ClockService(directoryURL: directory, nowMs: 1_000)
+            var errors = 0
+            service.onError = { _ in errors += 1 }
+            return service.state == .empty && errors == 1
         }
     }
 
@@ -648,6 +801,94 @@ enum SelfCheck {
         } catch UpdaterError.invalidManifest { return true }
     }
 
+    private static func nativePrereleaseVersionsCompareCorrectly() -> Bool {
+        NativeUpdater.compareVersions("2.3.0", "2.3.0-beta.1") == 1
+            && NativeUpdater.compareVersions("2.3.0-beta.2", "2.3.0-beta.10") == -1
+            && NativeUpdater.compareVersions("2.3.1-beta.1", "2.3.0") == 1
+            && NativeUpdater.compareVersions("2.3", "2.3.0") == nil
+    }
+
+    private static func directoryInstallRestoresBackupOnFailure() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let target = directory.appendingPathComponent("managed", isDirectory: true)
+            let temporary = directory.appendingPathComponent("installing", isDirectory: true)
+            let backup = directory.appendingPathComponent("backup", isDirectory: true)
+            try FileManager.default.createDirectory(at: target, withIntermediateDirectories: false)
+            try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: false)
+            let marker = target.appendingPathComponent("original.txt")
+            try Data("original".utf8).write(to: marker)
+            do {
+                try RecoverableDirectoryInstaller.replace(
+                    target: target,
+                    with: temporary,
+                    backup: backup,
+                    moveIntoPlace: { _, _, _ in throw CocoaError(.fileWriteUnknown) }
+                )
+                return false
+            } catch {
+                return FileManager.default.fileExists(atPath: marker.path)
+                    && !FileManager.default.fileExists(atPath: backup.path)
+                    && !FileManager.default.fileExists(atPath: temporary.path)
+            }
+        }
+    }
+
+    private static func nativeUpdaterCleansInstallStagingOnFailure() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let candidate = directory.appendingPathComponent("candidate.app", isDirectory: true)
+            try FileManager.default.createDirectory(at: candidate, withIntermediateDirectories: false)
+            try Data("candidate".utf8).write(to: candidate.appendingPathComponent("marker.txt"))
+            let target = directory.appendingPathComponent("水滴鱼.app", isDirectory: true)
+            try FileManager.default.createDirectory(at: target, withIntermediateDirectories: false)
+            let marker = target.appendingPathComponent("original.txt")
+            try Data("original".utf8).write(to: marker)
+
+            do {
+                _ = try NativeUpdater.installVerifiedBundle(
+                    at: candidate,
+                    in: directory,
+                    currentBundle: candidate,
+                    replace: { _, _, _ in throw CocoaError(.fileWriteUnknown) }
+                )
+                return false
+            } catch {
+                let leftovers = try FileManager.default.contentsOfDirectory(
+                    at: directory,
+                    includingPropertiesForKeys: nil
+                ).filter { $0.lastPathComponent.hasPrefix(".水滴鱼-installing-") }
+                return leftovers.isEmpty && FileManager.default.fileExists(atPath: marker.path)
+            }
+        }
+    }
+
+    private static func taskMonitorDropsCallbacksAfterStop() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let monitor = TaskMonitor(directoryURL: directory)
+            var updates = 0
+            monitor.onUpdate = { _ in updates += 1 }
+            monitor.start()
+            monitor.stop()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+            guard updates == 0 else { return false }
+
+            monitor.start()
+            monitor.start()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.35))
+            monitor.stop()
+            return updates == 1
+        }
+    }
+
+    private static func boundedReminderHistoryKeepsRecentDeduplication() -> Bool {
+        var history = BoundedKeyHistory(limit: 2)
+        return history.insert("old")
+            && history.insert("recent")
+            && history.insert("newest")
+            && !history.insert("recent")
+            && !history.insert("newest")
+            && history.insert("old")
+    }
+
     private static func singleInstanceLock() throws -> Bool {
         try withPrivateDirectory { directory in
             var first: SingleInstanceGuard? = SingleInstanceGuard()
@@ -656,6 +897,25 @@ enum SelfCheck {
             first = nil
             let third = SingleInstanceGuard()
             return third.acquire(in: directory)
+        }
+    }
+
+    private static func loginItemSettingRollsBackOnSaveFailure() -> Bool {
+        var systemEnabled = false
+        var savedEnabled = false
+        do {
+            try LoginItemSettingTransaction.apply(
+                previous: false,
+                desired: true,
+                updateSystem: { systemEnabled = $0 },
+                saveConfiguration: { enabled in
+                    savedEnabled = enabled
+                    throw CocoaError(.fileWriteUnknown)
+                }
+            )
+            return false
+        } catch {
+            return !systemEnabled && savedEnabled
         }
     }
 

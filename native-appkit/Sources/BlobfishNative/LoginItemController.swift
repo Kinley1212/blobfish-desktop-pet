@@ -12,3 +12,36 @@ enum LoginItemController {
         }
     }
 }
+
+enum LoginItemSettingTransactionError: Error, LocalizedError {
+    case rollbackFailed(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .rollbackFailed(let detail):
+            return "Login item setting could not be rolled back: \(detail)"
+        }
+    }
+}
+
+enum LoginItemSettingTransaction {
+    static func apply(
+        previous: Bool,
+        desired: Bool,
+        updateSystem: (Bool) throws -> Void,
+        saveConfiguration: (Bool) throws -> Void
+    ) throws {
+        try updateSystem(desired)
+        do {
+            try saveConfiguration(desired)
+        } catch {
+            let saveError = error
+            do {
+                try updateSystem(previous)
+            } catch {
+                throw LoginItemSettingTransactionError.rollbackFailed(error.localizedDescription)
+            }
+            throw saveError
+        }
+    }
+}

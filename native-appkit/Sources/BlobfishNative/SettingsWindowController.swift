@@ -2,6 +2,17 @@ import AppKit
 import Combine
 import SwiftUI
 
+enum QuickSettingsDraftMerge {
+    static func merge(runtime: AppConfig, into draft: AppConfig) -> AppConfig {
+        var next = draft
+        next.pet.roamWhenNoTasks = runtime.pet.roamWhenNoTasks
+        next.pet.roamWhenTasks = runtime.pet.roamWhenTasks
+        next.performance.panelEnabled = runtime.performance.panelEnabled
+        next.startup.launchAtLogin = runtime.startup.launchAtLogin
+        return next
+    }
+}
+
 @MainActor
 final class SettingsViewModel: ObservableObject {
     @Published var draft: AppConfig
@@ -91,9 +102,9 @@ final class SettingsViewModel: ObservableObject {
         guard let messengerService else { return }
         do {
             try messengerService.updateDisplayName(fishDisplayName)
-            messengerService.updatePreferences(fishPreferences)
+            try messengerService.updatePreferences(fishPreferences)
             message = isEnglish ? "Fish friend settings saved." : "鱼友设置已保存。"
-        } catch { message = String(describing: error) }
+        } catch { message = error.localizedDescription }
     }
 
     func createFishProfile() {
@@ -183,6 +194,10 @@ final class SettingsViewModel: ObservableObject {
         loadFishDrafts()
         refreshFishState()
         refreshIntegrations()
+    }
+
+    func mergeQuickSettingsFromRuntime() {
+        draft = QuickSettingsDraftMerge.merge(runtime: runtime.config, into: draft)
     }
 
     func refreshIntegrations() {
@@ -322,7 +337,18 @@ final class SettingsViewModel: ObservableObject {
 
     func apply() {
         do {
-            try runtime.update { $0 = draft }
+            let previousLaunchAtLogin = runtime.config.startup.launchAtLogin
+            let desiredLaunchAtLogin = draft.startup.launchAtLogin
+            if previousLaunchAtLogin == desiredLaunchAtLogin {
+                try runtime.update { $0 = draft }
+            } else {
+                try LoginItemSettingTransaction.apply(
+                    previous: previousLaunchAtLogin,
+                    desired: desiredLaunchAtLogin,
+                    updateSystem: { try LoginItemController.sync(enabled: $0) },
+                    saveConfiguration: { [runtime, draft] _ in try runtime.update { $0 = draft } }
+                )
+            }
             draft = runtime.config
             message = isEnglish ? "Saved." : "已保存。"
             onApply()
@@ -1129,6 +1155,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func select(_ section: SettingsSection) { viewModel.selectedSection = section }
+
+    func mergeQuickSettingsFromRuntime() { viewModel.mergeQuickSettingsFromRuntime() }
 
     override func showWindow(_ sender: Any?) {
         if window?.isVisible != true { viewModel.reloadFromRuntime() }

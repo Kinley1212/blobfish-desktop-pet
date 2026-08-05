@@ -46,10 +46,11 @@ final class FishMessengerVault {
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound { return nil }
-        guard status == errSecSuccess, let data = result as? Data,
+        guard status == errSecSuccess else { throw FishMessengerVaultError.keychain(status) }
+        guard let data = result as? Data,
               data.count <= 64 * 1024,
               let profile = try? JSONDecoder().decode(FishMessengerProfile.self, from: data) else {
-            throw FishMessengerVaultError.keychain(status)
+            throw FishMessengerVaultError.invalidState
         }
         try validate(profile)
         return profile
@@ -112,6 +113,7 @@ enum FishMessengerServiceError: LocalizedError {
     case rejectedUnknownSender
     case rejectedInvalidEnvelope
     case visitsUnavailable
+    case profileCreationInProgress
 
     var errorDescription: String? {
         switch self {
@@ -123,6 +125,8 @@ enum FishMessengerServiceError: LocalizedError {
             return "Fish messenger discarded a message that failed authentication."
         case .visitsUnavailable:
             return "Fish visits are disabled or this contact is muted."
+        case .profileCreationInProgress:
+            return "A fish identity is already being created."
         }
     }
 }
@@ -139,6 +143,22 @@ enum FishContactImportPolicy {
               profile.contacts.count < 32 else {
             throw FishMessengerError.invalidInvite
         }
+    }
+}
+
+enum FishRelayAcknowledgementPolicy {
+    static func resolved(
+        immediatelySafe: [String],
+        requiringPersistence: [String],
+        persistenceSucceeded: Bool
+    ) -> [String] {
+        Array(Set(immediatelySafe + (persistenceSucceeded ? requiringPersistence : [])))
+    }
+}
+
+enum FishMessengerPollingPolicy {
+    static func shouldSchedule(startRequested: Bool, hasProfile: Bool, hasTimer: Bool) -> Bool {
+        startRequested && hasProfile && !hasTimer
     }
 }
 
@@ -220,7 +240,9 @@ final class FishMessengerService: NSObject {
     private(set) var records: [FishMessageRecord]
     private(set) var activeVisitContactID: UUID?
     private var pollTimer: Timer?
+    private var pollingRequested = false
     private var polling = false
+    private var profileCreationInProgress = false
     private var stateObservers: [() -> Void] = []
     private var deferredErrors: [Error] = []
     var onMessage: ((FishMessage, FishContact) -> Void)?
@@ -236,11 +258,21 @@ final class FishMessengerService: NSObject {
         self.vault = vault
         self.relay = relay
         friendStore = FishFriendStore(directoryURL: supportDirectory)
-        let state = friendStore.load()
+        let state: (FishFriendPreferences, [FishMessageRecord])
+        var friendStateLoadError: Error?
+        do {
+            state = try friendStore.load()
+        } catch {
+            state = (.defaults, [])
+            friendStateLoadError = error
+        }
         preferences = state.0
         records = FishMessageHistory.bounded(state.1)
         profile = nil
         super.init()
+        if let friendStateLoadError {
+            deferredErrors.append(persistenceError(friendStateLoadError, operation: "friend state load"))
+        }
         do {
             profile = try vault.load()
         } catch {
@@ -260,37 +292,53 @@ final class FishMessengerService: NSObject {
         try vault.save(next); profile = next; notifyState()
     }
 
-    func updatePreferences(_ value: FishFriendPreferences) {
+    func updatePreferences(_ value: FishFriendPreferences) throws {
+        do {
+            try friendStore.save(preferences: value, records: records)
+        } catch {
+            let persistenceError = persistenceError(error, operation: "preferences update")
+            report(persistenceError)
+            throw persistenceError
+        }
         preferences = value
         if !value.visitsEnabled { activeVisitContactID = nil }
-        persistState(operation: "preferences update")
         notifyState()
     }
 
     func markRead(_ id: UUID? = nil) {
+        var next = records
         var changed = false
-        for index in records.indices where records[index].direction == .incoming && (id == nil || records[index].id == id) {
-            if !records[index].isRead {
-                records[index].isRead = true
+        for index in next.indices where next[index].direction == .incoming && (id == nil || next[index].id == id) {
+            if !next[index].isRead {
+                next[index].isRead = true
                 changed = true
             }
         }
-        guard changed else { return }
-        persistState(operation: "read state update")
+        guard changed, persistState(
+            preferences: preferences,
+            records: next,
+            operation: "read state update"
+        ) else { return }
+        records = next
         notifyState()
     }
 
     func markRead(contactID: UUID) {
+        var next = records
         var changed = false
-        for index in records.indices
-        where records[index].contactID == contactID
-            && records[index].direction == .incoming
-            && !records[index].isRead {
-            records[index].isRead = true
+        for index in next.indices
+        where next[index].contactID == contactID
+            && next[index].direction == .incoming
+            && !next[index].isRead {
+            next[index].isRead = true
             changed = true
         }
-        guard changed else { return }
-        persistState(operation: "contact read state update")
+        guard changed, persistState(
+            preferences: preferences,
+            records: next,
+            operation: "contact read state update"
+        ) else { return }
+        records = next
         notifyState()
     }
 
@@ -308,6 +356,13 @@ final class FishMessengerService: NSObject {
 
     func createProfile(displayName: String, relayURL: URL, setupToken: String) async throws {
         guard profile == nil else { return }
+        guard !profileCreationInProgress else { throw FishMessengerServiceError.profileCreationInProgress }
+        let normalizedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedName.isEmpty, normalizedName.utf8.count <= 48 else {
+            throw FishMessengerError.invalidMessage
+        }
+        profileCreationInProgress = true
+        defer { profileCreationInProgress = false }
         let identity = FishMessengerIdentity()
         let inbox = try await relay.createInbox(at: relayURL, setupToken: setupToken)
         let next = FishMessengerProfile(
@@ -316,12 +371,13 @@ final class FishMessengerService: NSObject {
             readToken: inbox.readToken,
             deliveryToken: inbox.deliveryToken,
             privateKey: identity.rawPrivateKey.base64EncodedString(),
-            displayName: displayName,
+            displayName: normalizedName,
             contacts: []
         )
         try vault.save(next)
         profile = next
         notifyState()
+        schedulePollingIfNeeded()
     }
 
     func inviteCode() throws -> String {
@@ -381,13 +437,26 @@ final class FishMessengerService: NSObject {
     }
 
     func start() {
-        guard pollTimer == nil, profile != nil else { return }
+        pollingRequested = true
+        schedulePollingIfNeeded()
+    }
+
+    private func schedulePollingIfNeeded() {
+        guard FishMessengerPollingPolicy.shouldSchedule(
+            startRequested: pollingRequested,
+            hasProfile: profile != nil,
+            hasTimer: pollTimer != nil
+        ) else { return }
         pollTimer = Timer.scheduledTimer(timeInterval: 8, target: self, selector: #selector(pollTimerFired), userInfo: nil, repeats: true)
         if let pollTimer { RunLoop.main.add(pollTimer, forMode: .common) }
         Task { await poll() }
     }
 
-    func stop() { pollTimer?.invalidate(); pollTimer = nil }
+    func stop() {
+        pollingRequested = false
+        pollTimer?.invalidate()
+        pollTimer = nil
+    }
 
     @objc private func pollTimerFired() { Task { await poll() } }
 
@@ -398,24 +467,33 @@ final class FishMessengerService: NSObject {
         do {
             let relayRecords = try await relay.receive(profile: receiveProfile)
             var acknowledged: [String] = []
+            var acknowledgementsRequiringPersistence: [String] = []
             guard let privateKey = Data(base64Encoded: receiveProfile.privateKey) else {
                 throw FishMessengerVaultError.invalidState
             }
             let identity = try FishMessengerIdentity(rawPrivateKey: privateKey)
-            var seenMessageIDs = Set(records.map(\.id))
+            let persistedMessageIDs = Set(records.map(\.id))
+            var pendingMessageIDs = Set<UUID>()
             var stateChanged = false
             var profileChanged = false
             var deliveries: [(FishMessage, FishContact)] = []
+            let previousRecords = records
+            let previousProfile = profile
+            let previousActiveVisitContactID = activeVisitContactID
+            var incomingPersistenceSucceeded = true
 
             for record in relayRecords {
-                acknowledged.append(record.id)
                 guard let contact = profile?.contacts.first(where: {
                     $0.invite.publicKey == record.envelope.senderPublicKey
                 }) else {
+                    acknowledged.append(record.id)
                     report(FishMessengerServiceError.rejectedUnknownSender)
                     continue
                 }
-                guard !contact.blocked else { continue }
+                guard !contact.blocked else {
+                    acknowledged.append(record.id)
+                    continue
+                }
 
                 let message: FishMessage
                 do {
@@ -424,10 +502,16 @@ final class FishMessengerService: NSObject {
                         expectedSenderPublicKey: contact.invite.publicKey
                     )
                 } catch {
+                    acknowledged.append(record.id)
                     report(FishMessengerServiceError.rejectedInvalidEnvelope)
                     continue
                 }
-                guard seenMessageIDs.insert(message.id).inserted else { continue }
+                if persistedMessageIDs.contains(message.id) {
+                    acknowledged.append(record.id)
+                    continue
+                }
+                acknowledgementsRequiringPersistence.append(record.id)
+                guard pendingMessageIDs.insert(message.id).inserted else { continue }
 
                 let kind = message.kind ?? .text
                 FishMessageHistory.append(FishMessageRecord(
@@ -468,19 +552,33 @@ final class FishMessengerService: NSObject {
                 }
             }
 
-            if profileChanged, let updated = profile {
-                do {
-                    try vault.save(updated)
-                } catch {
-                    reportPersistenceFailure(error, operation: "contact presence")
+            if stateChanged {
+                if persistState(operation: "incoming messages") {
+                    if profileChanged, let updated = profile {
+                        do {
+                            try vault.save(updated)
+                        } catch {
+                            reportPersistenceFailure(error, operation: "contact presence")
+                        }
+                    }
+                    notifyState()
+                } else {
+                    incomingPersistenceSucceeded = false
+                    records = previousRecords
+                    profile = previousProfile
+                    activeVisitContactID = previousActiveVisitContactID
+                    deliveries.removeAll()
                 }
             }
-            if stateChanged {
-                persistState(operation: "incoming messages")
-                notifyState()
-            }
             for delivery in deliveries { onMessage?(delivery.0, delivery.1) }
-            try await relay.acknowledge(Array(Set(acknowledged)), profile: receiveProfile)
+            let uniqueAcknowledgements = FishRelayAcknowledgementPolicy.resolved(
+                immediatelySafe: acknowledged,
+                requiringPersistence: acknowledgementsRequiringPersistence,
+                persistenceSucceeded: incomingPersistenceSucceeded
+            )
+            if !uniqueAcknowledgements.isEmpty {
+                try await relay.acknowledge(uniqueAcknowledgements, profile: receiveProfile)
+            }
         } catch {
             report(error)
         }
@@ -491,11 +589,21 @@ final class FishMessengerService: NSObject {
         return profile
     }
 
-    private func persistState(operation: String) {
+    @discardableResult
+    private func persistState(
+        preferences: FishFriendPreferences? = nil,
+        records: [FishMessageRecord]? = nil,
+        operation: String
+    ) -> Bool {
         do {
-            try friendStore.save(preferences: preferences, records: records)
+            try friendStore.save(
+                preferences: preferences ?? self.preferences,
+                records: records ?? self.records
+            )
+            return true
         } catch {
             reportPersistenceFailure(error, operation: operation)
+            return false
         }
     }
 

@@ -1,5 +1,58 @@
 import Foundation
 
+enum RecoverableDirectoryInstallError: Error, LocalizedError {
+    case rollbackFailed(installation: String, rollback: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .rollbackFailed(let installation, let rollback):
+            return "Installation failed (\(installation)); rollback also failed (\(rollback))."
+        }
+    }
+}
+
+enum RecoverableDirectoryInstaller {
+    static func replace(
+        target: URL,
+        with temporary: URL,
+        backup: URL,
+        moveIntoPlace: ((FileManager, URL, URL) throws -> Void)? = nil
+    ) throws {
+        let fileManager = FileManager.default
+        var movedExisting = false
+        do {
+            if fileManager.fileExists(atPath: target.path) {
+                try fileManager.moveItem(at: target, to: backup)
+                movedExisting = true
+            }
+            if let moveIntoPlace {
+                try moveIntoPlace(fileManager, temporary, target)
+            } else {
+                try fileManager.moveItem(at: temporary, to: target)
+            }
+        } catch {
+            let installationError = error
+            try? fileManager.removeItem(at: temporary)
+            guard movedExisting else { throw installationError }
+            do {
+                guard !fileManager.fileExists(atPath: target.path) else {
+                    throw CocoaError(.fileWriteFileExists)
+                }
+                try fileManager.moveItem(at: backup, to: target)
+            } catch {
+                throw RecoverableDirectoryInstallError.rollbackFailed(
+                    installation: installationError.localizedDescription,
+                    rollback: error.localizedDescription
+                )
+            }
+            throw installationError
+        }
+        // The new target is already in place. A backup cleanup failure leaves a
+        // recoverable hidden directory and must not be reported as install failure.
+        if movedExisting { try? fileManager.removeItem(at: backup) }
+    }
+}
+
 struct IntegrationStatus: Equatable {
     let provider: String
     let cliFound: Bool
@@ -109,18 +162,7 @@ final class IntegrationManager {
         let senderTarget = bin.appendingPathComponent("blobfish-agent-event-sender")
         try FileManager.default.copyItem(at: senderSource, to: senderTarget)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: senderTarget.path)
-        var movedExisting = false
-        do {
-            if FileManager.default.fileExists(atPath: target.path) {
-                try FileManager.default.moveItem(at: target, to: backup); movedExisting = true
-            }
-            try FileManager.default.moveItem(at: temporary, to: target)
-            if movedExisting { try? FileManager.default.removeItem(at: backup) }
-        } catch {
-            try? FileManager.default.removeItem(at: temporary)
-            if movedExisting, !FileManager.default.fileExists(atPath: target.path) { try? FileManager.default.moveItem(at: backup, to: target) }
-            throw error
-        }
+        try RecoverableDirectoryInstaller.replace(target: target, with: temporary, backup: backup)
         return target
     }
 
