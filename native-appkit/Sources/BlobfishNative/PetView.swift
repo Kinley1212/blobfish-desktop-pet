@@ -260,6 +260,65 @@ enum ExpressionCanvasGeometry {
     }
 }
 
+enum ClockAccessoryPositionGeometry {
+    static func centeredRect(
+        offsetX: CGFloat,
+        offsetY: CGFloat,
+        canvas: CGRect,
+        characterBounds: CGRect,
+        containerBounds: CGRect,
+        renderedSize: CGSize
+    ) -> CGRect {
+        guard canvas.width > 0, canvas.height > 0,
+              characterBounds.width > 0, characterBounds.height > 0 else {
+            return CGRect(
+                x: containerBounds.midX - renderedSize.width / 2,
+                y: containerBounds.midY - renderedSize.height / 2,
+                width: renderedSize.width,
+                height: renderedSize.height
+            )
+        }
+        let scaleX = characterBounds.width / canvas.width
+        let scaleY = characterBounds.height / canvas.height
+        let halfWidth = renderedSize.width / 2
+        let halfHeight = renderedSize.height / 2
+        let allowedX = centerRange(
+            minimum: containerBounds.minX,
+            maximum: containerBounds.maxX,
+            halfExtent: halfWidth
+        )
+        let allowedY = centerRange(
+            minimum: containerBounds.minY,
+            maximum: containerBounds.maxY,
+            halfExtent: halfHeight
+        )
+        let requestedX = characterBounds.midX + offsetX * scaleX
+        let requestedY = characterBounds.midY - offsetY * scaleY
+        let centerX = min(allowedX.upperBound, max(allowedX.lowerBound, requestedX))
+        let centerY = min(allowedY.upperBound, max(allowedY.lowerBound, requestedY))
+        return CGRect(
+            x: centerX - halfWidth,
+            y: centerY - halfHeight,
+            width: renderedSize.width,
+            height: renderedSize.height
+        )
+    }
+
+    private static func centerRange(
+        minimum: CGFloat,
+        maximum: CGFloat,
+        halfExtent: CGFloat
+    ) -> ClosedRange<CGFloat> {
+        let lower = minimum + halfExtent
+        let upper = maximum - halfExtent
+        guard lower <= upper else {
+            let center = (minimum + maximum) / 2
+            return center...center
+        }
+        return lower...upper
+    }
+}
+
 enum PetViewContentMode {
     case artwork
     case overlay
@@ -998,23 +1057,35 @@ final class PetView: NSView, CALayerDelegate {
             // face's, or accessories on that origin end up shifted relative
             // to the body. Tunable props keep their existing offset contract
             // and remain independent.
-            let targetAnchor = ExpressionCanvasGeometry.targetAnchor(
-                slotX: slot.x + tuning.offsetX,
-                slotY: slot.y + tuning.offsetY,
-                canvas: canvas,
-                target: target
-            )
-            let targetX = targetAnchor.x
-            let targetY = targetAnchor.y
             let imageSize = image.size
             let isClock = pack.manifest.slot == "clock"
             let shake = alarmRinging && isClock ? sin(clockShakePhase) * 3 : 0
-            var rect = NSRect(
-                x: targetX - pack.manifest.anchor.x * unitX + shake,
-                y: targetY - (imageSize.height - pack.manifest.anchor.y) * unitY,
-                width: imageSize.width * unitX,
-                height: imageSize.height * unitY
-            )
+            let renderedSize = NSSize(width: imageSize.width * unitX, height: imageSize.height * unitY)
+            var rect: NSRect
+            if isClock {
+                rect = ClockAccessoryPositionGeometry.centeredRect(
+                    offsetX: tuning.offsetX,
+                    offsetY: tuning.offsetY,
+                    canvas: canvas,
+                    characterBounds: target,
+                    containerBounds: bounds,
+                    renderedSize: renderedSize
+                )
+                rect.origin.x += shake
+            } else {
+                let targetAnchor = ExpressionCanvasGeometry.targetAnchor(
+                    slotX: slot.x + tuning.offsetX,
+                    slotY: slot.y + tuning.offsetY,
+                    canvas: canvas,
+                    target: target
+                )
+                rect = NSRect(
+                    x: targetAnchor.x - pack.manifest.anchor.x * unitX,
+                    y: targetAnchor.y - (imageSize.height - pack.manifest.anchor.y) * unitY,
+                    width: renderedSize.width,
+                    height: renderedSize.height
+                )
+            }
             var alpha: CGFloat = 1
             var rotation: CGFloat = 0
             if isClock, let phase = alarmClockTransitionPhase {

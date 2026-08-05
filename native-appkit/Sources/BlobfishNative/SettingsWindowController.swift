@@ -998,8 +998,10 @@ struct BrandedSettingsView: View {
         let verticalRange = AccessoryTuningLimits.vertical(for: id)
         return VStack(alignment: .leading, spacing: 6) {
             accessorySlider(t("大小", "Size"), id: id, key: "size", range: 0.4...2, fallback: 1)
-            accessorySlider(t("宽度", "Width"), id: id, key: "width", range: 0.5...1.8, fallback: 1)
-            accessorySlider(t("高度", "Height"), id: id, key: "height", range: 0.5...1.8, fallback: 1)
+            if !AccessoryTuningLimits.isClock(id) {
+                accessorySlider(t("宽度", "Width"), id: id, key: "width", range: 0.5...1.8, fallback: 1)
+                accessorySlider(t("高度", "Height"), id: id, key: "height", range: 0.5...1.8, fallback: 1)
+            }
             accessorySlider(t("左右", "Horizontal"), id: id, key: "offsetX", range: horizontalRange, fallback: 0)
             accessorySlider(t("上下", "Vertical"), id: id, key: "offsetY", range: verticalRange, fallback: 0)
         }

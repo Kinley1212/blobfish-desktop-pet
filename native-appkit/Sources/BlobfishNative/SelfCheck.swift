@@ -19,6 +19,7 @@ enum SelfCheck {
             ("shared runtime recovery", sharedRuntimeRecovery),
             ("custom SVG and accessory rendering", customSVGAndAccessoryRendering),
             ("alarm clock tuning has a wider safe range", alarmClockTuningHasWiderSafeRange),
+            ("alarm clock position uses fish center", alarmClockPositionUsesFishCenter),
             ("shared alarm and timer state", sharedAlarmAndTimerState),
             ("clock sound draft preserves appearance", clockSoundDraftPreservesAppearance),
             ("clock and message styles migrate safely", visualStyleSelectionsMigrateSafely),
@@ -676,6 +677,8 @@ enum SelfCheck {
         let specification: JSONValue = .object([
             "offsetX": .number(96),
             "offsetY": .number(-74),
+            "width": .number(0.5),
+            "height": .number(1.8),
         ])
         let clock = AccessoryTuning(specification, accessoryID: "alarm-clock-seafoam")
         let ordinary = AccessoryTuning(specification, accessoryID: "crown")
@@ -685,10 +688,39 @@ enum SelfCheck {
         ]), accessoryID: "alarm-clock")
         return clock.offsetX == 96
             && clock.offsetY == -74
+            && clock.width == 1
+            && clock.height == 1
             && ordinary.offsetX == 30
             && ordinary.offsetY == -30
-            && clampedClock.offsetX == 100
-            && clampedClock.offsetY == -80
+            && ordinary.width == 0.5
+            && ordinary.height == 1.8
+            && clampedClock.offsetX == 240
+            && clampedClock.offsetY == -180
+    }
+
+    private static func alarmClockPositionUsesFishCenter() -> Bool {
+        let container = CGRect(x: 0, y: 0, width: 340, height: 165)
+        let character = CGRect(x: 117.5, y: 10, width: 105, height: 90)
+        let canvas = CGRect(x: 0, y: 0, width: 140, height: 120)
+        let size = CGSize(width: 38, height: 38)
+        let centered = ClockAccessoryPositionGeometry.centeredRect(
+            offsetX: 0, offsetY: 0, canvas: canvas,
+            characterBounds: character, containerBounds: container, renderedSize: size
+        )
+        let farTopRight = ClockAccessoryPositionGeometry.centeredRect(
+            offsetX: 999, offsetY: -999, canvas: canvas,
+            characterBounds: character, containerBounds: container, renderedSize: size
+        )
+        let farBottomLeft = ClockAccessoryPositionGeometry.centeredRect(
+            offsetX: -999, offsetY: 999, canvas: canvas,
+            characterBounds: character, containerBounds: container, renderedSize: size
+        )
+        return abs(centered.midX - character.midX) < 0.001
+            && abs(centered.midY - character.midY) < 0.001
+            && abs(farTopRight.maxX - container.maxX) < 0.001
+            && abs(farTopRight.maxY - container.maxY) < 0.001
+            && abs(farBottomLeft.minX - container.minX) < 0.001
+            && abs(farBottomLeft.minY - container.minY) < 0.001
     }
 
     private static func sharedAlarmAndTimerState() throws -> Bool {
