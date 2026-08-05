@@ -16,6 +16,7 @@ const {
   normalizeAccessories,
   normalizeAccessoryMap,
   supportsAccessories,
+  tuningFieldsForAccessory,
   withAccessoryEquipped,
 } = require('../src/core/accessory-model');
 const { loadAccessory, loadAccessoryCatalog, validateAccessoryManifest } = require('../src/core/accessory-loader');
@@ -67,15 +68,27 @@ test('a system prop can be equipped temporarily without mutating the saved spec'
 test('alarm clocks keep a wider movement range without widening ordinary accessories', () => {
   const spec = normalizeAccessories({
     tuning: {
-      'alarm-clock-plum-night': { offsetX: 96, offsetY: -74 },
-      crown: { offsetX: 96, offsetY: -74 },
+      'alarm-clock-plum-night': { width: 0.5, height: 1.8, offsetX: 999, offsetY: -999 },
+      crown: { width: 0.5, height: 1.8, offsetX: 96, offsetY: -74 },
     },
   });
 
-  assert.equal(getTuning(spec, 'alarm-clock-plum-night').offsetX, 96);
-  assert.equal(getTuning(spec, 'alarm-clock-plum-night').offsetY, -74);
+  assert.equal(getTuning(spec, 'alarm-clock-plum-night').offsetX, 240);
+  assert.equal(getTuning(spec, 'alarm-clock-plum-night').offsetY, -180);
+  assert.equal(getTuning(spec, 'alarm-clock-plum-night').width, 1);
+  assert.equal(getTuning(spec, 'alarm-clock-plum-night').height, 1);
   assert.equal(getTuning(spec, 'crown').offsetX, 30);
   assert.equal(getTuning(spec, 'crown').offsetY, -30);
+  assert.equal(getTuning(spec, 'crown').width, 0.5);
+  assert.equal(getTuning(spec, 'crown').height, 1.8);
+  assert.deepEqual(
+    tuningFieldsForAccessory('alarm-clock-honey').map(({ key, min, max }) => ({ key, min, max })),
+    [
+      { key: 'size', min: 0.4, max: 2 },
+      { key: 'offsetX', min: -240, max: 240 },
+      { key: 'offsetY', min: -180, max: 180 },
+    ],
+  );
 });
 
 test('out-of-range and unreadable values are clamped instead of rejected', () => {
@@ -142,6 +155,18 @@ test('size scales both axes and width and height stretch on top of it', () => {
   assert.equal(
     accessoryTransform(anchor, art, { size: 1.2, width: 1, height: 0.5, offsetX: -4, offsetY: 2 }),
     'translate(66 22) scale(1.38 0.69) translate(-50 -76)',
+  );
+});
+
+test('clock transforms use the character center as the zero point', () => {
+  assert.equal(
+    accessoryTransform(
+      { x: 20, y: 79, scale: 0.38 },
+      { x: 16, y: 27 },
+      { size: 1, width: 1, height: 1, offsetX: 0, offsetY: 0 },
+      { x: 70, y: 60 },
+    ),
+    'translate(70 60) scale(0.38 0.38) translate(-50 -50)',
   );
 });
 
