@@ -76,6 +76,8 @@ enum SelfCheck {
             ("fish acknowledgement waits for persistence", fishAcknowledgementWaitsForPersistence),
             ("fish polling waits for profile without losing start intent", fishPollingWaitsForProfile),
             ("fish chat preserves a changed draft", fishChatPreservesChangedDraft),
+            ("fish history opens the intended contact", fishHistoryOpensIntendedContact),
+            ("fish composer chooses an explicit recipient", fishComposerChoosesExplicitRecipient),
             ("task monitor drops callbacks after stop", taskMonitorDropsCallbacksAfterStop),
             ("bounded reminder history keeps recent deduplication", boundedReminderHistoryKeepsRecentDeduplication),
         ]
@@ -342,6 +344,53 @@ enum SelfCheck {
                 sentContactID: sentContactID
             )
             && String(repeating: "鱼", count: 334).utf8.count > FishMessage.maximumTextBytes
+    }
+
+    private static func fishHistoryOpensIntendedContact() -> Bool {
+        let first = UUID(), second = UUID(), missing = UUID()
+        return FishHistorySelectionPolicy.select(
+            availableContactIDs: [first, second],
+            requestedContactID: second,
+            newestUnreadContactID: first,
+            currentContactID: first,
+            preferUnread: true
+        ) == second
+            && FishHistorySelectionPolicy.select(
+                availableContactIDs: [first, second],
+                requestedContactID: missing,
+                newestUnreadContactID: second,
+                currentContactID: first,
+                preferUnread: true
+            ) == second
+            && FishHistorySelectionPolicy.select(
+                availableContactIDs: [first],
+                requestedContactID: nil,
+                newestUnreadContactID: nil,
+                currentContactID: second,
+                preferUnread: false
+            ) == first
+    }
+
+    private static func fishComposerChoosesExplicitRecipient() -> Bool {
+        let first = UUID(), active = UUID(), preferred = UUID(), missing = UUID()
+        return FishComposeRecipientPolicy.select(
+            availableContactIDs: [first, active, preferred],
+            preferredContactID: preferred,
+            activeVisitContactID: active,
+            currentContactID: first
+        ) == preferred
+            && FishComposeRecipientPolicy.select(
+                availableContactIDs: [first, active],
+                preferredContactID: missing,
+                activeVisitContactID: active,
+                currentContactID: first
+            ) == active
+            && FishComposeRecipientPolicy.select(
+                availableContactIDs: [first],
+                preferredContactID: nil,
+                activeVisitContactID: nil,
+                currentContactID: missing
+            ) == first
     }
 
     private static func hoverAndMenuPausePetMotion() -> Bool {

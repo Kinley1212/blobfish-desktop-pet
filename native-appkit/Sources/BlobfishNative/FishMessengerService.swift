@@ -531,10 +531,16 @@ final class FishMessengerService: NSObject {
         notifyState()
     }
 
+    struct SendResult {
+        let record: FishMessageRecord
+        let historyPersisted: Bool
+    }
+
+    @discardableResult
     func send(
         text: String, to contactID: UUID, replyTo: UUID? = nil,
         kind: FishMessageKind = .text, presence: FishPresence? = nil
-    ) async throws {
+    ) async throws -> SendResult {
         let profile = try requiredProfile()
         guard let contact = profile.contacts.first(where: { $0.id == contactID }), !contact.blocked,
               let privateKey = Data(base64Encoded: profile.privateKey) else { throw FishMessengerError.invalidInvite }
@@ -549,19 +555,21 @@ final class FishMessengerService: NSObject {
         )
         let envelope = try FishMessengerIdentity(rawPrivateKey: privateKey).encrypt(message, for: contact.invite.publicKey)
         try await relay.deliver(envelope, to: contact.invite)
-        FishMessageHistory.append(FishMessageRecord(
+        let outgoingRecord = FishMessageRecord(
             id: message.id, contactID: contact.id, direction: .outgoing, sentAt: message.sentAt,
             senderName: profile.displayName, text: message.text, kind: kind, isRead: true,
             bubbleColor: message.bubbleColor, presence: presence
-        ), to: &records)
+        )
+        FishMessageHistory.append(outgoingRecord, to: &records)
         activeVisitContactID = FishVisitPolicy.activeContactID(
             after: kind,
             from: contact,
             current: activeVisitContactID,
             preferences: preferences
         )
-        persistState(operation: "outgoing message")
+        let historyPersisted = persistState(operation: "outgoing message")
         notifyState()
+        return SendResult(record: outgoingRecord, historyPersisted: historyPersisted)
     }
 
     func start() {

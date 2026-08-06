@@ -178,6 +178,8 @@ final class PetPanelController {
     private var friendBubbleTimer: Timer?
     private var speakingTimers: [PetMessageSpeaker: Timer] = [:]
     private var speakingPresentations: [PetMessageSpeaker: PetSpeakingPresentation] = [:]
+    private var displayedVisitPresence: FishPresence?
+    private var displayedVisitFriendName: String?
     private var interactionPaused = false
     private var hoverPaused = false
     private var menuPaused = false
@@ -455,6 +457,11 @@ final class PetPanelController {
     }
 
     func showVisit(presence: FishPresence, friendName: String, runtime: AppRuntime) {
+        if !guestView.isHidden,
+           displayedVisitPresence == presence,
+           displayedVisitFriendName == friendName {
+            return
+        }
         guard let character = try? runtime.catalog?.character(id: presence.characterPackID) else { return }
         guestView.character = character
         guestView.characterScale = min(0.82, config.pet.scale * 0.82)
@@ -465,6 +472,8 @@ final class PetPanelController {
         guestView.updateMotion(elapsed: 0, bobOffset: 0)
         guestView.isHidden = false
         overlayView.visitingFriendName = friendName
+        displayedVisitPresence = presence
+        displayedVisitFriendName = friendName
         syncSceneOverlay()
         preciseOrigin = nil
         bobBaselineY = nil
@@ -472,6 +481,8 @@ final class PetPanelController {
 
     func endVisit() {
         guestView.isHidden = true
+        displayedVisitPresence = nil
+        displayedVisitFriendName = nil
         overlayView.visitingFriendName = nil
         overlayView.companionCharacterBounds = nil
         overlayView.friendMessageBubbles.removeAll { $0.speaker == .visitor }

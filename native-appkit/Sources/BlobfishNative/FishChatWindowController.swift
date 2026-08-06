@@ -13,39 +13,75 @@ enum FishChatDraftPolicy {
     }
 }
 
+enum FishHistorySelectionPolicy {
+    static func select(
+        availableContactIDs: [UUID],
+        requestedContactID: UUID?,
+        newestUnreadContactID: UUID?,
+        currentContactID: UUID?,
+        preferUnread: Bool
+    ) -> UUID? {
+        let available = Set(availableContactIDs)
+        if let requestedContactID, available.contains(requestedContactID) {
+            return requestedContactID
+        }
+        if preferUnread, let newestUnreadContactID, available.contains(newestUnreadContactID) {
+            return newestUnreadContactID
+        }
+        if let currentContactID, available.contains(currentContactID) {
+            return currentContactID
+        }
+        return availableContactIDs.first
+    }
+}
+
+enum FishComposeRecipientPolicy {
+    static func select(
+        availableContactIDs: [UUID],
+        preferredContactID: UUID?,
+        activeVisitContactID: UUID?,
+        currentContactID: UUID?
+    ) -> UUID? {
+        let available = Set(availableContactIDs)
+        for candidate in [preferredContactID, activeVisitContactID, currentContactID] {
+            if let candidate, available.contains(candidate) { return candidate }
+        }
+        return availableContactIDs.first
+    }
+}
+
 @MainActor
 final class FishChatViewModel: ObservableObject {
     @Published private(set) var contacts: [FishContact] = []
     @Published private(set) var records: [FishMessageRecord] = []
     @Published private(set) var selectedContactID: UUID?
-    @Published var draft = ""
     @Published private(set) var isSending = false
     @Published private(set) var errorMessage = ""
 
     @Published private(set) var locale: String
     private let messengerService: FishMessengerService
     private let presenceProvider: @MainActor () -> FishPresence?
-    private let onSent: @MainActor (String, FishContact) -> Void
+    private let visitPhraseProvider: @MainActor (String, String) -> String
+    private let onSent: @MainActor (FishMessengerService.SendResult, FishContact) -> Void
     private var windowIsActive = false
 
     init(
         messengerService: FishMessengerService,
         locale: String,
         presenceProvider: @escaping @MainActor () -> FishPresence?,
-        onSent: @escaping @MainActor (String, FishContact) -> Void
+        visitPhraseProvider: @escaping @MainActor (String, String) -> String,
+        onSent: @escaping @MainActor (FishMessengerService.SendResult, FishContact) -> Void
     ) {
         self.messengerService = messengerService
         self.locale = locale
         self.presenceProvider = presenceProvider
+        self.visitPhraseProvider = visitPhraseProvider
         self.onSent = onSent
         refresh()
         messengerService.addStateObserver { [weak self] in self?.refresh() }
     }
 
     var isEnglish: Bool { locale == "en" }
-    var draftByteCount: Int { draft.trimmingCharacters(in: .whitespacesAndNewlines).utf8.count }
-    var draftExceedsLimit: Bool { draftByteCount > FishMessage.maximumTextBytes }
-
     func updateLocale(_ value: String) {
         locale = value
     }
@@ -79,11 +115,30 @@ final class FishChatViewModel: ObservableObject {
     func refresh() {
         contacts = messengerService.profile?.contacts ?? []
         records = messengerService.records
+        selectedContactID = FishHistorySelectionPolicy.select(
+            availableContactIDs: contacts.map(\.id),
+            requestedContactID: nil,
+            newestUnreadContactID: records
+                .filter({ $0.direction == .incoming && !$0.isRead })
+                .max(by: { $0.sentAt < $1.sentAt })?.contactID,
+            currentContactID: selectedContactID,
+            preferUnread: selectedContactID == nil
+        )
+        markSelectedContactReadIfNeeded()
+    }
 
-        if selectedContactID == nil || !contacts.contains(where: { $0.id == selectedContactID }) {
-            selectedContactID = contacts.first(where: { unreadCount(for: $0.id) > 0 })?.id
-                ?? contacts.first?.id
-        }
+    func prepareToShow(contactID: UUID?, preferUnread: Bool) {
+        refresh()
+        selectedContactID = FishHistorySelectionPolicy.select(
+            availableContactIDs: contacts.map(\.id),
+            requestedContactID: contactID,
+            newestUnreadContactID: records
+                .filter({ $0.direction == .incoming && !$0.isRead })
+                .max(by: { $0.sentAt < $1.sentAt })?.contactID,
+            currentContactID: selectedContactID,
+            preferUnread: preferUnread
+        )
+        errorMessage = ""
         markSelectedContactReadIfNeeded()
     }
 
@@ -105,33 +160,13 @@ final class FishChatViewModel: ObservableObject {
         markSelectedContactReadIfNeeded()
     }
 
-    func sendMessage() {
-        guard let contact = selectedContact else { return }
-        let draftAtSend = draft
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !contact.blocked, !isSending else { return }
-        guard text.utf8.count <= FishMessage.maximumTextBytes else {
-            errorMessage = isEnglish
-                ? "Messages are limited to 1,000 UTF-8 bytes."
-                : "传话内容不能超过 1,000 个 UTF-8 字节。"
-            return
-        }
-        performSend(text: text, contact: contact, kind: .text, presence: nil) { [weak self] in
-            guard let self,
-                  FishChatDraftPolicy.shouldClear(
-                    currentDraft: self.draft,
-                    draftAtSend: draftAtSend,
-                    selectedContactID: self.selectedContactID,
-                    sentContactID: contact.id
-                  ) else { return }
-            self.draft = ""
-        }
-    }
-
     func toggleVisit() {
         guard let contact = selectedContact, !isSending else { return }
         if isActiveVisit(contact.id) {
-            let text = isEnglish ? "See you next time." : "下次再玩。"
+            let text = visitPhraseProvider(
+                "messenger.visitEnd",
+                isEnglish ? "See you next time." : "下次再玩。"
+            )
             performSend(text: text, contact: contact, kind: .visitEnd, presence: nil)
             return
         }
@@ -143,7 +178,10 @@ final class FishChatViewModel: ObservableObject {
                 : "目前不能邀请这位好友串门。"
             return
         }
-        let text = isEnglish ? "Coming over to visit!" : "来串门啦！"
+        let text = visitPhraseProvider(
+            "messenger.visitStart",
+            isEnglish ? "Coming over to visit!" : "來串門啦！"
+        )
         performSend(text: text, contact: contact, kind: .visitStart, presence: presence)
     }
 
@@ -165,14 +203,19 @@ final class FishChatViewModel: ObservableObject {
             guard let self else { return }
             defer { self.isSending = false }
             do {
-                try await self.messengerService.send(
+                let result = try await self.messengerService.send(
                     text: text,
                     to: contact.id,
                     kind: kind,
                     presence: presence
                 )
                 onSuccess?()
-                self.onSent(text, contact)
+                if !result.historyPersisted {
+                    self.errorMessage = self.isEnglish
+                        ? "Delivered, but the local history could not be saved. Do not resend it."
+                        : "已经送达，但本地历史未能保存，请不要重复发送。"
+                }
+                self.onSent(result, contact)
                 self.refresh()
             } catch {
                 self.errorMessage = error.localizedDescription
@@ -203,7 +246,7 @@ struct FishChatView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Text(t("魚魚消息", "Fish Messages"))
+                Text(t("魚魚歷史", "Fish History"))
                     .font(.title3.weight(.bold))
                 Spacer()
                 if model.totalUnreadCount > 0 {
@@ -291,8 +334,6 @@ struct FishChatView: View {
                 conversationHeader(contact)
                 Divider()
                 messageTimeline
-                Divider()
-                composer(contact)
             }
         } else {
             VStack(spacing: 12) {
@@ -315,6 +356,12 @@ struct FishChatView: View {
                 Text(contactStatus(contact))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if !model.errorMessage.isEmpty {
+                    Text(model.errorMessage)
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                }
             }
             Spacer()
             Button {
@@ -343,7 +390,7 @@ struct FishChatView: View {
                             .foregroundStyle(.secondary)
                         Text(t("還沒有對話紀錄", "No messages yet"))
                             .font(.headline)
-                        Text(t("傳一句話，讓兩條魚開始聊天。", "Send a message to get the fish talking."))
+                        Text(t("可以從右鍵選單另行打開發消息視窗。", "Open the separate message composer from the context menu."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -365,39 +412,6 @@ struct FishChatView: View {
         }
     }
 
-    private func composer(_ contact: FishContact) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if !model.errorMessage.isEmpty {
-                Text(model.errorMessage)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .lineLimit(2)
-            }
-            if model.draftExceedsLimit {
-                Text(t(
-                    "\(model.draftByteCount) / \(FishMessage.maximumTextBytes) UTF-8 字节",
-                    "\(model.draftByteCount) / \(FishMessage.maximumTextBytes) UTF-8 bytes"
-                ))
-                .font(.caption)
-                .foregroundStyle(.red)
-            }
-            HStack(spacing: 10) {
-                TextField(t("輸入傳話內容…", "Type a message…"), text: $model.draft)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { model.sendMessage() }
-                Button(t("發送", "Send")) { model.sendMessage() }
-                    .keyboardShortcut(.return, modifiers: [.command])
-                    .disabled(
-                        model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            || model.isSending
-                            || contact.blocked
-                            || model.draftExceedsLimit
-                    )
-            }
-        }
-        .padding(14)
-    }
-
     private func contactStatus(_ contact: FishContact) -> String {
         if contact.blocked { return t("已封鎖", "Blocked") }
         if model.isActiveVisit(contact.id) { return t("串門中", "Visiting") }
@@ -411,6 +425,200 @@ struct FishChatView: View {
     }
 
     private func t(_ zh: String, _ en: String) -> String { model.isEnglish ? en : zh }
+}
+
+@MainActor
+final class FishMessageComposeViewModel: ObservableObject {
+    @Published private(set) var contacts: [FishContact] = []
+    @Published var selectedContactID: UUID?
+    @Published var draft = ""
+    @Published private(set) var isSending = false
+    @Published private(set) var errorMessage = ""
+    @Published private(set) var statusMessage = ""
+    @Published private(set) var locale: String
+
+    private let messengerService: FishMessengerService
+    private let onSent: @MainActor (FishMessengerService.SendResult, FishContact) -> Void
+
+    init(
+        messengerService: FishMessengerService,
+        locale: String,
+        onSent: @escaping @MainActor (FishMessengerService.SendResult, FishContact) -> Void
+    ) {
+        self.messengerService = messengerService
+        self.locale = locale
+        self.onSent = onSent
+        refreshContacts(preferredContactID: nil)
+        messengerService.addStateObserver { [weak self] in
+            self?.refreshContacts(preferredContactID: self?.selectedContactID)
+        }
+    }
+
+    var isEnglish: Bool { locale == "en" }
+    var selectedContact: FishContact? {
+        guard let selectedContactID else { return nil }
+        return contacts.first { $0.id == selectedContactID }
+    }
+    var availableContacts: [FishContact] { contacts.filter { !$0.blocked } }
+    var draftByteCount: Int {
+        draft.trimmingCharacters(in: .whitespacesAndNewlines).utf8.count
+    }
+    var draftExceedsLimit: Bool { draftByteCount > FishMessage.maximumTextBytes }
+    var sendDisabled: Bool {
+        draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || draftExceedsLimit
+            || isSending
+            || selectedContact?.blocked != false
+    }
+
+    func updateLocale(_ value: String) { locale = value }
+
+    func prepareToShow(preferredContactID: UUID?) {
+        refreshContacts(preferredContactID: preferredContactID)
+        errorMessage = ""
+        statusMessage = ""
+    }
+
+    func sendMessage() {
+        guard let contact = selectedContact else { return }
+        let draftAtSend = draft
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !contact.blocked, !isSending else { return }
+        guard text.utf8.count <= FishMessage.maximumTextBytes else {
+            errorMessage = isEnglish
+                ? "Messages are limited to 1,000 UTF-8 bytes."
+                : "傳話內容不能超過 1,000 個 UTF-8 字節。"
+            return
+        }
+        isSending = true
+        errorMessage = ""
+        statusMessage = ""
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isSending = false }
+            do {
+                let result = try await self.messengerService.send(text: text, to: contact.id)
+                self.onSent(result, contact)
+                if FishChatDraftPolicy.shouldClear(
+                    currentDraft: self.draft,
+                    draftAtSend: draftAtSend,
+                    selectedContactID: self.selectedContactID,
+                    sentContactID: contact.id
+                ) {
+                    self.draft = ""
+                }
+                self.statusMessage = result.historyPersisted
+                    ? (self.isEnglish ? "Delivered." : "已送達。")
+                    : (self.isEnglish
+                        ? "Delivered, but the local history could not be saved. Do not resend it."
+                        : "已經送達，但本地歷史未能保存，請不要重複發送。")
+            } catch {
+                self.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func refreshContacts(preferredContactID: UUID?) {
+        contacts = messengerService.profile?.contacts ?? []
+        let candidates = contacts.filter { !$0.blocked }
+        selectedContactID = FishComposeRecipientPolicy.select(
+            availableContactIDs: candidates.map(\.id),
+            preferredContactID: preferredContactID,
+            activeVisitContactID: messengerService.activeVisitContactID,
+            currentContactID: selectedContactID
+        )
+    }
+}
+
+private struct FishMessageComposeView: View {
+    @ObservedObject var model: FishMessageComposeViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if model.availableContacts.isEmpty {
+                Text(t("還沒有可以傳話的魚友，請先在設定中完成配對。", "Pair a fish in Settings before sending a message."))
+                    .foregroundStyle(.secondary)
+            } else {
+                if model.availableContacts.count > 1 {
+                    Picker(t("收件魚友", "Recipient"), selection: $model.selectedContactID) {
+                        ForEach(model.availableContacts) { contact in
+                            Text(contact.nickname ?? contact.invite.displayName)
+                                .tag(Optional(contact.id))
+                        }
+                    }
+                } else if let contact = model.selectedContact {
+                    Text(t("傳話給：", "To: ") + (contact.nickname ?? contact.invite.displayName))
+                        .font(.headline)
+                }
+
+                TextField(t("想讓水滴魚說什麼？", "What should your fish say?"), text: $model.draft)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { model.sendMessage() }
+
+                HStack(alignment: .firstTextBaseline) {
+                    if model.draftExceedsLimit {
+                        Text("\(model.draftByteCount) / \(FishMessage.maximumTextBytes) UTF-8")
+                            .foregroundStyle(.red)
+                    } else if !model.errorMessage.isEmpty {
+                        Text(model.errorMessage).foregroundStyle(.red).lineLimit(2)
+                    } else if !model.statusMessage.isEmpty {
+                        Text(model.statusMessage).foregroundStyle(.secondary).lineLimit(2)
+                    } else {
+                        Text(t("最多 1,000 個 UTF-8 字節。", "Up to 1,000 UTF-8 bytes."))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button(model.isSending ? t("發送中…", "Sending…") : t("發送", "Send")) {
+                        model.sendMessage()
+                    }
+                    .keyboardShortcut(.return, modifiers: [.command])
+                    .disabled(model.sendDisabled)
+                }
+                .font(.caption)
+            }
+        }
+        .padding(18)
+        .frame(width: 460)
+    }
+
+    private func t(_ zh: String, _ en: String) -> String { model.isEnglish ? en : zh }
+}
+
+@MainActor
+final class FishMessageComposeWindowController: NSWindowController {
+    private let viewModel: FishMessageComposeViewModel
+
+    init(
+        messengerService: FishMessengerService,
+        locale: String,
+        onSent: @escaping @MainActor (FishMessengerService.SendResult, FishContact) -> Void
+    ) {
+        let viewModel = FishMessageComposeViewModel(
+            messengerService: messengerService,
+            locale: locale,
+            onSent: onSent
+        )
+        self.viewModel = viewModel
+        let hosting = NSHostingController(rootView: FishMessageComposeView(model: viewModel))
+        let window = NSWindow(contentViewController: hosting)
+        window.title = locale == "en" ? "Send Fish Message" : "讓魚傳話"
+        window.styleMask = [.titled, .closable]
+        window.isReleasedWhenClosed = false
+        window.center()
+        super.init(window: window)
+    }
+
+    func showComposer(preferredContactID: UUID? = nil) {
+        viewModel.prepareToShow(preferredContactID: preferredContactID)
+        showWindow(nil)
+    }
+
+    func updateLocale(_ locale: String) {
+        viewModel.updateLocale(locale)
+        window?.title = locale == "en" ? "Send Fish Message" : "讓魚傳話"
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
 
 private struct FishChatMessageRow: View {
@@ -467,18 +675,20 @@ final class FishChatWindowController: NSWindowController, NSWindowDelegate {
         messengerService: FishMessengerService,
         locale: String = "zh-CN",
         presenceProvider: @escaping @MainActor () -> FishPresence?,
-        onSent: @escaping @MainActor (String, FishContact) -> Void = { _, _ in }
+        visitPhraseProvider: @escaping @MainActor (String, String) -> String = { _, fallback in fallback },
+        onSent: @escaping @MainActor (FishMessengerService.SendResult, FishContact) -> Void = { _, _ in }
     ) {
         let viewModel = FishChatViewModel(
             messengerService: messengerService,
             locale: locale,
             presenceProvider: presenceProvider,
+            visitPhraseProvider: visitPhraseProvider,
             onSent: onSent
         )
         self.viewModel = viewModel
         let hosting = NSHostingController(rootView: FishChatView(model: viewModel))
         let window = NSWindow(contentViewController: hosting)
-        window.title = locale == "en" ? "Fish Messages" : "魚魚消息"
+        window.title = locale == "en" ? "Fish History" : "魚魚歷史"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.setContentSize(NSSize(width: 680, height: 520))
         window.minSize = NSSize(width: 600, height: 420)
@@ -492,6 +702,11 @@ final class FishChatWindowController: NSWindowController, NSWindowDelegate {
     override func showWindow(_ sender: Any?) {
         viewModel.refresh()
         super.showWindow(sender)
+    }
+
+    func showHistory(contactID: UUID? = nil, preferUnread: Bool = false) {
+        viewModel.prepareToShow(contactID: contactID, preferUnread: preferUnread)
+        showWindow(nil)
     }
 
     func windowDidBecomeKey(_ notification: Notification) {
@@ -508,7 +723,7 @@ final class FishChatWindowController: NSWindowController, NSWindowDelegate {
 
     func updateLocale(_ locale: String) {
         viewModel.updateLocale(locale)
-        window?.title = locale == "en" ? "Fish Messages" : "魚魚消息"
+        window?.title = locale == "en" ? "Fish History" : "魚魚歷史"
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
