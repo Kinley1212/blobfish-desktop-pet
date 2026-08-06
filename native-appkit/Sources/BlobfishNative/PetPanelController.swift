@@ -52,6 +52,15 @@ enum PetMotionTiming {
         CGFloat(speed * pointsPerSecondPerSpeedUnit * max(0, min(elapsed, 0.05)))
     }
 
+    static func advancedBobElapsed(
+        current: TimeInterval,
+        frameElapsed: TimeInterval,
+        paused: Bool
+    ) -> TimeInterval {
+        guard !paused else { return current }
+        return current + max(0, min(frameElapsed, 0.05))
+    }
+
     static func swimOffset(elapsed: TimeInterval, characterID: String = "blobfish", state: State = .idle) -> CGFloat {
         let period: TimeInterval
         let distance: Double
@@ -172,6 +181,7 @@ final class PetPanelController {
     private var preciseOrigin: NSPoint?
     private var lastFrameUptime: TimeInterval?
     private let motionStartUptime = ProcessInfo.processInfo.systemUptime
+    private var bobElapsed: TimeInterval = 0
     private var lastAutomaticOrigin: NSPoint?
     private var config: AppConfig
     private var interactionTimer: Timer?
@@ -398,7 +408,6 @@ final class PetPanelController {
         menuPaused = paused
         if paused {
             flingVelocity = nil
-            petView.updateMotion(elapsed: petView.motionElapsed, bobOffset: 0)
             syncSceneOverlay()
         }
     }
@@ -535,17 +544,22 @@ final class PetPanelController {
         lastFrameUptime = uptime
         let step = PetMotionTiming.travelDistance(speed: config.pet.speed, elapsed: elapsed)
         let motionElapsed = uptime - motionStartUptime
-        let bob = PetMotionTiming.swimOffset(
-            elapsed: motionElapsed,
-            characterID: petView.characterID,
-            state: motionState
-        )
         updatePointerInteraction()
         let movementPaused = PetMovementPause.shouldPause(
             hovering: hoverPaused,
             menuOpen: menuPaused,
             interacting: interactionPaused,
             dragging: dragging
+        )
+        bobElapsed = PetMotionTiming.advancedBobElapsed(
+            current: bobElapsed,
+            frameElapsed: elapsed,
+            paused: movementPaused
+        )
+        let bob = PetMotionTiming.swimOffset(
+            elapsed: bobElapsed,
+            characterID: petView.characterID,
+            state: motionState
         )
         let externallyMoved = lastAutomaticOrigin.map {
             abs(actualOrigin.x - $0.x) > 1.5 || abs(actualOrigin.y - $0.y) > 1.5
@@ -557,11 +571,11 @@ final class PetPanelController {
         var origin = preciseOrigin ?? actualOrigin
         petView.updateMotion(
             elapsed: motionElapsed,
-            bobOffset: movementPaused ? 0 : bob
+            bobOffset: bob
         )
         if !guestView.isHidden {
             guestView.motionState = motionState
-            guestView.updateMotion(elapsed: motionElapsed, bobOffset: movementPaused ? 0 : bob)
+            guestView.updateMotion(elapsed: motionElapsed, bobOffset: bob)
         }
         syncSceneOverlay()
 
@@ -642,7 +656,6 @@ final class PetPanelController {
         dragging = true
         hoverPaused = false
         flingVelocity = nil
-        petView.updateMotion(elapsed: petView.motionElapsed, bobOffset: 0)
         syncSceneOverlay()
         preciseOrigin = panel.frame.origin
         lastAutomaticOrigin = panel.frame.origin

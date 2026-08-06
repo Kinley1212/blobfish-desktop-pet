@@ -46,6 +46,7 @@ enum SelfCheck {
             ("friend speaking tokens preserve base motion", friendSpeakingTokensPreserveBaseMotion),
             ("display-paced pet motion", displayPacedPetMotion),
             ("hover and menu pause pet motion", hoverAndMenuPausePetMotion),
+            ("paused bob timeline resumes without snapping", pausedBobTimelineResumesWithoutSnapping),
             ("display-timed carousel easing", displayTimedCarouselEasing),
             ("unclipped CSS-matched pet shadow", unclippedCSSMatchedPetShadow),
             ("native blush matches Electron CSS", nativeBlushMatchesElectronCSS),
@@ -399,6 +400,32 @@ enum SelfCheck {
             && PetMovementPause.shouldPause(hovering: false, menuOpen: true, interacting: false, dragging: false)
             && PetMovementPause.shouldPause(hovering: false, menuOpen: false, interacting: true, dragging: false)
             && PetMovementPause.shouldPause(hovering: false, menuOpen: false, interacting: false, dragging: true)
+    }
+
+    private static func pausedBobTimelineResumesWithoutSnapping() -> Bool {
+        let beforePause = 0.225
+        let offsetBeforePause = PetMotionTiming.swimOffset(elapsed: beforePause)
+        let whilePaused = PetMotionTiming.advancedBobElapsed(
+            current: beforePause,
+            frameElapsed: 10,
+            paused: true
+        )
+        let resumed = PetMotionTiming.advancedBobElapsed(
+            current: whilePaused,
+            frameElapsed: 1.0 / PetMotionTiming.framesPerSecond,
+            paused: false
+        )
+        let offsetAfterResume = PetMotionTiming.swimOffset(elapsed: resumed)
+        let clampedLongFrame = PetMotionTiming.advancedBobElapsed(
+            current: resumed,
+            frameElapsed: 5,
+            paused: false
+        )
+        return whilePaused == beforePause
+            && PetMotionTiming.swimOffset(elapsed: whilePaused) == offsetBeforePause
+            && resumed > whilePaused
+            && abs(offsetAfterResume - offsetBeforePause) < 0.5
+            && abs(clampedLongFrame - resumed - 0.05) < 0.000_001
     }
 
     private static func privateLeaseRecovery() throws -> Bool {
