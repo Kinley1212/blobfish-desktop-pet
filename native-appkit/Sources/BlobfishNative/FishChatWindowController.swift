@@ -615,14 +615,15 @@ final class FishMessageComposeWindowController: NSWindowController {
     ) {
         if let sceneAnchor { latestSceneAnchor = sceneAnchor }
         viewModel.prepareToShow(preferredContactID: preferredContactID)
-        showWindow(nil)
         window?.contentView?.layoutSubtreeIfNeeded()
-        repositionIfVisible()
+        reposition(force: true)
+        showWindow(nil)
     }
 
     func updateSceneAnchor(_ sceneAnchor: PetSceneAnchor) {
+        guard window?.isVisible == true else { return }
         latestSceneAnchor = sceneAnchor
-        repositionIfVisible()
+        reposition(force: false)
     }
 
     func updateLocale(_ locale: String) {
@@ -630,7 +631,7 @@ final class FishMessageComposeWindowController: NSWindowController {
         window?.title = locale == "en" ? "Send Fish Message" : "讓魚傳話"
     }
 
-    private func repositionIfVisible() {
+    private func reposition(force: Bool) {
         guard let window, let latestSceneAnchor else { return }
         let proposed = PetAttachedWindowGeometry.frame(
             windowSize: window.frame.size,
@@ -638,6 +639,7 @@ final class FishMessageComposeWindowController: NSWindowController {
         )
         guard PetAttachedWindowGeometry.shouldReposition(
             isWindowVisible: window.isVisible,
+            force: force,
             currentFrame: window.frame,
             proposedFrame: proposed
         ) else { return }

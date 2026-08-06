@@ -248,10 +248,11 @@ enum PetAttachedWindowGeometry {
 
     static func shouldReposition(
         isWindowVisible: Bool,
+        force: Bool = false,
         currentFrame: CGRect,
         proposedFrame: CGRect
     ) -> Bool {
-        isWindowVisible && currentFrame != proposedFrame
+        (force || isWindowVisible) && currentFrame != proposedFrame
     }
 
     private static func clamped(_ frame: CGRect, inside visibleFrame: CGRect) -> CGRect {

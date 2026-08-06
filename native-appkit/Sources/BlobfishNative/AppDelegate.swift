@@ -108,8 +108,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Task { @MainActor in self?.openFishMessageComposer() }
         }
         panelController.onSceneAnchorChanged = { [weak self] sceneAnchor in
+            guard let controller = self?.fishMessageComposeController,
+                  controller.window?.isVisible == true else { return }
             Task { @MainActor in
-                self?.fishMessageComposeController?.updateSceneAnchor(sceneAnchor)
+                controller.updateSceneAnchor(sceneAnchor)
             }
         }
         panelController.onUnreadBadgeClick = { [weak self] in

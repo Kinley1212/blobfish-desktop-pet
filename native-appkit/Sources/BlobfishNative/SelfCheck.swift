@@ -1110,6 +1110,12 @@ enum SelfCheck {
                 proposedFrame: hiddenFrame
             )
             && PetAttachedWindowGeometry.shouldReposition(
+                isWindowVisible: false,
+                force: true,
+                currentFrame: leftFrame,
+                proposedFrame: hiddenFrame
+            )
+            && PetAttachedWindowGeometry.shouldReposition(
                 isWindowVisible: true,
                 currentFrame: leftFrame,
                 proposedFrame: hiddenFrame
