@@ -48,6 +48,7 @@ enum SelfCheck {
             ("display-paced pet motion", displayPacedPetMotion),
             ("hover and menu pause pet motion", hoverAndMenuPausePetMotion),
             ("paused bob timeline resumes without snapping", pausedBobTimelineResumesWithoutSnapping),
+            ("bob visibility transitions smoothly across frame rates", bobVisibilityTransitionsSmoothlyAcrossFrameRates),
             ("primary double click stays distinct from drag", primaryDoubleClickStaysDistinctFromDrag),
             ("display-timed carousel easing", displayTimedCarouselEasing),
             ("unclipped CSS-matched pet shadow", unclippedCSSMatchedPetShadow),
@@ -428,6 +429,45 @@ enum SelfCheck {
             && resumed > whilePaused
             && abs(offsetAfterResume - offsetBeforePause) < 0.5
             && abs(clampedLongFrame - resumed - 0.05) < 0.000_001
+    }
+
+    private static func bobVisibilityTransitionsSmoothlyAcrossFrameRates() -> Bool {
+        func samples(fps: Int, paused: Bool, initial: CGFloat) -> [CGFloat] {
+            var value = initial
+            return (0..<Int(PetMotionTiming.bobVisibilityTransitionDuration * Double(fps))).map { _ in
+                value = PetMotionTiming.transitionedBobVisibility(
+                    current: value,
+                    frameElapsed: 1.0 / Double(fps),
+                    paused: paused
+                )
+                return value
+            }
+        }
+
+        let pauseAt60 = samples(fps: 60, paused: true, initial: 1)
+        let pauseAt120 = samples(fps: 120, paused: true, initial: 1)
+        let resumeAt60 = samples(fps: 60, paused: false, initial: 0)
+        guard let firstPaused = pauseAt60.first,
+              let firstResumed = resumeAt60.first,
+              let paused60 = pauseAt60.last,
+              let paused120 = pauseAt120.last,
+              let resumed60 = resumeAt60.last else { return false }
+        let pauseIsMonotonic = zip(pauseAt60, pauseAt60.dropFirst()).allSatisfy { pair in
+            pair.0 >= pair.1
+        }
+        let resumeIsMonotonic = zip(resumeAt60, resumeAt60.dropFirst()).allSatisfy { pair in
+            pair.0 <= pair.1
+        }
+        let rawBob = PetMotionTiming.swimOffset(elapsed: 0.225)
+        let ownerBob = rawBob * firstPaused
+        let guestBob = rawBob * firstPaused
+        return firstPaused > 0 && firstPaused < 1
+            && firstResumed > 0 && firstResumed < 1
+            && pauseIsMonotonic && resumeIsMonotonic
+            && abs(paused60 - paused120) < 0.000_001
+            && paused60 < 0.000_001
+            && resumed60 > 0.999_999
+            && ownerBob == guestBob
     }
 
     private static func primaryDoubleClickStaysDistinctFromDrag() -> Bool {

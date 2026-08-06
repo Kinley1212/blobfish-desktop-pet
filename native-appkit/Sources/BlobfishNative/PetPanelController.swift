@@ -17,6 +17,7 @@ enum PetMotionTiming {
     static let pointsPerSecondPerSpeedUnit = 1_000.0 / 30.0
     static let swimPeriod = 0.9
     static let swimDistance = 5.0
+    static let bobVisibilityTransitionDuration: TimeInterval = 0.2
 
     static func cubicBezier(
         _ progress: Double,
@@ -59,6 +60,19 @@ enum PetMotionTiming {
     ) -> TimeInterval {
         guard !paused else { return current }
         return current + max(0, min(frameElapsed, 0.05))
+    }
+
+    static func transitionedBobVisibility(
+        current: CGFloat,
+        frameElapsed: TimeInterval,
+        paused: Bool
+    ) -> CGFloat {
+        let normalized = min(1, max(0, current))
+        let elapsed = max(0, min(frameElapsed, 0.05))
+        let step = CGFloat(elapsed / bobVisibilityTransitionDuration)
+        return paused
+            ? max(0, normalized - step)
+            : min(1, normalized + step)
     }
 
     static func swimOffset(elapsed: TimeInterval, characterID: String = "blobfish", state: State = .idle) -> CGFloat {
@@ -183,6 +197,7 @@ final class PetPanelController {
     private var lastFrameUptime: TimeInterval?
     private let motionStartUptime = ProcessInfo.processInfo.systemUptime
     private var bobElapsed: TimeInterval = 0
+    private var bobVisibility: CGFloat = 1
     private var lastAutomaticOrigin: NSPoint?
     private var config: AppConfig
     private var interactionTimer: Timer?
@@ -565,11 +580,16 @@ final class PetPanelController {
             frameElapsed: elapsed,
             paused: movementPaused
         )
+        bobVisibility = PetMotionTiming.transitionedBobVisibility(
+            current: bobVisibility,
+            frameElapsed: elapsed,
+            paused: movementPaused
+        )
         let bob = PetMotionTiming.swimOffset(
             elapsed: bobElapsed,
             characterID: petView.characterID,
             state: motionState
-        )
+        ) * bobVisibility
         let externallyMoved = lastAutomaticOrigin.map {
             abs(actualOrigin.x - $0.x) > 1.5 || abs(actualOrigin.y - $0.y) > 1.5
         } ?? true
