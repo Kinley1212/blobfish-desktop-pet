@@ -587,6 +587,7 @@ private struct FishMessageComposeView: View {
 @MainActor
 final class FishMessageComposeWindowController: NSWindowController {
     private let viewModel: FishMessageComposeViewModel
+    private var latestSceneAnchor: PetSceneAnchor?
 
     init(
         messengerService: FishMessengerService,
@@ -608,14 +609,39 @@ final class FishMessageComposeWindowController: NSWindowController {
         super.init(window: window)
     }
 
-    func showComposer(preferredContactID: UUID? = nil) {
+    func showComposer(
+        preferredContactID: UUID? = nil,
+        sceneAnchor: PetSceneAnchor? = nil
+    ) {
+        if let sceneAnchor { latestSceneAnchor = sceneAnchor }
         viewModel.prepareToShow(preferredContactID: preferredContactID)
         showWindow(nil)
+        window?.contentView?.layoutSubtreeIfNeeded()
+        repositionIfVisible()
+    }
+
+    func updateSceneAnchor(_ sceneAnchor: PetSceneAnchor) {
+        latestSceneAnchor = sceneAnchor
+        repositionIfVisible()
     }
 
     func updateLocale(_ locale: String) {
         viewModel.updateLocale(locale)
         window?.title = locale == "en" ? "Send Fish Message" : "讓魚傳話"
+    }
+
+    private func repositionIfVisible() {
+        guard let window, let latestSceneAnchor else { return }
+        let proposed = PetAttachedWindowGeometry.frame(
+            windowSize: window.frame.size,
+            anchor: latestSceneAnchor
+        )
+        guard PetAttachedWindowGeometry.shouldReposition(
+            isWindowVisible: window.isVisible,
+            currentFrame: window.frame,
+            proposedFrame: proposed
+        ) else { return }
+        window.setFrameOrigin(proposed.origin)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }

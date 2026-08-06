@@ -166,6 +166,7 @@ enum PetFormationGeometry {
 
 final class PetPanelController {
     let panel: NSPanel
+    private(set) var sceneAnchor: PetSceneAnchor?
     private let overlayPanel: NSPanel
     private let petView: PetView
     private let guestView: PetView
@@ -204,6 +205,14 @@ final class PetPanelController {
 
     var onClick: (() -> Void)? {
         didSet { petView.onClick = onClick }
+    }
+    var onDoubleClick: (() -> Void)? {
+        didSet { petView.onDoubleClick = onDoubleClick }
+    }
+    var onSceneAnchorChanged: ((PetSceneAnchor) -> Void)? {
+        didSet {
+            if let sceneAnchor { onSceneAnchorChanged?(sceneAnchor) }
+        }
     }
     var onSpeechBubbleClick: ((UUID?) -> Void)? {
         didSet { overlayView.onSpeechBubbleClick = onSpeechBubbleClick }
@@ -767,10 +776,12 @@ final class PetPanelController {
             dy: panel.frame.minY + guestView.frame.minY
         )
         let formation = companion.map { primary.union($0) } ?? primary
-        guard let visibleFrame = PetOverlayScreenGeometry.visibleFrame(
-            for: formation,
-            from: NSScreen.screens.map(\.visibleFrame)
+        guard let nextAnchor = PetAttachedWindowGeometry.anchor(
+            primaryFrame: primary,
+            formationFrame: formation,
+            visibleFrames: NSScreen.screens.map(\.visibleFrame)
         ) else { return }
+        let visibleFrame = nextAnchor.visibleFrame
         let sceneFrame = PetOverlayScreenGeometry.sceneFrame(
             around: formation,
             inside: visibleFrame
@@ -784,6 +795,10 @@ final class PetPanelController {
         )
         overlayView.companionCharacterBounds = companion.map {
             PetOverlayScreenGeometry.localRect(for: $0, visibleFrame: sceneFrame)
+        }
+        if sceneAnchor != nextAnchor {
+            sceneAnchor = nextAnchor
+            onSceneAnchorChanged?(nextAnchor)
         }
     }
 

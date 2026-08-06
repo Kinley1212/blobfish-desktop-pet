@@ -185,6 +185,89 @@ enum PetOverlayScreenGeometry {
     }
 }
 
+struct PetSceneAnchor: Equatable {
+    let primaryFrame: CGRect
+    let formationFrame: CGRect
+    let visibleFrame: CGRect
+}
+
+enum PetAttachedWindowGeometry {
+    static let gap: CGFloat = 10
+
+    static func anchor(
+        primaryFrame: CGRect,
+        formationFrame: CGRect,
+        visibleFrames: [CGRect]
+    ) -> PetSceneAnchor? {
+        guard let visibleFrame = PetOverlayScreenGeometry.visibleFrame(
+            for: formationFrame,
+            from: visibleFrames
+        ) else { return nil }
+        return PetSceneAnchor(
+            primaryFrame: primaryFrame,
+            formationFrame: formationFrame,
+            visibleFrame: visibleFrame
+        )
+    }
+
+    static func frame(windowSize: CGSize, anchor: PetSceneAnchor) -> CGRect {
+        let primary = anchor.primaryFrame
+        let formation = anchor.formationFrame
+        let candidates = [
+            CGRect(
+                x: primary.midX - windowSize.width / 2,
+                y: formation.maxY + gap,
+                width: windowSize.width,
+                height: windowSize.height
+            ),
+            CGRect(
+                x: primary.midX - windowSize.width / 2,
+                y: formation.minY - gap - windowSize.height,
+                width: windowSize.width,
+                height: windowSize.height
+            ),
+            CGRect(
+                x: formation.maxX + gap,
+                y: primary.midY - windowSize.height / 2,
+                width: windowSize.width,
+                height: windowSize.height
+            ),
+            CGRect(
+                x: formation.minX - gap - windowSize.width,
+                y: primary.midY - windowSize.height / 2,
+                width: windowSize.width,
+                height: windowSize.height
+            ),
+        ]
+        if let contained = candidates.first(where: { anchor.visibleFrame.contains($0) }) {
+            return contained
+        }
+        let clampedCandidates = candidates.map { clamped($0, inside: anchor.visibleFrame) }
+        return clampedCandidates.first(where: { !$0.intersects(formation) }) ?? clampedCandidates[0]
+    }
+
+    static func shouldReposition(
+        isWindowVisible: Bool,
+        currentFrame: CGRect,
+        proposedFrame: CGRect
+    ) -> Bool {
+        isWindowVisible && currentFrame != proposedFrame
+    }
+
+    private static func clamped(_ frame: CGRect, inside visibleFrame: CGRect) -> CGRect {
+        CGRect(
+            x: frame.width <= visibleFrame.width
+                ? min(max(frame.minX, visibleFrame.minX), visibleFrame.maxX - frame.width)
+                : visibleFrame.minX,
+            y: frame.height <= visibleFrame.height
+                ? min(max(frame.minY, visibleFrame.minY), visibleFrame.maxY - frame.height)
+                : visibleFrame.minY,
+            width: frame.width,
+            height: frame.height
+        )
+    }
+}
+
 enum PetOverlayHitTesting {
     static func needsSceneLayout(
         hasClockAlert: Bool,

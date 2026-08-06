@@ -328,10 +328,31 @@ enum PetViewContentMode {
     var drawsOverlay: Bool { self != .artwork }
 }
 
+enum PetPrimaryClickIntent: Equatable {
+    case singleClick
+    case doubleClick
+    case drag
+}
+
+enum PetPrimaryClickIntentPolicy {
+    static let dragThreshold: CGFloat = 4
+
+    static func resolve(dragDistance: CGFloat, clickCount: Int) -> PetPrimaryClickIntent {
+        if dragDistance >= dragThreshold { return .drag }
+        if clickCount == 2 { return .doubleClick }
+        return .singleClick
+    }
+
+    static func cancelsPendingSingle(_ intent: PetPrimaryClickIntent) -> Bool {
+        intent != .singleClick
+    }
+}
+
 final class PetView: NSView, CALayerDelegate {
     private let contentMode: PetViewContentMode
     var ignoresMouseInteraction = false
     var onClick: (() -> Void)?
+    var onDoubleClick: (() -> Void)?
     var onSpeechBubbleClick: ((UUID?) -> Void)?
     var onUnreadBadgeClick: (() -> Void)?
     var onDragStart: (() -> Void)?
@@ -585,6 +606,7 @@ final class PetView: NSView, CALayerDelegate {
     private var pendingClockAction: ClockAction?
     private var pendingSpeechBubbleClick = false
     private var pendingUnreadBadgeClick = false
+    private var pendingSingleClickTimer: Timer?
 
     init(frame frameRect: NSRect, contentMode: PetViewContentMode = .combined) {
         self.contentMode = contentMode
@@ -728,6 +750,7 @@ final class PetView: NSView, CALayerDelegate {
         clockAnimationTimer?.invalidate()
         alarmClockTransitionTimer?.invalidate()
         blushTimer?.invalidate()
+        pendingSingleClickTimer?.invalidate()
         if contentMode.drawsOverlay { overlayLayer.delegate = nil }
     }
 
@@ -817,6 +840,7 @@ final class PetView: NSView, CALayerDelegate {
             if clockSnoozeRect(in: layout).contains(local) { pendingClockAction = .snooze(alert.id); return }
             if clockDismissRect(in: layout).contains(local) { pendingClockAction = .dismiss(alert.id); return }
         }
+        if event.clickCount == 2 { cancelPendingSingleClick() }
         let point = NSEvent.mouseLocation
         mouseDownScreenPoint = point
         lastDragScreenPoint = point
@@ -835,9 +859,10 @@ final class PetView: NSView, CALayerDelegate {
         let dy = point.y - previous.y
         lastDragScreenPoint = point
         dragDistance += hypot(dx, dy)
-        guard dragStarted || dragDistance >= 4 else { return }
+        guard dragStarted || dragDistance >= PetPrimaryClickIntentPolicy.dragThreshold else { return }
         if !dragStarted {
             dragStarted = true
+            cancelPendingSingleClick()
             onDragStart?()
         }
         if dx != 0 || dy != 0 {
@@ -882,7 +907,20 @@ final class PetView: NSView, CALayerDelegate {
             lastDragScreenPoint = nil
             dragSamples.removeAll(keepingCapacity: true)
         }
-        guard dragStarted else { onClick?(); return }
+        guard dragStarted else {
+            let intent = PetPrimaryClickIntentPolicy.resolve(
+                dragDistance: dragDistance,
+                clickCount: event.clickCount
+            )
+            if PetPrimaryClickIntentPolicy.cancelsPendingSingle(intent) {
+                cancelPendingSingleClick()
+                if intent == .doubleClick { onDoubleClick?() }
+            } else {
+                scheduleSingleClick()
+            }
+            return
+        }
+        cancelPendingSingleClick()
         let now = ProcessInfo.processInfo.systemUptime
         guard let last = dragSamples.last, now - last.time < 0.06, dragSamples.count >= 2 else {
             onDragEnd?(0, 0)
@@ -893,6 +931,22 @@ final class PetView: NSView, CALayerDelegate {
         let dx = dragSamples.reduce(CGFloat.zero) { $0 + $1.dx }
         let dy = dragSamples.reduce(CGFloat.zero) { $0 + $1.dy }
         onDragEnd?(dx / duration, dy / duration)
+    }
+
+    private func scheduleSingleClick() {
+        cancelPendingSingleClick()
+        let timer = Timer.scheduledTimer(withTimeInterval: NSEvent.doubleClickInterval, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            self.pendingSingleClickTimer = nil
+            self.onClick?()
+        }
+        pendingSingleClickTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func cancelPendingSingleClick() {
+        pendingSingleClickTimer?.invalidate()
+        pendingSingleClickTimer = nil
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }

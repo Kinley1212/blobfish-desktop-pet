@@ -104,6 +104,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 )
             }
         }
+        panelController.onDoubleClick = { [weak self] in
+            Task { @MainActor in self?.openFishMessageComposer() }
+        }
+        panelController.onSceneAnchorChanged = { [weak self] sceneAnchor in
+            Task { @MainActor in
+                self?.fishMessageComposeController?.updateSceneAnchor(sceneAnchor)
+            }
+        }
         panelController.onUnreadBadgeClick = { [weak self] in
             self?.openFishHistory(preferUnread: true)
         }
@@ -832,7 +840,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             )
         }
         fishMessageComposeController?.showComposer(
-            preferredContactID: messenger.activeVisitContactID
+            preferredContactID: messenger.activeVisitContactID,
+            sceneAnchor: panelController.sceneAnchor
         )
         fishMessageComposeController?.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

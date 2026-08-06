@@ -40,6 +40,7 @@ enum SelfCheck {
             ("scene layout separates timer and visit", sceneLayoutSeparatesTimerAndVisit),
             ("scene layout avoids visit companion", sceneLayoutAvoidsVisitCompanion),
             ("overlay geometry follows current display", overlayGeometryFollowsCurrentDisplay),
+            ("attached composer follows scene across displays", attachedComposerFollowsSceneAcrossDisplays),
             ("overlay hit testing leaves transparent gaps", overlayHitTestingLeavesTransparentGaps),
             ("overlay hit testing skips noninteractive layout", overlayHitTestingSkipsNoninteractiveLayout),
             ("friend messages stack and expire", friendMessagesStackAndExpire),
@@ -47,6 +48,7 @@ enum SelfCheck {
             ("display-paced pet motion", displayPacedPetMotion),
             ("hover and menu pause pet motion", hoverAndMenuPausePetMotion),
             ("paused bob timeline resumes without snapping", pausedBobTimelineResumesWithoutSnapping),
+            ("primary double click stays distinct from drag", primaryDoubleClickStaysDistinctFromDrag),
             ("display-timed carousel easing", displayTimedCarouselEasing),
             ("unclipped CSS-matched pet shadow", unclippedCSSMatchedPetShadow),
             ("native blush matches Electron CSS", nativeBlushMatchesElectronCSS),
@@ -426,6 +428,20 @@ enum SelfCheck {
             && resumed > whilePaused
             && abs(offsetAfterResume - offsetBeforePause) < 0.5
             && abs(clampedLongFrame - resumed - 0.05) < 0.000_001
+    }
+
+    private static func primaryDoubleClickStaysDistinctFromDrag() -> Bool {
+        let single = PetPrimaryClickIntentPolicy.resolve(dragDistance: 0, clickCount: 1)
+        let double = PetPrimaryClickIntentPolicy.resolve(dragDistance: 0, clickCount: 2)
+        let nearThreshold = PetPrimaryClickIntentPolicy.resolve(dragDistance: 3.99, clickCount: 2)
+        let draggedSecondClick = PetPrimaryClickIntentPolicy.resolve(dragDistance: 4.01, clickCount: 2)
+        return single == .singleClick
+            && double == .doubleClick
+            && nearThreshold == .doubleClick
+            && draggedSecondClick == .drag
+            && !PetPrimaryClickIntentPolicy.cancelsPendingSingle(single)
+            && PetPrimaryClickIntentPolicy.cancelsPendingSingle(double)
+            && PetPrimaryClickIntentPolicy.cancelsPendingSingle(draggedSecondClick)
     }
 
     private static func privateLeaseRecovery() throws -> Bool {
@@ -1004,6 +1020,60 @@ enum SelfCheck {
             && scene.size == PetOverlayScreenGeometry.maximumSceneSize
             && scene.contains(NSRect(x: -150, y: 250, width: 105, height: 90))
             && NSRect(origin: .zero, size: scene.size).contains(sceneLocal)
+    }
+
+    private static func attachedComposerFollowsSceneAcrossDisplays() -> Bool {
+        let primaryScreen = NSRect(x: 0, y: 23, width: 1_440, height: 877)
+        let leftScreen = NSRect(x: -1_280, y: 0, width: 1_280, height: 800)
+        let highScreen = NSRect(x: 1_440, y: 180, width: 1_920, height: 1_080)
+        let screens = [primaryScreen, leftScreen, highScreen]
+        let windowSize = NSSize(width: 460, height: 180)
+        let edgeCharacters = [
+            NSRect(x: 12, y: 390, width: 105, height: 90),
+            NSRect(x: 1_323, y: 390, width: 105, height: 90),
+            NSRect(x: 668, y: 27, width: 105, height: 90),
+            NSRect(x: 668, y: 806, width: 105, height: 90),
+        ]
+        let edgesStayVisible = edgeCharacters.allSatisfy { character in
+            guard let anchor = PetAttachedWindowGeometry.anchor(
+                primaryFrame: character,
+                formationFrame: character,
+                visibleFrames: screens
+            ) else { return false }
+            let frame = PetAttachedWindowGeometry.frame(windowSize: windowSize, anchor: anchor)
+            return anchor.visibleFrame == primaryScreen
+                && primaryScreen.contains(frame)
+                && !frame.intersects(character)
+        }
+        let leftCharacter = NSRect(x: -1_210, y: 320, width: 105, height: 90)
+        let highCharacter = NSRect(x: 1_700, y: 1_090, width: 105, height: 90)
+        guard let leftAnchor = PetAttachedWindowGeometry.anchor(
+            primaryFrame: leftCharacter,
+            formationFrame: leftCharacter,
+            visibleFrames: screens
+        ), let highAnchor = PetAttachedWindowGeometry.anchor(
+            primaryFrame: highCharacter,
+            formationFrame: highCharacter,
+            visibleFrames: screens
+        ) else { return false }
+        let leftFrame = PetAttachedWindowGeometry.frame(windowSize: windowSize, anchor: leftAnchor)
+        let highFrame = PetAttachedWindowGeometry.frame(windowSize: windowSize, anchor: highAnchor)
+        let hiddenFrame = leftFrame.offsetBy(dx: 20, dy: 0)
+        return edgesStayVisible
+            && leftAnchor.visibleFrame == leftScreen
+            && leftScreen.contains(leftFrame)
+            && highAnchor.visibleFrame == highScreen
+            && highScreen.contains(highFrame)
+            && !PetAttachedWindowGeometry.shouldReposition(
+                isWindowVisible: false,
+                currentFrame: leftFrame,
+                proposedFrame: hiddenFrame
+            )
+            && PetAttachedWindowGeometry.shouldReposition(
+                isWindowVisible: true,
+                currentFrame: leftFrame,
+                proposedFrame: hiddenFrame
+            )
     }
 
     private static func overlayHitTestingLeavesTransparentGaps() -> Bool {
