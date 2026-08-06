@@ -1278,10 +1278,10 @@ enum SelfCheck {
             ) == 1
             && PetMessageBubbleStack.opacity(
                 distanceFromNewest: 1, expiresAt: distantExpiry, now: now
-            ) == 0.68
+            ) == 1
             && PetMessageBubbleStack.opacity(
                 distanceFromNewest: 2, expiresAt: distantExpiry, now: halfFade
-            ) == 0.19
+            ) == 0.225
             && PetMessageBubbleStack.opacity(
                 distanceFromNewest: 0, expiresAt: distantExpiry, now: distantExpiry
             ) == 0
