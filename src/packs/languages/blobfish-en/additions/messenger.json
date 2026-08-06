@@ -50,6 +50,22 @@
       "event": "messenger.visitEnd",
       "text": "That is enough visiting… see you next time.",
       "weight": 4
-    }
+    },
+    {
+      "id": "en-messenger-sent-01",
+      "event": "messenger.sent",
+      "text": "Message delivered… I kept the letter dry.",
+      "weight": 5
+    },
+    {
+      "id": "en-messenger-friend-hit-01",
+      "event": "messenger.friendHit",
+      "text": "Hey… I came to visit, not to get bonked.",
+      "weight": 5
+    },
+    { "id": "en-messenger-sent-02", "event": "messenger.sent", "text": "Delivered. Do not rush me—these fins are trying.", "weight": 4 },
+    { "id": "en-messenger-sent-03", "event": "messenger.sent", "text": "The letter swam away… hopefully they have time to read it.", "weight": 4 },
+    { "id": "en-messenger-friend-hit-02", "event": "messenger.friendHit", "text": "Poke me again and I will simply lie flat.", "weight": 4 },
+    { "id": "en-messenger-friend-hit-03", "event": "messenger.friendHit", "text": "I am already soft… please stop testing that fact.", "weight": 4 }
   ]
 }

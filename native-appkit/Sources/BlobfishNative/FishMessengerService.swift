@@ -424,6 +424,16 @@ final class FishMessengerService: NSObject {
         notifyState()
     }
 
+    func updateStatus(_ status: FishUserStatus?, presence: FishPresence?) async throws {
+        var next = preferences
+        next.currentStatus = status
+        try updatePreferences(next)
+        guard let profile else { return }
+        for contact in profile.contacts where !contact.blocked {
+            _ = try await send(text: status?.rawValue ?? "none", to: contact.id, kind: .status, presence: presence)
+        }
+    }
+
     func markRead(_ id: UUID? = nil) {
         var next = records
         var changed = false
@@ -652,7 +662,7 @@ final class FishMessengerService: NSObject {
                 let kind = message.kind ?? .text
                 FishMessageHistory.append(FishMessageRecord(
                     id: message.id, contactID: contact.id, direction: .incoming, sentAt: message.sentAt,
-                    senderName: message.senderName, text: message.text, kind: kind, isRead: false,
+                    senderName: message.senderName, text: message.text, kind: kind, isRead: kind == .status,
                     bubbleColor: message.bubbleColor, presence: message.presence
                 ), to: &records)
                 stateChanged = true
@@ -661,13 +671,13 @@ final class FishMessengerService: NSObject {
                     contact: contact,
                     preferences: preferences
                 )
-                if canActivateVisit,
-                   kind == .visitStart || kind == .visitAccept,
-                   let presence = message.presence,
+                if let presence = message.presence,
                    let index = profile?.contacts.firstIndex(where: { $0.id == contact.id }),
                    profile?.contacts[index].lastPresence != presence {
-                    profile?.contacts[index].lastPresence = presence
-                    profileChanged = true
+                    if kind == .status || (canActivateVisit && (kind == .visitStart || kind == .visitAccept)) {
+                        profile?.contacts[index].lastPresence = presence
+                        profileChanged = true
+                    }
                 }
                 let nextActiveContactID = FishVisitPolicy.activeContactID(
                     after: kind,

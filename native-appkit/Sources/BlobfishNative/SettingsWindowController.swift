@@ -7,6 +7,7 @@ enum QuickSettingsDraftMerge {
         var next = draft
         next.pet.roamWhenNoTasks = runtime.pet.roamWhenNoTasks
         next.pet.roamWhenTasks = runtime.pet.roamWhenTasks
+        next.pet.flipOnBounce = runtime.pet.flipOnBounce
         next.performance.panelEnabled = runtime.performance.panelEnabled
         next.startup.launchAtLogin = runtime.startup.launchAtLogin
         return next
@@ -60,6 +61,7 @@ final class SettingsViewModel: ObservableObject {
     @Published var fishIdentityStatus = ""
     @Published var fishInviteStatus = ""
     @Published var fishSetupBusy = false
+    @Published var fishStatusPreview = FishUserStatus.fishing
 
     let runtime: AppRuntime
     let characters: [CharacterPack]
@@ -180,6 +182,111 @@ final class SettingsViewModel: ObservableObject {
             try messengerService.updatePreferences(fishPreferences)
             message = isEnglish ? "Fish friend settings saved." : "鱼友设置已保存。"
         } catch { message = error.localizedDescription }
+    }
+
+    func statusFaceBinding(_ status: FishUserStatus) -> Binding<String> {
+        Binding(
+            get: { self.fishPreferences.faceID(for: status) },
+            set: { value in
+                var values = self.fishPreferences.statusFaceIDs ?? [:]
+                values[status.rawValue] = value
+                self.fishPreferences.statusFaceIDs = values
+            }
+        )
+    }
+
+    func statusAccessoryBinding(_ status: FishUserStatus) -> Binding<String> {
+        Binding(
+            get: { self.fishPreferences.accessoryID(for: status) ?? "" },
+            set: { value in
+                var values = self.fishPreferences.statusAccessoryIDs ?? [:]
+                values[status.rawValue] = value
+                self.fishPreferences.statusAccessoryIDs = values
+            }
+        )
+    }
+
+    func statusPreviewAccessorySpec(_ status: FishUserStatus) -> CharacterAccessories {
+        if let stored = fishPreferences.statusAccessorySpecs?[status.rawValue] {
+            return CharacterAccessories(stored)
+        }
+        var specification = AppearanceJSON.accessorySpec(
+            in: draft,
+            characterID: draft.pet.characterPackId
+        )
+        if let id = fishPreferences.accessoryID(for: status),
+           let slot = accessories.first(where: { $0.id == id })?.manifest.slot,
+           slot != "face", slot != "clock", slot != "message-indicator" {
+            specification.equipped[slot] = id
+        }
+        return specification
+    }
+
+    func statusSlotBinding(_ status: FishUserStatus, slot: String) -> Binding<String> {
+        Binding(
+            get: { self.statusPreviewAccessorySpec(status).equipped[slot] ?? "" },
+            set: { value in
+                var all = self.fishPreferences.statusAccessorySpecs ?? [:]
+                var root = all[status.rawValue]?.objectValue ?? [:]
+                var equipped = root["equipped"]?.objectValue
+                    ?? AppearanceJSON.accessorySpec(in: self.draft, characterID: self.draft.pet.characterPackId)
+                        .equipped.mapValues(JSONValue.string)
+                equipped[slot] = .string(value)
+                root["equipped"] = .object(equipped)
+                all[status.rawValue] = .object(root)
+                self.fishPreferences.statusAccessorySpecs = all
+            }
+        )
+    }
+
+    func statusAccessoryTuning(_ status: FishUserStatus, id: String, key: String, fallback: Double) -> Double {
+        fishPreferences.statusAccessorySpecs?[status.rawValue]?.objectValue?["tuning"]?.objectValue?[id]?.objectValue?[key]?.numberValue ?? fallback
+    }
+
+    func setStatusAccessoryTuning(_ status: FishUserStatus, id: String, key: String, value: Double) {
+        var all = fishPreferences.statusAccessorySpecs ?? [:]
+        var root = all[status.rawValue]?.objectValue ?? [:]
+        var tuning = root["tuning"]?.objectValue ?? [:]
+        var item = tuning[id]?.objectValue ?? [:]
+        item[key] = .number(value)
+        tuning[id] = .object(item)
+        root["tuning"] = .object(tuning)
+        all[status.rawValue] = .object(root)
+        fishPreferences.statusAccessorySpecs = all
+    }
+
+    func statusDIYValue(_ status: FishUserStatus, part: String, key: String, fallback: Double) -> Double {
+        fishPreferences.statusCustomizations?[status.rawValue]?.objectValue?[part]?.objectValue?[key]?.numberValue ?? fallback
+    }
+
+    func setStatusDIYValue(_ status: FishUserStatus, part: String, key: String, value: Double) {
+        var all = fishPreferences.statusCustomizations ?? [:]
+        var specification = all[status.rawValue]?.objectValue
+            ?? draft.pet.customization[draft.pet.characterPackId]?.objectValue
+            ?? [:]
+        var component = specification[part]?.objectValue ?? [:]
+        component[key] = .number(value)
+        specification[part] = .object(component)
+        all[status.rawValue] = .object(specification)
+        fishPreferences.statusCustomizations = all
+    }
+
+    func statusDIYShape(_ status: FishUserStatus, part: String) -> String {
+        fishPreferences.statusCustomizations?[status.rawValue]?.objectValue?[part]?.objectValue?["shape"]?.stringValue
+            ?? draft.pet.customization[draft.pet.characterPackId]?.objectValue?[part]?.objectValue?["shape"]?.stringValue
+            ?? "default"
+    }
+
+    func setStatusDIYShape(_ status: FishUserStatus, part: String, id: String) {
+        var all = fishPreferences.statusCustomizations ?? [:]
+        var specification = all[status.rawValue]?.objectValue
+            ?? draft.pet.customization[draft.pet.characterPackId]?.objectValue
+            ?? [:]
+        var component = specification[part]?.objectValue ?? [:]
+        component["shape"] = .string(id)
+        specification[part] = .object(component)
+        all[status.rawValue] = .object(specification)
+        fishPreferences.statusCustomizations = all
     }
 
     func unlockFishProfile() {
@@ -660,6 +767,7 @@ struct BrandedSettingsView: View {
         ) {
             fishIdentityCard
             fishProfileCard
+            fishStatusAppearanceCard
             fishInviteCard
         }
     }
@@ -733,16 +841,45 @@ struct BrandedSettingsView: View {
 
     private var fishProfileCard: some View {
         SettingsCard {
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 10) {
                 Text(t("消息与串门偏好", "Message & visit preferences")).font(.headline)
                 TextField(t("显示名称", "Display name"), text: $model.fishDisplayName)
                     .textFieldStyle(.roundedBorder)
                     .disabled(model.messengerService?.profile == nil)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(t("普通傳話提示", "Message alerts")).font(.subheadline.weight(.semibold))
+                    HStack {
+                        Toggle(t("郵箱", "Mailbox"), isOn: Binding(
+                            get: { model.fishPreferences.effectiveMessageShowsMailbox },
+                            set: { model.fishPreferences.messageShowsMailbox = $0 }
+                        ))
+                        Toggle(t("氣泡", "Bubble"), isOn: Binding(
+                            get: { model.fishPreferences.effectiveMessageShowsBubble },
+                            set: { model.fishPreferences.messageShowsBubble = $0 }
+                        ))
+                    }
+                    Text(t("串門聊天提示", "Visit chat alerts")).font(.subheadline.weight(.semibold))
+                    HStack {
+                        Toggle(t("郵箱", "Mailbox"), isOn: Binding(
+                            get: { model.fishPreferences.effectiveVisitShowsMailbox },
+                            set: { model.fishPreferences.visitShowsMailbox = $0 }
+                        ))
+                        Toggle(t("氣泡", "Bubble"), isOn: Binding(
+                            get: { model.fishPreferences.effectiveVisitShowsBubble },
+                            set: { model.fishPreferences.visitShowsBubble = $0 }
+                        ))
+                    }
+                    Text(t("兩項可以同時開啟，也可以全部關閉。", "Both options may be enabled together or disabled."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Picker(t("消息气泡", "Message bubble"), selection: $model.fishPreferences.bubbleColor) {
                     Text(t("海水蓝", "Ocean blue")).tag("#1F7AE8")
                     Text(t("珊瑚粉", "Coral pink")).tag("#E65D83")
                     Text(t("海草绿", "Seaweed green")).tag("#2B9C77")
                     Text(t("葡萄紫", "Grape purple")).tag("#7957C8")
                     Text(t("夜空黑", "Night black")).tag("#384052")
+                }
                 }
                 Toggle(t("允许好友串门", "Allow friend visits"), isOn: $model.fishPreferences.visitsEnabled)
                 Picker(t("消息停留时间", "Message dwell time"), selection: Binding(
@@ -773,6 +910,7 @@ struct BrandedSettingsView: View {
                     }
                 }
                 Button(t("保存鱼友设置", "Save fish settings")) { model.saveFishSettings() }
+            }
         }
     }
 
@@ -813,6 +951,86 @@ struct BrandedSettingsView: View {
                 }
             }
         }
+    }
+
+    private var fishStatusAppearanceCard: some View {
+        SettingsCard {
+            Text(t("狀態外觀", "Status appearance")).font(.headline)
+            Text(t("每個狀態可指定表情與一件裝飾；串門時好友會看到。", "Choose a face and one decoration per status; visiting friends see them too."))
+                .font(.caption).foregroundStyle(.secondary)
+            Picker(t("預覽狀態", "Preview status"), selection: $model.fishStatusPreview) {
+                ForEach(FishUserStatus.allCases) { status in
+                    Text("\(status.emoji) \(status.title(isEnglish: model.isEnglish))").tag(status)
+                }
+            }
+            .pickerStyle(.segmented)
+            PetAppearancePreview(
+                character: currentCharacter,
+                scale: min(1, model.draft.pet.scale),
+                accessories: model.accessories,
+                accessorySpec: model.statusPreviewAccessorySpec(model.fishStatusPreview),
+                customization: model.draft.pet.customization[model.draft.pet.characterPackId],
+                moodFaceID: model.fishPreferences.faceID(for: model.fishStatusPreview),
+                showsAlarmClock: false
+            )
+            .frame(height: 125)
+            .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+            let status = model.fishStatusPreview
+            Text("\(status.emoji) \(status.title(isEnglish: model.isEnglish)) · \(t("細節 DIY", "Detailed DIY"))")
+                .font(.subheadline.weight(.semibold))
+            Picker(t("表情", "Expression"), selection: model.statusFaceBinding(status)) {
+                ForEach(model.accessories.filter { $0.manifest.slot == "face" }) { accessory in
+                    Text(accessory.manifest.displayName).tag(accessory.id)
+                }
+            }
+            ForEach(["hat", "eyewear", "hand"], id: \.self) { slot in
+                VStack(alignment: .leading, spacing: 6) {
+                    Picker(slotName(slot), selection: model.statusSlotBinding(status, slot: slot)) {
+                        Text(t("不使用", "None")).tag("")
+                        ForEach(model.accessories.filter { $0.manifest.slot == slot }) { accessory in
+                            Text(accessory.manifest.displayName).tag(accessory.id)
+                        }
+                    }
+                    if let id = model.statusPreviewAccessorySpec(status).equipped[slot], !id.isEmpty {
+                        statusAccessoryTuningEditor(status, id: id)
+                    }
+                }
+            }
+            Button(t("保存狀態外觀", "Save status appearance")) { model.saveFishSettings() }
+        }
+    }
+
+    private func deliveryPresentationButton(id: String, title: String, icon: String) -> some View {
+        let selected = (model.fishPreferences.showsIncomingBubble ? "bubble" : "mail") == id
+        return Button {
+            model.fishPreferences.deliveryPresentation = id
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: selected ? "checkmark.circle.fill" : icon)
+                Text(title)
+            }
+            .foregroundStyle(selected ? Color.white : Color.primary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(selected ? Color.accentColor : Color.black.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func statusAccessoryTuningEditor(_ status: FishUserStatus, id: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ForEach(["size", "width", "height", "offsetX", "offsetY"], id: \.self) { key in
+                let range: ClosedRange<Double> = key == "offsetX" || key == "offsetY" ? -30...30 : 0.4...2
+                let fallback = key == "offsetX" || key == "offsetY" ? 0.0 : 1.0
+                LabeledContent(key) {
+                    Slider(value: Binding(
+                        get: { model.statusAccessoryTuning(status, id: id, key: key, fallback: fallback) },
+                        set: { model.setStatusAccessoryTuning(status, id: id, key: key, value: $0) }
+                    ), in: range)
+                }
+            }
+        }
+        .padding(.leading, 14)
     }
 
     private var currentCharacter: CharacterPack? {
@@ -874,6 +1092,7 @@ struct BrandedSettingsView: View {
                     }.pickerStyle(.segmented)
                     Toggle(t("有任务时游动", "Move while tasks are active"), isOn: $model.draft.pet.roamWhenTasks)
                     Toggle(t("没有任务时也游动", "Move while idle"), isOn: $model.draft.pet.roamWhenNoTasks)
+                    Toggle(t("撞击反弹后翻转鱼鱼", "Flip fish after bouncing"), isOn: $model.draft.pet.flipOnBounce)
                 }
                 .padding(12)
                 .background(Color.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 14))
@@ -943,18 +1162,22 @@ struct BrandedSettingsView: View {
                         }
                     }
                 }
+                VStack(alignment: .leading, spacing: 12) {
                 diySlider(t("身体胖瘦", "Body width"), part: "body", key: "width", range: 0.7...1.3, fallback: 1)
                 diySlider(t("身体高矮", "Body height"), part: "body", key: "height", range: 0.7...1.3, fallback: 1)
                 diySlider(t("手 / 鱼鳍大小", "Arm / fin size"), part: "fins", key: "size", range: 0.5...1.6, fallback: 1)
                 diySlider(t("手 / 鱼鳍左右", "Arm / fin horizontal"), part: "fins", key: "offsetX", range: -16...16, fallback: 0)
                 diySlider(t("手 / 鱼鳍上下", "Arm / fin vertical"), part: "fins", key: "offsetY", range: -16...16, fallback: 0)
                 diySlider(t("眼睛大小", "Eye size"), part: "eyes", key: "size", range: 0.6...1.6, fallback: 1)
+                }
+                VStack(alignment: .leading, spacing: 12) {
                 diySlider(t("眼睛间距", "Eye spacing"), part: "eyes", key: "spacing", range: -12...12, fallback: 0)
                 diySlider(t("眼睛上下", "Eye vertical"), part: "eyes", key: "offsetY", range: -14...14, fallback: 0)
                 diySlider(t("嘴巴大小", "Mouth size"), part: "mouth", key: "size", range: 0.6...1.5, fallback: 1)
                 diySlider(t("嘴巴上下", "Mouth vertical"), part: "mouth", key: "offsetY", range: -14...14, fallback: 0)
                 diySlider(t("鼻子大小", "Nose size"), part: "nose", key: "size", range: 0.6...1.6, fallback: 1)
                 diySlider(t("鼻子上下", "Nose vertical"), part: "nose", key: "offsetY", range: -14...14, fallback: 0)
+                }
             } else {
                 Text(t("这个角色不支持捏制。", "This character does not support editing.")).foregroundStyle(.secondary)
             }
@@ -1358,6 +1581,10 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         let window = NSWindow(contentViewController: hosting)
         window.title = "水滴鱼"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        // The pet and its scene overlay are floating panels. Keep Settings at
+        // the same level so those transparent desktop panels cannot intercept
+        // its controls.
+        window.level = .floating
         window.setContentSize(NSSize(width: 820, height: 600))
         window.minSize = NSSize(width: 760, height: 540)
         window.center()
@@ -1373,6 +1600,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     override func showWindow(_ sender: Any?) {
         if window?.isVisible != true { viewModel.reloadFromRuntime() }
         super.showWindow(sender)
+        window?.makeKeyAndOrderFront(sender)
+        window?.orderFrontRegardless()
         startRefreshTimer()
     }
 

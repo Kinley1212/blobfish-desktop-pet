@@ -2,6 +2,10 @@ import AppKit
 import Combine
 import SwiftUI
 
+private final class FishEscapeClosingWindow: NSWindow {
+    override func cancelOperation(_ sender: Any?) { performClose(sender) }
+}
+
 enum FishChatDraftPolicy {
     static func shouldClear(
         currentDraft: String,
@@ -55,6 +59,7 @@ final class FishChatViewModel: ObservableObject {
     @Published private(set) var contacts: [FishContact] = []
     @Published private(set) var records: [FishMessageRecord] = []
     @Published private(set) var selectedContactID: UUID?
+    @Published var draft = ""
     @Published private(set) var isSending = false
     @Published private(set) var errorMessage = ""
 
@@ -90,11 +95,17 @@ final class FishChatViewModel: ObservableObject {
         guard let selectedContactID else { return nil }
         return contacts.first { $0.id == selectedContactID }
     }
+    var unreadIncomingMessages: [FishMessageRecord] {
+        guard let selectedContactID else { return [] }
+        return messengerService.records
+            .filter { $0.contactID == selectedContactID && $0.direction == .incoming && !$0.isRead && $0.kind == .text }
+            .sorted { $0.sentAt < $1.sentAt }
+    }
 
     var selectedRecords: [FishMessageRecord] {
         guard let selectedContactID else { return [] }
         return records
-            .filter { $0.contactID == selectedContactID }
+            .filter { $0.contactID == selectedContactID && $0.kind != .status }
             .sorted { $0.sentAt < $1.sentAt }
     }
 
@@ -139,14 +150,16 @@ final class FishChatViewModel: ObservableObject {
             preferUnread: preferUnread
         )
         errorMessage = ""
-        markSelectedContactReadIfNeeded()
+        messengerService.markRead()
+        records = messengerService.records
     }
 
     func setWindowActive(_ active: Bool) {
         windowIsActive = active
         if active {
             refresh()
-            markSelectedContactReadIfNeeded()
+            messengerService.markRead()
+            records = messengerService.records
         }
     }
 
@@ -158,6 +171,23 @@ final class FishChatViewModel: ObservableObject {
         selectedContactID = id
         errorMessage = ""
         markSelectedContactReadIfNeeded()
+    }
+
+    var sendDisabled: Bool {
+        draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || draft.trimmingCharacters(in: .whitespacesAndNewlines).utf8.count > FishMessage.maximumTextBytes
+            || isSending
+            || selectedContact?.blocked != false
+    }
+
+    func sendMessage() {
+        guard let contact = selectedContact else { return }
+        let original = draft
+        let text = original.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text.utf8.count <= FishMessage.maximumTextBytes else { return }
+        performSend(text: text, contact: contact, kind: .text, presence: nil) { [weak self] in
+            if self?.draft == original { self?.draft = "" }
+        }
     }
 
     func toggleVisit() {
@@ -239,7 +269,7 @@ struct FishChatView: View {
             Divider()
             conversation
         }
-        .frame(minWidth: 600, minHeight: 420)
+        .frame(minWidth: 390, minHeight: 260)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
@@ -287,7 +317,7 @@ struct FishChatView: View {
                 }
             }
         }
-        .frame(width: 210)
+        .frame(width: 104)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
     }
 
@@ -297,10 +327,7 @@ struct FishChatView: View {
         return Button {
             model.selectContact(contact.id)
         } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "person.crop.circle.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(selected ? .white : .blue)
+            HStack(spacing: 6) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(contact.nickname ?? contact.invite.displayName)
                         .font(.callout.weight(.semibold))
@@ -334,6 +361,8 @@ struct FishChatView: View {
                 conversationHeader(contact)
                 Divider()
                 messageTimeline
+                Divider()
+                quickReply(contact)
             }
         } else {
             VStack(spacing: 12) {
@@ -346,6 +375,22 @@ struct FishChatView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private func quickReply(_ contact: FishContact) -> some View {
+        HStack(spacing: 6) {
+            TextField(t("回覆…", "Reply…"), text: $model.draft)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { model.sendMessage() }
+            Button {
+                model.sendMessage()
+            } label: {
+                Image(systemName: "arrow.up.circle.fill")
+            }
+            .buttonStyle(.borderless)
+            .disabled(model.sendDisabled || contact.blocked)
+        }
+        .padding(8)
     }
 
     private func conversationHeader(_ contact: FishContact) -> some View {
@@ -416,6 +461,7 @@ struct FishChatView: View {
         if contact.blocked { return t("已封鎖", "Blocked") }
         if model.isActiveVisit(contact.id) { return t("串門中", "Visiting") }
         if contact.muted { return t("已靜音", "Muted") }
+        if let status = contact.lastPresence?.status { return status.title(isEnglish: model.isEnglish) }
         return t("魚友", "Fish friend")
     }
 
@@ -435,22 +481,32 @@ final class FishMessageComposeViewModel: ObservableObject {
     @Published private(set) var isSending = false
     @Published private(set) var errorMessage = ""
     @Published private(set) var statusMessage = ""
+    @Published private(set) var displayedUnreadMessages: [FishMessageRecord] = []
+    @Published private(set) var activeVisitContactID: UUID?
     @Published private(set) var locale: String
 
     private let messengerService: FishMessengerService
     private let onSent: @MainActor (FishMessengerService.SendResult, FishContact) -> Void
+    private let presenceProvider: @MainActor () -> FishPresence?
+    private var isPresented = false
 
     init(
         messengerService: FishMessengerService,
         locale: String,
+        presenceProvider: @escaping @MainActor () -> FishPresence?,
         onSent: @escaping @MainActor (FishMessengerService.SendResult, FishContact) -> Void
     ) {
         self.messengerService = messengerService
         self.locale = locale
+        self.presenceProvider = presenceProvider
         self.onSent = onSent
+        self.activeVisitContactID = messengerService.activeVisitContactID
         refreshContacts(preferredContactID: nil)
         messengerService.addStateObserver { [weak self] in
-            self?.refreshContacts(preferredContactID: self?.selectedContactID)
+            guard let self else { return }
+            self.activeVisitContactID = self.messengerService.activeVisitContactID
+            self.refreshContacts(preferredContactID: self.selectedContactID)
+            if self.isPresented { self.captureAndMarkUnread() }
         }
     }
 
@@ -458,6 +514,9 @@ final class FishMessageComposeViewModel: ObservableObject {
     var selectedContact: FishContact? {
         guard let selectedContactID else { return nil }
         return contacts.first { $0.id == selectedContactID }
+    }
+    var unreadIncomingMessages: [FishMessageRecord] {
+        displayedUnreadMessages
     }
     var availableContacts: [FishContact] { contacts.filter { !$0.blocked } }
     var draftByteCount: Int {
@@ -471,12 +530,64 @@ final class FishMessageComposeViewModel: ObservableObject {
             || selectedContact?.blocked != false
     }
 
+    var isActiveVisit: Bool {
+        selectedContactID != nil && activeVisitContactID == selectedContactID
+    }
+
+    func toggleVisit() {
+        guard let contact = selectedContact, !isSending else { return }
+        let ending = isActiveVisit
+        let text = ending
+            ? (isEnglish ? "See you next time." : "下次再玩。")
+            : (isEnglish ? "Coming over to visit!" : "來串門啦！")
+        let presence = ending ? nil : presenceProvider()
+        guard ending || presence != nil else { return }
+        isSending = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isSending = false }
+            do {
+                _ = try await self.messengerService.send(
+                    text: text, to: contact.id,
+                    kind: ending ? .visitEnd : .visitStart,
+                    presence: presence
+                )
+            } catch { self.errorMessage = error.localizedDescription }
+        }
+    }
+
     func updateLocale(_ value: String) { locale = value }
 
     func prepareToShow(preferredContactID: UUID?) {
         refreshContacts(preferredContactID: preferredContactID)
         errorMessage = ""
         statusMessage = ""
+        isPresented = true
+        displayedUnreadMessages = []
+        captureAndMarkUnread()
+    }
+
+    func setPresented(_ value: Bool) {
+        isPresented = value
+        if value {
+            captureAndMarkUnread()
+        } else {
+            displayedUnreadMessages = []
+        }
+    }
+
+    private func captureAndMarkUnread() {
+        let unread = messengerService.records.filter {
+            $0.direction == .incoming && !$0.isRead && $0.kind == .text
+        }.sorted { $0.sentAt < $1.sentAt }
+        if !unread.isEmpty {
+            let existing = Set(displayedUnreadMessages.map(\.id))
+            displayedUnreadMessages.append(contentsOf: unread.filter { !existing.contains($0.id) })
+        }
+        // Opening the inbox is an explicit read action. Clear every incoming
+        // unread record, including visit control messages that are not rendered
+        // in the compact composer, so the desktop indicator cannot linger.
+        messengerService.markRead()
     }
 
     func sendMessage() {
@@ -498,6 +609,7 @@ final class FishMessageComposeViewModel: ObservableObject {
             defer { self.isSending = false }
             do {
                 let result = try await self.messengerService.send(text: text, to: contact.id)
+                self.messengerService.markRead(contactID: contact.id)
                 self.onSent(result, contact)
                 if FishChatDraftPolicy.shouldClear(
                     currentDraft: self.draft,
@@ -547,8 +659,26 @@ private struct FishMessageComposeView: View {
                         }
                     }
                 } else if let contact = model.selectedContact {
-                    Text(t("傳話給：", "To: ") + (contact.nickname ?? contact.invite.displayName))
-                        .font(.headline)
+                    HStack {
+                        Text(t("傳話給：", "To: ") + (contact.nickname ?? contact.invite.displayName))
+                            .font(.headline)
+                        Spacer()
+                        visitToggleButton
+                    }
+                }
+                if model.availableContacts.count > 1 { visitToggleButton }
+
+                if !model.unreadIncomingMessages.isEmpty {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(t("未讀傳話（\(model.unreadIncomingMessages.count)）", "Unread messages (\(model.unreadIncomingMessages.count))"))
+                            .font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                        ForEach(model.unreadIncomingMessages.suffix(6)) { message in
+                            Text(message.text).font(.callout).lineLimit(2)
+                        }
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.blue.opacity(0.09), in: RoundedRectangle(cornerRadius: 8))
                 }
 
                 TextField(t("想讓水滴魚說什麼？", "What should your fish say?"), text: $model.draft)
@@ -577,36 +707,57 @@ private struct FishMessageComposeView: View {
                 .font(.caption)
             }
         }
-        .padding(18)
-        .frame(width: 460)
+        .padding(10)
+        .frame(width: 280)
     }
 
     private func t(_ zh: String, _ en: String) -> String { model.isEnglish ? en : zh }
+
+    private var visitToggleButton: some View {
+        Button(model.isActiveVisit ? t("取消串門", "End Visit") : t("串門", "Visit")) {
+            model.toggleVisit()
+        }
+        .controlSize(.small)
+        .buttonStyle(.plain)
+        .foregroundStyle(Color.white)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(
+            model.isActiveVisit ? Color.red.opacity(0.82) : Color.accentColor,
+            in: RoundedRectangle(cornerRadius: 7)
+        )
+        .opacity(model.isSending ? 0.72 : 1)
+        .disabled(model.selectedContact == nil || model.isSending)
+    }
 }
 
 @MainActor
-final class FishMessageComposeWindowController: NSWindowController {
+final class FishMessageComposeWindowController: NSWindowController, NSWindowDelegate {
     private let viewModel: FishMessageComposeViewModel
     private var latestSceneAnchor: PetSceneAnchor?
+    var onVisibilityChanged: ((Bool) -> Void)?
 
     init(
         messengerService: FishMessengerService,
         locale: String,
+        presenceProvider: @escaping @MainActor () -> FishPresence?,
         onSent: @escaping @MainActor (FishMessengerService.SendResult, FishContact) -> Void
     ) {
         let viewModel = FishMessageComposeViewModel(
             messengerService: messengerService,
             locale: locale,
+            presenceProvider: presenceProvider,
             onSent: onSent
         )
         self.viewModel = viewModel
         let hosting = NSHostingController(rootView: FishMessageComposeView(model: viewModel))
-        let window = NSWindow(contentViewController: hosting)
+        let window = FishEscapeClosingWindow(contentViewController: hosting)
         window.title = locale == "en" ? "Send Fish Message" : "讓魚傳話"
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
         super.init(window: window)
+        window.delegate = self
     }
 
     func showComposer(
@@ -617,7 +768,13 @@ final class FishMessageComposeWindowController: NSWindowController {
         viewModel.prepareToShow(preferredContactID: preferredContactID)
         window?.contentView?.layoutSubtreeIfNeeded()
         reposition(force: true)
+        onVisibilityChanged?(true)
         showWindow(nil)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        viewModel.setPresented(false)
+        onVisibilityChanged?(false)
     }
 
     func updateSceneAnchor(_ sceneAnchor: PetSceneAnchor) {
@@ -683,6 +840,7 @@ private struct FishChatMessageRow: View {
         case .visitStart: return (isEnglish ? "Visit invitation: " : "串門邀請：") + record.text
         case .visitAccept: return (isEnglish ? "Visit accepted: " : "已接受串門：") + record.text
         case .visitEnd: return (isEnglish ? "Visit ended: " : "串門結束：") + record.text
+        case .status: return (isEnglish ? "Status updated" : "狀態已更新")
         }
     }
 
@@ -698,6 +856,7 @@ private struct FishChatMessageRow: View {
 @MainActor
 final class FishChatWindowController: NSWindowController, NSWindowDelegate {
     private let viewModel: FishChatViewModel
+    var onVisibilityChanged: ((Bool) -> Void)?
 
     init(
         messengerService: FishMessengerService,
@@ -715,11 +874,11 @@ final class FishChatWindowController: NSWindowController, NSWindowDelegate {
         )
         self.viewModel = viewModel
         let hosting = NSHostingController(rootView: FishChatView(model: viewModel))
-        let window = NSWindow(contentViewController: hosting)
+        let window = FishEscapeClosingWindow(contentViewController: hosting)
         window.title = locale == "en" ? "Fish History" : "魚魚歷史"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-        window.setContentSize(NSSize(width: 680, height: 520))
-        window.minSize = NSSize(width: 600, height: 420)
+        window.setContentSize(NSSize(width: 390, height: 300))
+        window.minSize = NSSize(width: 350, height: 250)
         window.isReleasedWhenClosed = false
         window.center()
         super.init(window: window)
@@ -734,6 +893,7 @@ final class FishChatWindowController: NSWindowController, NSWindowDelegate {
 
     func showHistory(contactID: UUID? = nil, preferUnread: Bool = false) {
         viewModel.prepareToShow(contactID: contactID, preferUnread: preferUnread)
+        onVisibilityChanged?(true)
         showWindow(nil)
     }
 
@@ -747,6 +907,7 @@ final class FishChatWindowController: NSWindowController, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         viewModel.setWindowActive(false)
+        onVisibilityChanged?(false)
     }
 
     func updateLocale(_ locale: String) {
