@@ -38,9 +38,8 @@ enum PetMessageBubbleStack {
     ) -> CGFloat {
         let rankOpacity: CGFloat
         switch distanceFromNewest {
-        case 0: rankOpacity = 1
-        case 1: rankOpacity = 0.68
-        default: rankOpacity = 0.38
+        case 0, 1: rankOpacity = 1
+        default: rankOpacity = 0.45
         }
         let remaining = expiresAt.timeIntervalSince(now)
         let fadeProgress = min(1, max(0, remaining / fadeOutDuration))

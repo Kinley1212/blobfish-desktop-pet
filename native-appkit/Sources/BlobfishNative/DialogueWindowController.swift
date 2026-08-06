@@ -188,7 +188,7 @@ struct DialogueView: View {
                     .font(.system(size: 15)).lineSpacing(3)
                     .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
                     .padding(12)
-                    .background(Color.pink.opacity(0.13), in: UnevenRoundedRectangle(topLeadingRadius: 12, bottomLeadingRadius: 3, bottomTrailingRadius: 12, topTrailingRadius: 12))
+                    .background(Color.pink.opacity(0.13), in: RoundedRectangle(cornerRadius: 10))
             }
             VStack(spacing: 8) {
                 ForEach(model.choices) { choice in

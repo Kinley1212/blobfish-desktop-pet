@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var messengerMenuItem: NSMenuItem?
     private var messengerSendMenuItem: NSMenuItem?
+    private var fishStatusMenuItem: NSMenuItem?
     private var pauseItem: NSMenuItem?
     private var taskRoamItem: NSMenuItem?
     private var performanceItem: NSMenuItem?
@@ -43,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var chatInviteUntil = Date.distantPast
     private var lastActiveVisitContactID: UUID?
     private var visitIdleSpokenContactID: UUID?
+    private let friendHitBubbleID = UUID()
     private let soundPlayer = SoundPlayer()
     private let instanceGuard = SingleInstanceGuard()
 
@@ -104,7 +106,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 )
             }
         }
-        panelController.onDoubleClick = { [weak self] in
+        panelController.onDoubleClick = nil
+        panelController.onRightDoubleClick = { [weak self] in
             Task { @MainActor in self?.openFishMessageComposer() }
         }
         panelController.onSceneAnchorChanged = { [weak self] sceneAnchor in
@@ -115,10 +118,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
         panelController.onUnreadBadgeClick = { [weak self] in
-            self?.openFishHistory(preferUnread: true)
+            Task { @MainActor in self?.openFishMessageComposerForUnread() }
+        }
+        panelController.onCompanionClick = { [weak self] in
+            guard let self,
+                  let messenger = self.messengerService,
+                  let contactID = messenger.activeVisitContactID,
+                  let contact = messenger.profile?.contacts.first(where: { $0.id == contactID }) else { return }
+            self.panelController.playCompanionHitReaction()
+            let phrase = self.runtime.phrase(event: "messenger.friendHit")
+                ?? (self.runtime.config.ui.locale == "en" ? "Hey! Why did you hit me?" : "喂！怎麼還打串門的小魚呀！")
+            if messenger.preferences.currentStatus != .doNotDisturb {
+                self.panelController.showFriendMessage(
+                    id: self.friendHitBubbleID, contactID: contact.id, text: phrase,
+                    color: "#FFFFFF", speaker: .visitor, duration: 6
+                )
+            }
         }
         panelController.onSpeechBubbleClick = { [weak self] contactID in
-            self?.openFishHistory(contactID: contactID, preferUnread: contactID == nil)
+            Task { @MainActor in self?.presentFishMessageComposer(preferredContactID: contactID) }
         }
         panelController.onPetting = { [weak self] streak in
             guard let self else { return }
@@ -150,10 +168,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         messenger.addStateObserver { [weak self, weak messenger] in
             guard let self, let messenger else { return }
             self.panelController.updateUnreadCount(
-                messenger.unreadCount,
+                self.visibleUnreadCount(messenger),
                 indicatorID: messenger.preferences.effectiveMessageIndicatorID
             )
             self.updateMessengerMenu(unreadCount: messenger.unreadCount)
+            let status = messenger.preferences.currentStatus
+            self.panelController.setStatusAppearance(
+                faceID: status.map { messenger.preferences.faceID(for: $0) },
+                accessoryID: status.flatMap { messenger.preferences.accessoryID(for: $0) },
+                accessories: status.flatMap { messenger.preferences.statusAccessorySpecs?[$0.rawValue] },
+                customization: self.runtime.config.pet.customization[self.runtime.config.pet.characterPackId]
+            )
             if let contactID = messenger.activeVisitContactID,
                let contact = messenger.profile?.contacts.first(where: { $0.id == contactID }),
                let presence = contact.lastPresence {
@@ -173,16 +198,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
         panelController.updateUnreadCount(
-            messenger.unreadCount,
+            visibleUnreadCount(messenger),
             indicatorID: messenger.preferences.effectiveMessageIndicatorID
         )
         updateMessengerMenu(unreadCount: messenger.unreadCount)
         messenger.onMessage = { [weak self, weak messenger] message, contact in
             guard let self, let messenger, !contact.muted else { return }
-            if messenger.preferences.incomingSoundEnabled, !self.isQuietNow() {
+            let kind = message.kind ?? .text
+            if kind != .status, messenger.preferences.incomingSoundEnabled, !self.isQuietNow() {
                 self.soundPlayer.play(id: messenger.preferences.incomingSoundID)
             }
-            let kind = message.kind ?? .text
             if kind == .visitStart, messenger.preferences.visitsEnabled {
                 Task { @MainActor in
                     let reply = self.runtime.phrase(event: "messenger.visitAccept")
@@ -192,12 +217,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                             text: reply, to: contact.id, kind: .visitAccept,
                             presence: self.currentFishPresence()
                         )
-                        self.panelController.showFriendMessage(
-                            id: result.record.id, contactID: contact.id, text: reply,
-                            color: messenger.preferences.bubbleColor,
-                            speaker: .owner,
-                            duration: messenger.preferences.effectiveMessageDisplaySeconds
-                        )
+                        if messenger.preferences.currentStatus != .doNotDisturb,
+                           messenger.preferences.effectiveVisitShowsBubble {
+                            self.panelController.showFriendMessage(
+                                id: result.record.id, contactID: contact.id, text: reply,
+                                color: messenger.preferences.bubbleColor,
+                                speaker: .owner,
+                                duration: messenger.preferences.effectiveMessageDisplaySeconds
+                            )
+                        }
                     } catch {
                         self.panelController.say(
                             self.runtime.config.ui.locale == "en"
@@ -212,26 +240,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
             }
             self.panelController.playEffect(.completed)
+            if messenger.preferences.currentStatus == .doNotDisturb, kind != .status { return }
             switch kind {
             case .text:
                 let visiting = messenger.activeVisitContactID == contact.id
-                self.panelController.showFriendMessage(
-                    id: message.id,
-                    contactID: contact.id,
-                    text: visiting ? message.text : "\(message.senderName)：\(message.text)",
-                    color: message.bubbleColor,
-                    speaker: visiting ? .visitor : .owner,
-                    duration: messenger.preferences.effectiveMessageDisplaySeconds
-                )
+                if visiting, messenger.preferences.effectiveVisitShowsBubble {
+                    self.panelController.showFriendMessage(
+                        id: message.id, contactID: contact.id, text: message.text,
+                        color: messenger.preferences.bubbleColor, speaker: .visitor,
+                        duration: messenger.preferences.effectiveMessageDisplaySeconds
+                    )
+                } else if messenger.preferences.effectiveMessageShowsBubble {
+                    self.panelController.say(
+                        "\(message.senderName)：\(message.text)",
+                        event: "messenger.received",
+                        duration: messenger.preferences.effectiveMessageDisplaySeconds,
+                        priority: SpeechPriority.messenger,
+                        replaceKey: "messenger.\(message.id.uuidString)",
+                        color: messenger.preferences.bubbleColor
+                    )
+                }
             case .visitStart, .visitAccept:
+                if messenger.preferences.effectiveVisitShowsBubble {
                 self.panelController.showFriendMessage(
                     id: message.id,
                     contactID: contact.id,
                     text: message.text,
-                    color: message.bubbleColor,
+                    color: messenger.preferences.bubbleColor,
                     speaker: .visitor,
                     duration: messenger.preferences.effectiveMessageDisplaySeconds
                 )
+                }
             case .visitEnd:
                 self.panelController.say(
                     "\(message.senderName) 回家啦，下次再玩。",
@@ -241,6 +280,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     replaceKey: "messenger.\(message.id.uuidString)",
                     color: message.bubbleColor
                 )
+            case .status:
+                break
             }
         }
         messenger.onError = { [weak self] error in
@@ -370,19 +411,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settings.target = self
         menu.addItem(settings)
 
-        let chat = NSMenuItem(title: "找水滴鱼聊天…", action: #selector(openDialogue), keyEquivalent: "")
-        chat.target = self
-        menu.addItem(chat)
-
-        let sendMessage = NSMenuItem(title: "發消息…", action: #selector(openFishMessageComposer), keyEquivalent: "")
+        let sendMessage = NSMenuItem(title: "魚魚傳話…", action: #selector(openFishMessageComposer), keyEquivalent: "")
         sendMessage.target = self
         menu.addItem(sendMessage)
         messengerSendMenuItem = sendMessage
 
-        let messages = NSMenuItem(title: "歷史消息", action: #selector(openFishChat), keyEquivalent: "")
+        let messages = NSMenuItem(title: "聊天紀錄", action: #selector(openFishChat), keyEquivalent: "")
         messages.target = self
         menu.addItem(messages)
         messengerMenuItem = messages
+
+        let fishStatus = NSMenuItem(title: "我的狀態", action: nil, keyEquivalent: "")
+        let fishStatusMenu = NSMenu()
+        for status in FishUserStatus.allCases {
+            let option = NSMenuItem(
+                title: status.title(isEnglish: runtime.config.ui.locale == "en"),
+                action: #selector(selectFishStatus(_:)),
+                keyEquivalent: ""
+            )
+            option.target = self
+            option.representedObject = status.rawValue
+            fishStatusMenu.addItem(option)
+        }
+        fishStatusMenu.addItem(.separator())
+        let clearStatus = NSMenuItem(
+            title: runtime.config.ui.locale == "en" ? "Clear Status" : "清除狀態",
+            action: #selector(selectFishStatus(_:)),
+            keyEquivalent: ""
+        )
+        clearStatus.target = self
+        fishStatusMenu.addItem(clearStatus)
+        fishStatus.submenu = fishStatusMenu
+        menu.addItem(fishStatus)
+        fishStatusMenuItem = fishStatus
+
+        let chat = NSMenuItem(title: "和水滴魚聊天…", action: #selector(openDialogue), keyEquivalent: "")
+        chat.target = self
+        menu.addItem(chat)
 
         let taskRoam = NSMenuItem(title: "任务进行时游动", action: #selector(toggleTaskRoam), keyEquivalent: "")
         taskRoam.target = self
@@ -454,11 +519,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func updateMessengerMenu(unreadCount: Int) {
-        let title = runtime.config.ui.locale == "en" ? "Message History" : "歷史消息"
+        let title = runtime.config.ui.locale == "en" ? "Chat History" : "聊天紀錄"
         messengerMenuItem?.title = unreadCount > 0
             ? "\(title) · \(unreadCount > 99 ? "99+" : String(unreadCount))"
             : title
-        messengerSendMenuItem?.title = runtime.config.ui.locale == "en" ? "Send Message…" : "發消息…"
+        messengerSendMenuItem?.title = runtime.config.ui.locale == "en" ? "Fish Message…" : "魚魚傳話…"
+    }
+
+    @MainActor private func visibleUnreadCount(_ messenger: FishMessengerService) -> Int {
+        let preferences = messenger.preferences
+        return messenger.records.filter { record in
+            guard record.direction == .incoming, !record.isRead else { return false }
+            switch record.kind {
+            case .text:
+                return preferences.effectiveMessageShowsMailbox
+            case .visitStart, .visitAccept, .visitEnd:
+                return preferences.effectiveVisitShowsMailbox
+            case .status:
+                return false
+            }
+        }.count
     }
 
     private func handleTaskFeedback(_ snapshot: TaskSnapshot) {
@@ -708,11 +788,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @MainActor private func currentFishPresence() -> FishPresence {
-        FishPresence(
+        let status = messengerService?.preferences.currentStatus
+        return FishPresence(
             characterPackID: runtime.config.pet.characterPackId,
             customization: runtime.config.pet.customization[runtime.config.pet.characterPackId],
-            accessories: runtime.config.pet.accessories[runtime.config.pet.characterPackId]
+            accessories: runtime.config.pet.accessories[runtime.config.pet.characterPackId],
+            status: status,
+            statusFaceID: status.map { messengerService?.preferences.faceID(for: $0) ?? $0.faceID },
+            statusAccessoryID: status.flatMap { messengerService?.preferences.accessoryID(for: $0) },
+            statusAccessories: status.flatMap { messengerService?.preferences.statusAccessorySpecs?[$0.rawValue] }
         )
+    }
+
+    @MainActor @objc private func selectFishStatus(_ sender: NSMenuItem) {
+        let status = (sender.representedObject as? String).flatMap(FishUserStatus.init(rawValue:))
+        guard let messengerService else { return }
+        Task { @MainActor in
+            do {
+                let base = currentFishPresence()
+                let presence = FishPresence(
+                    characterPackID: base.characterPackID,
+                    customization: base.customization,
+                    accessories: base.accessories,
+                    status: status,
+                    statusFaceID: status.map { messengerService.preferences.faceID(for: $0) },
+                    statusAccessoryID: status.flatMap { messengerService.preferences.accessoryID(for: $0) },
+                    statusAccessories: status.flatMap { messengerService.preferences.statusAccessorySpecs?[$0.rawValue] }
+                )
+                try await messengerService.updateStatus(status, presence: presence)
+                panelController.setStatusAppearance(
+                    faceID: status.map { messengerService.preferences.faceID(for: $0) },
+                    accessoryID: status.flatMap { messengerService.preferences.accessoryID(for: $0) },
+                    accessories: status.flatMap { messengerService.preferences.statusAccessorySpecs?[$0.rawValue] },
+                    customization: runtime.config.pet.customization[runtime.config.pet.characterPackId]
+                )
+            } catch {
+                panelController.say(
+                    runtime.config.ui.locale == "en" ? "Status could not be shared." : "狀態暫時沒能同步。",
+                    event: "messenger.error", duration: 4,
+                    priority: SpeechPriority.interaction, replaceKey: "messenger.status.error"
+                )
+            }
+        }
     }
 
     @objc private func locatePet() {
@@ -824,6 +941,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self?.presentSentFishMessage(result, contact: contact)
                 }
             )
+            fishChatController?.onVisibilityChanged = { [weak self] visible in
+                self?.panelController.setComposerPaused(visible)
+            }
         }
         fishChatController?.showHistory(contactID: contactID, preferUnread: preferUnread)
         fishChatController?.window?.makeKeyAndOrderFront(nil)
@@ -831,18 +951,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @MainActor @objc private func openFishMessageComposer() {
+        presentFishMessageComposer(preferredContactID: messengerService?.activeVisitContactID)
+    }
+
+    @MainActor private func openFishMessageComposerForUnread() {
+        let contactID = messengerService?.records
+            .filter { $0.direction == .incoming && !$0.isRead }
+            .max(by: { $0.sentAt < $1.sentAt })?.contactID
+        presentFishMessageComposer(preferredContactID: contactID)
+    }
+
+    @MainActor private func presentFishMessageComposer(preferredContactID: UUID?) {
         guard let messenger = messengerService else { return }
         if fishMessageComposeController == nil {
             fishMessageComposeController = FishMessageComposeWindowController(
                 messengerService: messenger,
                 locale: runtime.config.ui.locale,
+                presenceProvider: { [weak self] in self?.currentFishPresence() },
                 onSent: { [weak self] result, contact in
                     self?.presentSentFishMessage(result, contact: contact)
                 }
             )
+            fishMessageComposeController?.onVisibilityChanged = { [weak self] visible in
+                self?.panelController.setComposerPaused(visible)
+            }
         }
+        panelController.playClickReaction()
         fishMessageComposeController?.showComposer(
-            preferredContactID: messenger.activeVisitContactID,
+            preferredContactID: preferredContactID,
             sceneAnchor: panelController.sceneAnchor
         )
         fishMessageComposeController?.window?.makeKeyAndOrderFront(nil)
@@ -855,14 +991,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     ) {
         guard let messenger = messengerService else { return }
         panelController.playEffect(.completed)
-        panelController.showFriendMessage(
-            id: result.record.id,
-            contactID: contact.id,
-            text: result.record.text,
-            color: result.record.bubbleColor ?? messenger.preferences.bubbleColor,
-            speaker: .owner,
-            duration: messenger.preferences.effectiveMessageDisplaySeconds
-        )
+        let isVisitChat = messenger.activeVisitContactID == contact.id
+        guard messenger.preferences.currentStatus != .doNotDisturb else { return }
+        if isVisitChat {
+            panelController.showFriendMessage(
+                id: result.record.id, contactID: contact.id, text: result.record.text,
+                color: result.record.bubbleColor ?? messenger.preferences.bubbleColor,
+                speaker: .owner, duration: messenger.preferences.effectiveMessageDisplaySeconds
+            )
+        } else {
+            let acknowledgement = runtime.phrase(event: "messenger.sent")
+                ?? (runtime.config.ui.locale == "en" ? "Message delivered." : "傳話送到啦。")
+            panelController.say(
+                acknowledgement, event: "messenger.sent", duration: 2.8,
+                priority: SpeechPriority.interaction, replaceKey: "messenger.sent"
+            )
+        }
     }
 
     @MainActor @objc private func openDialogue() {
@@ -923,6 +1067,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         settingsController?.showWindow(nil)
         settingsController?.window?.makeKeyAndOrderFront(nil)
+        settingsController?.window?.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
     }
 

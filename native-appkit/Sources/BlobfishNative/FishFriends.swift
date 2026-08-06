@@ -6,12 +6,66 @@ enum FishMessageKind: String, Codable {
     case visitStart
     case visitAccept
     case visitEnd
+    case status
+}
+
+enum FishUserStatus: String, Codable, CaseIterable, Identifiable {
+    case fishing, working, doNotDisturb, resting, happy, unhappy
+    var id: String { rawValue }
+    func title(isEnglish: Bool) -> String {
+        switch self {
+        case .fishing: return isEnglish ? "Slacking" : "摸魚"
+        case .working: return isEnglish ? "Working" : "工作"
+        case .doNotDisturb: return isEnglish ? "Do Not Disturb" : "勿擾"
+        case .resting: return isEnglish ? "Resting" : "休息"
+        case .happy: return isEnglish ? "Happy" : "開心"
+        case .unhappy: return isEnglish ? "Unhappy" : "不開心"
+        }
+    }
+    var emoji: String {
+        switch self {
+        case .fishing: return "🐟"
+        case .working: return "💼"
+        case .doNotDisturb: return "🌙"
+        case .resting: return "☕️"
+        case .happy: return "😊"
+        case .unhappy: return "🌧️"
+        }
+    }
+    var faceID: String {
+        switch self {
+        case .fishing: return "face-smug"
+        case .working: return "face-determined"
+        case .doNotDisturb: return "face-sleepy"
+        case .resting: return "face-relieved"
+        case .happy: return "face-happy"
+        case .unhappy: return "face-pitiful"
+        }
+    }
 }
 
 struct FishPresence: Codable, Equatable {
     let characterPackID: String
     let customization: JSONValue?
     let accessories: JSONValue?
+    let status: FishUserStatus?
+    let statusFaceID: String?
+    let statusAccessoryID: String?
+    let statusAccessories: JSONValue?
+
+    init(
+        characterPackID: String, customization: JSONValue?, accessories: JSONValue?,
+        status: FishUserStatus? = nil, statusFaceID: String? = nil,
+        statusAccessoryID: String? = nil, statusAccessories: JSONValue? = nil
+    ) {
+        self.characterPackID = characterPackID
+        self.customization = customization
+        self.accessories = accessories
+        self.status = status
+        self.statusFaceID = statusFaceID
+        self.statusAccessoryID = statusAccessoryID
+        self.statusAccessories = statusAccessories
+    }
 }
 
 struct FishMessageRecord: Codable, Equatable, Identifiable {
@@ -36,6 +90,35 @@ struct FishFriendPreferences: Codable, Equatable {
     var visitsEnabled: Bool
     var messageDisplaySeconds: Double? = nil
     var messageIndicatorID: String? = nil
+    var currentStatus: FishUserStatus? = nil
+    var statusFaceIDs: [String: String]? = nil
+    var statusAccessoryIDs: [String: String]? = nil
+    var deliveryPresentation: String? = nil
+    var statusCustomizations: [String: JSONValue]? = nil
+    var statusAccessorySpecs: [String: JSONValue]? = nil
+    var messageShowsMailbox: Bool? = nil
+    var messageShowsBubble: Bool? = nil
+    var visitShowsMailbox: Bool? = nil
+    var visitShowsBubble: Bool? = nil
+
+    var effectiveMessageShowsMailbox: Bool { messageShowsMailbox ?? !showsIncomingBubble }
+    var effectiveMessageShowsBubble: Bool { messageShowsBubble ?? showsIncomingBubble }
+    var effectiveVisitShowsMailbox: Bool { visitShowsMailbox ?? false }
+    var effectiveVisitShowsBubble: Bool { visitShowsBubble ?? true }
+
+    func customization(for status: FishUserStatus, fallback: JSONValue?) -> JSONValue? {
+        statusCustomizations?[status.rawValue] ?? fallback
+    }
+
+    var showsIncomingBubble: Bool { deliveryPresentation == "bubble" }
+
+    func faceID(for status: FishUserStatus) -> String {
+        statusFaceIDs?[status.rawValue] ?? status.faceID
+    }
+
+    func accessoryID(for status: FishUserStatus) -> String? {
+        statusAccessoryIDs?[status.rawValue].flatMap { $0.isEmpty ? nil : $0 }
+    }
 
     var effectiveMessageDisplaySeconds: TimeInterval {
         min(120, max(1, messageDisplaySeconds ?? 20))
@@ -95,7 +178,7 @@ enum FishVisitPolicy {
             return canActivate(contact: contact, preferences: preferences) ? contact.id : current
         case .visitEnd:
             return current == contact.id ? nil : current
-        case .text:
+        case .text, .status:
             return current
         }
     }
@@ -106,7 +189,7 @@ enum FishVisitPolicy {
         preferences: FishFriendPreferences
     ) -> Bool {
         guard !contact.blocked, !contact.muted else { return false }
-        return kind == .text || preferences.visitsEnabled
+        return kind == .text || kind == .status || preferences.visitsEnabled
     }
 }
 

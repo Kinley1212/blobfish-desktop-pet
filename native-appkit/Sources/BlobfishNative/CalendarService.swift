@@ -45,11 +45,9 @@ final class CalendarService {
     }
 
     private func requestAccess(completion: @escaping (Bool) -> Void) {
-        if #available(macOS 14.0, *) {
-            store.requestFullAccessToEvents { granted, _ in completion(granted) }
-        } else {
-            store.requestAccess(to: .event) { granted, _ in completion(granted) }
-        }
+        // requestAccess(to:) remains available on the Intel/macOS 13 SDK used
+        // by the local test machine and still prompts correctly on newer macOS.
+        store.requestAccess(to: .event) { granted, _ in completion(granted) }
     }
 
     private func poll() {

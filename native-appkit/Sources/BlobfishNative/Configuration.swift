@@ -31,6 +31,7 @@ struct AppConfig: Codable, Equatable {
         var scale: Double
         var roamWhenTasks: Bool
         var roamWhenNoTasks: Bool
+        var flipOnBounce: Bool
         var moveAxis: String
         var customization: [String: JSONValue]
         var accessories: [String: JSONValue]
@@ -81,7 +82,7 @@ struct AppConfig: Codable, Equatable {
         ),
         pet: Pet(
             characterPackId: "blobfish", speed: 1.5, scale: 1,
-            roamWhenTasks: true, roamWhenNoTasks: false, moveAxis: "horizontal",
+            roamWhenTasks: true, roamWhenNoTasks: false, flipOnBounce: true, moveAxis: "horizontal",
             customization: [:], accessories: [:]
         ),
         startup: Startup(launchAtLogin: false),

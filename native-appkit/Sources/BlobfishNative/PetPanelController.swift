@@ -206,7 +206,9 @@ final class PetPanelController {
     private var speakingPresentations: [PetMessageSpeaker: PetSpeakingPresentation] = [:]
     private var displayedVisitPresence: FishPresence?
     private var displayedVisitFriendName: String?
+    private var visitAnnouncementWorkItem: DispatchWorkItem?
     private var interactionPaused = false
+    private var composerPaused = false
     private var hoverPaused = false
     private var menuPaused = false
     private var dragging = false
@@ -217,12 +219,16 @@ final class PetPanelController {
     private var pettingStreak = 0
     private var lastPettingAt: TimeInterval = 0
     private var motionState = PetMotionTiming.State.idle
+    private var statusFaceID: String?
 
     var onClick: (() -> Void)? {
         didSet { petView.onClick = onClick }
     }
     var onDoubleClick: (() -> Void)? {
         didSet { petView.onDoubleClick = onDoubleClick }
+    }
+    var onRightDoubleClick: (() -> Void)? {
+        didSet { petView.onRightDoubleClick = onRightDoubleClick }
     }
     var onSceneAnchorChanged: ((PetSceneAnchor) -> Void)? {
         didSet {
@@ -235,6 +241,9 @@ final class PetPanelController {
     var onUnreadBadgeClick: (() -> Void)? {
         didSet { overlayView.onUnreadBadgeClick = onUnreadBadgeClick }
     }
+    var onCompanionClick: (() -> Void)? {
+        didSet { overlayView.onCompanionClick = onCompanionClick }
+    }
     var onPetting: ((Int) -> Void)?
     var moodFaceProvider: ((String) -> String?)?
     private lazy var speechQueue = SpeechQueue(
@@ -243,14 +252,14 @@ final class PetPanelController {
             self.overlayView.transientMessage = message.text.isEmpty ? nil : message.text
             self.overlayView.transientMessageEvent = message.event
             self.overlayView.transientMessageColor = message.color
-            self.petView.setMoodFace(message.faceID ?? message.event.flatMap { self.moodFaceProvider?($0) })
+            self.petView.setMoodFace(message.faceID ?? message.event.flatMap { self.moodFaceProvider?($0) } ?? self.statusFaceID)
             self.show()
         },
         onIdle: { [weak self] in
             self?.overlayView.transientMessage = nil
             self?.overlayView.transientMessageEvent = nil
             self?.overlayView.transientMessageColor = nil
-            self?.petView.setMoodFace(nil)
+            self?.petView.setMoodFace(self?.statusFaceID)
         }
     )
 
@@ -428,12 +437,53 @@ final class PetPanelController {
         RunLoop.main.add(interactionTimer!, forMode: .common)
     }
 
+    func playCompanionHitReaction() {
+        interactionTimer?.invalidate()
+        interactionPaused = true
+        guestView.playClickEffect()
+        interactionTimer = Timer.scheduledTimer(withTimeInterval: 0.65, repeats: false) { [weak self] _ in
+            self?.interactionPaused = false
+            self?.interactionTimer = nil
+        }
+        RunLoop.main.add(interactionTimer!, forMode: .common)
+    }
+
     func setMenuPaused(_ paused: Bool) {
         menuPaused = paused
         if paused {
             flingVelocity = nil
             syncSceneOverlay()
         }
+    }
+
+    func setComposerPaused(_ paused: Bool) {
+        composerPaused = paused
+        if paused {
+            flingVelocity = nil
+            petView.updateMotion(elapsed: petView.motionElapsed, bobOffset: 0)
+            guestView.updateMotion(elapsed: guestView.motionElapsed, bobOffset: 0)
+            syncSceneOverlay()
+        }
+    }
+
+    func setStatusAppearance(
+        faceID: String?, accessoryID: String?, accessories: JSONValue?, customization: JSONValue?
+    ) {
+        statusFaceID = faceID
+        petView.setMoodFace(faceID)
+        var specification = CharacterAccessories(config.pet.accessories[config.pet.characterPackId])
+        if let accessories {
+            let override = CharacterAccessories(accessories)
+            for (slot, id) in override.equipped { specification.equipped[slot] = id }
+            for (id, tuning) in override.tuning { specification.tuning[id] = tuning }
+        }
+        if let accessoryID,
+           let slot = petView.accessoryPacks.first(where: { $0.id == accessoryID })?.manifest.slot,
+           slot != "face", slot != "clock", slot != "message-indicator" {
+            specification.equipped[slot] = accessoryID
+        }
+        petView.accessorySpec = specification
+        petView.customization = customization ?? config.pet.customization[config.pet.characterPackId]
     }
 
     func updateClock(state: ClockState, timerText: String?) {
@@ -490,6 +540,7 @@ final class PetPanelController {
     }
 
     func showVisit(presence: FishPresence, friendName: String, runtime: AppRuntime) {
+        let isBeginningVisit = guestView.isHidden || displayedVisitFriendName != friendName
         if !guestView.isHidden,
            displayedVisitPresence == presence,
            displayedVisitFriendName == friendName {
@@ -500,11 +551,29 @@ final class PetPanelController {
         guestView.characterScale = min(0.82, config.pet.scale * 0.82)
         guestView.accessoryPacks = runtime.accessories
         guestView.customization = presence.customization
-        guestView.accessorySpec = CharacterAccessories(presence.accessories)
+        var guestAccessories = presence.statusAccessories.map(CharacterAccessories.init)
+            ?? CharacterAccessories(presence.accessories)
+        if let accessoryID = presence.statusAccessoryID,
+           let slot = runtime.accessories.first(where: { $0.id == accessoryID })?.manifest.slot,
+           slot != "face", slot != "clock", slot != "message-indicator" {
+            guestAccessories.equipped[slot] = accessoryID
+        }
+        guestView.accessorySpec = guestAccessories
+        guestView.setMoodFace(presence.statusFaceID ?? presence.status?.faceID)
         guestView.motionState = .idle
         guestView.updateMotion(elapsed: 0, bobOffset: 0)
         guestView.isHidden = false
         overlayView.visitingFriendName = friendName
+        overlayView.visitingFriendStatus = presence.status
+        if isBeginningVisit {
+            overlayView.visitAnnouncementFriendName = friendName
+            visitAnnouncementWorkItem?.cancel()
+            let announcement = DispatchWorkItem { [weak self] in
+                self?.overlayView.visitAnnouncementFriendName = nil
+            }
+            visitAnnouncementWorkItem = announcement
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: announcement)
+        }
         displayedVisitPresence = presence
         displayedVisitFriendName = friendName
         syncSceneOverlay()
@@ -513,10 +582,14 @@ final class PetPanelController {
     }
 
     func endVisit() {
+        visitAnnouncementWorkItem?.cancel()
+        visitAnnouncementWorkItem = nil
         guestView.isHidden = true
         displayedVisitPresence = nil
         displayedVisitFriendName = nil
         overlayView.visitingFriendName = nil
+        overlayView.visitingFriendStatus = nil
+        overlayView.visitAnnouncementFriendName = nil
         overlayView.companionCharacterBounds = nil
         overlayView.friendMessageBubbles.removeAll { $0.speaker == .visitor }
         clearSpeakingPresentation(for: .visitor)
@@ -572,7 +645,7 @@ final class PetPanelController {
         let movementPaused = PetMovementPause.shouldPause(
             hovering: hoverPaused,
             menuOpen: menuPaused,
-            interacting: interactionPaused,
+            interacting: interactionPaused || composerPaused,
             dragging: dragging
         )
         bobElapsed = PetMotionTiming.advancedBobElapsed(
@@ -631,8 +704,10 @@ final class PetPanelController {
             } else {
                 flingVelocity = velocity
             }
-            petView.direction = velocity.dx >= 0 ? 1 : -1
-            guestView.direction = petView.direction
+            if config.pet.flipOnBounce {
+                petView.direction = velocity.dx >= 0 ? 1 : -1
+                guestView.direction = petView.direction
+            }
             setPanelOriginIfChanged(origin)
             preciseOrigin = origin
             // A fling is also a deliberate placement. Keep its latest height
@@ -673,8 +748,10 @@ final class PetPanelController {
             origin.y = min(max(bobBaselineY ?? origin.y, allowed.minY), allowed.maxY)
             origin.x = min(max(origin.x, allowed.minX), allowed.maxX)
         }
-        petView.direction = movementDirection
-        guestView.direction = movementDirection
+        if config.pet.flipOnBounce {
+            petView.direction = movementDirection
+            guestView.direction = movementDirection
+        }
         setPanelOriginIfChanged(origin)
         preciseOrigin = origin
         bobBaselineY = origin.y
@@ -713,6 +790,10 @@ final class PetPanelController {
         let amplified = CGVector(dx: velocityX * 1.35, dy: velocityY * 1.35)
         let speed = hypot(amplified.dx, amplified.dy)
         guard speed >= 466.67 else { flingVelocity = nil; return }
+        if abs(amplified.dx) >= 1 {
+            petView.direction = amplified.dx >= 0 ? 1 : -1
+            guestView.direction = petView.direction
+        }
         let maximum: CGFloat = 1_833.33
         if speed > maximum {
             let scale = maximum / speed

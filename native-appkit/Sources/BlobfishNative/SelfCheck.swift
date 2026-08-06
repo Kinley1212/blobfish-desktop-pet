@@ -641,6 +641,7 @@ enum SelfCheck {
                 && result.config.performance.panelSide == "left"
                 && result.config.performance.panelVerticalPosition == 0.5
                 && result.config.performance.panelDistance == 6
+                && result.config.pet.flipOnBounce
                 && result.config.pet.customization["blobfish-wotou"]?.objectValue?["bodyShape"]?.stringValue == "bun"
         }
     }
@@ -663,6 +664,7 @@ enum SelfCheck {
         var runtime = AppConfig.defaults
         runtime.pet.roamWhenNoTasks = false
         runtime.pet.roamWhenTasks = true
+        runtime.pet.flipOnBounce = false
         runtime.performance.panelEnabled = true
         runtime.startup.launchAtLogin = true
         var draft = AppConfig.defaults
@@ -671,6 +673,7 @@ enum SelfCheck {
         let merged = QuickSettingsDraftMerge.merge(runtime: runtime, into: draft)
         return !merged.pet.roamWhenNoTasks
             && merged.pet.roamWhenTasks
+            && !merged.pet.flipOnBounce
             && merged.performance.panelEnabled
             && merged.startup.launchAtLogin
             && merged.pet.speed == 9.5
@@ -1275,10 +1278,10 @@ enum SelfCheck {
             ) == 1
             && PetMessageBubbleStack.opacity(
                 distanceFromNewest: 1, expiresAt: distantExpiry, now: now
-            ) == 0.68
+            ) == 1
             && PetMessageBubbleStack.opacity(
                 distanceFromNewest: 2, expiresAt: distantExpiry, now: halfFade
-            ) == 0.19
+            ) == 0.225
             && PetMessageBubbleStack.opacity(
                 distanceFromNewest: 0, expiresAt: distantExpiry, now: distantExpiry
             ) == 0

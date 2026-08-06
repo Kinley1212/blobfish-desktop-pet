@@ -353,8 +353,10 @@ final class PetView: NSView, CALayerDelegate {
     var ignoresMouseInteraction = false
     var onClick: (() -> Void)?
     var onDoubleClick: (() -> Void)?
+    var onRightDoubleClick: (() -> Void)?
     var onSpeechBubbleClick: ((UUID?) -> Void)?
     var onUnreadBadgeClick: (() -> Void)?
+    var onCompanionClick: (() -> Void)?
     var onDragStart: (() -> Void)?
     var onDragMove: ((CGFloat, CGFloat) -> Void)?
     var onDragEnd: ((CGFloat, CGFloat) -> Void)?
@@ -374,6 +376,10 @@ final class PetView: NSView, CALayerDelegate {
         }
     }
     var visitingFriendName: String? { didSet { if oldValue != visitingFriendName { invalidateOverlay() } } }
+    var visitingFriendStatus: FishUserStatus? { didSet { if oldValue != visitingFriendStatus { invalidateOverlay() } } }
+    var visitAnnouncementFriendName: String? {
+        didSet { if oldValue != visitAnnouncementFriendName { invalidateOverlay() } }
+    }
     var companionCharacterBounds: NSRect? {
         didSet { if oldValue != companionCharacterBounds { invalidateOverlay() } }
     }
@@ -523,7 +529,18 @@ final class PetView: NSView, CALayerDelegate {
             }
             rects += layout.ownerFriendBubbleRects + layout.visitorFriendBubbleRects
         }
+        if contentMode.drawsOverlay, let companionCharacterBounds {
+            rects.append(companionCharacterBounds.insetBy(dx: -8, dy: -8))
+        }
         return rects
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        if event.clickCount >= 2 {
+            onRightDoubleClick?()
+            return
+        }
+        super.rightMouseDown(with: event)
     }
 
     var characterBounds: NSRect {
@@ -606,6 +623,7 @@ final class PetView: NSView, CALayerDelegate {
     private var pendingClockAction: ClockAction?
     private var pendingSpeechBubbleClick = false
     private var pendingUnreadBadgeClick = false
+    private var pendingCompanionClick = false
     private var pendingSingleClickTimer: Timer?
 
     init(frame frameRect: NSRect, contentMode: PetViewContentMode = .combined) {
@@ -802,7 +820,7 @@ final class PetView: NSView, CALayerDelegate {
             characterBounds: characterBounds,
             companionBounds: companionCharacterBounds,
             timerSize: timerText == nil ? nil : CGSize(width: 80, height: 25),
-            visitStatusSize: visitingFriendName == nil ? nil : CGSize(width: 166, height: 21),
+            visitStatusSize: visitAnnouncementFriendName.map { visitAnnouncementSize(friendName: $0) },
             clockAlertSize: clockAlert == nil ? nil : CGSize(width: 276, height: 70),
             taskStackSize: snapshot.state == .idle || snapshot.tasks.isEmpty
                 ? nil
@@ -822,6 +840,10 @@ final class PetView: NSView, CALayerDelegate {
     override func mouseDown(with event: NSEvent) {
         let local = convert(event.locationInWindow, from: nil)
         let layout = currentSceneLayout()
+        if companionCharacterBounds?.contains(local) == true {
+            pendingCompanionClick = true
+            return
+        }
         if unreadMessageCount > 0, unreadBadgeRect.contains(local) {
             pendingUnreadBadgeClick = true
             return
@@ -850,6 +872,7 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        guard !pendingCompanionClick else { return }
         guard !pendingUnreadBadgeClick else { return }
         guard !pendingSpeechBubbleClick else { return }
         guard pendingClockAction == nil else { return }
@@ -874,6 +897,12 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     override func mouseUp(with event: NSEvent) {
+        if pendingCompanionClick {
+            pendingCompanionClick = false
+            let local = convert(event.locationInWindow, from: nil)
+            if companionCharacterBounds?.contains(local) == true { onCompanionClick?() }
+            return
+        }
         if pendingUnreadBadgeClick {
             pendingUnreadBadgeClick = false
             let local = convert(event.locationInWindow, from: nil)
@@ -916,7 +945,8 @@ final class PetView: NSView, CALayerDelegate {
                 cancelPendingSingleClick()
                 if intent == .doubleClick { onDoubleClick?() }
             } else {
-                scheduleSingleClick()
+                if onDoubleClick == nil { onClick?() }
+                else { scheduleSingleClick() }
             }
             return
         }
@@ -1849,7 +1879,9 @@ final class PetView: NSView, CALayerDelegate {
         NSGraphicsContext.restoreGraphicsState()
 
         var fadedAttributes = attributes
-        fadedAttributes[.foregroundColor] = NSColor.white.withAlphaComponent(opacity)
+        fadedAttributes[.foregroundColor] = bubble.color?.uppercased() == "#FFFFFF"
+            ? NSColor(calibratedWhite: 0.18, alpha: opacity)
+            : NSColor.white.withAlphaComponent(opacity)
         (bubble.text as NSString).draw(
             in: rect.insetBy(dx: 9, dy: 5),
             withAttributes: fadedAttributes
@@ -1857,16 +1889,37 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func drawVisitStatus(in layout: PetSceneLayout) {
-        guard let visitingFriendName, let rect = layout.visitStatusRect else { return }
-        NSColor(calibratedRed: 1, green: 0.91, blue: 0.94, alpha: 0.96).setFill()
-        NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
-        ("♡ 与 \(visitingFriendName) 牵手串门中" as NSString).draw(
-            in: rect.insetBy(dx: 6, dy: 3),
-            withAttributes: [
-                .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
-                .foregroundColor: NSColor(calibratedRed: 0.66, green: 0.22, blue: 0.35, alpha: 1),
-            ]
-        )
+        if let friendName = visitAnnouncementFriendName, let rect = layout.visitStatusRect {
+            NSColor(calibratedRed: 1, green: 0.91, blue: 0.94, alpha: 0.96).setFill()
+            NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10).fill()
+            (visitAnnouncementText(friendName: friendName) as NSString).draw(
+                in: rect.insetBy(dx: 6, dy: 3),
+                withAttributes: [
+                    .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
+                    .foregroundColor: NSColor(calibratedRed: 0.66, green: 0.22, blue: 0.35, alpha: 1),
+                ]
+            )
+        }
+        if let status = visitingFriendStatus, let companionCharacterBounds {
+            (status.emoji as NSString).draw(
+                at: NSPoint(x: companionCharacterBounds.midX - 9, y: companionCharacterBounds.maxY + 2),
+                withAttributes: [.font: NSFont.systemFont(ofSize: 18)]
+            )
+        }
+    }
+
+    private func visitAnnouncementText(friendName: String) -> String {
+        locale == "en"
+            ? "♡ Visiting hand in hand with \(friendName)"
+            : "♡ 與 \(friendName) 牽手串門中"
+    }
+
+    private func visitAnnouncementSize(friendName: String) -> CGSize {
+        let text = visitAnnouncementText(friendName: friendName) as NSString
+        let width = ceil(text.size(withAttributes: [
+            .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
+        ]).width)
+        return CGSize(width: min(260, max(166, width + 12)), height: 21)
     }
 
     private func clockSnoozeRect(in layout: PetSceneLayout) -> NSRect {
