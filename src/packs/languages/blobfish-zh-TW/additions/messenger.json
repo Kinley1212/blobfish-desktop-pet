@@ -1,0 +1,55 @@
+{
+  "category": "messenger",
+  "phrases": [
+    {
+      "id": "messenger-visit-start-01",
+      "event": "messenger.visitStart",
+      "text": "我過來坐一下……不會太久。",
+      "weight": 5
+    },
+    {
+      "id": "messenger-visit-start-02",
+      "event": "messenger.visitStart",
+      "text": "借我一小塊桌面。我游過去。",
+      "weight": 4
+    },
+    {
+      "id": "messenger-visit-accept-01",
+      "event": "messenger.visitAccept",
+      "text": "好吧，我也過來了。",
+      "weight": 5
+    },
+    {
+      "id": "messenger-visit-accept-02",
+      "event": "messenger.visitAccept",
+      "text": "收到……一起待一會兒。",
+      "weight": 4
+    },
+    {
+      "id": "messenger-visit-idle-01",
+      "event": "messenger.visitIdle",
+      "text": "兩條魚一起發呆，還算安靜。",
+      "weight": 5,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "messenger-visit-idle-02",
+      "event": "messenger.visitIdle",
+      "text": "不用說話也行。省點力氣。",
+      "weight": 4,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "messenger-visit-end-01",
+      "event": "messenger.visitEnd",
+      "text": "我先回去了。游不動了。",
+      "weight": 5
+    },
+    {
+      "id": "messenger-visit-end-02",
+      "event": "messenger.visitEnd",
+      "text": "差不多了……下次再來。",
+      "weight": 4
+    }
+  ]
+}

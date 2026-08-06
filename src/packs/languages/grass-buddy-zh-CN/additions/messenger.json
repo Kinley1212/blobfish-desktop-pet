@@ -1,0 +1,55 @@
+{
+  "category": "messenger",
+  "phrases": [
+    {
+      "id": "grass-messenger-visit-start-01",
+      "event": "messenger.visitStart",
+      "text": "我挪过去一点。根先放这。",
+      "weight": 5
+    },
+    {
+      "id": "grass-messenger-visit-start-02",
+      "event": "messenger.visitStart",
+      "text": "借块桌面。我来站会儿。",
+      "weight": 4
+    },
+    {
+      "id": "grass-messenger-visit-accept-01",
+      "event": "messenger.visitAccept",
+      "text": "收到了。我也过去。",
+      "weight": 5
+    },
+    {
+      "id": "grass-messenger-visit-accept-02",
+      "event": "messenger.visitAccept",
+      "text": "好。两边都长着。",
+      "weight": 4
+    },
+    {
+      "id": "grass-messenger-visit-idle-01",
+      "event": "messenger.visitIdle",
+      "text": "一起站着，也算串门。",
+      "weight": 5,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "grass-messenger-visit-idle-02",
+      "event": "messenger.visitIdle",
+      "text": "没话也行。叶子在听。",
+      "weight": 4,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "grass-messenger-visit-end-01",
+      "event": "messenger.visitEnd",
+      "text": "我先回去扎根。",
+      "weight": 5
+    },
+    {
+      "id": "grass-messenger-visit-end-02",
+      "event": "messenger.visitEnd",
+      "text": "风停了。下次再来。",
+      "weight": 4
+    }
+  ]
+}

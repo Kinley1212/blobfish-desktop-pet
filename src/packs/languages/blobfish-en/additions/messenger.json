@@ -1,0 +1,55 @@
+{
+  "category": "messenger",
+  "phrases": [
+    {
+      "id": "en-messenger-visit-start-01",
+      "event": "messenger.visitStart",
+      "text": "I am coming over. Slowly.",
+      "weight": 5
+    },
+    {
+      "id": "en-messenger-visit-start-02",
+      "event": "messenger.visitStart",
+      "text": "Save me a little corner. I will swim there.",
+      "weight": 4
+    },
+    {
+      "id": "en-messenger-visit-accept-01",
+      "event": "messenger.visitAccept",
+      "text": "Fine. I am here too.",
+      "weight": 5
+    },
+    {
+      "id": "en-messenger-visit-accept-02",
+      "event": "messenger.visitAccept",
+      "text": "Got it… I will stay awhile.",
+      "weight": 4
+    },
+    {
+      "id": "en-messenger-visit-idle-01",
+      "event": "messenger.visitIdle",
+      "text": "Quiet company works.",
+      "weight": 5,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "en-messenger-visit-idle-02",
+      "event": "messenger.visitIdle",
+      "text": "Two fish, one silence. Efficient enough.",
+      "weight": 4,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "en-messenger-visit-end-01",
+      "event": "messenger.visitEnd",
+      "text": "I am swimming home. Eventually.",
+      "weight": 5
+    },
+    {
+      "id": "en-messenger-visit-end-02",
+      "event": "messenger.visitEnd",
+      "text": "That is enough visiting… see you next time.",
+      "weight": 4
+    }
+  ]
+}

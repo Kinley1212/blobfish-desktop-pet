@@ -1,0 +1,55 @@
+{
+  "category": "messenger",
+  "phrases": [
+    {
+      "id": "grass-en-messenger-visit-start-01",
+      "event": "messenger.visitStart",
+      "text": "I will wander over. Roots can wait.",
+      "weight": 5
+    },
+    {
+      "id": "grass-en-messenger-visit-start-02",
+      "event": "messenger.visitStart",
+      "text": "Save me a patch. I will stand there.",
+      "weight": 4
+    },
+    {
+      "id": "grass-en-messenger-visit-accept-01",
+      "event": "messenger.visitAccept",
+      "text": "All right. I am here.",
+      "weight": 5
+    },
+    {
+      "id": "grass-en-messenger-visit-accept-02",
+      "event": "messenger.visitAccept",
+      "text": "Got it. Both sides can grow.",
+      "weight": 4
+    },
+    {
+      "id": "grass-en-messenger-visit-idle-01",
+      "event": "messenger.visitIdle",
+      "text": "Quiet visits still count.",
+      "weight": 5,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "grass-en-messenger-visit-idle-02",
+      "event": "messenger.visitIdle",
+      "text": "No words. The leaves are listening.",
+      "weight": 4,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "grass-en-messenger-visit-end-01",
+      "event": "messenger.visitEnd",
+      "text": "I should go root somewhere else.",
+      "weight": 5
+    },
+    {
+      "id": "grass-en-messenger-visit-end-02",
+      "event": "messenger.visitEnd",
+      "text": "The wind stopped. Next time.",
+      "weight": 4
+    }
+  ]
+}
