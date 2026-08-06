@@ -332,7 +332,7 @@ final class PetView: NSView, CALayerDelegate {
     private let contentMode: PetViewContentMode
     var ignoresMouseInteraction = false
     var onClick: (() -> Void)?
-    var onSpeechBubbleClick: (() -> Void)?
+    var onSpeechBubbleClick: ((UUID?) -> Void)?
     var onUnreadBadgeClick: (() -> Void)?
     var onDragStart: (() -> Void)?
     var onDragMove: ((CGFloat, CGFloat) -> Void)?
@@ -362,6 +362,8 @@ final class PetView: NSView, CALayerDelegate {
     var friendMessageBubbles: [PetMessageBubble] = [] {
         didSet { if oldValue != friendMessageBubbles { invalidateOverlay() } }
     }
+
+    func refreshFriendMessagePresentation() { invalidateOverlay() }
     var character: CharacterPack? {
         didSet {
             guard oldValue != character else { return }
@@ -573,6 +575,7 @@ final class PetView: NSView, CALayerDelegate {
     private var blushLevel = 0
     private var blushTimer: Timer?
     private var moodFaceID: String?
+    private(set) var speakingPresentation: PetSpeakingPresentation?
     private var mouseDownScreenPoint: NSPoint?
     private var lastDragScreenPoint: NSPoint?
     private var dragDistance: CGFloat = 0
@@ -692,6 +695,7 @@ final class PetView: NSView, CALayerDelegate {
             PetEffectGeometry.transform(for: $0, progress: effectPhase, characterID: characterID)
         } ?? PetEffectTransform(scaleX: 1, scaleY: 1, offsetX: 0, offsetY: 0)
         let motion = ambientMotionTransform()
+        let speaking = speakingMotionTransform()
         let anchor = CGPoint(
             x: min(1, max(0, art.midX / bounds.width)),
             y: min(1, max(0, art.midY / bounds.height))
@@ -700,8 +704,8 @@ final class PetView: NSView, CALayerDelegate {
         transform = CATransform3DRotate(transform, motion.rotation * .pi / 180, 0, 0, 1)
         transform = CATransform3DScale(
             transform,
-            geometry.scaleX * motion.scaleX * (direction < 0 ? -1 : 1),
-            geometry.scaleY * motion.scaleY,
+            geometry.scaleX * motion.scaleX * speaking.scaleX * (direction < 0 ? -1 : 1),
+            geometry.scaleY * motion.scaleY * speaking.scaleY,
             1
         )
         CATransaction.begin()
@@ -763,7 +767,7 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func currentSceneLayout() -> PetSceneLayout {
-        let active = Array(friendMessageBubbles.suffix(PetMessageBubbleStack.maximumVisible))
+        let active = PetMessageBubbleStack.active(friendMessageBubbles, now: Date())
         let ownerSizes = active
             .filter { $0.speaker == .owner }
             .map { friendBubbleMetrics(text: $0.text).size }
@@ -857,10 +861,11 @@ final class PetView: NSView, CALayerDelegate {
             pendingSpeechBubbleClick = false
             let local = convert(event.locationInWindow, from: nil)
             let layout = currentSceneLayout()
-            let friendRects = layout.ownerFriendBubbleRects + layout.visitorFriendBubbleRects
-            if transientMessageEvent == "messenger.received", layout.ownerSpeechRect?.contains(local) == true
-                || PetOverlayHitTesting.contains(local, in: friendRects) {
-                onSpeechBubbleClick?()
+            if transientMessageEvent == "messenger.received",
+               layout.ownerSpeechRect?.contains(local) == true {
+                onSpeechBubbleClick?(nil)
+            } else if let bubble = friendMessageBubble(at: local, in: layout, now: Date()) {
+                onSpeechBubbleClick?(bubble.contactID)
             }
             return
         }
@@ -913,6 +918,34 @@ final class PetView: NSView, CALayerDelegate {
         moodFaceID = id
         rebuildAccessoryImages()
         rebuildCharacterImage()
+    }
+
+    func beginSpeakingPresentation(_ presentation: PetSpeakingPresentation) {
+        guard speakingPresentation != presentation else { return }
+        speakingPresentation = presentation
+        updateArtworkTransform()
+    }
+
+    @discardableResult
+    func endSpeakingPresentation(token: UUID, now: Date = Date()) -> Bool {
+        guard PetSpeakingPresentationPolicy.shouldEnd(
+            speakingPresentation,
+            token: token,
+            now: now
+        ) else { return false }
+        speakingPresentation = nil
+        updateArtworkTransform()
+        return true
+    }
+
+    func clearSpeakingPresentation() {
+        guard speakingPresentation != nil else { return }
+        speakingPresentation = nil
+        updateArtworkTransform()
+    }
+
+    func isSpeakingPresentationActive(at now: Date = Date()) -> Bool {
+        PetSpeakingPresentationPolicy.isActive(speakingPresentation, now: now)
     }
 
     private func drawArtworkBase() {
@@ -1004,6 +1037,12 @@ final class PetView: NSView, CALayerDelegate {
             return (0, 1 + amount, 1)
         }
         return (0, 1, 1)
+    }
+
+    private func speakingMotionTransform() -> (scaleX: CGFloat, scaleY: CGFloat) {
+        guard isSpeakingPresentationActive() else { return (1, 1) }
+        let wave = CGFloat((sin(motionElapsed / 0.32 * 2 * .pi) + 1) / 2)
+        return (1 + 0.012 * wave, 1 - 0.008 * wave)
     }
 
     private func rebuildAccessoryImages() {
@@ -1641,7 +1680,8 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func drawFriendMessageBubbles(in layout: PetSceneLayout) {
-        let active = Array(friendMessageBubbles.suffix(PetMessageBubbleStack.maximumVisible))
+        let now = Date()
+        let active = PetMessageBubbleStack.active(friendMessageBubbles, now: now)
         guard !active.isEmpty else { return }
 
         for speaker in [PetMessageSpeaker.owner, .visitor] {
@@ -1654,17 +1694,37 @@ final class PetView: NSView, CALayerDelegate {
                 : layout.ownerFriendBubbleRects
             guard rects.count == entries.count else { continue }
             for (localIndex, entry) in entries.enumerated() {
-                let globalIndex = active.firstIndex(where: { $0.id == entry.id }) ?? 0
-                let distance = active.count - 1 - globalIndex
+                let distance = entries.count - 1 - localIndex
                 drawFriendBubble(
                     entry,
                     rect: rects[localIndex],
                     attributes: metrics[localIndex].attributes,
-                    opacity: PetMessageBubbleStack.opacity(distanceFromNewest: distance),
+                    opacity: PetMessageBubbleStack.opacity(
+                        distanceFromNewest: distance,
+                        expiresAt: entry.expiresAt,
+                        now: now
+                    ),
                     anchor: anchor
                 )
             }
         }
+    }
+
+    private func friendMessageBubble(
+        at point: NSPoint,
+        in layout: PetSceneLayout,
+        now: Date
+    ) -> PetMessageBubble? {
+        let active = PetMessageBubbleStack.active(friendMessageBubbles, now: now)
+        let owners = active.filter { $0.speaker == .owner }
+        let visitors = active.filter { $0.speaker == .visitor }
+        for (bubble, rect) in zip(owners, layout.ownerFriendBubbleRects) where rect.contains(point) {
+            return bubble
+        }
+        for (bubble, rect) in zip(visitors, layout.visitorFriendBubbleRects) where rect.contains(point) {
+            return bubble
+        }
+        return nil
     }
 
     private func friendBubbleMetrics(

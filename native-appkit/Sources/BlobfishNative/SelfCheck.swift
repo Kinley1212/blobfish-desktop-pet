@@ -43,6 +43,7 @@ enum SelfCheck {
             ("overlay hit testing leaves transparent gaps", overlayHitTestingLeavesTransparentGaps),
             ("overlay hit testing skips noninteractive layout", overlayHitTestingSkipsNoninteractiveLayout),
             ("friend messages stack and expire", friendMessagesStackAndExpire),
+            ("friend speaking tokens preserve base motion", friendSpeakingTokensPreserveBaseMotion),
             ("display-paced pet motion", displayPacedPetMotion),
             ("hover and menu pause pet motion", hoverAndMenuPausePetMotion),
             ("display-timed carousel easing", displayTimedCarouselEasing),
@@ -1021,29 +1022,122 @@ enum SelfCheck {
 
     private static func friendMessagesStackAndExpire() -> Bool {
         let now = Date(timeIntervalSince1970: 1_000)
+        let contactID = UUID()
         var stack: [PetMessageBubble] = []
-        for index in 0..<4 {
+        let specs: [(String, PetMessageSpeaker, TimeInterval)] = [
+            ("owner-0", .owner, 7),
+            ("visitor-0", .visitor, 8),
+            ("owner-1", .owner, 1),
+            ("visitor-1", .visitor, 10),
+            ("owner-2", .owner, 8),
+            ("visitor-2", .visitor, 2),
+            ("owner-3", .owner, 9),
+            ("visitor-3", .visitor, 11),
+        ]
+        var messageIDs: [String: UUID] = [:]
+        for (text, speaker, duration) in specs {
+            let id = UUID()
+            messageIDs[text] = id
             stack = PetMessageBubbleStack.inserting(
                 PetMessageBubble(
-                    id: UUID(),
-                    text: "message-\(index)",
+                    id: id,
+                    contactID: contactID,
+                    text: text,
                     color: nil,
-                    speaker: index.isMultiple(of: 2) ? .owner : .visitor,
-                    expiresAt: now.addingTimeInterval(TimeInterval(index + 1))
+                    speaker: speaker,
+                    expiresAt: now.addingTimeInterval(duration)
                 ),
                 into: stack,
                 now: now
             )
         }
+        guard stack.map(\.text) == [
+            "owner-1", "visitor-1", "owner-2", "visitor-2", "owner-3", "visitor-3",
+        ], stack.filter({ $0.speaker == .owner }).count == 3,
+           stack.filter({ $0.speaker == .visitor }).count == 3,
+           stack.allSatisfy({ $0.contactID == contactID }),
+           let duplicateID = messageIDs["owner-2"] else { return false }
+
+        stack = PetMessageBubbleStack.inserting(
+            PetMessageBubble(
+                id: duplicateID,
+                contactID: contactID,
+                text: "owner-2-new",
+                color: nil,
+                speaker: .owner,
+                expiresAt: now.addingTimeInterval(8)
+            ),
+            into: stack,
+            now: now
+        )
         let afterTwoSeconds = PetMessageBubbleStack.active(
             stack,
             now: now.addingTimeInterval(2.5)
         )
-        return stack.map(\.text) == ["message-1", "message-2", "message-3"]
-            && afterTwoSeconds.map(\.text) == ["message-2", "message-3"]
-            && PetMessageBubbleStack.opacity(distanceFromNewest: 0) == 1
-            && PetMessageBubbleStack.opacity(distanceFromNewest: 1) == 0.68
-            && PetMessageBubbleStack.opacity(distanceFromNewest: 2) == 0.38
+        let distantExpiry = now.addingTimeInterval(10)
+        let halfFade = now.addingTimeInterval(9.5)
+        return stack.filter({ $0.id == duplicateID }).map(\.text) == ["owner-2-new"]
+            && afterTwoSeconds.map(\.text) == ["visitor-1", "owner-3", "visitor-3", "owner-2-new"]
+            && PetMessageBubbleStack.opacity(
+                distanceFromNewest: 0, expiresAt: distantExpiry, now: now
+            ) == 1
+            && PetMessageBubbleStack.opacity(
+                distanceFromNewest: 1, expiresAt: distantExpiry, now: now
+            ) == 0.68
+            && PetMessageBubbleStack.opacity(
+                distanceFromNewest: 2, expiresAt: distantExpiry, now: halfFade
+            ) == 0.19
+            && PetMessageBubbleStack.opacity(
+                distanceFromNewest: 0, expiresAt: distantExpiry, now: distantExpiry
+            ) == 0
+    }
+
+    private static func friendSpeakingTokensPreserveBaseMotion() -> Bool {
+        let now = Date(timeIntervalSince1970: 2_000)
+        let bubble = PetMessageBubble(
+            id: UUID(),
+            contactID: UUID(),
+            text: "second message",
+            color: nil,
+            speaker: .owner,
+            expiresAt: now.addingTimeInterval(20)
+        )
+        let first = PetSpeakingPresentationPolicy.starting(
+            token: UUID(),
+            text: "first",
+            now: now
+        )
+        let second = PetSpeakingPresentationPolicy.starting(
+            token: UUID(),
+            text: "second message",
+            now: now
+        )
+        let firstExpiry = first.expiresAt
+        let secondExpiry = second.expiresAt
+        let view = PetView(frame: NSRect(x: 0, y: 0, width: 300, height: 190))
+        view.motionState = .working
+        view.beginSpeakingPresentation(first)
+        view.beginSpeakingPresentation(second)
+        let staleTimerDidEnd = view.endSpeakingPresentation(
+            token: first.token,
+            now: firstExpiry
+        )
+        let currentSurvived = view.speakingPresentation == second
+            && view.isSpeakingPresentationActive(at: firstExpiry)
+        let currentTimerDidEnd = view.endSpeakingPresentation(
+            token: second.token,
+            now: secondExpiry
+        )
+        return PetSpeakingPresentationPolicy.isActive(first, now: now)
+            && first.expiresAt.timeIntervalSince(now) >= PetSpeakingPresentationPolicy.minimumDuration
+            && second.expiresAt.timeIntervalSince(now) <= PetSpeakingPresentationPolicy.maximumDuration
+            && second.expiresAt < bubble.expiresAt
+            && !PetSpeakingPresentationPolicy.shouldEnd(first, token: second.token, now: secondExpiry)
+            && !staleTimerDidEnd
+            && currentSurvived
+            && currentTimerDidEnd
+            && view.speakingPresentation == nil
+            && view.motionState == .working
     }
 
     private static func quickTimerClockThreshold() -> Bool {

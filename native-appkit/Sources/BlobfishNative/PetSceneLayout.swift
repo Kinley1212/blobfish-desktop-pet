@@ -1,12 +1,13 @@
 import AppKit
 
-enum PetMessageSpeaker: String, Equatable {
+enum PetMessageSpeaker: String, Hashable {
     case owner
     case visitor
 }
 
 struct PetMessageBubble: Equatable, Identifiable {
     let id: UUID
+    let contactID: UUID?
     let text: String
     let color: String?
     let speaker: PetMessageSpeaker
@@ -14,7 +15,8 @@ struct PetMessageBubble: Equatable, Identifiable {
 }
 
 enum PetMessageBubbleStack {
-    static let maximumVisible = 3
+    static let maximumVisiblePerSpeaker = 3
+    static let fadeOutDuration: TimeInterval = 1
 
     static func inserting(
         _ bubble: PetMessageBubble,
@@ -22,19 +24,78 @@ enum PetMessageBubbleStack {
         now: Date
     ) -> [PetMessageBubble] {
         let active = current.filter { $0.expiresAt > now && $0.id != bubble.id }
-        return Array((active + [bubble]).suffix(maximumVisible))
+        return bounded(active + [bubble])
     }
 
     static func active(_ current: [PetMessageBubble], now: Date) -> [PetMessageBubble] {
-        Array(current.filter { $0.expiresAt > now }.suffix(maximumVisible))
+        bounded(current.filter { $0.expiresAt > now })
     }
 
-    static func opacity(distanceFromNewest: Int) -> CGFloat {
+    static func opacity(
+        distanceFromNewest: Int,
+        expiresAt: Date,
+        now: Date
+    ) -> CGFloat {
+        let rankOpacity: CGFloat
         switch distanceFromNewest {
-        case 0: return 1
-        case 1: return 0.68
-        default: return 0.38
+        case 0: rankOpacity = 1
+        case 1: rankOpacity = 0.68
+        default: rankOpacity = 0.38
         }
+        let remaining = expiresAt.timeIntervalSince(now)
+        let fadeProgress = min(1, max(0, remaining / fadeOutDuration))
+        return rankOpacity * CGFloat(fadeProgress)
+    }
+
+    private static func bounded(_ bubbles: [PetMessageBubble]) -> [PetMessageBubble] {
+        var keptPerSpeaker: [PetMessageSpeaker: Int] = [:]
+        var result: [PetMessageBubble] = []
+        for bubble in bubbles.reversed() {
+            let count = keptPerSpeaker[bubble.speaker, default: 0]
+            guard count < maximumVisiblePerSpeaker else { continue }
+            keptPerSpeaker[bubble.speaker] = count + 1
+            result.append(bubble)
+        }
+        return Array(result.reversed())
+    }
+}
+
+struct PetSpeakingPresentation: Equatable {
+    let token: UUID
+    let expiresAt: Date
+}
+
+enum PetSpeakingPresentationPolicy {
+    static let minimumDuration: TimeInterval = 1.2
+    static let maximumDuration: TimeInterval = 4
+
+    static func duration(for text: String) -> TimeInterval {
+        min(maximumDuration, max(minimumDuration, minimumDuration + Double(text.count) * 0.06))
+    }
+
+    static func starting(
+        token: UUID = UUID(),
+        text: String,
+        now: Date
+    ) -> PetSpeakingPresentation {
+        PetSpeakingPresentation(
+            token: token,
+            expiresAt: now.addingTimeInterval(duration(for: text))
+        )
+    }
+
+    static func isActive(_ presentation: PetSpeakingPresentation?, now: Date) -> Bool {
+        guard let presentation else { return false }
+        return presentation.expiresAt > now
+    }
+
+    static func shouldEnd(
+        _ presentation: PetSpeakingPresentation?,
+        token: UUID,
+        now: Date
+    ) -> Bool {
+        guard let presentation, presentation.token == token else { return false }
+        return !isActive(presentation, now: now)
     }
 }
 

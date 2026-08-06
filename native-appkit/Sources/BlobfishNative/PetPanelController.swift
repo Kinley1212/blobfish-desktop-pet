@@ -176,6 +176,8 @@ final class PetPanelController {
     private var config: AppConfig
     private var interactionTimer: Timer?
     private var friendBubbleTimer: Timer?
+    private var speakingTimers: [PetMessageSpeaker: Timer] = [:]
+    private var speakingPresentations: [PetMessageSpeaker: PetSpeakingPresentation] = [:]
     private var interactionPaused = false
     private var hoverPaused = false
     private var menuPaused = false
@@ -191,7 +193,7 @@ final class PetPanelController {
     var onClick: (() -> Void)? {
         didSet { petView.onClick = onClick }
     }
-    var onSpeechBubbleClick: (() -> Void)? {
+    var onSpeechBubbleClick: ((UUID?) -> Void)? {
         didSet { overlayView.onSpeechBubbleClick = onSpeechBubbleClick }
     }
     var onUnreadBadgeClick: (() -> Void)? {
@@ -342,6 +344,11 @@ final class PetPanelController {
         interactionTimer = nil
         friendBubbleTimer?.invalidate()
         friendBubbleTimer = nil
+        speakingTimers.values.forEach { $0.invalidate() }
+        speakingTimers.removeAll()
+        speakingPresentations.removeAll()
+        petView.clearSpeakingPresentation()
+        guestView.clearSpeakingPresentation()
         speechQueue.clear()
         panel.orderOut(nil)
         overlayPanel.orderOut(nil)
@@ -421,24 +428,28 @@ final class PetPanelController {
 
     func showFriendMessage(
         id: UUID,
+        contactID: UUID? = nil,
         text: String,
         color: String?,
         speaker: PetMessageSpeaker,
         duration: TimeInterval
     ) {
         let now = Date()
+        let expiresAt = now.addingTimeInterval(max(1, duration))
         let bubble = PetMessageBubble(
             id: id,
+            contactID: contactID,
             text: text,
             color: color,
             speaker: speaker,
-            expiresAt: now.addingTimeInterval(max(1, duration))
+            expiresAt: expiresAt
         )
         overlayView.friendMessageBubbles = PetMessageBubbleStack.inserting(
             bubble,
             into: overlayView.friendMessageBubbles,
             now: now
         )
+        beginSpeakingPresentation(for: speaker, text: text, now: now)
         scheduleFriendBubbleExpiry()
         show()
     }
@@ -464,6 +475,8 @@ final class PetPanelController {
         overlayView.visitingFriendName = nil
         overlayView.companionCharacterBounds = nil
         overlayView.friendMessageBubbles.removeAll { $0.speaker == .visitor }
+        clearSpeakingPresentation(for: .visitor)
+        scheduleFriendBubbleExpiry()
         preciseOrigin = nil
         bobBaselineY = nil
         syncSceneOverlay()
@@ -757,17 +770,76 @@ final class PetPanelController {
             overlayView.friendMessageBubbles,
             now: now
         )
+        overlayView.refreshFriendMessagePresentation()
         guard let next = overlayView.friendMessageBubbles.map(\.expiresAt).min() else {
             friendBubbleTimer = nil
             return
         }
+        let isFading = overlayView.friendMessageBubbles.contains {
+            $0.expiresAt.timeIntervalSince(now) <= PetMessageBubbleStack.fadeOutDuration
+        }
+        let nextFadeStart = overlayView.friendMessageBubbles
+            .map { $0.expiresAt.addingTimeInterval(-PetMessageBubbleStack.fadeOutDuration) }
+            .min() ?? next
+        let interval = isFading
+            ? 1.0 / 30.0
+            : max(0.05, nextFadeStart.timeIntervalSince(now))
         friendBubbleTimer = Timer.scheduledTimer(
-            withTimeInterval: max(0.05, next.timeIntervalSince(now)),
+            withTimeInterval: interval,
             repeats: false
         ) { [weak self] _ in
             self?.friendBubbleTimer = nil
             self?.scheduleFriendBubbleExpiry()
         }
         if let friendBubbleTimer { RunLoop.main.add(friendBubbleTimer, forMode: .common) }
+    }
+
+    private func beginSpeakingPresentation(
+        for speaker: PetMessageSpeaker,
+        text: String,
+        now: Date
+    ) {
+        speakingTimers[speaker]?.invalidate()
+        let presentation = PetSpeakingPresentationPolicy.starting(text: text, now: now)
+        speakingPresentations[speaker] = presentation
+        characterView(for: speaker).beginSpeakingPresentation(presentation)
+        scheduleSpeakingExpiry(for: speaker, presentation: presentation)
+    }
+
+    private func scheduleSpeakingExpiry(
+        for speaker: PetMessageSpeaker,
+        presentation: PetSpeakingPresentation
+    ) {
+        speakingTimers[speaker]?.invalidate()
+        let interval = max(0.05, presentation.expiresAt.timeIntervalSinceNow)
+        let timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+            self?.finishSpeakingPresentation(for: speaker, token: presentation.token)
+        }
+        speakingTimers[speaker] = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func finishSpeakingPresentation(for speaker: PetMessageSpeaker, token: UUID) {
+        guard let current = speakingPresentations[speaker], current.token == token else { return }
+        let now = Date()
+        guard PetSpeakingPresentationPolicy.shouldEnd(current, token: token, now: now) else {
+            scheduleSpeakingExpiry(for: speaker, presentation: current)
+            return
+        }
+        speakingTimers[speaker]?.invalidate()
+        speakingTimers[speaker] = nil
+        speakingPresentations[speaker] = nil
+        characterView(for: speaker).endSpeakingPresentation(token: token, now: now)
+    }
+
+    private func clearSpeakingPresentation(for speaker: PetMessageSpeaker) {
+        speakingTimers[speaker]?.invalidate()
+        speakingTimers[speaker] = nil
+        speakingPresentations[speaker] = nil
+        characterView(for: speaker).clearSpeakingPresentation()
+    }
+
+    private func characterView(for speaker: PetMessageSpeaker) -> PetView {
+        speaker == .owner ? petView : guestView
     }
 }
