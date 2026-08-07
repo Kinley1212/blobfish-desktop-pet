@@ -62,7 +62,7 @@ enum SelfCheck {
             ("performance panel stays on canvas", performancePanelStaysOnCanvas),
             ("performance bars nest and animate", performanceBarsNestAndAnimate),
             ("pet reaction geometry", petReactionGeometry),
-            ("fish launch prank returns to its original position", fishLaunchPrankReturns),
+            ("fish launch interaction returns to its original position", fishLaunchInteractionReturns),
             ("task carousel geometry", taskCarouselGeometry),
             ("continuous task spinner timeline", continuousTaskSpinnerTimeline),
             ("inactive preview releases without lazy weak crash", inactivePreviewReleasesWithoutLazyWeakCrash),
@@ -77,7 +77,8 @@ enum SelfCheck {
             ("fish visit appearance stays encrypted", fishVisitEncryption),
             ("fish delivery receipts and remote actions stay encrypted", fishReceiptAndInteractionEncryption),
             ("fish delivery states advance without regressing", fishDeliveryStatesAdvance),
-            ("fish prank interactions respect suppression and expiry", fishPrankPolicy),
+            ("fish interactions use distinct configurable sounds", fishInteractionSounds),
+            ("fish visits expire after a peer goes offline", fishVisitLiveness),
             ("fish message quick actions stay unique and backward compatible", fishQuickInteractionPreferences),
             ("fish history preserves unread messages", fishHistoryPersistence),
             ("fish history migrates legacy delivery state", fishHistoryMigratesDeliveryState),
@@ -287,33 +288,44 @@ enum SelfCheck {
             && FishDeliveryStatePolicy.relayed(after: .sending) == .relayed
     }
 
-    private static func fishPrankPolicy() -> Bool {
+    private static func fishInteractionSounds() -> Bool {
+        var preferences = FishFriendPreferences.defaults
+        preferences.interactionSoundEnabled = [FishRemoteInteraction.bomb.rawValue: false]
+        preferences.interactionSoundIDs = [
+            FishRemoteInteraction.hug.rawValue: "Pop",
+            FishRemoteInteraction.bomb.rawValue: "not-a-sound",
+        ]
+        let defaults = FishRemoteInteraction.allCases.map {
+            FishInteractionSoundStyle.defaultSoundID(for: $0)
+        }
         return FishRemoteInteraction(rawValue: "launch") == .launch
             && !FishRemoteInteraction.allCases.contains(.launch)
             && FishRemoteInteraction.allCases.contains(.bomb)
             && FishRemoteInteraction.allCases.contains(.vortex)
             && FishRemoteInteraction.allCases.contains(.wave)
             && FishRemoteInteraction.allCases.contains(.bubble)
-            && FishRemoteInteraction.launch.isPrank
-            && FishRemoteInteraction.bomb.isPrank
-            && FishRemoteInteraction.vortex.isPrank
-            && FishRemoteInteraction.wave.isPrank
-            && FishRemoteInteraction.bubble.isPrank
-            && !FishRemoteInteraction.hug.isPrank
-            && FishPrankPolicy.shouldPlay(
-                enabled: true, doNotDisturb: false, busy: false, age: 59
+            && Set(defaults).count == FishRemoteInteraction.allCases.count
+            && preferences.soundEnabled(for: .pet)
+            && !preferences.soundEnabled(for: .bomb)
+            && preferences.soundID(for: .hug) == "Pop"
+            && preferences.soundID(for: .bomb) == FishInteractionSoundStyle.defaultSoundID(for: .bomb)
+    }
+
+    private static func fishVisitLiveness() -> Bool {
+        let now = Date(timeIntervalSince1970: 10_000)
+        return FishVisitLivenessPolicy.shouldSendHeartbeat(lastSentAt: nil, now: now)
+            && !FishVisitLivenessPolicy.shouldSendHeartbeat(
+                lastSentAt: now.addingTimeInterval(-24), now: now
             )
-            && !FishPrankPolicy.shouldPlay(
-                enabled: true, doNotDisturb: false, busy: false, age: 61
+            && FishVisitLivenessPolicy.shouldSendHeartbeat(
+                lastSentAt: now.addingTimeInterval(-25), now: now
             )
-            && !FishPrankPolicy.shouldPlay(
-                enabled: true, doNotDisturb: true, busy: false, age: 1
+            && !FishVisitLivenessPolicy.shouldEndVisit(lastSeenAt: nil, now: now)
+            && !FishVisitLivenessPolicy.shouldEndVisit(
+                lastSeenAt: now.addingTimeInterval(-69), now: now
             )
-            && !FishPrankPolicy.shouldPlay(
-                enabled: true, doNotDisturb: false, busy: true, age: 1
-            )
-            && !FishPrankPolicy.shouldPlay(
-                enabled: false, doNotDisturb: false, busy: false, age: 1
+            && FishVisitLivenessPolicy.shouldEndVisit(
+                lastSeenAt: now.addingTimeInterval(-70), now: now
             )
     }
 
@@ -331,31 +343,31 @@ enum SelfCheck {
             && Set(repaired).count == 3
     }
 
-    private static func fishLaunchPrankReturns() -> Bool {
+    private static func fishLaunchInteractionReturns() -> Bool {
         let allowed = NSRect(x: 0, y: 0, width: 500, height: 400)
         let original = NSPoint(x: 20, y: 30)
         let target = NSPoint(x: 250, y: 200)
-        let start = FishPrankAnimationGeometry.launchOrigin(
+        let start = FishInteractionAnimationGeometry.launchOrigin(
             original: original, target: target, phase: 0, allowed: allowed
         )
-        let airborne = FishPrankAnimationGeometry.launchOrigin(
+        let airborne = FishInteractionAnimationGeometry.launchOrigin(
             original: original, target: target, phase: 0.25, allowed: allowed
         )
-        let center = FishPrankAnimationGeometry.launchOrigin(
+        let center = FishInteractionAnimationGeometry.launchOrigin(
             original: original, target: target, phase: 0.35, allowed: allowed
         )
-        let end = FishPrankAnimationGeometry.launchOrigin(
+        let end = FishInteractionAnimationGeometry.launchOrigin(
             original: original, target: target, phase: 1, allowed: allowed
         )
         let opposite = NSPoint(x: 420, y: 30)
         let edge = NSPoint(x: 420, y: 30)
-        let vortexEnd = FishPrankAnimationGeometry.vortexOrigin(
+        let vortexEnd = FishInteractionAnimationGeometry.vortexOrigin(
             original: original, center: target, opposite: opposite, phase: 1, allowed: allowed
         )
-        let waveEnd = FishPrankAnimationGeometry.waveOrigin(
+        let waveEnd = FishInteractionAnimationGeometry.waveOrigin(
             original: original, edge: edge, phase: 1, allowed: allowed
         )
-        let bubbleEnd = FishPrankAnimationGeometry.bubbleOrigin(
+        let bubbleEnd = FishInteractionAnimationGeometry.bubbleOrigin(
             original: original, center: target, phase: 1, allowed: allowed
         )
         let isNear: (NSPoint, NSPoint) -> Bool = { left, right in
@@ -431,8 +443,8 @@ enum SelfCheck {
         configured.messageDisplaySeconds = -5
         return migrated.messageDisplaySeconds == nil
             && migrated.effectiveMessageDisplaySeconds == 20
-            && migrated.effectiveFriendPranksEnabled
-            && migrated.effectiveFriendPrankSoundEnabled
+            && migrated.soundEnabled(for: .pet)
+            && migrated.soundID(for: .pet) == FishInteractionSoundStyle.defaultSoundID(for: .pet)
             && roundTrip.effectiveMessageDisplaySeconds == 36
             && configured.effectiveMessageDisplaySeconds == 1
     }

@@ -94,15 +94,6 @@ enum FishRemoteInteraction: String, Codable, CaseIterable, Identifiable, Hashabl
     }
 
     var phraseEvent: String { "messenger.remote.\(rawValue)" }
-    var isPrank: Bool {
-        switch self {
-        case .launch, .bomb, .vortex, .wave, .bubble: return true
-        case .pet, .hug, .highFive: return false
-        }
-    }
-
-    static let prankMaximumReplayAge: TimeInterval = 60
-
     static let defaultQuickActions: [FishRemoteInteraction] = [.pet, .hug, .highFive]
 
     static func normalizedQuickActions(_ ids: [String]?) -> [FishRemoteInteraction] {
@@ -122,15 +113,27 @@ enum FishRemoteInteraction: String, Codable, CaseIterable, Identifiable, Hashabl
     }
 }
 
-enum FishPrankPolicy {
-    static func shouldPlay(
-        enabled: Bool,
-        doNotDisturb: Bool,
-        busy: Bool,
-        age: TimeInterval
-    ) -> Bool {
-        enabled && !doNotDisturb && !busy
-            && age <= FishRemoteInteraction.prankMaximumReplayAge
+enum FishInteractionSoundStyle {
+    static let soundIDs = ["Glass", "Ping", "Hero", "Submarine", "Tink", "Pop", "Purr", "Bottle", "Funk"]
+
+    static func defaultSoundID(for interaction: FishRemoteInteraction) -> String {
+        switch interaction {
+        case .pet: return "Purr"
+        case .hug: return "Glass"
+        case .highFive: return "Pop"
+        case .launch: return "Hero"
+        case .bomb: return "Funk"
+        case .vortex: return "Submarine"
+        case .wave: return "Bottle"
+        case .bubble: return "Tink"
+        }
+    }
+
+    static func normalized(_ soundID: String?, for interaction: FishRemoteInteraction) -> String {
+        guard let soundID, soundIDs.contains(soundID) else {
+            return defaultSoundID(for: interaction)
+        }
+        return soundID
     }
 }
 
@@ -232,18 +235,27 @@ struct FishFriendPreferences: Codable, Equatable {
     var messageShowsBubble: Bool? = nil
     var visitShowsMailbox: Bool? = nil
     var visitShowsBubble: Bool? = nil
-    var friendPranksEnabled: Bool? = nil
-    var friendPrankSoundEnabled: Bool? = nil
+    var interactionSoundEnabled: [String: Bool]? = nil
+    var interactionSoundIDs: [String: String]? = nil
     var quickInteractionIDs: [String]? = nil
 
     var effectiveMessageShowsMailbox: Bool { messageShowsMailbox ?? !showsIncomingBubble }
     var effectiveMessageShowsBubble: Bool { messageShowsBubble ?? showsIncomingBubble }
     var effectiveVisitShowsMailbox: Bool { visitShowsMailbox ?? false }
     var effectiveVisitShowsBubble: Bool { visitShowsBubble ?? true }
-    var effectiveFriendPranksEnabled: Bool { friendPranksEnabled ?? true }
-    var effectiveFriendPrankSoundEnabled: Bool { friendPrankSoundEnabled ?? true }
     var effectiveQuickInteractions: [FishRemoteInteraction] {
         FishRemoteInteraction.normalizedQuickActions(quickInteractionIDs)
+    }
+
+    func soundEnabled(for interaction: FishRemoteInteraction) -> Bool {
+        interactionSoundEnabled?[interaction.rawValue] ?? true
+    }
+
+    func soundID(for interaction: FishRemoteInteraction) -> String {
+        FishInteractionSoundStyle.normalized(
+            interactionSoundIDs?[interaction.rawValue],
+            for: interaction
+        )
     }
 
     func customization(for status: FishUserStatus, fallback: JSONValue?) -> JSONValue? {
@@ -337,6 +349,21 @@ enum FishVisitPolicy {
         case .receipt:
             return false
         }
+    }
+}
+
+enum FishVisitLivenessPolicy {
+    static let heartbeatInterval: TimeInterval = 25
+    static let offlineTimeout: TimeInterval = 70
+
+    static func shouldSendHeartbeat(lastSentAt: Date?, now: Date) -> Bool {
+        guard let lastSentAt else { return true }
+        return now.timeIntervalSince(lastSentAt) >= heartbeatInterval
+    }
+
+    static func shouldEndVisit(lastSeenAt: Date?, now: Date) -> Bool {
+        guard let lastSeenAt else { return false }
+        return now.timeIntervalSince(lastSeenAt) >= offlineTimeout
     }
 }
 

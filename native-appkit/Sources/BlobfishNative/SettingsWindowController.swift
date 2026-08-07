@@ -214,6 +214,31 @@ final class SettingsViewModel: ObservableObject {
         )
     }
 
+    func interactionSoundEnabledBinding(_ interaction: FishRemoteInteraction) -> Binding<Bool> {
+        Binding(
+            get: { self.fishPreferences.soundEnabled(for: interaction) },
+            set: { enabled in
+                var values = self.fishPreferences.interactionSoundEnabled ?? [:]
+                values[interaction.rawValue] = enabled
+                self.fishPreferences.interactionSoundEnabled = values
+            }
+        )
+    }
+
+    func interactionSoundBinding(_ interaction: FishRemoteInteraction) -> Binding<String> {
+        Binding(
+            get: { self.fishPreferences.soundID(for: interaction) },
+            set: { soundID in
+                var values = self.fishPreferences.interactionSoundIDs ?? [:]
+                values[interaction.rawValue] = FishInteractionSoundStyle.normalized(
+                    soundID,
+                    for: interaction
+                )
+                self.fishPreferences.interactionSoundIDs = values
+            }
+        )
+    }
+
     func statusAccessoryBinding(_ status: FishUserStatus) -> Binding<String> {
         Binding(
             get: { self.fishPreferences.accessoryID(for: status) ?? "" },
@@ -907,19 +932,28 @@ struct BrandedSettingsView: View {
                 }
                 }
                 Toggle(t("允许好友串门", "Allow friend visits"), isOn: $model.fishPreferences.visitsEnabled)
-                VStack(alignment: .leading, spacing: 5) {
-                    Toggle(t("允許好友惡作劇", "Allow friend pranks"), isOn: Binding(
-                        get: { model.fishPreferences.effectiveFriendPranksEnabled },
-                        set: { model.fishPreferences.friendPranksEnabled = $0 }
-                    ))
-                    Toggle(t("惡作劇播放音效", "Play sound for pranks"), isOn: Binding(
-                        get: { model.fishPreferences.effectiveFriendPrankSoundEnabled },
-                        set: { model.fishPreferences.friendPrankSoundEnabled = $0 }
-                    ))
-                    .disabled(!model.fishPreferences.effectiveFriendPranksEnabled)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(t("魚魚互動音效", "Fish interaction sounds"))
+                        .font(.subheadline.weight(.semibold))
+                    ForEach(FishRemoteInteraction.allCases) { interaction in
+                        HStack(spacing: 8) {
+                            Toggle(
+                                interaction.title(isEnglish: model.isEnglish),
+                                isOn: model.interactionSoundEnabledBinding(interaction)
+                            )
+                            Spacer(minLength: 6)
+                            soundPicker(selection: model.interactionSoundBinding(interaction))
+                                .frame(width: 125)
+                                .disabled(!model.fishPreferences.soundEnabled(for: interaction))
+                            Button(t("試聽", "Preview")) {
+                                model.previewSound(model.fishPreferences.soundID(for: interaction))
+                            }
+                            .disabled(!model.fishPreferences.soundEnabled(for: interaction))
+                        }
+                    }
                     Text(t(
-                        "互動不限次數；新動畫會取代正在播放的動畫。勿擾或操作視窗時不播放惡作劇。",
-                        "Interactions have no cooldown; a new animation replaces the current one. Pranks stay suppressed while busy or in Do Not Disturb."
+                        "所有魚魚互動同等播放，不受勿擾、設定視窗或輸入狀態攔截；新動畫會取代正在播放的動畫。",
+                        "All fish interactions play equally, including during Do Not Disturb, settings, or typing; a new animation replaces the current one."
                     ))
                     .font(.caption)
                     .foregroundStyle(.secondary)

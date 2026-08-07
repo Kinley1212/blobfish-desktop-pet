@@ -165,7 +165,7 @@ enum PetMovementGeometry {
     }
 }
 
-enum FishPrankAnimationGeometry {
+enum FishInteractionAnimationGeometry {
     static func launchOrigin(
         original: NSPoint,
         target: NSPoint,
@@ -612,10 +612,10 @@ final class PetPanelController {
     private var lastAutomaticOrigin: NSPoint?
     private var config: AppConfig
     private var interactionTimer: Timer?
-    private var remotePrankTimer: Timer?
-    private var remotePrankOriginalOrigin: NSPoint?
+    private var remoteInteractionTimer: Timer?
+    private var remoteInteractionOriginalOrigin: NSPoint?
     private var remoteInteractionGuestOriginalFrame: NSRect?
-    private var remotePrankOverlays: [NSView] = []
+    private var remoteInteractionOverlays: [NSView] = []
     private var friendBubbleTimer: Timer?
     private var speakingTimers: [PetMessageSpeaker: Timer] = [:]
     private var speakingPresentations: [PetMessageSpeaker: PetSpeakingPresentation] = [:]
@@ -635,10 +635,6 @@ final class PetPanelController {
     private var lastPettingAt: TimeInterval = 0
     private var motionState = PetMotionTiming.State.idle
     private var statusFaceID: String?
-
-    var isBusyForRemotePrank: Bool {
-        composerPaused || menuPaused || dragging
-    }
 
     var onClick: (() -> Void)? {
         didSet { petView.onClick = onClick }
@@ -809,7 +805,7 @@ final class PetPanelController {
         movementDisplayLink.stop()
         interactionTimer?.invalidate()
         interactionTimer = nil
-        cancelRemotePrank(restorePosition: false)
+        cancelRemoteInteraction(restorePosition: false)
         friendBubbleTimer?.invalidate()
         friendBubbleTimer = nil
         speakingTimers.values.forEach { $0.invalidate() }
@@ -873,18 +869,18 @@ final class PetPanelController {
 
     func playRemoteInteraction(_ interaction: FishRemoteInteraction, incoming: Bool) {
         interactionTimer?.invalidate()
-        cancelRemotePrank(restorePosition: true)
+        cancelRemoteInteraction(restorePosition: true)
         interactionPaused = true
         if interaction == .launch {
-            incoming ? playIncomingLaunchPrank() : playLaunchPreview()
+            incoming ? playIncomingLaunchInteraction() : playLaunchPreview()
             return
         }
         if interaction == .bomb {
-            playBombPrank(incoming: incoming)
+            playBombInteraction(incoming: incoming)
             return
         }
         if interaction == .vortex || interaction == .wave || interaction == .bubble {
-            playMotionPrank(interaction, incoming: incoming)
+            playMotionInteraction(interaction, incoming: incoming)
             return
         }
         let target = incoming || guestView.isHidden ? petView : guestView
@@ -920,7 +916,7 @@ final class PetPanelController {
         positionInteractionEffect(effect, center: center)
         let started = Date()
         let duration: TimeInterval = 1.15
-        remotePrankTimer = Timer.scheduledTimer(
+        remoteInteractionTimer = Timer.scheduledTimer(
             withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true
         ) { [weak self, weak effect] timer in
             guard let self, let effect else { timer.invalidate(); return }
@@ -928,11 +924,11 @@ final class PetPanelController {
             effect.phase = phase
             if phase >= 1 {
                 timer.invalidate()
-                self.remotePrankTimer = nil
-                self.finishRemotePrank()
+                self.remoteInteractionTimer = nil
+                self.finishRemoteInteraction()
             }
         }
-        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
+        if let remoteInteractionTimer { RunLoop.main.add(remoteInteractionTimer, forMode: .common) }
     }
 
     private func playHighFiveInteraction() {
@@ -955,7 +951,7 @@ final class PetPanelController {
         positionInteractionEffect(effect, center: impactCenter)
         let started = Date()
         let duration: TimeInterval = 1.05
-        remotePrankTimer = Timer.scheduledTimer(
+        remoteInteractionTimer = Timer.scheduledTimer(
             withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true
         ) { [weak self, weak effect] timer in
             guard let self, let effect else { timer.invalidate(); return }
@@ -969,11 +965,11 @@ final class PetPanelController {
             }
             if phase >= 1 {
                 timer.invalidate()
-                self.remotePrankTimer = nil
-                self.finishRemotePrank()
+                self.remoteInteractionTimer = nil
+                self.finishRemoteInteraction()
             }
         }
-        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
+        if let remoteInteractionTimer { RunLoop.main.add(remoteInteractionTimer, forMode: .common) }
     }
 
     private func playHugInteraction() {
@@ -995,7 +991,7 @@ final class PetPanelController {
         positionInteractionEffect(hearts, center: heartCenter)
         let started = Date()
         let duration: TimeInterval = 1.75
-        remotePrankTimer = Timer.scheduledTimer(
+        remoteInteractionTimer = Timer.scheduledTimer(
             withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true
         ) { [weak self, weak hearts] timer in
             guard let self, let hearts else { timer.invalidate(); return }
@@ -1010,17 +1006,17 @@ final class PetPanelController {
             }
             if phase >= 1 {
                 timer.invalidate()
-                self.remotePrankTimer = nil
-                self.finishRemotePrank()
+                self.remoteInteractionTimer = nil
+                self.finishRemoteInteraction()
             }
         }
-        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
+        if let remoteInteractionTimer { RunLoop.main.add(remoteInteractionTimer, forMode: .common) }
     }
 
-    private func playIncomingLaunchPrank() {
+    private func playIncomingLaunchInteraction() {
         flingVelocity = nil
         let original = panel.frame.origin
-        remotePrankOriginalOrigin = original
+        remoteInteractionOriginalOrigin = original
         let visibleFrame = (panel.screen ?? NSScreen.main)?.visibleFrame
         let movementBounds = currentMovementBounds
         guard let visibleFrame,
@@ -1029,7 +1025,7 @@ final class PetPanelController {
                 visualBounds: movementBounds,
                 currentOrigin: original
               ) else {
-            finishRemotePrank()
+            finishRemoteInteraction()
             return
         }
         let target = PetMovementGeometry.clamped(NSPoint(
@@ -1045,12 +1041,12 @@ final class PetPanelController {
         dizzyEffect.alphaValue = 0
         let started = Date()
         let duration: TimeInterval = 4.8
-        remotePrankTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self, weak dizzyEffect] timer in
+        remoteInteractionTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self, weak dizzyEffect] timer in
             guard let self, let dizzyEffect else { timer.invalidate(); return }
             let phase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
             dizzyEffect.alphaValue = phase >= 0.35 && phase < 0.77 ? 1 : 0
             dizzyEffect.phase = (phase * 2.7).truncatingRemainder(dividingBy: 1)
-            let origin = FishPrankAnimationGeometry.launchOrigin(
+            let origin = FishInteractionAnimationGeometry.launchOrigin(
                 original: original,
                 target: target,
                 phase: phase,
@@ -1060,11 +1056,11 @@ final class PetPanelController {
             self.syncSceneOverlay()
             if phase >= 1 {
                 timer.invalidate()
-                self.remotePrankTimer = nil
-                self.finishRemotePrank()
+                self.remoteInteractionTimer = nil
+                self.finishRemoteInteraction()
             }
         }
-        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
+        if let remoteInteractionTimer { RunLoop.main.add(remoteInteractionTimer, forMode: .common) }
     }
 
     private func playLaunchPreview() {
@@ -1078,7 +1074,7 @@ final class PetPanelController {
         let effect = interactionEffectView(kind: .launch, size: NSSize(width: 105, height: 85))
         let started = Date()
         let duration: TimeInterval = 1.25
-        remotePrankTimer = Timer.scheduledTimer(
+        remoteInteractionTimer = Timer.scheduledTimer(
             withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true
         ) { [weak self, weak effect] timer in
             guard let self, let effect else { timer.invalidate(); return }
@@ -1091,15 +1087,15 @@ final class PetPanelController {
             self.positionInteractionEffect(effect, center: center)
             if phase >= 1 {
                 timer.invalidate()
-                self.remotePrankTimer = nil
+                self.remoteInteractionTimer = nil
                 (self.guestView.isHidden ? self.petView : self.guestView).playClickEffect()
-                self.finishRemotePrank()
+                self.finishRemoteInteraction()
             }
         }
-        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
+        if let remoteInteractionTimer { RunLoop.main.add(remoteInteractionTimer, forMode: .common) }
     }
 
-    private func playBombPrank(incoming: Bool) {
+    private func playBombInteraction(incoming: Bool) {
         let targetView = incoming || guestView.isHidden ? petView : guestView
         let target = targetView === petView
             ? NSPoint(x: petView.characterBounds.midX, y: petView.characterBounds.midY)
@@ -1114,7 +1110,7 @@ final class PetPanelController {
         let started = Date()
         let duration: TimeInterval = 2.35
         var exploded = false
-        remotePrankTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self, weak effect] timer in
+        remoteInteractionTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self, weak effect] timer in
             guard let self, let effect else { timer.invalidate(); return }
             let phase = min(1, Date().timeIntervalSince(started) / duration)
             effect.phase = CGFloat(phase)
@@ -1133,14 +1129,14 @@ final class PetPanelController {
             }
             if phase >= 1 {
                 timer.invalidate()
-                self.remotePrankTimer = nil
-                self.finishRemotePrank()
+                self.remoteInteractionTimer = nil
+                self.finishRemoteInteraction()
             }
         }
-        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
+        if let remoteInteractionTimer { RunLoop.main.add(remoteInteractionTimer, forMode: .common) }
     }
 
-    private func playMotionPrank(_ interaction: FishRemoteInteraction, incoming: Bool) {
+    private func playMotionInteraction(_ interaction: FishRemoteInteraction, incoming: Bool) {
         if !incoming, !guestView.isHidden {
             playGuestMotionPreview(interaction)
             return
@@ -1148,13 +1144,13 @@ final class PetPanelController {
 
         flingVelocity = nil
         let original = panel.frame.origin
-        remotePrankOriginalOrigin = original
+        remoteInteractionOriginalOrigin = original
         let movementBounds = currentMovementBounds
         guard let visibleFrame = (panel.screen ?? NSScreen.main)?.visibleFrame,
               let allowed = PetMovementGeometry.allowedOrigins(
                 visibleFrames: [visibleFrame], visualBounds: movementBounds, currentOrigin: original
               ) else {
-            finishRemotePrank()
+            finishRemoteInteraction()
             return
         }
         let center = PetMovementGeometry.clamped(NSPoint(
@@ -1188,7 +1184,7 @@ final class PetPanelController {
         }
         let started = Date()
         let duration: TimeInterval = interaction == .vortex ? 2.5 : 2.8
-        remotePrankTimer = Timer.scheduledTimer(
+        remoteInteractionTimer = Timer.scheduledTimer(
             withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true
         ) { [weak self, weak effect] timer in
             guard let self, let effect else { timer.invalidate(); return }
@@ -1197,7 +1193,7 @@ final class PetPanelController {
             let origin: NSPoint
             switch interaction {
             case .vortex:
-                origin = FishPrankAnimationGeometry.vortexOrigin(
+                origin = FishInteractionAnimationGeometry.vortexOrigin(
                     original: original, center: center, opposite: opposite,
                     phase: phase, allowed: allowed
                 )
@@ -1205,11 +1201,11 @@ final class PetPanelController {
                 self.petView.alphaValue = hidden ? 0.12 : 1
                 self.guestView.alphaValue = hidden ? 0.12 : 1
             case .wave:
-                origin = FishPrankAnimationGeometry.waveOrigin(
+                origin = FishInteractionAnimationGeometry.waveOrigin(
                     original: original, edge: edge, phase: phase, allowed: allowed
                 )
             case .bubble:
-                origin = FishPrankAnimationGeometry.bubbleOrigin(
+                origin = FishInteractionAnimationGeometry.bubbleOrigin(
                     original: original, center: center, phase: phase, allowed: allowed
                 )
             default:
@@ -1218,11 +1214,11 @@ final class PetPanelController {
             self.setPanelOriginIfChanged(origin)
             if phase >= 1 {
                 timer.invalidate()
-                self.remotePrankTimer = nil
-                self.finishRemotePrank()
+                self.remoteInteractionTimer = nil
+                self.finishRemoteInteraction()
             }
         }
-        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
+        if let remoteInteractionTimer { RunLoop.main.add(remoteInteractionTimer, forMode: .common) }
     }
 
     private func playGuestMotionPreview(_ interaction: FishRemoteInteraction) {
@@ -1244,7 +1240,7 @@ final class PetPanelController {
         )
         let started = Date()
         let duration: TimeInterval = 2.2
-        remotePrankTimer = Timer.scheduledTimer(
+        remoteInteractionTimer = Timer.scheduledTimer(
             withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true
         ) { [weak self, weak effect] timer in
             guard let self, let effect else { timer.invalidate(); return }
@@ -1275,11 +1271,11 @@ final class PetPanelController {
             self.syncSceneOverlay()
             if phase >= 1 {
                 timer.invalidate()
-                self.remotePrankTimer = nil
-                self.finishRemotePrank()
+                self.remoteInteractionTimer = nil
+                self.finishRemoteInteraction()
             }
         }
-        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
+        if let remoteInteractionTimer { RunLoop.main.add(remoteInteractionTimer, forMode: .common) }
     }
 
     private func interactionEffectView(
@@ -1288,7 +1284,7 @@ final class PetPanelController {
     ) -> FishInteractionEffectView {
         let view = FishInteractionEffectView(kind: kind, frame: NSRect(origin: .zero, size: size))
         petView.addSubview(view, positioned: .above, relativeTo: guestView)
-        remotePrankOverlays.append(view)
+        remoteInteractionOverlays.append(view)
         return view
     }
 
@@ -1296,11 +1292,11 @@ final class PetPanelController {
         view.frame.origin = NSPoint(x: center.x - view.frame.width / 2, y: center.y - view.frame.height / 2)
     }
 
-    private func cancelRemotePrank(restorePosition: Bool) {
-        remotePrankTimer?.invalidate()
-        remotePrankTimer = nil
-        remotePrankOverlays.forEach { $0.removeFromSuperview() }
-        remotePrankOverlays.removeAll(keepingCapacity: true)
+    private func cancelRemoteInteraction(restorePosition: Bool) {
+        remoteInteractionTimer?.invalidate()
+        remoteInteractionTimer = nil
+        remoteInteractionOverlays.forEach { $0.removeFromSuperview() }
+        remoteInteractionOverlays.removeAll(keepingCapacity: true)
         petView.alphaValue = 1
         guestView.alphaValue = 1
         if let guestFrame = remoteInteractionGuestOriginalFrame {
@@ -1308,18 +1304,18 @@ final class PetPanelController {
             remoteInteractionGuestOriginalFrame = nil
             syncSceneOverlay()
         }
-        if restorePosition, let original = remotePrankOriginalOrigin {
+        if restorePosition, let original = remoteInteractionOriginalOrigin {
             setPanelOriginIfChanged(original)
             preciseOrigin = original
             bobBaselineY = original.y
             lastAutomaticOrigin = panel.frame.origin
             syncSceneOverlay()
         }
-        remotePrankOriginalOrigin = nil
+        remoteInteractionOriginalOrigin = nil
     }
 
-    private func finishRemotePrank() {
-        cancelRemotePrank(restorePosition: true)
+    private func finishRemoteInteraction() {
+        cancelRemoteInteraction(restorePosition: true)
         interactionPaused = false
         lastFrameUptime = ProcessInfo.processInfo.systemUptime
     }
