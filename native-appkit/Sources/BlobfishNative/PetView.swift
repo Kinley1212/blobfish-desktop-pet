@@ -7,6 +7,7 @@ enum PetVisualEffect: Equatable {
     case waiting
     case hit
     case bump
+    case hug
 }
 
 enum PetShadowStyle {
@@ -128,6 +129,15 @@ enum PetEffectGeometry {
                 Keyframe(progress: 0.30, transform: PetEffectTransform(scaleX: 1.38, scaleY: 0.60, offsetX: 0, offsetY: 0)),
                 Keyframe(progress: 0.55, transform: PetEffectTransform(scaleX: 0.85, scaleY: 1.18, offsetX: 0, offsetY: 0)),
                 Keyframe(progress: 0.75, transform: PetEffectTransform(scaleX: 1.08, scaleY: 0.94, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 1, transform: identity),
+            ]
+        case .hug:
+            frames = [
+                Keyframe(progress: 0, transform: identity),
+                Keyframe(progress: 0.22, transform: PetEffectTransform(scaleX: 0.84, scaleY: 1.02, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 0.46, transform: PetEffectTransform(scaleX: 1.10, scaleY: 0.99, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 0.68, transform: PetEffectTransform(scaleX: 0.90, scaleY: 1.01, offsetX: 0, offsetY: 0)),
+                Keyframe(progress: 0.84, transform: PetEffectTransform(scaleX: 1.04, scaleY: 1, offsetX: 0, offsetY: 0)),
                 Keyframe(progress: 1, transform: identity),
             ]
         case .success:
@@ -2130,6 +2140,8 @@ final class PetView: NSView, CALayerDelegate {
     func playClickEffect() { startEffect(.hit, duration: 0.5) }
 
     func playBumpEffect() { startEffect(.bump, duration: 0.32) }
+
+    func playHugEffect() { startEffect(.hug, duration: 1.7) }
 
     func playFriendlyEffect() { startEffect(.success, duration: 0.72) }
 

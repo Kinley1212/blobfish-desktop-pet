@@ -51,12 +51,19 @@ struct FishDeliveryReceipt: Codable, Equatable {
     let state: FishDeliveryReceiptState
 }
 
-enum FishRemoteInteraction: String, Codable, CaseIterable, Identifiable {
+enum FishRemoteInteraction: String, Codable, CaseIterable, Identifiable, Hashable {
     case pet
     case hug
     case highFive
     case launch
     case bomb
+    case vortex
+    case wave
+    case bubble
+
+    static let allCases: [FishRemoteInteraction] = [
+        .pet, .hug, .highFive, .bomb, .vortex, .wave, .bubble,
+    ]
 
     var id: String { rawValue }
 
@@ -67,6 +74,9 @@ enum FishRemoteInteraction: String, Codable, CaseIterable, Identifiable {
         case .highFive: return isEnglish ? "High five" : "擊掌"
         case .launch: return isEnglish ? "Launch" : "彈射"
         case .bomb: return isEnglish ? "Fish bomb" : "魚魚炸彈"
+        case .vortex: return isEnglish ? "Vortex" : "漩渦"
+        case .wave: return isEnglish ? "Wave" : "海浪"
+        case .bubble: return isEnglish ? "Bubble transport" : "傳送泡泡"
         }
     }
 
@@ -77,23 +87,42 @@ enum FishRemoteInteraction: String, Codable, CaseIterable, Identifiable {
         case .highFive: return "hands.clap.fill"
         case .launch: return "paperplane.fill"
         case .bomb: return "burst.fill"
+        case .vortex: return "tornado"
+        case .wave: return "water.waves"
+        case .bubble: return "bubbles.and.sparkles.fill"
         }
     }
 
     var phraseEvent: String { "messenger.remote.\(rawValue)" }
-    var isPrank: Bool { self == .launch || self == .bomb }
+    var isPrank: Bool {
+        switch self {
+        case .launch, .bomb, .vortex, .wave, .bubble: return true
+        case .pet, .hug, .highFive: return false
+        }
+    }
 
-    static let prankCooldown: TimeInterval = 30
     static let prankMaximumReplayAge: TimeInterval = 60
+
+    static let defaultQuickActions: [FishRemoteInteraction] = [.pet, .hug, .highFive]
+
+    static func normalizedQuickActions(_ ids: [String]?) -> [FishRemoteInteraction] {
+        var result: [FishRemoteInteraction] = []
+        for id in ids ?? [] {
+            guard let interaction = FishRemoteInteraction(rawValue: id),
+                  allCases.contains(interaction),
+                  !result.contains(interaction) else { continue }
+            result.append(interaction)
+            if result.count == 3 { return result }
+        }
+        for interaction in defaultQuickActions + allCases where !result.contains(interaction) {
+            result.append(interaction)
+            if result.count == 3 { break }
+        }
+        return result
+    }
 }
 
 enum FishPrankPolicy {
-    static func remainingCooldown(lastSentAt: Date?, now: Date) -> Int? {
-        guard let lastSentAt else { return nil }
-        let remaining = FishRemoteInteraction.prankCooldown - now.timeIntervalSince(lastSentAt)
-        return remaining > 0 ? max(1, Int(ceil(remaining))) : nil
-    }
-
     static func shouldPlay(
         enabled: Bool,
         doNotDisturb: Bool,
@@ -205,6 +234,7 @@ struct FishFriendPreferences: Codable, Equatable {
     var visitShowsBubble: Bool? = nil
     var friendPranksEnabled: Bool? = nil
     var friendPrankSoundEnabled: Bool? = nil
+    var quickInteractionIDs: [String]? = nil
 
     var effectiveMessageShowsMailbox: Bool { messageShowsMailbox ?? !showsIncomingBubble }
     var effectiveMessageShowsBubble: Bool { messageShowsBubble ?? showsIncomingBubble }
@@ -212,6 +242,9 @@ struct FishFriendPreferences: Codable, Equatable {
     var effectiveVisitShowsBubble: Bool { visitShowsBubble ?? true }
     var effectiveFriendPranksEnabled: Bool { friendPranksEnabled ?? true }
     var effectiveFriendPrankSoundEnabled: Bool { friendPrankSoundEnabled ?? true }
+    var effectiveQuickInteractions: [FishRemoteInteraction] {
+        FishRemoteInteraction.normalizedQuickActions(quickInteractionIDs)
+    }
 
     func customization(for status: FishUserStatus, fallback: JSONValue?) -> JSONValue? {
         statusCustomizations?[status.rawValue] ?? fallback

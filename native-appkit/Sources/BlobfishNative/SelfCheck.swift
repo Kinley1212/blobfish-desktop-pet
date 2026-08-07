@@ -77,7 +77,8 @@ enum SelfCheck {
             ("fish visit appearance stays encrypted", fishVisitEncryption),
             ("fish delivery receipts and remote actions stay encrypted", fishReceiptAndInteractionEncryption),
             ("fish delivery states advance without regressing", fishDeliveryStatesAdvance),
-            ("fish prank interactions respect cooldown and suppression", fishPrankPolicy),
+            ("fish prank interactions respect suppression and expiry", fishPrankPolicy),
+            ("fish message quick actions stay unique and backward compatible", fishQuickInteractionPreferences),
             ("fish history preserves unread messages", fishHistoryPersistence),
             ("fish history migrates legacy delivery state", fishHistoryMigratesDeliveryState),
             ("fish history rejects unsafe state files", fishHistoryRejectsUnsafeStateFiles),
@@ -287,18 +288,18 @@ enum SelfCheck {
     }
 
     private static func fishPrankPolicy() -> Bool {
-        let now = Date(timeIntervalSince1970: 1_000)
-        return FishRemoteInteraction.allCases.contains(.launch)
+        return FishRemoteInteraction(rawValue: "launch") == .launch
+            && !FishRemoteInteraction.allCases.contains(.launch)
             && FishRemoteInteraction.allCases.contains(.bomb)
+            && FishRemoteInteraction.allCases.contains(.vortex)
+            && FishRemoteInteraction.allCases.contains(.wave)
+            && FishRemoteInteraction.allCases.contains(.bubble)
             && FishRemoteInteraction.launch.isPrank
             && FishRemoteInteraction.bomb.isPrank
+            && FishRemoteInteraction.vortex.isPrank
+            && FishRemoteInteraction.wave.isPrank
+            && FishRemoteInteraction.bubble.isPrank
             && !FishRemoteInteraction.hug.isPrank
-            && FishPrankPolicy.remainingCooldown(
-                lastSentAt: now.addingTimeInterval(-10), now: now
-            ) == 20
-            && FishPrankPolicy.remainingCooldown(
-                lastSentAt: now.addingTimeInterval(-31), now: now
-            ) == nil
             && FishPrankPolicy.shouldPlay(
                 enabled: true, doNotDisturb: false, busy: false, age: 59
             )
@@ -316,6 +317,20 @@ enum SelfCheck {
             )
     }
 
+    private static func fishQuickInteractionPreferences() -> Bool {
+        let defaults = FishRemoteInteraction.normalizedQuickActions(nil)
+        let repaired = FishRemoteInteraction.normalizedQuickActions([
+            FishRemoteInteraction.launch.rawValue,
+            FishRemoteInteraction.bomb.rawValue,
+            FishRemoteInteraction.bomb.rawValue,
+            "future-action",
+        ])
+        return defaults == [.pet, .hug, .highFive]
+            && repaired.count == 3
+            && repaired.first == .bomb
+            && Set(repaired).count == 3
+    }
+
     private static func fishLaunchPrankReturns() -> Bool {
         let allowed = NSRect(x: 0, y: 0, width: 500, height: 400)
         let original = NSPoint(x: 20, y: 30)
@@ -324,15 +339,32 @@ enum SelfCheck {
             original: original, target: target, phase: 0, allowed: allowed
         )
         let airborne = FishPrankAnimationGeometry.launchOrigin(
-            original: original, target: target, phase: 0.34, allowed: allowed
+            original: original, target: target, phase: 0.25, allowed: allowed
         )
         let center = FishPrankAnimationGeometry.launchOrigin(
-            original: original, target: target, phase: 0.52, allowed: allowed
+            original: original, target: target, phase: 0.35, allowed: allowed
         )
         let end = FishPrankAnimationGeometry.launchOrigin(
             original: original, target: target, phase: 1, allowed: allowed
         )
-        return start == original && center == target && end == original && airborne.y > target.y
+        let opposite = NSPoint(x: 420, y: 30)
+        let edge = NSPoint(x: 420, y: 30)
+        let vortexEnd = FishPrankAnimationGeometry.vortexOrigin(
+            original: original, center: target, opposite: opposite, phase: 1, allowed: allowed
+        )
+        let waveEnd = FishPrankAnimationGeometry.waveOrigin(
+            original: original, edge: edge, phase: 1, allowed: allowed
+        )
+        let bubbleEnd = FishPrankAnimationGeometry.bubbleOrigin(
+            original: original, center: target, phase: 1, allowed: allowed
+        )
+        let isNear: (NSPoint, NSPoint) -> Bool = { left, right in
+            abs(left.x - right.x) < 0.001 && abs(left.y - right.y) < 0.001
+        }
+        return isNear(start, original) && isNear(center, target)
+            && isNear(end, original) && airborne.y > target.y
+            && isNear(vortexEnd, original) && isNear(waveEnd, original)
+            && isNear(bubbleEnd, original)
     }
 
     private static func fishHistoryPersistence() throws -> Bool {

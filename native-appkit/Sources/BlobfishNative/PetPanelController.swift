@@ -175,20 +175,20 @@ enum FishPrankAnimationGeometry {
         let value = min(1, max(0, phase))
         let origin: NSPoint
         switch value {
-        case ..<0.16:
+        case ..<0.12:
             origin = original
-        case ..<0.52:
-            let local = (value - 0.16) / 0.36
+        case ..<0.35:
+            let local = (value - 0.12) / 0.23
             let eased = 1 - pow(1 - local, 3)
             origin = NSPoint(
                 x: original.x + (target.x - original.x) * eased,
                 y: original.y + (target.y - original.y) * eased + sin(local * .pi) * 72
             )
-        case ..<0.70:
-            let wobble = sin((value - 0.52) / 0.18 * .pi * 3) * 5
+        case ..<0.77:
+            let wobble = sin((value - 0.35) / 0.42 * .pi * 7) * 5
             origin = NSPoint(x: target.x + wobble, y: target.y)
         default:
-            let local = (value - 0.70) / 0.30
+            let local = (value - 0.77) / 0.23
             let eased = local * local * (3 - 2 * local)
             origin = NSPoint(
                 x: target.x + (original.x - target.x) * eased,
@@ -196,6 +196,383 @@ enum FishPrankAnimationGeometry {
             )
         }
         return PetMovementGeometry.clamped(origin, to: allowed)
+    }
+
+    static func vortexOrigin(
+        original: NSPoint,
+        center: NSPoint,
+        opposite: NSPoint,
+        phase: CGFloat,
+        allowed: NSRect
+    ) -> NSPoint {
+        let value = min(1, max(0, phase))
+        let origin: NSPoint
+        if value < 0.38 {
+            let local = value / 0.38
+            let radius = (1 - local) * 34
+            origin = NSPoint(
+                x: original.x + (center.x - original.x) * local + cos(local * .pi * 5) * radius,
+                y: original.y + (center.y - original.y) * local + sin(local * .pi * 5) * radius
+            )
+        } else if value < 0.55 {
+            origin = value < 0.47 ? center : opposite
+        } else {
+            let local = (value - 0.55) / 0.45
+            let eased = local * local * (3 - 2 * local)
+            origin = NSPoint(
+                x: opposite.x + (original.x - opposite.x) * eased,
+                y: opposite.y + (original.y - opposite.y) * eased
+            )
+        }
+        return PetMovementGeometry.clamped(origin, to: allowed)
+    }
+
+    static func waveOrigin(
+        original: NSPoint,
+        edge: NSPoint,
+        phase: CGFloat,
+        allowed: NSRect
+    ) -> NSPoint {
+        let value = min(1, max(0, phase))
+        let local = value < 0.42 ? value / 0.42 : (1 - value) / 0.58
+        let eased = max(0, local) * max(0, local) * (3 - 2 * max(0, local))
+        return PetMovementGeometry.clamped(NSPoint(
+            x: original.x + (edge.x - original.x) * eased,
+            y: original.y + sin(value * .pi * 4) * 8
+        ), to: allowed)
+    }
+
+    static func bubbleOrigin(
+        original: NSPoint,
+        center: NSPoint,
+        phase: CGFloat,
+        allowed: NSRect
+    ) -> NSPoint {
+        let value = min(1, max(0, phase))
+        let local: CGFloat
+        if value < 0.38 { local = value / 0.38 }
+        else if value < 0.68 { local = 1 }
+        else { local = (1 - value) / 0.32 }
+        let eased = max(0, local) * max(0, local) * (3 - 2 * max(0, local))
+        return PetMovementGeometry.clamped(NSPoint(
+            x: original.x + (center.x - original.x) * eased + sin(value * .pi * 6) * 10,
+            y: original.y + (center.y - original.y) * eased + sin(value * .pi * 3) * 18
+        ), to: allowed)
+    }
+}
+
+final class FishInteractionEffectView: NSView {
+    enum Kind { case launch, bomb, vortex, wave, bubble, hearts, pet, highFive }
+
+    let kind: Kind
+    var phase: CGFloat = 0 {
+        didSet { needsDisplay = true }
+    }
+
+    init(kind: Kind, frame: NSRect) {
+        self.kind = kind
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+    }
+
+    required init?(coder: NSCoder) { nil }
+    override var isOpaque: Bool { false }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        switch kind {
+        case .launch: drawLaunch()
+        case .bomb: drawBomb()
+        case .vortex: drawVortex()
+        case .wave: drawWave()
+        case .bubble: drawBubble()
+        case .hearts: drawHearts()
+        case .pet: drawPettingRipples()
+        case .highFive: drawHighFiveBurst()
+        }
+    }
+
+    private var fade: CGFloat { min(1, max(0, (1 - phase) / 0.16)) }
+
+    private func drawLaunch() {
+        let progress = min(1, max(0, phase))
+        NSColor.systemPink.withAlphaComponent(0.7 * fade).setStroke()
+        for index in 0..<3 {
+            let inset = CGFloat(index) * 8
+            let path = NSBezierPath()
+            path.move(to: NSPoint(x: 12 + inset, y: 20 + inset * 0.4))
+            path.curve(
+                to: NSPoint(x: bounds.maxX - 14, y: bounds.maxY - 20 - inset * 0.3),
+                controlPoint1: NSPoint(x: bounds.midX - 18, y: bounds.maxY - 4),
+                controlPoint2: NSPoint(x: bounds.midX + 20, y: bounds.maxY - 8)
+            )
+            path.lineWidth = max(1, 4 - CGFloat(index))
+            path.stroke()
+        }
+        let pulse = 8 + 6 * sin(progress * .pi)
+        NSColor.systemPink.withAlphaComponent(0.85 * fade).setFill()
+        NSBezierPath(ovalIn: NSRect(
+            x: bounds.maxX - 28 - pulse / 2, y: bounds.maxY - 31 - pulse / 2,
+            width: pulse, height: pulse
+        )).fill()
+    }
+
+    private func drawBomb() {
+        if phase < 0.52 {
+            let local = phase / 0.52
+            let center = NSPoint(x: bounds.midX, y: bounds.midY - 5)
+            NSColor(calibratedWhite: 0.12, alpha: 0.96).setFill()
+            NSBezierPath(ovalIn: NSRect(x: center.x - 23, y: center.y - 23, width: 46, height: 46)).fill()
+            NSColor.systemPink.setStroke()
+            let fuse = NSBezierPath()
+            fuse.move(to: NSPoint(x: center.x + 13, y: center.y + 17))
+            fuse.curve(
+                to: NSPoint(x: center.x + 25, y: center.y + 31),
+                controlPoint1: NSPoint(x: center.x + 17, y: center.y + 23),
+                controlPoint2: NSPoint(x: center.x + 23, y: center.y + 23)
+            )
+            fuse.lineWidth = 4
+            fuse.stroke()
+            let countdown = "\(max(1, 3 - Int(local * 3)))" as NSString
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 20, weight: .bold),
+                .foregroundColor: NSColor.white,
+            ]
+            let size = countdown.size(withAttributes: attributes)
+            countdown.draw(at: NSPoint(x: center.x - size.width / 2, y: center.y - size.height / 2), withAttributes: attributes)
+            return
+        }
+        let local = min(1, (phase - 0.52) / 0.48)
+        let alpha = min(1, max(0, (1 - local) / 0.35))
+        NSColor.systemPink.withAlphaComponent(0.72 * alpha).setFill()
+        let centers = [
+            NSPoint(x: bounds.midX - 26, y: bounds.midY),
+            NSPoint(x: bounds.midX, y: bounds.midY + 16),
+            NSPoint(x: bounds.midX + 27, y: bounds.midY + 2),
+            NSPoint(x: bounds.midX, y: bounds.midY - 16),
+        ]
+        for (index, center) in centers.enumerated() {
+            let radius = 24 + CGFloat(index % 2) * 7 + local * 13
+            NSBezierPath(ovalIn: NSRect(
+                x: center.x - radius, y: center.y - radius,
+                width: radius * 2, height: radius * 2
+            )).fill()
+        }
+        NSColor.black.withAlphaComponent(0.48 * alpha).setFill()
+        NSBezierPath(ovalIn: NSRect(x: bounds.midX - 28, y: bounds.midY - 20, width: 56, height: 48)).fill()
+    }
+
+    private func drawVortex() {
+        let alpha = 0.82 * fade
+        let center = NSPoint(x: bounds.midX, y: bounds.midY)
+        for index in 0..<5 {
+            let radius = CGFloat(16 + index * 11)
+            let path = NSBezierPath()
+            path.appendArc(
+                withCenter: center,
+                radius: radius,
+                startAngle: CGFloat(index * 54) + phase * 720,
+                endAngle: CGFloat(index * 54 + 225) + phase * 720
+            )
+            path.lineWidth = max(2, 7 - CGFloat(index))
+            NSColor(calibratedRed: 0.28, green: 0.66, blue: 0.82, alpha: alpha * (1 - CGFloat(index) * 0.11)).setStroke()
+            path.stroke()
+        }
+        for index in 0..<8 {
+            let angle = CGFloat(index) / 8 * .pi * 2 - phase * .pi * 3
+            let radius = 40 + CGFloat(index % 3) * 13
+            let size = 3 + CGFloat(index % 2) * 2
+            NSColor(calibratedRed: 0.62, green: 0.90, blue: 1, alpha: alpha * 0.9).setFill()
+            NSBezierPath(ovalIn: NSRect(
+                x: center.x + cos(angle) * radius - size,
+                y: center.y + sin(angle) * radius * 0.62 - size,
+                width: size * 2, height: size * 2
+            )).fill()
+        }
+    }
+
+    private func drawWave() {
+        let lift = sin(min(1, phase) * .pi) * 10
+        let path = NSBezierPath()
+        path.move(to: NSPoint(x: 0, y: 12))
+        path.line(to: NSPoint(x: 0, y: 48 + lift))
+        path.curve(
+            to: NSPoint(x: bounds.width * 0.52, y: 48 + lift),
+            controlPoint1: NSPoint(x: bounds.width * 0.16, y: 82 + lift),
+            controlPoint2: NSPoint(x: bounds.width * 0.35, y: 18 + lift)
+        )
+        path.curve(
+            to: NSPoint(x: bounds.maxX, y: 54 + lift),
+            controlPoint1: NSPoint(x: bounds.width * 0.70, y: 84 + lift),
+            controlPoint2: NSPoint(x: bounds.width * 0.86, y: 30 + lift)
+        )
+        path.line(to: NSPoint(x: bounds.maxX, y: 12))
+        path.close()
+        NSColor(calibratedRed: 0.22, green: 0.66, blue: 0.90, alpha: 0.58 * fade).setFill()
+        path.fill()
+        NSColor.white.withAlphaComponent(0.76 * fade).setStroke()
+        path.lineWidth = 3
+        path.stroke()
+        for index in 0..<9 {
+            let x = CGFloat(index) / 8 * bounds.width
+            let y = 49 + lift + sin(CGFloat(index) * 1.7 + phase * .pi * 4) * 9
+            let radius = 3 + CGFloat(index % 3)
+            NSColor.white.withAlphaComponent(0.76 * fade).setFill()
+            NSBezierPath(ovalIn: NSRect(
+                x: x - radius, y: y - radius,
+                width: radius * 2, height: radius * 2
+            )).fill()
+        }
+    }
+
+    private func drawBubble() {
+        if phase < 0.76 {
+            let grow = min(1, phase / 0.18)
+            let radius = (54 + sin(phase * .pi * 5) * 3) * grow
+            let rect = NSRect(
+                x: bounds.midX - radius, y: bounds.midY - radius,
+                width: radius * 2, height: radius * 2
+            )
+            NSColor(calibratedRed: 0.58, green: 0.86, blue: 1, alpha: 0.13).setFill()
+            NSBezierPath(ovalIn: rect).fill()
+            NSColor(calibratedRed: 0.42, green: 0.76, blue: 0.96, alpha: 0.82).setStroke()
+            let ring = NSBezierPath(ovalIn: rect)
+            ring.lineWidth = 4
+            ring.stroke()
+            NSColor.white.withAlphaComponent(0.82).setStroke()
+            let shine = NSBezierPath()
+            shine.appendArc(
+                withCenter: NSPoint(x: rect.midX - radius * 0.24, y: rect.midY + radius * 0.18),
+                radius: radius * 0.58,
+                startAngle: 108,
+                endAngle: 166
+            )
+            shine.lineWidth = 5
+            shine.stroke()
+            for index in 0..<5 {
+                let angle = CGFloat(index) * 1.42 + phase * .pi
+                let orbit = radius + 12 + CGFloat(index % 2) * 8
+                let small = 3 + CGFloat(index % 3)
+                NSColor(calibratedRed: 0.48, green: 0.80, blue: 1, alpha: 0.72).setStroke()
+                let smallBubble = NSBezierPath(ovalIn: NSRect(
+                    x: bounds.midX + cos(angle) * orbit - small,
+                    y: bounds.midY + sin(angle) * orbit - small,
+                    width: small * 2, height: small * 2
+                ))
+                smallBubble.lineWidth = 1.5
+                smallBubble.stroke()
+            }
+        } else {
+            let burst = min(1, (phase - 0.76) / 0.24)
+            NSColor(calibratedRed: 0.42, green: 0.76, blue: 0.96, alpha: 0.9 * (1 - burst)).setStroke()
+            for index in 0..<10 {
+                let angle = CGFloat(index) / 10 * .pi * 2
+                let inner = 46 + burst * 18
+                let outer = inner + 13
+                let path = NSBezierPath()
+                path.move(to: NSPoint(x: bounds.midX + cos(angle) * inner, y: bounds.midY + sin(angle) * inner))
+                path.line(to: NSPoint(x: bounds.midX + cos(angle) * outer, y: bounds.midY + sin(angle) * outer))
+                path.lineWidth = 3
+                path.stroke()
+            }
+        }
+    }
+
+    private func drawHearts() {
+        for index in 0..<5 {
+            let delay = CGFloat(index) * 0.11
+            let local = min(1, max(0, (phase - delay) / max(0.1, 1 - delay)))
+            guard local > 0 else { continue }
+            let x = bounds.midX + sin(CGFloat(index) * 2.2) * 38
+            let y = 16 + local * (bounds.height - 30)
+            let scale = 0.65 + CGFloat(index % 3) * 0.15
+            let path = Self.heartPath(center: NSPoint(x: x, y: y), size: 18 * scale)
+            NSColor.systemPink.withAlphaComponent((1 - local) * 0.9).setFill()
+            path.fill()
+        }
+    }
+
+    private func drawPettingRipples() {
+        for index in 0..<3 {
+            let delayed = min(1, max(0, phase * 1.35 - CGFloat(index) * 0.18))
+            guard delayed > 0 else { continue }
+            let radius = 12 + delayed * 42
+            NSColor.systemPink.withAlphaComponent((1 - delayed) * 0.68).setStroke()
+            let ring = NSBezierPath(ovalIn: NSRect(
+                x: bounds.midX - radius,
+                y: bounds.midY - radius * 0.42,
+                width: radius * 2,
+                height: radius * 0.84
+            ))
+            ring.lineWidth = 3.5 - CGFloat(index) * 0.6
+            ring.stroke()
+        }
+        for index in 0..<6 {
+            let angle = CGFloat(index) / 6 * .pi * 2 + phase * .pi
+            let radius = 24 + phase * 20
+            let dot = 3 + CGFloat(index % 2) * 1.5
+            NSColor.systemPink.withAlphaComponent(0.72 * fade).setFill()
+            NSBezierPath(ovalIn: NSRect(
+                x: bounds.midX + cos(angle) * radius - dot,
+                y: bounds.midY + sin(angle) * radius * 0.52 - dot,
+                width: dot * 2, height: dot * 2
+            )).fill()
+        }
+    }
+
+    private func drawHighFiveBurst() {
+        let local = min(1, max(0, phase))
+        let alpha = fade
+        for index in 0..<12 {
+            let angle = CGFloat(index) / 12 * .pi * 2
+            let inner = 12 + local * 16
+            let outer = inner + 15 + CGFloat(index % 3) * 3
+            let path = NSBezierPath()
+            path.move(to: NSPoint(
+                x: bounds.midX + cos(angle) * inner,
+                y: bounds.midY + sin(angle) * inner
+            ))
+            path.line(to: NSPoint(
+                x: bounds.midX + cos(angle) * outer,
+                y: bounds.midY + sin(angle) * outer
+            ))
+            path.lineWidth = index.isMultiple(of: 2) ? 4 : 2
+            (index.isMultiple(of: 2) ? NSColor.systemYellow : NSColor.systemPink)
+                .withAlphaComponent(0.82 * alpha).setStroke()
+            path.stroke()
+        }
+        NSColor.white.withAlphaComponent(0.82 * alpha).setFill()
+        NSBezierPath(ovalIn: NSRect(
+            x: bounds.midX - 10, y: bounds.midY - 10, width: 20, height: 20
+        )).fill()
+    }
+
+    private static func heartPath(center: NSPoint, size: CGFloat) -> NSBezierPath {
+        let path = NSBezierPath()
+        path.move(to: NSPoint(x: center.x, y: center.y - size * 0.48))
+        path.curve(
+            to: NSPoint(x: center.x - size * 0.50, y: center.y + size * 0.05),
+            controlPoint1: NSPoint(x: center.x - size * 0.12, y: center.y - size * 0.24),
+            controlPoint2: NSPoint(x: center.x - size * 0.50, y: center.y - size * 0.22)
+        )
+        path.curve(
+            to: NSPoint(x: center.x, y: center.y + size * 0.45),
+            controlPoint1: NSPoint(x: center.x - size * 0.50, y: center.y + size * 0.34),
+            controlPoint2: NSPoint(x: center.x - size * 0.20, y: center.y + size * 0.50)
+        )
+        path.curve(
+            to: NSPoint(x: center.x + size * 0.50, y: center.y + size * 0.05),
+            controlPoint1: NSPoint(x: center.x + size * 0.20, y: center.y + size * 0.50),
+            controlPoint2: NSPoint(x: center.x + size * 0.50, y: center.y + size * 0.34)
+        )
+        path.curve(
+            to: NSPoint(x: center.x, y: center.y - size * 0.48),
+            controlPoint1: NSPoint(x: center.x + size * 0.50, y: center.y - size * 0.22),
+            controlPoint2: NSPoint(x: center.x + size * 0.12, y: center.y - size * 0.24)
+        )
+        path.close()
+        return path
     }
 }
 
@@ -237,7 +614,8 @@ final class PetPanelController {
     private var interactionTimer: Timer?
     private var remotePrankTimer: Timer?
     private var remotePrankOriginalOrigin: NSPoint?
-    private weak var remotePrankOverlay: NSTextField?
+    private var remoteInteractionGuestOriginalFrame: NSRect?
+    private var remotePrankOverlays: [NSView] = []
     private var friendBubbleTimer: Timer?
     private var speakingTimers: [PetMessageSpeaker: Timer] = [:]
     private var speakingPresentations: [PetMessageSpeaker: PetSpeakingPresentation] = [:]
@@ -505,17 +883,22 @@ final class PetPanelController {
             playBombPrank(incoming: incoming)
             return
         }
+        if interaction == .vortex || interaction == .wave || interaction == .bubble {
+            playMotionPrank(interaction, incoming: incoming)
+            return
+        }
         let target = incoming || guestView.isHidden ? petView : guestView
         switch interaction {
         case .pet:
-            target.playFriendlyEffect()
+            playPetInteraction(target: target)
+            return
         case .hug:
-            petView.playBumpEffect()
-            if !guestView.isHidden { guestView.playBumpEffect() }
+            playHugInteraction()
+            return
         case .highFive:
-            petView.playFriendlyEffect()
-            if !guestView.isHidden { guestView.playFriendlyEffect() }
-        case .launch, .bomb:
+            playHighFiveInteraction()
+            return
+        case .launch, .bomb, .vortex, .wave, .bubble:
             break
         }
         interactionTimer = Timer.scheduledTimer(withTimeInterval: 0.85, repeats: false) { [weak self] _ in
@@ -523,6 +906,115 @@ final class PetPanelController {
             self?.interactionTimer = nil
         }
         RunLoop.main.add(interactionTimer!, forMode: .common)
+    }
+
+    private func playPetInteraction(target: PetView) {
+        target.playFriendlyEffect()
+        let center = target === petView
+            ? NSPoint(x: petView.characterBounds.midX, y: petView.characterBounds.midY + 12)
+            : NSPoint(
+                x: guestView.frame.minX + guestView.characterBounds.midX,
+                y: guestView.frame.minY + guestView.characterBounds.midY + 12
+            )
+        let effect = interactionEffectView(kind: .pet, size: NSSize(width: 125, height: 95))
+        positionInteractionEffect(effect, center: center)
+        let started = Date()
+        let duration: TimeInterval = 1.15
+        remotePrankTimer = Timer.scheduledTimer(
+            withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true
+        ) { [weak self, weak effect] timer in
+            guard let self, let effect else { timer.invalidate(); return }
+            let phase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
+            effect.phase = phase
+            if phase >= 1 {
+                timer.invalidate()
+                self.remotePrankTimer = nil
+                self.finishRemotePrank()
+            }
+        }
+        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
+    }
+
+    private func playHighFiveInteraction() {
+        let originalGuestFrame = guestView.frame
+        if !guestView.isHidden { remoteInteractionGuestOriginalFrame = originalGuestFrame }
+        petView.playFriendlyEffect()
+        if !guestView.isHidden { guestView.playFriendlyEffect() }
+        let ownerCenter = NSPoint(x: petView.characterBounds.midX, y: petView.characterBounds.midY)
+        let guestCenter = guestView.isHidden ? NSPoint(
+            x: petView.characterBounds.maxX - 12, y: ownerCenter.y
+        ) : NSPoint(
+            x: guestView.frame.minX + guestView.characterBounds.midX,
+            y: guestView.frame.minY + guestView.characterBounds.midY
+        )
+        let impactCenter = NSPoint(
+            x: (ownerCenter.x + guestCenter.x) / 2,
+            y: (ownerCenter.y + guestCenter.y) / 2 + 4
+        )
+        let effect = interactionEffectView(kind: .highFive, size: NSSize(width: 105, height: 105))
+        positionInteractionEffect(effect, center: impactCenter)
+        let started = Date()
+        let duration: TimeInterval = 1.05
+        remotePrankTimer = Timer.scheduledTimer(
+            withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true
+        ) { [weak self, weak effect] timer in
+            guard let self, let effect else { timer.invalidate(); return }
+            let phase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
+            effect.phase = phase
+            if !self.guestView.isHidden {
+                var frame = originalGuestFrame
+                frame.origin.x -= sin(phase * .pi) * 18
+                self.guestView.frame = frame
+                self.syncSceneOverlay()
+            }
+            if phase >= 1 {
+                timer.invalidate()
+                self.remotePrankTimer = nil
+                self.finishRemotePrank()
+            }
+        }
+        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
+    }
+
+    private func playHugInteraction() {
+        let originalGuestFrame = guestView.frame
+        if !guestView.isHidden { remoteInteractionGuestOriginalFrame = originalGuestFrame }
+        petView.playHugEffect()
+        if !guestView.isHidden { guestView.playHugEffect() }
+
+        let ownerCenter = NSPoint(x: petView.characterBounds.midX, y: petView.characterBounds.midY)
+        let guestCenter = guestView.isHidden ? ownerCenter : NSPoint(
+            x: guestView.frame.minX + guestView.characterBounds.midX,
+            y: guestView.frame.minY + guestView.characterBounds.midY
+        )
+        let heartCenter = NSPoint(
+            x: (ownerCenter.x + guestCenter.x) / 2,
+            y: max(ownerCenter.y, guestCenter.y) + 24
+        )
+        let hearts = interactionEffectView(kind: .hearts, size: NSSize(width: 150, height: 125))
+        positionInteractionEffect(hearts, center: heartCenter)
+        let started = Date()
+        let duration: TimeInterval = 1.75
+        remotePrankTimer = Timer.scheduledTimer(
+            withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true
+        ) { [weak self, weak hearts] timer in
+            guard let self, let hearts else { timer.invalidate(); return }
+            let phase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
+            hearts.phase = phase
+            if !self.guestView.isHidden {
+                let approach = sin(phase * .pi) * 30
+                var frame = originalGuestFrame
+                frame.origin.x -= approach
+                self.guestView.frame = frame
+                self.syncSceneOverlay()
+            }
+            if phase >= 1 {
+                timer.invalidate()
+                self.remotePrankTimer = nil
+                self.finishRemotePrank()
+            }
+        }
+        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
     }
 
     private func playIncomingLaunchPrank() {
@@ -545,11 +1037,19 @@ final class PetPanelController {
             y: visibleFrame.midY - movementBounds.midY
         ), to: allowed)
         petView.playClickEffect()
+        let dizzyEffect = interactionEffectView(kind: .vortex, size: NSSize(width: 68, height: 68))
+        positionInteractionEffect(dizzyEffect, center: NSPoint(
+            x: petView.characterBounds.midX,
+            y: petView.characterBounds.maxY - 6
+        ))
+        dizzyEffect.alphaValue = 0
         let started = Date()
-        let duration: TimeInterval = 2.8
-        remotePrankTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] timer in
-            guard let self else { timer.invalidate(); return }
+        let duration: TimeInterval = 4.8
+        remotePrankTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self, weak dizzyEffect] timer in
+            guard let self, let dizzyEffect else { timer.invalidate(); return }
             let phase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
+            dizzyEffect.alphaValue = phase >= 0.35 && phase < 0.77 ? 1 : 0
+            dizzyEffect.phase = (phase * 2.7).truncatingRemainder(dividingBy: 1)
             let origin = FishPrankAnimationGeometry.launchOrigin(
                 original: original,
                 target: target,
@@ -575,11 +1075,28 @@ final class PetPanelController {
                 x: guestView.frame.minX + guestView.characterBounds.midX,
                 y: guestView.frame.minY + guestView.characterBounds.midY
             )
-        animatePrankSymbol("🚀", from: source, to: target, duration: 1.15) { [weak self] in
-            guard let self else { return }
-            (self.guestView.isHidden ? self.petView : self.guestView).playClickEffect()
-            self.finishRemotePrank()
+        let effect = interactionEffectView(kind: .launch, size: NSSize(width: 105, height: 85))
+        let started = Date()
+        let duration: TimeInterval = 1.25
+        remotePrankTimer = Timer.scheduledTimer(
+            withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true
+        ) { [weak self, weak effect] timer in
+            guard let self, let effect else { timer.invalidate(); return }
+            let phase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
+            effect.phase = phase
+            let center = NSPoint(
+                x: source.x + (target.x - source.x) * phase,
+                y: source.y + (target.y - source.y) * phase + sin(phase * .pi) * 34
+            )
+            self.positionInteractionEffect(effect, center: center)
+            if phase >= 1 {
+                timer.invalidate()
+                self.remotePrankTimer = nil
+                (self.guestView.isHidden ? self.petView : self.guestView).playClickEffect()
+                self.finishRemotePrank()
+            }
         }
+        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
     }
 
     private func playBombPrank(incoming: Bool) {
@@ -593,32 +1110,26 @@ final class PetPanelController {
         let source = incoming
             ? NSPoint(x: min(petView.bounds.maxX - 18, target.x + 120), y: min(petView.bounds.maxY - 24, target.y + 58))
             : NSPoint(x: petView.characterBounds.midX, y: petView.characterBounds.midY)
-        let label = prankLabel(text: "💣", fontSize: 30)
+        let effect = interactionEffectView(kind: .bomb, size: NSSize(width: 150, height: 135))
         let started = Date()
-        let duration: TimeInterval = 1.75
+        let duration: TimeInterval = 2.35
         var exploded = false
-        remotePrankTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self, weak label] timer in
-            guard let self, let label else { timer.invalidate(); return }
+        remotePrankTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self, weak effect] timer in
+            guard let self, let effect else { timer.invalidate(); return }
             let phase = min(1, Date().timeIntervalSince(started) / duration)
-            if phase < 0.58 {
-                let value = CGFloat(phase / 0.58)
+            effect.phase = CGFloat(phase)
+            if phase < 0.52 {
+                let value = CGFloat(phase / 0.52)
                 let eased = value * value * (3 - 2 * value)
                 let point = NSPoint(
                     x: source.x + (target.x - source.x) * eased,
                     y: source.y + (target.y - source.y) * eased + sin(value * .pi) * 48
                 )
-                self.positionPrankLabel(label, center: point)
-                label.stringValue = "💣"
+                self.positionInteractionEffect(effect, center: point)
             } else if !exploded {
                 exploded = true
-                label.stringValue = "💥"
-                label.font = .systemFont(ofSize: 42)
-                self.positionPrankLabel(label, center: target)
+                self.positionInteractionEffect(effect, center: target)
                 targetView.playClickEffect()
-            } else if phase > 0.78 {
-                label.stringValue = "💨"
-                label.alphaValue = CGFloat(max(0, 1 - (phase - 0.78) / 0.22))
-                self.positionPrankLabel(label, center: NSPoint(x: target.x, y: target.y + CGFloat((phase - 0.78) * 45)))
             }
             if phase >= 1 {
                 timer.invalidate()
@@ -629,54 +1140,174 @@ final class PetPanelController {
         if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
     }
 
-    private func animatePrankSymbol(
-        _ symbol: String,
-        from source: NSPoint,
-        to target: NSPoint,
-        duration: TimeInterval,
-        completion: @escaping () -> Void
-    ) {
-        let label = prankLabel(text: symbol, fontSize: 28)
+    private func playMotionPrank(_ interaction: FishRemoteInteraction, incoming: Bool) {
+        if !incoming, !guestView.isHidden {
+            playGuestMotionPreview(interaction)
+            return
+        }
+
+        flingVelocity = nil
+        let original = panel.frame.origin
+        remotePrankOriginalOrigin = original
+        let movementBounds = currentMovementBounds
+        guard let visibleFrame = (panel.screen ?? NSScreen.main)?.visibleFrame,
+              let allowed = PetMovementGeometry.allowedOrigins(
+                visibleFrames: [visibleFrame], visualBounds: movementBounds, currentOrigin: original
+              ) else {
+            finishRemotePrank()
+            return
+        }
+        let center = PetMovementGeometry.clamped(NSPoint(
+            x: visibleFrame.midX - movementBounds.midX,
+            y: visibleFrame.midY - movementBounds.midY
+        ), to: allowed)
+        let opposite = PetMovementGeometry.clamped(NSPoint(
+            x: allowed.minX + allowed.maxX - original.x,
+            y: original.y
+        ), to: allowed)
+        let edgeX = abs(original.x - allowed.minX) < abs(original.x - allowed.maxX)
+            ? allowed.minX : allowed.maxX
+        let edge = NSPoint(x: edgeX, y: original.y)
+        let kind: FishInteractionEffectView.Kind = interaction == .vortex
+            ? .vortex : interaction == .wave ? .wave : .bubble
+        let effect = interactionEffectView(
+            kind: kind,
+            size: interaction == .bubble
+                ? NSSize(width: 155, height: 155)
+                : NSSize(width: 150, height: 115)
+        )
+        positionInteractionEffect(effect, center: NSPoint(
+            x: petView.characterBounds.midX,
+            y: interaction == .wave ? petView.characterBounds.minY + 12 : petView.characterBounds.midY
+        ))
+        switch interaction {
+        case .vortex: petView.playHugEffect()
+        case .wave: petView.playBumpEffect()
+        case .bubble: petView.playFriendlyEffect()
+        default: break
+        }
         let started = Date()
-        remotePrankTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self, weak label] timer in
-            guard let self, let label else { timer.invalidate(); return }
+        let duration: TimeInterval = interaction == .vortex ? 2.5 : 2.8
+        remotePrankTimer = Timer.scheduledTimer(
+            withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true
+        ) { [weak self, weak effect] timer in
+            guard let self, let effect else { timer.invalidate(); return }
             let phase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
-            let point = NSPoint(
-                x: source.x + (target.x - source.x) * phase,
-                y: source.y + (target.y - source.y) * phase + sin(phase * .pi) * 36
-            )
-            self.positionPrankLabel(label, center: point)
+            effect.phase = phase
+            let origin: NSPoint
+            switch interaction {
+            case .vortex:
+                origin = FishPrankAnimationGeometry.vortexOrigin(
+                    original: original, center: center, opposite: opposite,
+                    phase: phase, allowed: allowed
+                )
+                let hidden = phase > 0.39 && phase < 0.53
+                self.petView.alphaValue = hidden ? 0.12 : 1
+                self.guestView.alphaValue = hidden ? 0.12 : 1
+            case .wave:
+                origin = FishPrankAnimationGeometry.waveOrigin(
+                    original: original, edge: edge, phase: phase, allowed: allowed
+                )
+            case .bubble:
+                origin = FishPrankAnimationGeometry.bubbleOrigin(
+                    original: original, center: center, phase: phase, allowed: allowed
+                )
+            default:
+                origin = original
+            }
+            self.setPanelOriginIfChanged(origin)
             if phase >= 1 {
                 timer.invalidate()
                 self.remotePrankTimer = nil
-                completion()
+                self.finishRemotePrank()
             }
         }
         if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
     }
 
-    private func prankLabel(text: String, fontSize: CGFloat) -> NSTextField {
-        let label = NSTextField(labelWithString: text)
-        label.font = .systemFont(ofSize: fontSize)
-        label.alignment = .center
-        label.frame.size = NSSize(width: 58, height: 58)
-        label.isBezeled = false
-        label.drawsBackground = false
-        label.isSelectable = false
-        petView.addSubview(label, positioned: .above, relativeTo: guestView)
-        remotePrankOverlay = label
-        return label
+    private func playGuestMotionPreview(_ interaction: FishRemoteInteraction) {
+        let original = guestView.frame
+        remoteInteractionGuestOriginalFrame = original
+        switch interaction {
+        case .vortex: guestView.playHugEffect()
+        case .wave: guestView.playBumpEffect()
+        case .bubble: guestView.playFriendlyEffect()
+        default: break
+        }
+        let kind: FishInteractionEffectView.Kind = interaction == .vortex
+            ? .vortex : interaction == .wave ? .wave : .bubble
+        let effect = interactionEffectView(
+            kind: kind,
+            size: interaction == .bubble
+                ? NSSize(width: 145, height: 145)
+                : NSSize(width: 140, height: 105)
+        )
+        let started = Date()
+        let duration: TimeInterval = 2.2
+        remotePrankTimer = Timer.scheduledTimer(
+            withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true
+        ) { [weak self, weak effect] timer in
+            guard let self, let effect else { timer.invalidate(); return }
+            let phase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
+            effect.phase = phase
+            let envelope = sin(phase * .pi)
+            var frame = original
+            switch interaction {
+            case .vortex:
+                frame.origin.x += sin(phase * .pi * 6) * 14 * envelope
+                frame.origin.y += cos(phase * .pi * 6) * 9 * envelope
+                self.guestView.alphaValue = phase > 0.40 && phase < 0.58 ? 0.18 : 1
+            case .wave:
+                frame.origin.x += 52 * envelope
+                frame.origin.y += sin(phase * .pi * 4) * 6
+            case .bubble:
+                frame.origin.x -= 38 * envelope
+                frame.origin.y += 18 * envelope + sin(phase * .pi * 5) * 5
+            default:
+                break
+            }
+            self.guestView.frame = frame
+            let target = NSPoint(
+                x: frame.minX + self.guestView.characterBounds.midX,
+                y: frame.minY + self.guestView.characterBounds.midY
+            )
+            self.positionInteractionEffect(effect, center: target)
+            self.syncSceneOverlay()
+            if phase >= 1 {
+                timer.invalidate()
+                self.remotePrankTimer = nil
+                self.finishRemotePrank()
+            }
+        }
+        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
     }
 
-    private func positionPrankLabel(_ label: NSTextField, center: NSPoint) {
-        label.frame.origin = NSPoint(x: center.x - label.frame.width / 2, y: center.y - label.frame.height / 2)
+    private func interactionEffectView(
+        kind: FishInteractionEffectView.Kind,
+        size: NSSize
+    ) -> FishInteractionEffectView {
+        let view = FishInteractionEffectView(kind: kind, frame: NSRect(origin: .zero, size: size))
+        petView.addSubview(view, positioned: .above, relativeTo: guestView)
+        remotePrankOverlays.append(view)
+        return view
+    }
+
+    private func positionInteractionEffect(_ view: NSView, center: NSPoint) {
+        view.frame.origin = NSPoint(x: center.x - view.frame.width / 2, y: center.y - view.frame.height / 2)
     }
 
     private func cancelRemotePrank(restorePosition: Bool) {
         remotePrankTimer?.invalidate()
         remotePrankTimer = nil
-        remotePrankOverlay?.removeFromSuperview()
-        remotePrankOverlay = nil
+        remotePrankOverlays.forEach { $0.removeFromSuperview() }
+        remotePrankOverlays.removeAll(keepingCapacity: true)
+        petView.alphaValue = 1
+        guestView.alphaValue = 1
+        if let guestFrame = remoteInteractionGuestOriginalFrame {
+            guestView.frame = guestFrame
+            remoteInteractionGuestOriginalFrame = nil
+            syncSceneOverlay()
+        }
         if restorePosition, let original = remotePrankOriginalOrigin {
             setPanelOriginIfChanged(original)
             preciseOrigin = original

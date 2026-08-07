@@ -76,6 +76,12 @@
     { "id": "grass-en-messenger-remote-launch-01", "event": "messenger.remote.launch", "text": "I flew! The leaves almost became little wings", "weight": 5 },
     { "id": "grass-en-messenger-remote-launch-02", "event": "messenger.remote.launch", "text": "Back on the ground, back to growing", "weight": 4 },
     { "id": "grass-en-messenger-remote-bomb-01", "event": "messenger.remote.bomb", "text": "Oh! There is smoke all over the leaves", "weight": 5 },
-    { "id": "grass-en-messenger-remote-bomb-02", "event": "messenger.remote.bomb", "text": "A little shake and the leaves are clean again", "weight": 4 }
+    { "id": "grass-en-messenger-remote-bomb-02", "event": "messenger.remote.bomb", "text": "A little shake and the leaves are clean again", "weight": 4 },
+    { "id": "grass-en-messenger-remote-vortex-01", "event": "messenger.remote.vortex", "text": "The leaves are all tangled now", "weight": 5 },
+    { "id": "grass-en-messenger-remote-vortex-02", "event": "messenger.remote.vortex", "text": "A new side is another place to grow", "weight": 4 },
+    { "id": "grass-en-messenger-remote-wave-01", "event": "messenger.remote.wave", "text": "The wave gave the leaves a bath", "weight": 5 },
+    { "id": "grass-en-messenger-remote-wave-02", "event": "messenger.remote.wave", "text": "Back from the tide and into the sun", "weight": 4 },
+    { "id": "grass-en-messenger-remote-bubble-01", "event": "messenger.remote.bubble", "text": "There is fresh air inside the bubble", "weight": 5 },
+    { "id": "grass-en-messenger-remote-bubble-02", "event": "messenger.remote.bubble", "text": "The leaves are flying in a bubble", "weight": 4 }
   ]
 }
