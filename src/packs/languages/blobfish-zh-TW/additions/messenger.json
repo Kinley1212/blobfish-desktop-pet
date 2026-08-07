@@ -66,6 +66,12 @@
     { "id": "messenger-sent-02", "event": "messenger.sent", "text": "送到了。別催，我的魚鰭已經很努力了。", "weight": 4 },
     { "id": "messenger-sent-03", "event": "messenger.sent", "text": "信游走了……希望對面有空看。", "weight": 4 },
     { "id": "messenger-friend-hit-02", "event": "messenger.friendHit", "text": "別戳了，我要躺平", "weight": 4 },
-    { "id": "messenger-friend-hit-03", "event": "messenger.friendHit", "text": "很軟也會痛", "weight": 4 }
+    { "id": "messenger-friend-hit-03", "event": "messenger.friendHit", "text": "很軟也會痛", "weight": 4 },
+    { "id": "messenger-remote-pet-01", "event": "messenger.remote.pet", "text": "嗯……這個力度可以，再摸一下也行", "weight": 5 },
+    { "id": "messenger-remote-pet-02", "event": "messenger.remote.pet", "text": "別誤會，我只是懶得躲", "weight": 4 },
+    { "id": "messenger-remote-hug-01", "event": "messenger.remote.hug", "text": "抱住了……小心我太軟滑下去", "weight": 5 },
+    { "id": "messenger-remote-hug-02", "event": "messenger.remote.hug", "text": "可以抱久一點，我暫時不游了", "weight": 4 },
+    { "id": "messenger-remote-high-five-01", "event": "messenger.remote.highFive", "text": "擊掌……我的魚鰭已經很努力了", "weight": 5 },
+    { "id": "messenger-remote-high-five-02", "event": "messenger.remote.highFive", "text": "啪。今天算是有精神了一秒", "weight": 4 }
   ]
 }

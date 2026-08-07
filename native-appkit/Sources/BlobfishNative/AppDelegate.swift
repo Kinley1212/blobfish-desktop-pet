@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var messengerMenuItem: NSMenuItem?
     private var messengerSendMenuItem: NSMenuItem?
     private var fishStatusMenuItem: NSMenuItem?
+    private var friendInteractionMenuItem: NSMenuItem?
     private var pauseItem: NSMenuItem?
     private var taskRoamItem: NSMenuItem?
     private var performanceItem: NSMenuItem?
@@ -205,7 +206,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         messenger.onMessage = { [weak self, weak messenger] message, contact in
             guard let self, let messenger, !contact.muted else { return }
             let kind = message.kind ?? .text
-            if kind != .status, messenger.preferences.incomingSoundEnabled, !self.isQuietNow() {
+            if kind != .status, kind != .receipt,
+               messenger.preferences.incomingSoundEnabled, !self.isQuietNow() {
                 self.soundPlayer.play(id: messenger.preferences.incomingSoundID)
             }
             if kind == .visitStart, messenger.preferences.visitsEnabled {
@@ -281,6 +283,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     color: message.bubbleColor
                 )
             case .status:
+                break
+            case .interaction:
+                guard let interaction = message.interaction else { break }
+                self.panelController.playRemoteInteraction(interaction, incoming: true)
+                let response = self.runtime.phrase(event: interaction.phraseEvent)
+                    ?? (self.runtime.config.ui.locale == "en" ? "I felt that!" : "我感覺到啦！")
+                self.panelController.say(
+                    response,
+                    event: interaction.phraseEvent,
+                    duration: 3.2,
+                    priority: SpeechPriority.messenger,
+                    replaceKey: "messenger.remoteInteraction"
+                )
+            case .receipt:
                 break
             }
         }
@@ -449,6 +465,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         chat.target = self
         menu.addItem(chat)
 
+        let friendInteraction = NSMenuItem(title: "魚友互動", action: nil, keyEquivalent: "")
+        let friendInteractionMenu = NSMenu()
+        for interaction in FishRemoteInteraction.allCases {
+            let option = NSMenuItem(
+                title: interaction.title(isEnglish: runtime.config.ui.locale == "en"),
+                action: #selector(sendRemoteInteraction(_:)),
+                keyEquivalent: ""
+            )
+            option.target = self
+            option.representedObject = interaction.rawValue
+            friendInteractionMenu.addItem(option)
+        }
+        friendInteraction.submenu = friendInteractionMenu
+        menu.addItem(friendInteraction)
+        friendInteractionMenuItem = friendInteraction
+
         let taskRoam = NSMenuItem(title: "任务进行时游动", action: #selector(toggleTaskRoam), keyEquivalent: "")
         taskRoam.target = self
         menu.addItem(taskRoam)
@@ -511,6 +543,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        friendInteractionMenuItem?.isEnabled = messengerService?.activeVisitContactID != nil
         panelController?.setMenuPaused(true)
     }
 
@@ -524,6 +557,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             ? "\(title) · \(unreadCount > 99 ? "99+" : String(unreadCount))"
             : title
         messengerSendMenuItem?.title = runtime.config.ui.locale == "en" ? "Fish Message…" : "魚魚傳話…"
+        friendInteractionMenuItem?.title = runtime.config.ui.locale == "en" ? "Fish Friend Actions" : "魚友互動"
     }
 
     @MainActor private func visibleUnreadCount(_ messenger: FishMessengerService) -> Int {
@@ -535,7 +569,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 return preferences.effectiveMessageShowsMailbox
             case .visitStart, .visitAccept, .visitEnd:
                 return preferences.effectiveVisitShowsMailbox
-            case .status:
+            case .status, .receipt, .interaction:
                 return false
             }
         }.count
@@ -832,6 +866,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    @MainActor @objc private func sendRemoteInteraction(_ sender: NSMenuItem) {
+        guard let interaction = (sender.representedObject as? String).flatMap(FishRemoteInteraction.init(rawValue:)),
+              let messenger = messengerService,
+              let contactID = messenger.activeVisitContactID,
+              let contact = messenger.profile?.contacts.first(where: { $0.id == contactID }) else { return }
+        Task { @MainActor in
+            do {
+                let result = try await messenger.send(
+                    text: interaction.rawValue,
+                    to: contact.id,
+                    kind: .interaction,
+                    interaction: interaction
+                )
+                presentSentFishMessage(result, contact: contact)
+            } catch {
+                panelController.say(
+                    runtime.config.ui.locale == "en" ? "That action did not reach your friend." : "剛才的互動沒有送到好友那邊。",
+                    event: "messenger.error",
+                    duration: 4,
+                    priority: SpeechPriority.interaction,
+                    replaceKey: "messenger.remoteInteraction.error"
+                )
+            }
+        }
+    }
+
     @objc private func locatePet() {
         panelController.centerOnPrimaryScreen()
         panelController.show()
@@ -990,6 +1050,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         contact: FishContact
     ) {
         guard let messenger = messengerService else { return }
+        if result.record.kind == .interaction, let interaction = result.record.interaction {
+            panelController.playRemoteInteraction(interaction, incoming: false)
+            return
+        }
         panelController.playEffect(.completed)
         let isVisitChat = messenger.activeVisitContactID == contact.id
         guard messenger.preferences.currentStatus != .doNotDisturb else { return }

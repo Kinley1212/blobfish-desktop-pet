@@ -66,6 +66,12 @@
     { "id": "en-messenger-sent-02", "event": "messenger.sent", "text": "Delivered. Do not rush me—these fins are trying.", "weight": 4 },
     { "id": "en-messenger-sent-03", "event": "messenger.sent", "text": "The letter swam away… hopefully they have time to read it.", "weight": 4 },
     { "id": "en-messenger-friend-hit-02", "event": "messenger.friendHit", "text": "Stop poking me", "weight": 4 },
-    { "id": "en-messenger-friend-hit-03", "event": "messenger.friendHit", "text": "Soft still hurts", "weight": 4 }
+    { "id": "en-messenger-friend-hit-03", "event": "messenger.friendHit", "text": "Soft still hurts", "weight": 4 },
+    { "id": "en-messenger-remote-pet-01", "event": "messenger.remote.pet", "text": "That pressure is acceptable… you may continue", "weight": 5 },
+    { "id": "en-messenger-remote-pet-02", "event": "messenger.remote.pet", "text": "I am not enjoying this, I am simply too lazy to move", "weight": 4 },
+    { "id": "en-messenger-remote-hug-01", "event": "messenger.remote.hug", "text": "Careful, I may be too soft to hold", "weight": 5 },
+    { "id": "en-messenger-remote-hug-02", "event": "messenger.remote.hug", "text": "You can hold on a little longer", "weight": 4 },
+    { "id": "en-messenger-remote-high-five-01", "event": "messenger.remote.highFive", "text": "High five… these fins did their best", "weight": 5 },
+    { "id": "en-messenger-remote-high-five-02", "event": "messenger.remote.highFive", "text": "Smack. I had energy for one second", "weight": 4 }
   ]
 }

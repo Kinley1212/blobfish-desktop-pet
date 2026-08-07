@@ -7,6 +7,74 @@ enum FishMessageKind: String, Codable {
     case visitAccept
     case visitEnd
     case status
+    case receipt
+    case interaction
+}
+
+enum FishDeliveryState: String, Codable, Equatable, Hashable {
+    case sending
+    case relayed
+    case delivered
+    case read
+    case failed
+}
+
+enum FishDeliveryReceiptState: String, Codable, Equatable {
+    case delivered
+    case read
+}
+
+enum FishDeliveryStatePolicy {
+    static func relayed(after current: FishDeliveryState?) -> FishDeliveryState {
+        switch current {
+        case .delivered, .read:
+            return current ?? .relayed
+        case .sending, .relayed, .failed, nil:
+            return .relayed
+        }
+    }
+
+    static func applying(
+        _ receipt: FishDeliveryReceiptState,
+        to current: FishDeliveryState
+    ) -> FishDeliveryState {
+        let incoming: FishDeliveryState = receipt == .read ? .read : .delivered
+        let rank: [FishDeliveryState: Int] = [
+            .sending: 0, .failed: 0, .relayed: 1, .delivered: 2, .read: 3,
+        ]
+        return rank[incoming, default: 0] > rank[current, default: 0] ? incoming : current
+    }
+}
+
+struct FishDeliveryReceipt: Codable, Equatable {
+    let messageID: UUID
+    let state: FishDeliveryReceiptState
+}
+
+enum FishRemoteInteraction: String, Codable, CaseIterable, Identifiable {
+    case pet
+    case hug
+    case highFive
+
+    var id: String { rawValue }
+
+    func title(isEnglish: Bool) -> String {
+        switch self {
+        case .pet: return isEnglish ? "Pet" : "摸摸頭"
+        case .hug: return isEnglish ? "Hug" : "抱抱"
+        case .highFive: return isEnglish ? "High five" : "擊掌"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .pet: return "hand.point.up.left.fill"
+        case .hug: return "heart.fill"
+        case .highFive: return "hands.clap.fill"
+        }
+    }
+
+    var phraseEvent: String { "messenger.remote.\(rawValue)" }
 }
 
 enum FishUserStatus: String, Codable, CaseIterable, Identifiable {
@@ -81,6 +149,13 @@ struct FishMessageRecord: Codable, Equatable, Identifiable {
     var isRead: Bool
     let bubbleColor: String?
     let presence: FishPresence?
+    var deliveryState: FishDeliveryState? = nil
+    var interaction: FishRemoteInteraction? = nil
+
+    var effectiveDeliveryState: FishDeliveryState? {
+        guard direction == .outgoing else { return nil }
+        return deliveryState ?? .relayed
+    }
 }
 
 struct FishFriendPreferences: Codable, Equatable {
@@ -178,7 +253,7 @@ enum FishVisitPolicy {
             return canActivate(contact: contact, preferences: preferences) ? contact.id : current
         case .visitEnd:
             return current == contact.id ? nil : current
-        case .text, .status:
+        case .text, .status, .receipt, .interaction:
             return current
         }
     }
@@ -189,7 +264,14 @@ enum FishVisitPolicy {
         preferences: FishFriendPreferences
     ) -> Bool {
         guard !contact.blocked, !contact.muted else { return false }
-        return kind == .text || kind == .status || preferences.visitsEnabled
+        switch kind {
+        case .text, .status, .interaction:
+            return true
+        case .visitStart, .visitAccept, .visitEnd:
+            return preferences.visitsEnabled
+        case .receipt:
+            return false
+        }
     }
 }
 

@@ -66,6 +66,12 @@
     { "id": "grass-messenger-sent-02", "event": "messenger.sent", "text": "小草把信举高高，顺风送过去啦！", "weight": 4 },
     { "id": "grass-messenger-sent-03", "event": "messenger.sent", "text": "传话出发！今天的风很可靠。", "weight": 4 },
     { "id": "grass-messenger-friend-hit-02", "event": "messenger.friendHit", "text": "叶子要掉了", "weight": 4 },
-    { "id": "grass-messenger-friend-hit-03", "event": "messenger.friendHit", "text": "我还在长高", "weight": 4 }
+    { "id": "grass-messenger-friend-hit-03", "event": "messenger.friendHit", "text": "我还在长高", "weight": 4 },
+    { "id": "grass-messenger-remote-pet-01", "event": "messenger.remote.pet", "text": "轻轻摸，叶子会更有精神", "weight": 5 },
+    { "id": "grass-messenger-remote-pet-02", "event": "messenger.remote.pet", "text": "今天的风也像你的手一样轻", "weight": 4 },
+    { "id": "grass-messenger-remote-hug-01", "event": "messenger.remote.hug", "text": "抱紧一点，我不会折的", "weight": 5 },
+    { "id": "grass-messenger-remote-hug-02", "event": "messenger.remote.hug", "text": "叶子也抱住你啦", "weight": 4 },
+    { "id": "grass-messenger-remote-high-five-01", "event": "messenger.remote.highFive", "text": "击掌！叶子啪地响了一下", "weight": 5 },
+    { "id": "grass-messenger-remote-high-five-02", "event": "messenger.remote.highFive", "text": "今天也一起长高一点", "weight": 4 }
   ]
 }
