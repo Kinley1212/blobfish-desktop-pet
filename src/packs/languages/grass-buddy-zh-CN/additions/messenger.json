@@ -72,6 +72,10 @@
     { "id": "grass-messenger-remote-hug-01", "event": "messenger.remote.hug", "text": "抱紧一点，我不会折的", "weight": 5 },
     { "id": "grass-messenger-remote-hug-02", "event": "messenger.remote.hug", "text": "叶子也抱住你啦", "weight": 4 },
     { "id": "grass-messenger-remote-high-five-01", "event": "messenger.remote.highFive", "text": "击掌！叶子啪地响了一下", "weight": 5 },
-    { "id": "grass-messenger-remote-high-five-02", "event": "messenger.remote.highFive", "text": "今天也一起长高一点", "weight": 4 }
+    { "id": "grass-messenger-remote-high-five-02", "event": "messenger.remote.highFive", "text": "今天也一起长高一点", "weight": 4 },
+    { "id": "grass-messenger-remote-launch-01", "event": "messenger.remote.launch", "text": "飞起来啦，叶子差点变成小翅膀", "weight": 5 },
+    { "id": "grass-messenger-remote-launch-02", "event": "messenger.remote.launch", "text": "落地以后还要继续长高", "weight": 4 },
+    { "id": "grass-messenger-remote-bomb-01", "event": "messenger.remote.bomb", "text": "呀！叶子上都是烟", "weight": 5 },
+    { "id": "grass-messenger-remote-bomb-02", "event": "messenger.remote.bomb", "text": "没关系，抖一抖又干净了", "weight": 4 }
   ]
 }

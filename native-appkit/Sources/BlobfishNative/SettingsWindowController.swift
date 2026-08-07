@@ -888,6 +888,23 @@ struct BrandedSettingsView: View {
                 }
                 }
                 Toggle(t("允许好友串门", "Allow friend visits"), isOn: $model.fishPreferences.visitsEnabled)
+                VStack(alignment: .leading, spacing: 5) {
+                    Toggle(t("允許好友惡作劇", "Allow friend pranks"), isOn: Binding(
+                        get: { model.fishPreferences.effectiveFriendPranksEnabled },
+                        set: { model.fishPreferences.friendPranksEnabled = $0 }
+                    ))
+                    Toggle(t("惡作劇播放音效", "Play sound for pranks"), isOn: Binding(
+                        get: { model.fishPreferences.effectiveFriendPrankSoundEnabled },
+                        set: { model.fishPreferences.friendPrankSoundEnabled = $0 }
+                    ))
+                    .disabled(!model.fishPreferences.effectiveFriendPranksEnabled)
+                    Text(t(
+                        "彈射與魚魚炸彈只會播放卡通動畫；30 秒內只接受一次，勿擾或操作視窗時不播放。",
+                        "Launch and fish bomb are visual-only; limited to once every 30 seconds and suppressed while busy or in Do Not Disturb."
+                    ))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
                 Picker(t("消息停留时间", "Message dwell time"), selection: Binding(
                     get: { model.fishPreferences.messageDisplaySeconds ?? 20 },
                     set: { model.fishPreferences.messageDisplaySeconds = $0 }

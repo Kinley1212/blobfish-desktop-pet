@@ -45,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var chatInviteUntil = Date.distantPast
     private var lastActiveVisitContactID: UUID?
     private var visitIdleSpokenContactID: UUID?
+    private var lastPrankReceivedAtByContact: [UUID: Date] = [:]
     private let friendHitBubbleID = UUID()
     private let soundPlayer = SoundPlayer()
     private let instanceGuard = SingleInstanceGuard()
@@ -206,7 +207,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         messenger.onMessage = { [weak self, weak messenger] message, contact in
             guard let self, let messenger, !contact.muted else { return }
             let kind = message.kind ?? .text
+            if kind == .interaction,
+               let interaction = message.interaction,
+               interaction.isPrank,
+               self.shouldSuppressPrank(message: message, contactID: contact.id, messenger: messenger) {
+                return
+            }
+            let prankSoundAllowed = message.interaction?.isPrank != true
+                || messenger.preferences.effectiveFriendPrankSoundEnabled
             if kind != .status, kind != .receipt,
+               prankSoundAllowed,
                messenger.preferences.incomingSoundEnabled, !self.isQuietNow() {
                 self.soundPlayer.play(id: messenger.preferences.incomingSoundID)
             }
@@ -241,7 +251,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     }
                 }
             }
-            self.panelController.playEffect(.completed)
+            if kind != .interaction {
+                self.panelController.playEffect(.completed)
+            }
             if messenger.preferences.currentStatus == .doNotDisturb, kind != .status { return }
             switch kind {
             case .text:
@@ -321,7 +333,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                         replaceKey: "messenger.persistenceError"
                     )
                     return
-                case .visitsUnavailable, .profileCreationInProgress:
+                case .visitsUnavailable, .profileCreationInProgress, .prankCooldown:
                     return
                 }
             }
@@ -625,6 +637,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let current = formatter.string(from: Date())
         if quiet.start <= quiet.end { return current >= quiet.start && current < quiet.end }
         return current >= quiet.start || current < quiet.end
+    }
+
+    @MainActor private func shouldSuppressPrank(
+        message: FishMessage,
+        contactID: UUID,
+        messenger: FishMessengerService
+    ) -> Bool {
+        let busy = panelController.isBusyForRemotePrank || [
+            settingsController?.window,
+            clockQuickController?.window,
+            dialogueController?.window,
+            fishChatController?.window,
+            fishMessageComposeController?.window,
+        ].contains { $0?.isVisible == true }
+        let now = Date()
+        if FishPrankPolicy.remainingCooldown(
+            lastSentAt: lastPrankReceivedAtByContact[contactID],
+            now: now
+        ) != nil {
+            return true
+        }
+        let shouldPlay = FishPrankPolicy.shouldPlay(
+            enabled: messenger.preferences.effectiveFriendPranksEnabled,
+            doNotDisturb: messenger.preferences.currentStatus == .doNotDisturb,
+            busy: busy,
+            age: max(0, now.timeIntervalSince(message.sentAt))
+        )
+        if shouldPlay { lastPrankReceivedAtByContact[contactID] = now }
+        return !shouldPlay
     }
 
     private func scheduleChatInvite() {

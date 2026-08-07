@@ -680,7 +680,14 @@ final class FishMessageComposeViewModel: ObservableObject {
                     ? "\(interaction.title(isEnglish: true)) sent."
                     : "已送出「\(interaction.title(isEnglish: false))」。"
             } catch {
-                self.errorMessage = error.localizedDescription
+                if let serviceError = error as? FishMessengerServiceError,
+                   case .prankCooldown(let seconds) = serviceError {
+                    self.errorMessage = self.isEnglish
+                        ? "Wait \(seconds) seconds before the next prank."
+                        : "再等 \(seconds) 秒才能發送下一個惡作劇。"
+                } else {
+                    self.errorMessage = error.localizedDescription
+                }
             }
         }
     }
@@ -755,22 +762,24 @@ private struct FishMessageComposeView: View {
                     .background(Color.blue.opacity(0.09), in: RoundedRectangle(cornerRadius: 8))
                 }
 
-                HStack(spacing: 6) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text(t("魚魚互動", "Fish actions"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
-                    Spacer()
-                    ForEach(FishRemoteInteraction.allCases) { interaction in
-                        Button {
-                            model.sendInteraction(interaction)
-                        } label: {
-                            Label(
-                                interaction.title(isEnglish: model.isEnglish),
-                                systemImage: interaction.symbolName
-                            )
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 6)], spacing: 6) {
+                        ForEach(FishRemoteInteraction.allCases) { interaction in
+                            Button {
+                                model.sendInteraction(interaction)
+                            } label: {
+                                Label(
+                                    interaction.title(isEnglish: model.isEnglish),
+                                    systemImage: interaction.symbolName
+                                )
+                                .frame(maxWidth: .infinity)
+                            }
+                            .controlSize(.mini)
+                            .disabled(model.isSending || model.selectedContact == nil)
                         }
-                        .controlSize(.mini)
-                        .disabled(model.isSending || model.selectedContact == nil)
                     }
                 }
 

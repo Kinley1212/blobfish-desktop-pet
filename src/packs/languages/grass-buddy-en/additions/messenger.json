@@ -72,6 +72,10 @@
     { "id": "grass-en-messenger-remote-hug-01", "event": "messenger.remote.hug", "text": "Hold on, I will not bend", "weight": 5 },
     { "id": "grass-en-messenger-remote-hug-02", "event": "messenger.remote.hug", "text": "The leaves are hugging you back", "weight": 4 },
     { "id": "grass-en-messenger-remote-high-five-01", "event": "messenger.remote.highFive", "text": "High five! The leaves made a tiny clap", "weight": 5 },
-    { "id": "grass-en-messenger-remote-high-five-02", "event": "messenger.remote.highFive", "text": "Let us grow a little taller today", "weight": 4 }
+    { "id": "grass-en-messenger-remote-high-five-02", "event": "messenger.remote.highFive", "text": "Let us grow a little taller today", "weight": 4 },
+    { "id": "grass-en-messenger-remote-launch-01", "event": "messenger.remote.launch", "text": "I flew! The leaves almost became little wings", "weight": 5 },
+    { "id": "grass-en-messenger-remote-launch-02", "event": "messenger.remote.launch", "text": "Back on the ground, back to growing", "weight": 4 },
+    { "id": "grass-en-messenger-remote-bomb-01", "event": "messenger.remote.bomb", "text": "Oh! There is smoke all over the leaves", "weight": 5 },
+    { "id": "grass-en-messenger-remote-bomb-02", "event": "messenger.remote.bomb", "text": "A little shake and the leaves are clean again", "weight": 4 }
   ]
 }
