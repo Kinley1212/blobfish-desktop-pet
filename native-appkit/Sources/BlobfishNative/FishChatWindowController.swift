@@ -381,9 +381,9 @@ struct FishChatView: View {
         HStack(spacing: 6) {
             TextField(t("回覆…", "Reply…"), text: $model.draft)
                 .textFieldStyle(.roundedBorder)
-                .onSubmit { model.sendMessage() }
+                .onSubmit { sendMessageSafely() }
             Button {
-                model.sendMessage()
+                sendMessageSafely()
             } label: {
                 Image(systemName: "arrow.up.circle.fill")
             }
@@ -471,6 +471,13 @@ struct FishChatView: View {
     }
 
     private func t(_ zh: String, _ en: String) -> String { model.isEnglish ? en : zh }
+
+    private func sendMessageSafely() {
+        // macOS 13 can crash inside NSTextStorage undo bookkeeping when
+        // SwiftUI clears a bound field while its editor is still first responder.
+        NSApp.keyWindow?.makeFirstResponder(nil)
+        model.sendMessage()
+    }
 }
 
 @MainActor
@@ -683,7 +690,7 @@ private struct FishMessageComposeView: View {
 
                 TextField(t("想讓水滴魚說什麼？", "What should your fish say?"), text: $model.draft)
                     .textFieldStyle(.roundedBorder)
-                    .onSubmit { model.sendMessage() }
+                    .onSubmit { sendMessageSafely() }
 
                 HStack(alignment: .firstTextBaseline) {
                     if model.draftExceedsLimit {
@@ -699,7 +706,7 @@ private struct FishMessageComposeView: View {
                     }
                     Spacer()
                     Button(model.isSending ? t("發送中…", "Sending…") : t("發送", "Send")) {
-                        model.sendMessage()
+                        sendMessageSafely()
                     }
                     .keyboardShortcut(.return, modifiers: [.command])
                     .disabled(model.sendDisabled)
@@ -712,6 +719,11 @@ private struct FishMessageComposeView: View {
     }
 
     private func t(_ zh: String, _ en: String) -> String { model.isEnglish ? en : zh }
+
+    private func sendMessageSafely() {
+        NSApp.keyWindow?.makeFirstResponder(nil)
+        model.sendMessage()
+    }
 
     private var visitToggleButton: some View {
         Button(model.isActiveVisit ? t("取消串門", "End Visit") : t("串門", "Visit")) {
@@ -773,6 +785,7 @@ final class FishMessageComposeWindowController: NSWindowController, NSWindowDele
     }
 
     func windowWillClose(_ notification: Notification) {
+        window?.makeFirstResponder(nil)
         viewModel.setPresented(false)
         onVisibilityChanged?(false)
     }
@@ -906,6 +919,7 @@ final class FishChatWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        window?.makeFirstResponder(nil)
         viewModel.setWindowActive(false)
         onVisibilityChanged?(false)
     }

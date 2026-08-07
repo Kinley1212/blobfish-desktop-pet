@@ -60,12 +60,12 @@
     {
       "id": "grass-en-messenger-friend-hit-01",
       "event": "messenger.friendHit",
-      "text": "Stop bonking me! You bent my leaves.",
+      "text": "Don't swat me",
       "weight": 5
     },
     { "id": "grass-en-messenger-sent-02", "event": "messenger.sent", "text": "The little grass held the letter high—the wind has it now!", "weight": 4 },
     { "id": "grass-en-messenger-sent-03", "event": "messenger.sent", "text": "Message away! The breeze feels reliable today.", "weight": 4 },
-    { "id": "grass-en-messenger-friend-hit-02", "event": "messenger.friendHit", "text": "Ow! Keep that up and I will lose a leaf!", "weight": 4 },
-    { "id": "grass-en-messenger-friend-hit-03", "event": "messenger.friendHit", "text": "Gently, please. I am still trying to grow taller.", "weight": 4 }
+    { "id": "grass-en-messenger-friend-hit-02", "event": "messenger.friendHit", "text": "My leaves!", "weight": 4 },
+    { "id": "grass-en-messenger-friend-hit-03", "event": "messenger.friendHit", "text": "I'm still growing", "weight": 4 }
   ]
 }
