@@ -74,7 +74,10 @@ enum SelfCheck {
             ("fish self invite is rejected", fishSelfInviteIsRejected),
             ("fish message end-to-end encryption", fishMessageEncryption),
             ("fish visit appearance stays encrypted", fishVisitEncryption),
+            ("fish delivery receipts and remote actions stay encrypted", fishReceiptAndInteractionEncryption),
+            ("fish delivery states advance without regressing", fishDeliveryStatesAdvance),
             ("fish history preserves unread messages", fishHistoryPersistence),
+            ("fish history migrates legacy delivery state", fishHistoryMigratesDeliveryState),
             ("fish history rejects unsafe state files", fishHistoryRejectsUnsafeStateFiles),
             ("fish message duration migrates from old preferences", fishMessageDurationMigration),
             ("fish acknowledgement waits for persistence", fishAcknowledgementWaitsForPersistence),
@@ -238,6 +241,49 @@ enum SelfCheck {
         return decoded.kind == .visitStart && decoded.presence == presence && decoded.bubbleColor == "#1F7AE8"
     }
 
+    private static func fishReceiptAndInteractionEncryption() throws -> Bool {
+        let sender = FishMessengerIdentity()
+        let recipient = FishMessengerIdentity()
+        let originalID = UUID()
+        let receipt = FishDeliveryReceipt(messageID: originalID, state: .read)
+        let receiptMessage = try FishMessage(
+            senderName: "小魚",
+            text: "read",
+            kind: .receipt,
+            receipt: receipt
+        )
+        let receiptEnvelope = try sender.encrypt(receiptMessage, for: recipient.publicKey)
+        let decodedReceipt = try recipient.decrypt(
+            receiptEnvelope,
+            expectedSenderPublicKey: sender.publicKey
+        )
+        let actionMessage = try FishMessage(
+            senderName: "小魚",
+            text: FishRemoteInteraction.hug.rawValue,
+            kind: .interaction,
+            interaction: .hug
+        )
+        let actionEnvelope = try sender.encrypt(actionMessage, for: recipient.publicKey)
+        let decodedAction = try recipient.decrypt(
+            actionEnvelope,
+            expectedSenderPublicKey: sender.publicKey
+        )
+        return decodedReceipt.kind == .receipt
+            && decodedReceipt.receipt == receipt
+            && decodedAction.kind == .interaction
+            && decodedAction.interaction == .hug
+    }
+
+    private static func fishDeliveryStatesAdvance() -> Bool {
+        FishDeliveryStatePolicy.applying(.delivered, to: .relayed) == .delivered
+            && FishDeliveryStatePolicy.applying(.read, to: .delivered) == .read
+            && FishDeliveryStatePolicy.applying(.delivered, to: .read) == .read
+            && FishDeliveryStatePolicy.applying(.delivered, to: .failed) == .delivered
+            && FishDeliveryStatePolicy.relayed(after: .read) == .read
+            && FishDeliveryStatePolicy.relayed(after: .delivered) == .delivered
+            && FishDeliveryStatePolicy.relayed(after: .sending) == .relayed
+    }
+
     private static func fishHistoryPersistence() throws -> Bool {
         try withPrivateDirectory { directory in
             let store = FishFriendStore(directoryURL: directory)
@@ -250,6 +296,23 @@ enum SelfCheck {
             let loaded = try store.load()
             return loaded.0 == .defaults && loaded.1 == [record] && loaded.1.first?.isRead == false
         }
+    }
+
+    private static func fishHistoryMigratesDeliveryState() throws -> Bool {
+        let record = FishMessageRecord(
+            id: UUID(), contactID: UUID(), direction: .outgoing, sentAt: Date(),
+            senderName: "我", text: "舊消息", kind: .text, isRead: true,
+            bubbleColor: nil, presence: nil
+        )
+        let encoded = try JSONEncoder().encode(record)
+        guard var object = try JSONSerialization.jsonObject(with: encoded) as? [String: Any] else {
+            return false
+        }
+        object.removeValue(forKey: "deliveryState")
+        object.removeValue(forKey: "interaction")
+        let legacy = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try JSONDecoder().decode(FishMessageRecord.self, from: legacy)
+        return decoded.deliveryState == nil && decoded.effectiveDeliveryState == .relayed
     }
 
     private static func fishHistoryRejectsUnsafeStateFiles() throws -> Bool {

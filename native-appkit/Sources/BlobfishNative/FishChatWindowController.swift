@@ -105,7 +105,9 @@ final class FishChatViewModel: ObservableObject {
     var selectedRecords: [FishMessageRecord] {
         guard let selectedContactID else { return [] }
         return records
-            .filter { $0.contactID == selectedContactID && $0.kind != .status }
+            .filter {
+                $0.contactID == selectedContactID && $0.kind != .status && $0.kind != .receipt
+            }
             .sorted { $0.sentAt < $1.sentAt }
     }
 
@@ -187,6 +189,19 @@ final class FishChatViewModel: ObservableObject {
         guard !text.isEmpty, text.utf8.count <= FishMessage.maximumTextBytes else { return }
         performSend(text: text, contact: contact, kind: .text, presence: nil) { [weak self] in
             if self?.draft == original { self?.draft = "" }
+        }
+    }
+
+    func retryMessage(_ recordID: UUID) {
+        errorMessage = ""
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                _ = try await self.messengerService.retry(recordID: recordID)
+                self.refresh()
+            } catch {
+                self.errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -444,7 +459,11 @@ struct FishChatView: View {
                 } else {
                     LazyVStack(spacing: 10) {
                         ForEach(model.selectedRecords) { record in
-                            FishChatMessageRow(record: record, isEnglish: model.isEnglish)
+                            FishChatMessageRow(
+                                record: record,
+                                isEnglish: model.isEnglish,
+                                onRetry: { model.retryMessage(record.id) }
+                            )
                                 .id(record.id)
                         }
                     }
@@ -491,6 +510,7 @@ final class FishMessageComposeViewModel: ObservableObject {
     @Published private(set) var displayedUnreadMessages: [FishMessageRecord] = []
     @Published private(set) var activeVisitContactID: UUID?
     @Published private(set) var locale: String
+    private var lastSentRecordID: UUID?
 
     private let messengerService: FishMessengerService
     private let onSent: @MainActor (FishMessengerService.SendResult, FishContact) -> Void
@@ -514,6 +534,7 @@ final class FishMessageComposeViewModel: ObservableObject {
             self.activeVisitContactID = self.messengerService.activeVisitContactID
             self.refreshContacts(preferredContactID: self.selectedContactID)
             if self.isPresented { self.captureAndMarkUnread() }
+            self.refreshDeliveryStatus()
         }
     }
 
@@ -616,6 +637,7 @@ final class FishMessageComposeViewModel: ObservableObject {
             defer { self.isSending = false }
             do {
                 let result = try await self.messengerService.send(text: text, to: contact.id)
+                self.lastSentRecordID = result.record.id
                 self.messengerService.markRead(contactID: contact.id)
                 self.onSent(result, contact)
                 if FishChatDraftPolicy.shouldClear(
@@ -627,13 +649,58 @@ final class FishMessageComposeViewModel: ObservableObject {
                     self.draft = ""
                 }
                 self.statusMessage = result.historyPersisted
-                    ? (self.isEnglish ? "Delivered." : "已送達。")
+                    ? (self.isEnglish ? "Sent. Waiting for your friend’s fish." : "已送出，等待對方魚魚收取。")
                     : (self.isEnglish
                         ? "Delivered, but the local history could not be saved. Do not resend it."
                         : "已經送達，但本地歷史未能保存，請不要重複發送。")
             } catch {
                 self.errorMessage = error.localizedDescription
             }
+        }
+    }
+
+    func sendInteraction(_ interaction: FishRemoteInteraction) {
+        guard let contact = selectedContact, !contact.blocked, !isSending else { return }
+        isSending = true
+        errorMessage = ""
+        statusMessage = ""
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isSending = false }
+            do {
+                let result = try await self.messengerService.send(
+                    text: interaction.rawValue,
+                    to: contact.id,
+                    kind: .interaction,
+                    interaction: interaction
+                )
+                self.lastSentRecordID = result.record.id
+                self.onSent(result, contact)
+                self.statusMessage = self.isEnglish
+                    ? "\(interaction.title(isEnglish: true)) sent."
+                    : "已送出「\(interaction.title(isEnglish: false))」。"
+            } catch {
+                self.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func refreshDeliveryStatus() {
+        guard let lastSentRecordID,
+              let record = messengerService.records.first(where: { $0.id == lastSentRecordID }) else { return }
+        switch record.effectiveDeliveryState {
+        case .sending:
+            statusMessage = isEnglish ? "Sending…" : "傳送中…"
+        case .relayed:
+            statusMessage = isEnglish ? "Sent. Waiting for your friend’s fish." : "已送出，等待對方魚魚收取。"
+        case .delivered:
+            statusMessage = isEnglish ? "Delivered to your friend’s fish." : "已送達對方魚魚。"
+        case .read:
+            statusMessage = isEnglish ? "Read." : "對方已讀。"
+        case .failed:
+            statusMessage = isEnglish ? "Send failed. Retry from Chat History." : "傳送失敗，可到聊天紀錄重試。"
+        case nil:
+            break
         }
     }
 
@@ -686,6 +753,25 @@ private struct FishMessageComposeView: View {
                     .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.blue.opacity(0.09), in: RoundedRectangle(cornerRadius: 8))
+                }
+
+                HStack(spacing: 6) {
+                    Text(t("魚魚互動", "Fish actions"))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    ForEach(FishRemoteInteraction.allCases) { interaction in
+                        Button {
+                            model.sendInteraction(interaction)
+                        } label: {
+                            Label(
+                                interaction.title(isEnglish: model.isEnglish),
+                                systemImage: interaction.symbolName
+                            )
+                        }
+                        .controlSize(.mini)
+                        .disabled(model.isSending || model.selectedContact == nil)
+                    }
                 }
 
                 TextField(t("想讓水滴魚說什麼？", "What should your fish say?"), text: $model.draft)
@@ -822,6 +908,7 @@ final class FishMessageComposeWindowController: NSWindowController, NSWindowDele
 private struct FishChatMessageRow: View {
     let record: FishMessageRecord
     let isEnglish: Bool
+    let onRetry: () -> Void
 
     var body: some View {
         HStack(alignment: .bottom) {
@@ -838,9 +925,20 @@ private struct FishChatMessageRow: View {
                     .padding(.vertical, 8)
                     .foregroundStyle(record.direction == .outgoing ? Color.white : Color.primary)
                     .background(bubbleColor, in: RoundedRectangle(cornerRadius: 12))
-                Text(record.sentAt.formatted(date: .omitted, time: .shortened))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                HStack(spacing: 5) {
+                    Text(record.sentAt.formatted(date: .omitted, time: .shortened))
+                    if let deliveryText {
+                        Image(systemName: deliverySymbol)
+                        Text(deliveryText)
+                    }
+                    if record.effectiveDeliveryState == .failed {
+                        Button(isEnglish ? "Retry" : "重試", action: onRetry)
+                            .buttonStyle(.link)
+                            .font(.caption2)
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(record.effectiveDeliveryState == .failed ? Color.red : Color.secondary)
             }
             if record.direction == .incoming { Spacer(minLength: 72) }
         }
@@ -854,6 +952,36 @@ private struct FishChatMessageRow: View {
         case .visitAccept: return (isEnglish ? "Visit accepted: " : "已接受串門：") + record.text
         case .visitEnd: return (isEnglish ? "Visit ended: " : "串門結束：") + record.text
         case .status: return (isEnglish ? "Status updated" : "狀態已更新")
+        case .receipt: return isEnglish ? "Delivery updated" : "送達狀態已更新"
+        case .interaction:
+            let action = record.interaction ?? FishRemoteInteraction(rawValue: record.text)
+            let title = action?.title(isEnglish: isEnglish) ?? (isEnglish ? "Fish action" : "魚魚互動")
+            if record.direction == .outgoing {
+                return (isEnglish ? "You sent: " : "你送出了：") + title
+            }
+            return (isEnglish ? "Your friend sent: " : "好友送來了：") + title
+        }
+    }
+
+    private var deliveryText: String? {
+        guard let state = record.effectiveDeliveryState else { return nil }
+        switch state {
+        case .sending: return isEnglish ? "Sending" : "傳送中"
+        case .relayed: return isEnglish ? "Sent" : "已送出"
+        case .delivered: return isEnglish ? "Delivered" : "已送達"
+        case .read: return isEnglish ? "Read" : "已讀"
+        case .failed: return isEnglish ? "Failed" : "失敗"
+        }
+    }
+
+    private var deliverySymbol: String {
+        switch record.effectiveDeliveryState {
+        case .sending: return "clock"
+        case .relayed: return "checkmark"
+        case .delivered: return "checkmark.circle"
+        case .read: return "checkmark.circle.fill"
+        case .failed: return "exclamationmark.circle"
+        case nil: return ""
         }
     }
 

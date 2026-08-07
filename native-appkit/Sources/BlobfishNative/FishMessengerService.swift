@@ -437,10 +437,14 @@ final class FishMessengerService: NSObject {
     func markRead(_ id: UUID? = nil) {
         var next = records
         var changed = false
+        var receipts: [(UUID, UUID)] = []
         for index in next.indices where next[index].direction == .incoming && (id == nil || next[index].id == id) {
             if !next[index].isRead {
                 next[index].isRead = true
                 changed = true
+                if next[index].kind == .text {
+                    receipts.append((next[index].id, next[index].contactID))
+                }
             }
         }
         guard changed, persistState(
@@ -450,17 +454,22 @@ final class FishMessengerService: NSObject {
         ) else { return }
         records = next
         notifyState()
+        sendReadReceipts(receipts)
     }
 
     func markRead(contactID: UUID) {
         var next = records
         var changed = false
+        var receipts: [(UUID, UUID)] = []
         for index in next.indices
         where next[index].contactID == contactID
             && next[index].direction == .incoming
             && !next[index].isRead {
             next[index].isRead = true
             changed = true
+            if next[index].kind == .text {
+                receipts.append((next[index].id, next[index].contactID))
+            }
         }
         guard changed, persistState(
             preferences: preferences,
@@ -469,6 +478,7 @@ final class FishMessengerService: NSObject {
         ) else { return }
         records = next
         notifyState()
+        sendReadReceipts(receipts)
     }
 
     func updateContact(_ contact: FishContact) throws {
@@ -549,7 +559,8 @@ final class FishMessengerService: NSObject {
     @discardableResult
     func send(
         text: String, to contactID: UUID, replyTo: UUID? = nil,
-        kind: FishMessageKind = .text, presence: FishPresence? = nil
+        kind: FishMessageKind = .text, presence: FishPresence? = nil,
+        interaction: FishRemoteInteraction? = nil
     ) async throws -> SendResult {
         let profile = try requiredProfile()
         guard let contact = profile.contacts.first(where: { $0.id == contactID }), !contact.blocked,
@@ -561,25 +572,85 @@ final class FishMessengerService: NSObject {
         }
         let message = try FishMessage(
             senderName: profile.displayName, text: text, replyTo: replyTo,
-            kind: kind, bubbleColor: preferences.bubbleColor, presence: presence
+            kind: kind, bubbleColor: preferences.bubbleColor, presence: presence,
+            interaction: interaction
         )
         let envelope = try FishMessengerIdentity(rawPrivateKey: privateKey).encrypt(message, for: contact.invite.publicKey)
-        try await relay.deliver(envelope, to: contact.invite)
-        let outgoingRecord = FishMessageRecord(
+        var outgoingRecord = FishMessageRecord(
             id: message.id, contactID: contact.id, direction: .outgoing, sentAt: message.sentAt,
             senderName: profile.displayName, text: message.text, kind: kind, isRead: true,
-            bubbleColor: message.bubbleColor, presence: presence
+            bubbleColor: message.bubbleColor, presence: presence,
+            deliveryState: .sending, interaction: interaction
         )
         FishMessageHistory.append(outgoingRecord, to: &records)
+        _ = persistState(operation: "outgoing message queued")
+        notifyState()
+        do {
+            try await relay.deliver(envelope, to: contact.invite)
+            let current = records.first(where: { $0.id == outgoingRecord.id })?.deliveryState
+            outgoingRecord.deliveryState = FishDeliveryStatePolicy.relayed(after: current)
+        } catch {
+            let current = records.first(where: { $0.id == outgoingRecord.id })?.deliveryState
+            if current == .delivered || current == .read {
+                outgoingRecord.deliveryState = current
+            } else {
+                outgoingRecord.deliveryState = .failed
+                _ = updateRecord(outgoingRecord, operation: "outgoing message failure")
+                notifyState()
+                throw error
+            }
+        }
+        let historyPersisted = updateRecord(outgoingRecord, operation: "outgoing message")
         activeVisitContactID = FishVisitPolicy.activeContactID(
             after: kind,
             from: contact,
             current: activeVisitContactID,
             preferences: preferences
         )
-        let historyPersisted = persistState(operation: "outgoing message")
         notifyState()
         return SendResult(record: outgoingRecord, historyPersisted: historyPersisted)
+    }
+
+    @discardableResult
+    func retry(recordID: UUID) async throws -> SendResult {
+        let profile = try requiredProfile()
+        guard let index = records.firstIndex(where: {
+            $0.id == recordID && $0.direction == .outgoing && $0.deliveryState == .failed
+        }) else { throw FishMessengerError.invalidMessage }
+        var record = records[index]
+        guard let contact = profile.contacts.first(where: { $0.id == record.contactID }),
+              !contact.blocked,
+              let privateKey = Data(base64Encoded: profile.privateKey) else {
+            throw FishMessengerError.invalidInvite
+        }
+        record.deliveryState = .sending
+        _ = updateRecord(record, operation: "outgoing retry queued")
+        notifyState()
+        let message = try FishMessage(
+            id: record.id, sentAt: record.sentAt, senderName: record.senderName,
+            text: record.text, kind: record.kind, bubbleColor: record.bubbleColor,
+            presence: record.presence, interaction: record.interaction
+        )
+        let envelope = try FishMessengerIdentity(rawPrivateKey: privateKey)
+            .encrypt(message, for: contact.invite.publicKey)
+        do {
+            try await relay.deliver(envelope, to: contact.invite)
+            let current = records.first(where: { $0.id == record.id })?.deliveryState
+            record.deliveryState = FishDeliveryStatePolicy.relayed(after: current)
+        } catch {
+            let current = records.first(where: { $0.id == record.id })?.deliveryState
+            if current == .delivered || current == .read {
+                record.deliveryState = current
+            } else {
+                record.deliveryState = .failed
+                _ = updateRecord(record, operation: "outgoing retry failure")
+                notifyState()
+                throw error
+            }
+        }
+        let historyPersisted = updateRecord(record, operation: "outgoing retry")
+        notifyState()
+        return SendResult(record: record, historyPersisted: historyPersisted)
     }
 
     func start() {
@@ -623,6 +694,7 @@ final class FishMessengerService: NSObject {
             var stateChanged = false
             var profileChanged = false
             var deliveries: [(FishMessage, FishContact)] = []
+            var deliveryReceipts: [(UUID, FishContact)] = []
             let previousRecords = records
             let previousProfile = profile
             let previousActiveVisitContactID = activeVisitContactID
@@ -656,16 +728,31 @@ final class FishMessengerService: NSObject {
                     acknowledged.append(record.id)
                     continue
                 }
-                acknowledgementsRequiringPersistence.append(record.id)
                 guard pendingMessageIDs.insert(message.id).inserted else { continue }
 
                 let kind = message.kind ?? .text
+                if kind == .receipt {
+                    if let receipt = message.receipt,
+                       applyDeliveryReceipt(receipt, from: contact.id) {
+                        acknowledgementsRequiringPersistence.append(record.id)
+                        stateChanged = true
+                    } else {
+                        acknowledged.append(record.id)
+                    }
+                    continue
+                }
+                acknowledgementsRequiringPersistence.append(record.id)
                 FishMessageHistory.append(FishMessageRecord(
                     id: message.id, contactID: contact.id, direction: .incoming, sentAt: message.sentAt,
-                    senderName: message.senderName, text: message.text, kind: kind, isRead: kind == .status,
-                    bubbleColor: message.bubbleColor, presence: message.presence
+                    senderName: message.senderName, text: message.text, kind: kind,
+                    isRead: kind == .status || kind == .interaction,
+                    bubbleColor: message.bubbleColor, presence: message.presence,
+                    interaction: message.interaction
                 ), to: &records)
                 stateChanged = true
+                if kind == .text || kind == .interaction {
+                    deliveryReceipts.append((message.id, contact))
+                }
 
                 let canActivateVisit = FishVisitPolicy.canActivate(
                     contact: contact,
@@ -714,9 +801,15 @@ final class FishMessengerService: NSObject {
                     profile = previousProfile
                     activeVisitContactID = previousActiveVisitContactID
                     deliveries.removeAll()
+                    deliveryReceipts.removeAll()
                 }
             }
             for delivery in deliveries { onMessage?(delivery.0, delivery.1) }
+            for (messageID, contact) in deliveryReceipts {
+                Task { [weak self] in
+                    try? await self?.sendReceipt(.delivered, for: messageID, to: contact)
+                }
+            }
             let uniqueAcknowledgements = FishRelayAcknowledgementPolicy.resolved(
                 immediatelySafe: acknowledged,
                 requiringPersistence: acknowledgementsRequiringPersistence,
@@ -728,6 +821,57 @@ final class FishMessengerService: NSObject {
         } catch {
             report(error)
         }
+    }
+
+    private func sendReadReceipts(_ receipts: [(UUID, UUID)]) {
+        guard !receipts.isEmpty else { return }
+        let unique = Dictionary(receipts.map { ($0.0, $0.1) }, uniquingKeysWith: { first, _ in first })
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            for (messageID, contactID) in unique {
+                guard let contact = self.profile?.contacts.first(where: { $0.id == contactID }) else { continue }
+                try? await self.sendReceipt(.read, for: messageID, to: contact)
+            }
+        }
+    }
+
+    private func sendReceipt(
+        _ state: FishDeliveryReceiptState,
+        for messageID: UUID,
+        to contact: FishContact
+    ) async throws {
+        let profile = try requiredProfile()
+        guard let privateKey = Data(base64Encoded: profile.privateKey), !contact.blocked else {
+            throw FishMessengerError.invalidInvite
+        }
+        let receipt = FishDeliveryReceipt(messageID: messageID, state: state)
+        let message = try FishMessage(
+            senderName: profile.displayName,
+            text: state.rawValue,
+            kind: .receipt,
+            receipt: receipt
+        )
+        let envelope = try FishMessengerIdentity(rawPrivateKey: privateKey)
+            .encrypt(message, for: contact.invite.publicKey)
+        try await relay.deliver(envelope, to: contact.invite)
+    }
+
+    private func applyDeliveryReceipt(_ receipt: FishDeliveryReceipt, from contactID: UUID) -> Bool {
+        guard let index = records.firstIndex(where: {
+            $0.id == receipt.messageID && $0.contactID == contactID && $0.direction == .outgoing
+        }) else { return false }
+        let current = records[index].effectiveDeliveryState ?? .relayed
+        let next = FishDeliveryStatePolicy.applying(receipt.state, to: current)
+        guard next != current else { return false }
+        records[index].deliveryState = next
+        return true
+    }
+
+    @discardableResult
+    private func updateRecord(_ record: FishMessageRecord, operation: String) -> Bool {
+        guard let index = records.firstIndex(where: { $0.id == record.id }) else { return false }
+        records[index] = record
+        return persistState(operation: operation)
     }
 
     private func requiredProfile() throws -> FishMessengerProfile {

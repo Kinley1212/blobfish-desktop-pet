@@ -2131,6 +2131,8 @@ final class PetView: NSView, CALayerDelegate {
 
     func playBumpEffect() { startEffect(.bump, duration: 0.32) }
 
+    func playFriendlyEffect() { startEffect(.success, duration: 0.72) }
+
     private func startEffect(_ visualEffect: PetVisualEffect, duration: TimeInterval) {
         effectTimer?.invalidate()
         effect = visualEffect

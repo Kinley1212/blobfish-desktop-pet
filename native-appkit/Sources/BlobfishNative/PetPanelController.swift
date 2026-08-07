@@ -451,6 +451,27 @@ final class PetPanelController {
         RunLoop.main.add(interactionTimer!, forMode: .common)
     }
 
+    func playRemoteInteraction(_ interaction: FishRemoteInteraction, incoming: Bool) {
+        interactionTimer?.invalidate()
+        interactionPaused = true
+        let target = incoming || guestView.isHidden ? petView : guestView
+        switch interaction {
+        case .pet:
+            target.playFriendlyEffect()
+        case .hug:
+            petView.playBumpEffect()
+            if !guestView.isHidden { guestView.playBumpEffect() }
+        case .highFive:
+            petView.playFriendlyEffect()
+            if !guestView.isHidden { guestView.playFriendlyEffect() }
+        }
+        interactionTimer = Timer.scheduledTimer(withTimeInterval: 0.85, repeats: false) { [weak self] _ in
+            self?.interactionPaused = false
+            self?.interactionTimer = nil
+        }
+        RunLoop.main.add(interactionTimer!, forMode: .common)
+    }
+
     func setMenuPaused(_ paused: Bool) {
         menuPaused = paused
         if paused {

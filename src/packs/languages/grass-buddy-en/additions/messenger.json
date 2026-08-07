@@ -66,6 +66,12 @@
     { "id": "grass-en-messenger-sent-02", "event": "messenger.sent", "text": "The little grass held the letter high—the wind has it now!", "weight": 4 },
     { "id": "grass-en-messenger-sent-03", "event": "messenger.sent", "text": "Message away! The breeze feels reliable today.", "weight": 4 },
     { "id": "grass-en-messenger-friend-hit-02", "event": "messenger.friendHit", "text": "My leaves!", "weight": 4 },
-    { "id": "grass-en-messenger-friend-hit-03", "event": "messenger.friendHit", "text": "I'm still growing", "weight": 4 }
+    { "id": "grass-en-messenger-friend-hit-03", "event": "messenger.friendHit", "text": "I'm still growing", "weight": 4 },
+    { "id": "grass-en-messenger-remote-pet-01", "event": "messenger.remote.pet", "text": "Gentle pats make the leaves perk up", "weight": 5 },
+    { "id": "grass-en-messenger-remote-pet-02", "event": "messenger.remote.pet", "text": "Your hand feels as light as today's breeze", "weight": 4 },
+    { "id": "grass-en-messenger-remote-hug-01", "event": "messenger.remote.hug", "text": "Hold on, I will not bend", "weight": 5 },
+    { "id": "grass-en-messenger-remote-hug-02", "event": "messenger.remote.hug", "text": "The leaves are hugging you back", "weight": 4 },
+    { "id": "grass-en-messenger-remote-high-five-01", "event": "messenger.remote.highFive", "text": "High five! The leaves made a tiny clap", "weight": 5 },
+    { "id": "grass-en-messenger-remote-high-five-02", "event": "messenger.remote.highFive", "text": "Let us grow a little taller today", "weight": 4 }
   ]
 }
