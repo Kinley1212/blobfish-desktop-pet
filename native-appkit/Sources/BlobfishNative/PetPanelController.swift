@@ -242,7 +242,10 @@ final class PetPanelController {
         didSet { overlayView.onUnreadBadgeClick = onUnreadBadgeClick }
     }
     var onCompanionClick: (() -> Void)? {
-        didSet { overlayView.onCompanionClick = onCompanionClick }
+        didSet {
+            petView.onCompanionClick = onCompanionClick
+            overlayView.onCompanionClick = onCompanionClick
+        }
     }
     var onPetting: ((Int) -> Void)?
     var moodFaceProvider: ((String) -> String?)?
@@ -591,6 +594,7 @@ final class PetPanelController {
         overlayView.visitingFriendStatus = nil
         overlayView.visitAnnouncementFriendName = nil
         overlayView.companionCharacterBounds = nil
+        petView.companionCharacterBounds = nil
         overlayView.friendMessageBubbles.removeAll { $0.speaker == .visitor }
         clearSpeakingPresentation(for: .visitor)
         scheduleFriendBubbleExpiry()
@@ -897,6 +901,10 @@ final class PetPanelController {
         overlayView.companionCharacterBounds = companion.map {
             PetOverlayScreenGeometry.localRect(for: $0, visibleFrame: sceneFrame)
         }
+        petView.companionCharacterBounds = guestView.isHidden ? nil : guestView.characterBounds.offsetBy(
+            dx: guestView.frame.minX,
+            dy: guestView.frame.minY
+        )
         if sceneAnchor != nextAnchor {
             sceneAnchor = nextAnchor
             onSceneAnchorChanged?(nextAnchor)

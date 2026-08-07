@@ -529,7 +529,7 @@ final class PetView: NSView, CALayerDelegate {
             }
             rects += layout.ownerFriendBubbleRects + layout.visitorFriendBubbleRects
         }
-        if contentMode.drawsOverlay, let companionCharacterBounds {
+        if let companionCharacterBounds {
             rects.append(companionCharacterBounds.insetBy(dx: -8, dy: -8))
         }
         return rects

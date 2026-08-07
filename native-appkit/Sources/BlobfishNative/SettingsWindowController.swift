@@ -668,11 +668,15 @@ struct BrandedSettingsView: View {
         HStack(spacing: 0) {
             brandedSidebar
             VStack(spacing: 0) {
-                if model.selectedSection == .character {
-                    characterWorkspace
-                } else {
-                    ScrollView { section.padding(18).frame(maxWidth: 680, alignment: .leading) }
+                Group {
+                    if model.selectedSection == .character {
+                        characterWorkspace
+                    } else {
+                        ScrollView { section.padding(18).frame(maxWidth: 680, alignment: .leading) }
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
                 Divider()
                 HStack {
                     Text(model.message).font(.caption).foregroundStyle(.secondary).lineLimit(2)
@@ -684,6 +688,8 @@ struct BrandedSettingsView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(Color.white.opacity(0.74))
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
             }
             .frame(minWidth: 576, minHeight: 540)
         }
@@ -979,6 +985,7 @@ struct BrandedSettingsView: View {
             Text("\(status.emoji) \(status.title(isEnglish: model.isEnglish)) · \(t("細節 DIY", "Detailed DIY"))")
                 .font(.subheadline.weight(.semibold))
             Picker(t("表情", "Expression"), selection: model.statusFaceBinding(status)) {
+                Text(t("無表情", "No expression")).tag("")
                 ForEach(model.accessories.filter { $0.manifest.slot == "face" }) { accessory in
                     Text(accessory.manifest.displayName).tag(accessory.id)
                 }
@@ -1039,7 +1046,8 @@ struct BrandedSettingsView: View {
 
     private var characterWorkspace: some View {
         HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 12) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
                 Text(t("角色与动作", "Character & Motion"))
                     .font(.system(size: 24, weight: .bold, design: .rounded))
                 Text(t("左边实时看效果，右边慢慢捏。", "Preview on the left while you tune on the right."))
@@ -1096,8 +1104,10 @@ struct BrandedSettingsView: View {
                 }
                 .padding(12)
                 .background(Color.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 14))
+                }
+                .frame(width: 254, alignment: .topLeading)
             }
-            .frame(width: 254, alignment: .topLeading)
+            .frame(width: 254)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
@@ -1598,14 +1608,36 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     func mergeQuickSettingsFromRuntime() { viewModel.mergeQuickSettingsFromRuntime() }
 
     override func showWindow(_ sender: Any?) {
-        if window?.isVisible != true { viewModel.reloadFromRuntime() }
+        if window?.isVisible != true {
+            window?.makeFirstResponder(nil)
+            viewModel.reloadFromRuntime()
+        }
         super.showWindow(sender)
+        constrainWindowToVisibleScreen()
         window?.makeKeyAndOrderFront(sender)
         window?.orderFrontRegardless()
         startRefreshTimer()
     }
 
-    func windowWillClose(_ notification: Notification) { stopRefreshTimer() }
+    func windowWillClose(_ notification: Notification) {
+        window?.makeFirstResponder(nil)
+        stopRefreshTimer()
+    }
+
+    private func constrainWindowToVisibleScreen() {
+        guard let window else { return }
+        let screen = window.screen
+            ?? NSScreen.screens.first(where: { $0.visibleFrame.intersects(window.frame) })
+            ?? NSScreen.main
+        guard let screen else { return }
+        let insetVisibleFrame = screen.visibleFrame.insetBy(dx: 10, dy: 10)
+        var frame = window.frame
+        frame.size.width = min(frame.width, insetVisibleFrame.width)
+        frame.size.height = min(frame.height, insetVisibleFrame.height)
+        frame.origin.x = min(max(frame.minX, insetVisibleFrame.minX), insetVisibleFrame.maxX - frame.width)
+        frame.origin.y = min(max(frame.minY, insetVisibleFrame.minY), insetVisibleFrame.maxY - frame.height)
+        window.setFrame(frame, display: true)
+    }
 
     private func startRefreshTimer() {
         stopRefreshTimer()

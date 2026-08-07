@@ -60,12 +60,12 @@
     {
       "id": "messenger-friend-hit-01",
       "event": "messenger.friendHit",
-      "text": "喂……我是來串門，不是來挨打的。",
+      "text": "喂……別打我",
       "weight": 5
     },
     { "id": "messenger-sent-02", "event": "messenger.sent", "text": "送到了。別催，我的魚鰭已經很努力了。", "weight": 4 },
     { "id": "messenger-sent-03", "event": "messenger.sent", "text": "信游走了……希望對面有空看。", "weight": 4 },
-    { "id": "messenger-friend-hit-02", "event": "messenger.friendHit", "text": "再戳一下，我就躺平給你看。", "weight": 4 },
-    { "id": "messenger-friend-hit-03", "event": "messenger.friendHit", "text": "我本來就軟……不要拿這件事做實驗。", "weight": 4 }
+    { "id": "messenger-friend-hit-02", "event": "messenger.friendHit", "text": "別戳了，我要躺平", "weight": 4 },
+    { "id": "messenger-friend-hit-03", "event": "messenger.friendHit", "text": "很軟也會痛", "weight": 4 }
   ]
 }

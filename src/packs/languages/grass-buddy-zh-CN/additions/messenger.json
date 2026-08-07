@@ -60,12 +60,12 @@
     {
       "id": "grass-messenger-friend-hit-01",
       "event": "messenger.friendHit",
-      "text": "别打啦！叶子都被你拍歪了。",
+      "text": "别拍我啦",
       "weight": 5
     },
     { "id": "grass-messenger-sent-02", "event": "messenger.sent", "text": "小草把信举高高，顺风送过去啦！", "weight": 4 },
     { "id": "grass-messenger-sent-03", "event": "messenger.sent", "text": "传话出发！今天的风很可靠。", "weight": 4 },
-    { "id": "grass-messenger-friend-hit-02", "event": "messenger.friendHit", "text": "呀！再拍就要掉叶子啦！", "weight": 4 },
-    { "id": "grass-messenger-friend-hit-03", "event": "messenger.friendHit", "text": "轻一点嘛，我还在努力长高。", "weight": 4 }
+    { "id": "grass-messenger-friend-hit-02", "event": "messenger.friendHit", "text": "叶子要掉了", "weight": 4 },
+    { "id": "grass-messenger-friend-hit-03", "event": "messenger.friendHit", "text": "我还在长高", "weight": 4 }
   ]
 }
