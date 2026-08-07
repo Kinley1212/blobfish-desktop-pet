@@ -48,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let friendHitBubbleID = UUID()
     private let soundPlayer = SoundPlayer()
     private let instanceGuard = SingleInstanceGuard()
+    private var terminationReplyPending = false
 
     init(openSettingsAtLaunch: Bool = false) {
         self.openSettingsAtLaunch = openSettingsAtLaunch
@@ -206,16 +207,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         messenger.onMessage = { [weak self, weak messenger] message, contact in
             guard let self, let messenger, !contact.muted else { return }
             let kind = message.kind ?? .text
-            if kind == .interaction,
-               let interaction = message.interaction,
-               interaction.isPrank,
-               self.shouldSuppressPrank(message: message, messenger: messenger) {
-                return
-            }
-            let prankSoundAllowed = message.interaction?.isPrank != true
-                || messenger.preferences.effectiveFriendPrankSoundEnabled
-            if kind != .status, kind != .receipt,
-               prankSoundAllowed,
+            if kind == .interaction, let interaction = message.interaction {
+                self.playInteractionSound(interaction, preferences: messenger.preferences)
+            } else if kind != .status, kind != .receipt,
                messenger.preferences.incomingSoundEnabled, !self.isQuietNow() {
                 self.soundPlayer.play(id: messenger.preferences.incomingSoundID)
             }
@@ -253,7 +247,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if kind != .interaction {
                 self.panelController.playEffect(.completed)
             }
-            if messenger.preferences.currentStatus == .doNotDisturb, kind != .status { return }
+            if messenger.preferences.currentStatus == .doNotDisturb,
+               kind != .status, kind != .interaction { return }
             switch kind {
             case .text:
                 let visiting = messenger.activeVisitContactID == contact.id
@@ -424,6 +419,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         messengerService?.stop()
         chatInviteTimer?.invalidate()
         panelController?.stop()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard messengerService?.activeVisitContactID != nil else { return .terminateNow }
+        guard !terminationReplyPending else { return .terminateLater }
+        terminationReplyPending = true
+        Task { @MainActor [weak self] in
+            await self?.messengerService?.endActiveVisitForShutdown()
+            self?.terminationReplyPending = false
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     private func configureStatusMenu() {
@@ -636,27 +643,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let current = formatter.string(from: Date())
         if quiet.start <= quiet.end { return current >= quiet.start && current < quiet.end }
         return current >= quiet.start || current < quiet.end
-    }
-
-    @MainActor private func shouldSuppressPrank(
-        message: FishMessage,
-        messenger: FishMessengerService
-    ) -> Bool {
-        let busy = panelController.isBusyForRemotePrank || [
-            settingsController?.window,
-            clockQuickController?.window,
-            dialogueController?.window,
-            fishChatController?.window,
-            fishMessageComposeController?.window,
-        ].contains { $0?.isVisible == true }
-        let now = Date()
-        let shouldPlay = FishPrankPolicy.shouldPlay(
-            enabled: messenger.preferences.effectiveFriendPranksEnabled,
-            doNotDisturb: messenger.preferences.currentStatus == .doNotDisturb,
-            busy: busy,
-            age: max(0, now.timeIntervalSince(message.sentAt))
-        )
-        return !shouldPlay
     }
 
     private func scheduleChatInvite() {
@@ -1083,6 +1069,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     ) {
         guard let messenger = messengerService else { return }
         if result.record.kind == .interaction, let interaction = result.record.interaction {
+            playInteractionSound(interaction, preferences: messenger.preferences)
             panelController.playRemoteInteraction(interaction, incoming: false)
             return
         }
@@ -1103,6 +1090,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 priority: SpeechPriority.interaction, replaceKey: "messenger.sent"
             )
         }
+    }
+
+    private func playInteractionSound(
+        _ interaction: FishRemoteInteraction,
+        preferences: FishFriendPreferences
+    ) {
+        guard preferences.soundEnabled(for: interaction) else { return }
+        soundPlayer.play(id: preferences.soundID(for: interaction), minimumInterval: 0)
     }
 
     @MainActor @objc private func openDialogue() {

@@ -262,12 +262,16 @@ final class FishRelayClient {
         )
     }
 
-    func deliver(_ envelope: FishEncryptedEnvelope, to invite: FishInvite) async throws {
+    func deliver(
+        _ envelope: FishEncryptedEnvelope,
+        to invite: FishInvite,
+        timeoutInterval: TimeInterval = 15
+    ) async throws {
         let body = try JSONEncoder().encode(["envelope": envelope])
         let _: EmptyResponse = try await request(
             invite.relayURL.appendingPathComponent("v1/inboxes/\(invite.inboxID)/messages"),
             method: "POST", token: invite.deliveryToken, body: body, as: EmptyResponse.self,
-            acceptedStatuses: [202]
+            acceptedStatuses: [202], timeoutInterval: timeoutInterval
         )
     }
 
@@ -298,12 +302,13 @@ final class FishRelayClient {
         body: Data?,
         as type: T.Type,
         acceptedStatuses: Set<Int> = [200, 201],
+        timeoutInterval: TimeInterval = 15,
         extraHeaders: [String: String] = [:]
     ) async throws -> T {
         guard url.scheme == "https", url.host != nil else { throw FishMessengerError.invalidInvite }
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.timeoutInterval = 15
+        request.timeoutInterval = max(1, timeoutInterval)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
@@ -329,6 +334,8 @@ final class FishMessengerService: NSObject {
     private(set) var preferences: FishFriendPreferences
     private(set) var records: [FishMessageRecord]
     private(set) var activeVisitContactID: UUID?
+    private var activeVisitLastSeenAt: Date?
+    private var lastVisitHeartbeatSentAt: Date?
     private var pollTimer: Timer?
     private var pollingRequested = false
     private var polling = false
@@ -420,7 +427,11 @@ final class FishMessengerService: NSObject {
             throw persistenceError
         }
         preferences = value
-        if !value.visitsEnabled { activeVisitContactID = nil }
+        if !value.visitsEnabled {
+            activeVisitContactID = nil
+            activeVisitLastSeenAt = nil
+            lastVisitHeartbeatSentAt = nil
+        }
         notifyState()
     }
 
@@ -491,6 +502,8 @@ final class FishMessengerService: NSObject {
         profileDiagnostic = nil
         if activeVisitContactID == contact.id, contact.blocked || contact.muted {
             activeVisitContactID = nil
+            activeVisitLastSeenAt = nil
+            lastVisitHeartbeatSentAt = nil
         }
         notifyState()
     }
@@ -560,7 +573,8 @@ final class FishMessengerService: NSObject {
     func send(
         text: String, to contactID: UUID, replyTo: UUID? = nil,
         kind: FishMessageKind = .text, presence: FishPresence? = nil,
-        interaction: FishRemoteInteraction? = nil
+        interaction: FishRemoteInteraction? = nil,
+        deliveryTimeout: TimeInterval = 15
     ) async throws -> SendResult {
         let profile = try requiredProfile()
         guard let contact = profile.contacts.first(where: { $0.id == contactID }), !contact.blocked,
@@ -586,7 +600,9 @@ final class FishMessengerService: NSObject {
         _ = persistState(operation: "outgoing message queued")
         notifyState()
         do {
-            try await relay.deliver(envelope, to: contact.invite)
+            try await relay.deliver(
+                envelope, to: contact.invite, timeoutInterval: deliveryTimeout
+            )
             let current = records.first(where: { $0.id == outgoingRecord.id })?.deliveryState
             outgoingRecord.deliveryState = FishDeliveryStatePolicy.relayed(after: current)
         } catch {
@@ -601,14 +617,91 @@ final class FishMessengerService: NSObject {
             }
         }
         let historyPersisted = updateRecord(outgoingRecord, operation: "outgoing message")
+        let previousActiveVisitContactID = activeVisitContactID
         activeVisitContactID = FishVisitPolicy.activeContactID(
             after: kind,
             from: contact,
             current: activeVisitContactID,
             preferences: preferences
         )
+        updateVisitLiveness(
+            previousContactID: previousActiveVisitContactID,
+            nextContactID: activeVisitContactID,
+            kind: kind,
+            now: Date()
+        )
         notifyState()
         return SendResult(record: outgoingRecord, historyPersisted: historyPersisted)
+    }
+
+    func endActiveVisitForShutdown() async {
+        guard let contactID = activeVisitContactID else { return }
+        defer {
+            activeVisitContactID = nil
+            activeVisitLastSeenAt = nil
+            lastVisitHeartbeatSentAt = nil
+            notifyState()
+        }
+        _ = try? await send(
+            text: "下次再玩。",
+            to: contactID,
+            kind: .visitEnd,
+            deliveryTimeout: 2.5
+        )
+    }
+
+    private func sendVisitHeartbeatIfNeeded(now: Date) async {
+        guard let contactID = activeVisitContactID,
+              FishVisitLivenessPolicy.shouldSendHeartbeat(
+                lastSentAt: lastVisitHeartbeatSentAt,
+                now: now
+              ),
+              let profile,
+              let contact = profile.contacts.first(where: { $0.id == contactID }),
+              !contact.blocked,
+              let privateKey = Data(base64Encoded: profile.privateKey) else { return }
+        lastVisitHeartbeatSentAt = now
+        do {
+            let message = try FishMessage(
+                senderName: profile.displayName,
+                text: "visit-heartbeat",
+                kind: .status
+            )
+            let envelope = try FishMessengerIdentity(rawPrivateKey: privateKey)
+                .encrypt(message, for: contact.invite.publicKey)
+            try await relay.deliver(envelope, to: contact.invite, timeoutInterval: 5)
+        } catch {
+            // The peer-side timeout ends the visit if connectivity does not recover.
+        }
+    }
+
+    private func updateVisitLiveness(
+        previousContactID: UUID?,
+        nextContactID: UUID?,
+        kind: FishMessageKind,
+        now: Date
+    ) {
+        guard let nextContactID else {
+            activeVisitLastSeenAt = nil
+            lastVisitHeartbeatSentAt = nil
+            return
+        }
+        if previousContactID != nextContactID || kind == .visitStart || kind == .visitAccept {
+            activeVisitLastSeenAt = now
+            lastVisitHeartbeatSentAt = nil
+        }
+    }
+
+    private func endVisitIfPeerIsOffline(now: Date) {
+        guard activeVisitContactID != nil,
+              FishVisitLivenessPolicy.shouldEndVisit(
+                lastSeenAt: activeVisitLastSeenAt,
+                now: now
+              ) else { return }
+        activeVisitContactID = nil
+        activeVisitLastSeenAt = nil
+        lastVisitHeartbeatSentAt = nil
+        notifyState()
     }
 
     @discardableResult
@@ -681,6 +774,8 @@ final class FishMessengerService: NSObject {
         guard !polling, let receiveProfile = profile else { return }
         polling = true
         defer { polling = false }
+        let pollStartedAt = Date()
+        endVisitIfPeerIsOffline(now: pollStartedAt)
         do {
             let relayRecords = try await relay.receive(profile: receiveProfile)
             var acknowledged: [String] = []
@@ -731,6 +826,13 @@ final class FishMessengerService: NSObject {
                 guard pendingMessageIDs.insert(message.id).inserted else { continue }
 
                 let kind = message.kind ?? .text
+                if kind == .status, message.text == "visit-heartbeat" {
+                    if activeVisitContactID == contact.id {
+                        activeVisitLastSeenAt = Date()
+                    }
+                    acknowledged.append(record.id)
+                    continue
+                }
                 if kind == .receipt {
                     if let receipt = message.receipt,
                        applyDeliveryReceipt(receipt, from: contact.id) {
@@ -773,8 +875,17 @@ final class FishMessengerService: NSObject {
                     preferences: preferences
                 )
                 if nextActiveContactID != activeVisitContactID {
+                    let previousContactID = activeVisitContactID
                     activeVisitContactID = nextActiveContactID
+                    updateVisitLiveness(
+                        previousContactID: previousContactID,
+                        nextContactID: nextActiveContactID,
+                        kind: kind,
+                        now: Date()
+                    )
                     stateChanged = true
+                } else if activeVisitContactID == contact.id {
+                    activeVisitLastSeenAt = Date()
                 }
                 if FishVisitPolicy.shouldPresent(
                     kind: kind,
@@ -821,6 +932,7 @@ final class FishMessengerService: NSObject {
         } catch {
             report(error)
         }
+        await sendVisitHeartbeatIfNeeded(now: Date())
     }
 
     private func sendReadReceipts(_ receipts: [(UUID, UUID)]) {
