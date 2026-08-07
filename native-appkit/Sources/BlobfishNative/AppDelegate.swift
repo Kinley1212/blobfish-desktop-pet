@@ -45,7 +45,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var chatInviteUntil = Date.distantPast
     private var lastActiveVisitContactID: UUID?
     private var visitIdleSpokenContactID: UUID?
-    private var lastPrankReceivedAtByContact: [UUID: Date] = [:]
     private let friendHitBubbleID = UUID()
     private let soundPlayer = SoundPlayer()
     private let instanceGuard = SingleInstanceGuard()
@@ -210,7 +209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if kind == .interaction,
                let interaction = message.interaction,
                interaction.isPrank,
-               self.shouldSuppressPrank(message: message, contactID: contact.id, messenger: messenger) {
+               self.shouldSuppressPrank(message: message, messenger: messenger) {
                 return
             }
             let prankSoundAllowed = message.interaction?.isPrank != true
@@ -333,7 +332,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                         replaceKey: "messenger.persistenceError"
                     )
                     return
-                case .visitsUnavailable, .profileCreationInProgress, .prankCooldown:
+                case .visitsUnavailable, .profileCreationInProgress:
                     return
                 }
             }
@@ -641,7 +640,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @MainActor private func shouldSuppressPrank(
         message: FishMessage,
-        contactID: UUID,
         messenger: FishMessengerService
     ) -> Bool {
         let busy = panelController.isBusyForRemotePrank || [
@@ -652,19 +650,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             fishMessageComposeController?.window,
         ].contains { $0?.isVisible == true }
         let now = Date()
-        if FishPrankPolicy.remainingCooldown(
-            lastSentAt: lastPrankReceivedAtByContact[contactID],
-            now: now
-        ) != nil {
-            return true
-        }
         let shouldPlay = FishPrankPolicy.shouldPlay(
             enabled: messenger.preferences.effectiveFriendPranksEnabled,
             doNotDisturb: messenger.preferences.currentStatus == .doNotDisturb,
             busy: busy,
             age: max(0, now.timeIntervalSince(message.sentAt))
         )
-        if shouldPlay { lastPrankReceivedAtByContact[contactID] = now }
         return !shouldPlay
     }
 

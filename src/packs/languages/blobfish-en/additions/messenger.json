@@ -76,6 +76,12 @@
     { "id": "en-messenger-remote-launch-01", "event": "messenger.remote.launch", "text": "Who launched me… I do not know how to fly", "weight": 5 },
     { "id": "en-messenger-remote-launch-02", "event": "messenger.remote.launch", "text": "Being in the middle does not mean I will perform", "weight": 4 },
     { "id": "en-messenger-remote-bomb-01", "event": "messenger.remote.bomb", "text": "Are we done exploding… I was already flat", "weight": 5 },
-    { "id": "en-messenger-remote-bomb-02", "event": "messenger.remote.bomb", "text": "Pick me up when the smoke clears", "weight": 4 }
+    { "id": "en-messenger-remote-bomb-02", "event": "messenger.remote.bomb", "text": "Pick me up when the smoke clears", "weight": 4 },
+    { "id": "en-messenger-remote-vortex-01", "event": "messenger.remote.vortex", "text": "Spin slower, my face cannot keep up", "weight": 5 },
+    { "id": "en-messenger-remote-vortex-02", "event": "messenger.remote.vortex", "text": "New side, same lack of motivation", "weight": 4 },
+    { "id": "en-messenger-remote-wave-01", "event": "messenger.remote.wave", "text": "Wake me when the tide goes out", "weight": 5 },
+    { "id": "en-messenger-remote-wave-02", "event": "messenger.remote.wave", "text": "I prefer to go with the flow", "weight": 4 },
+    { "id": "en-messenger-remote-bubble-01", "event": "messenger.remote.bubble", "text": "Nice bubble, please do not do that again", "weight": 5 },
+    { "id": "en-messenger-remote-bubble-02", "event": "messenger.remote.bubble", "text": "For a moment I thought I could fly", "weight": 4 }
   ]
 }

@@ -76,6 +76,12 @@
     { "id": "grass-messenger-remote-launch-01", "event": "messenger.remote.launch", "text": "飞起来啦，叶子差点变成小翅膀", "weight": 5 },
     { "id": "grass-messenger-remote-launch-02", "event": "messenger.remote.launch", "text": "落地以后还要继续长高", "weight": 4 },
     { "id": "grass-messenger-remote-bomb-01", "event": "messenger.remote.bomb", "text": "呀！叶子上都是烟", "weight": 5 },
-    { "id": "grass-messenger-remote-bomb-02", "event": "messenger.remote.bomb", "text": "没关系，抖一抖又干净了", "weight": 4 }
+    { "id": "grass-messenger-remote-bomb-02", "event": "messenger.remote.bomb", "text": "没关系，抖一抖又干净了", "weight": 4 },
+    { "id": "grass-messenger-remote-vortex-01", "event": "messenger.remote.vortex", "text": "转得叶子都打结啦", "weight": 5 },
+    { "id": "grass-messenger-remote-vortex-02", "event": "messenger.remote.vortex", "text": "换个方向继续长", "weight": 4 },
+    { "id": "grass-messenger-remote-wave-01", "event": "messenger.remote.wave", "text": "浪花替叶子洗澡啦", "weight": 5 },
+    { "id": "grass-messenger-remote-wave-02", "event": "messenger.remote.wave", "text": "漂回来就继续晒太阳", "weight": 4 },
+    { "id": "grass-messenger-remote-bubble-01", "event": "messenger.remote.bubble", "text": "泡泡里也有新鲜空气", "weight": 5 },
+    { "id": "grass-messenger-remote-bubble-02", "event": "messenger.remote.bubble", "text": "叶子坐着泡泡飞起来啦", "weight": 4 }
   ]
 }

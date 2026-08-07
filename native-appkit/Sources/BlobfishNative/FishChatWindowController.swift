@@ -539,6 +539,9 @@ final class FishMessageComposeViewModel: ObservableObject {
     }
 
     var isEnglish: Bool { locale == "en" }
+    var quickInteractions: [FishRemoteInteraction] {
+        messengerService.preferences.effectiveQuickInteractions
+    }
     var selectedContact: FishContact? {
         guard let selectedContactID else { return nil }
         return contacts.first { $0.id == selectedContactID }
@@ -680,14 +683,7 @@ final class FishMessageComposeViewModel: ObservableObject {
                     ? "\(interaction.title(isEnglish: true)) sent."
                     : "已送出「\(interaction.title(isEnglish: false))」。"
             } catch {
-                if let serviceError = error as? FishMessengerServiceError,
-                   case .prankCooldown(let seconds) = serviceError {
-                    self.errorMessage = self.isEnglish
-                        ? "Wait \(seconds) seconds before the next prank."
-                        : "再等 \(seconds) 秒才能發送下一個惡作劇。"
-                } else {
-                    self.errorMessage = error.localizedDescription
-                }
+                self.errorMessage = error.localizedDescription
             }
         }
     }
@@ -766,8 +762,8 @@ private struct FishMessageComposeView: View {
                     Text(t("魚魚互動", "Fish actions"))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 6)], spacing: 6) {
-                        ForEach(FishRemoteInteraction.allCases) { interaction in
+                    HStack(spacing: 6) {
+                        ForEach(model.quickInteractions) { interaction in
                             Button {
                                 model.sendInteraction(interaction)
                             } label: {
@@ -776,6 +772,7 @@ private struct FishMessageComposeView: View {
                                     systemImage: interaction.symbolName
                                 )
                                 .frame(maxWidth: .infinity)
+                                .lineLimit(1)
                             }
                             .controlSize(.mini)
                             .disabled(model.isSending || model.selectedContact == nil)

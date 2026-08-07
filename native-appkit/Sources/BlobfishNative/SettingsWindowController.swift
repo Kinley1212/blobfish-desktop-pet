@@ -195,6 +195,25 @@ final class SettingsViewModel: ObservableObject {
         )
     }
 
+    func quickInteractionBinding(at index: Int) -> Binding<FishRemoteInteraction> {
+        Binding(
+            get: {
+                let actions = self.fishPreferences.effectiveQuickInteractions
+                return actions.indices.contains(index) ? actions[index] : .pet
+            },
+            set: { selected in
+                var actions = self.fishPreferences.effectiveQuickInteractions
+                guard actions.indices.contains(index) else { return }
+                if let otherIndex = actions.firstIndex(of: selected), otherIndex != index {
+                    actions.swapAt(index, otherIndex)
+                } else {
+                    actions[index] = selected
+                }
+                self.fishPreferences.quickInteractionIDs = actions.map(\.rawValue)
+            }
+        )
+    }
+
     func statusAccessoryBinding(_ status: FishUserStatus) -> Binding<String> {
         Binding(
             get: { self.fishPreferences.accessoryID(for: status) ?? "" },
@@ -899,8 +918,36 @@ struct BrandedSettingsView: View {
                     ))
                     .disabled(!model.fishPreferences.effectiveFriendPranksEnabled)
                     Text(t(
-                        "彈射與魚魚炸彈只會播放卡通動畫；30 秒內只接受一次，勿擾或操作視窗時不播放。",
-                        "Launch and fish bomb are visual-only; limited to once every 30 seconds and suppressed while busy or in Do Not Disturb."
+                        "互動不限次數；新動畫會取代正在播放的動畫。勿擾或操作視窗時不播放惡作劇。",
+                        "Interactions have no cooldown; a new animation replaces the current one. Pranks stay suppressed while busy or in Do Not Disturb."
+                    ))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(t("魚魚傳話快捷互動", "Message quick actions"))
+                        .font(.subheadline.weight(.semibold))
+                    HStack(spacing: 8) {
+                        ForEach(0..<3, id: \.self) { index in
+                            Picker(
+                                t("快捷 \(index + 1)", "Shortcut \(index + 1)"),
+                                selection: model.quickInteractionBinding(at: index)
+                            ) {
+                                ForEach(FishRemoteInteraction.allCases) { interaction in
+                                    Label(
+                                        interaction.title(isEnglish: model.isEnglish),
+                                        systemImage: interaction.symbolName
+                                    )
+                                    .tag(interaction)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+                    Text(t(
+                        "傳話框只顯示這三個快捷鍵；完整互動仍可從魚魚右鍵選單使用。",
+                        "Only these three appear in the message window; all actions remain in the fish right-click menu."
                     ))
                     .font(.caption)
                     .foregroundStyle(.secondary)

@@ -76,6 +76,12 @@
     { "id": "messenger-remote-launch-01", "event": "messenger.remote.launch", "text": "誰把我彈出去了……我自己不會飛", "weight": 5 },
     { "id": "messenger-remote-launch-02", "event": "messenger.remote.launch", "text": "飛到中間也不代表我要表演", "weight": 4 },
     { "id": "messenger-remote-bomb-01", "event": "messenger.remote.bomb", "text": "炸完了嗎……我本來就夠扁了", "weight": 5 },
-    { "id": "messenger-remote-bomb-02", "event": "messenger.remote.bomb", "text": "煙散了記得把我撿回去", "weight": 4 }
+    { "id": "messenger-remote-bomb-02", "event": "messenger.remote.bomb", "text": "煙散了記得把我撿回去", "weight": 4 },
+    { "id": "messenger-remote-vortex-01", "event": "messenger.remote.vortex", "text": "轉慢一點，我的臉跟不上", "weight": 5 },
+    { "id": "messenger-remote-vortex-02", "event": "messenger.remote.vortex", "text": "換了一邊，我還是不想游", "weight": 4 },
+    { "id": "messenger-remote-wave-01", "event": "messenger.remote.wave", "text": "退潮了再叫我起來", "weight": 5 },
+    { "id": "messenger-remote-wave-02", "event": "messenger.remote.wave", "text": "我只是比較隨波逐流", "weight": 4 },
+    { "id": "messenger-remote-bubble-01", "event": "messenger.remote.bubble", "text": "泡泡包得很好，下次別包了", "weight": 5 },
+    { "id": "messenger-remote-bubble-02", "event": "messenger.remote.bubble", "text": "我差點以為自己會飛", "weight": 4 }
   ]
 }
