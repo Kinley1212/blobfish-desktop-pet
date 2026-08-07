@@ -55,6 +55,8 @@ enum FishRemoteInteraction: String, Codable, CaseIterable, Identifiable {
     case pet
     case hug
     case highFive
+    case launch
+    case bomb
 
     var id: String { rawValue }
 
@@ -63,6 +65,8 @@ enum FishRemoteInteraction: String, Codable, CaseIterable, Identifiable {
         case .pet: return isEnglish ? "Pet" : "摸摸頭"
         case .hug: return isEnglish ? "Hug" : "抱抱"
         case .highFive: return isEnglish ? "High five" : "擊掌"
+        case .launch: return isEnglish ? "Launch" : "彈射"
+        case .bomb: return isEnglish ? "Fish bomb" : "魚魚炸彈"
         }
     }
 
@@ -71,10 +75,34 @@ enum FishRemoteInteraction: String, Codable, CaseIterable, Identifiable {
         case .pet: return "hand.point.up.left.fill"
         case .hug: return "heart.fill"
         case .highFive: return "hands.clap.fill"
+        case .launch: return "paperplane.fill"
+        case .bomb: return "burst.fill"
         }
     }
 
     var phraseEvent: String { "messenger.remote.\(rawValue)" }
+    var isPrank: Bool { self == .launch || self == .bomb }
+
+    static let prankCooldown: TimeInterval = 30
+    static let prankMaximumReplayAge: TimeInterval = 60
+}
+
+enum FishPrankPolicy {
+    static func remainingCooldown(lastSentAt: Date?, now: Date) -> Int? {
+        guard let lastSentAt else { return nil }
+        let remaining = FishRemoteInteraction.prankCooldown - now.timeIntervalSince(lastSentAt)
+        return remaining > 0 ? max(1, Int(ceil(remaining))) : nil
+    }
+
+    static func shouldPlay(
+        enabled: Bool,
+        doNotDisturb: Bool,
+        busy: Bool,
+        age: TimeInterval
+    ) -> Bool {
+        enabled && !doNotDisturb && !busy
+            && age <= FishRemoteInteraction.prankMaximumReplayAge
+    }
 }
 
 enum FishUserStatus: String, Codable, CaseIterable, Identifiable {
@@ -175,11 +203,15 @@ struct FishFriendPreferences: Codable, Equatable {
     var messageShowsBubble: Bool? = nil
     var visitShowsMailbox: Bool? = nil
     var visitShowsBubble: Bool? = nil
+    var friendPranksEnabled: Bool? = nil
+    var friendPrankSoundEnabled: Bool? = nil
 
     var effectiveMessageShowsMailbox: Bool { messageShowsMailbox ?? !showsIncomingBubble }
     var effectiveMessageShowsBubble: Bool { messageShowsBubble ?? showsIncomingBubble }
     var effectiveVisitShowsMailbox: Bool { visitShowsMailbox ?? false }
     var effectiveVisitShowsBubble: Bool { visitShowsBubble ?? true }
+    var effectiveFriendPranksEnabled: Bool { friendPranksEnabled ?? true }
+    var effectiveFriendPrankSoundEnabled: Bool { friendPrankSoundEnabled ?? true }
 
     func customization(for status: FishUserStatus, fallback: JSONValue?) -> JSONValue? {
         statusCustomizations?[status.rawValue] ?? fallback

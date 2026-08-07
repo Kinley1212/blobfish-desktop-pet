@@ -62,6 +62,7 @@ enum SelfCheck {
             ("performance panel stays on canvas", performancePanelStaysOnCanvas),
             ("performance bars nest and animate", performanceBarsNestAndAnimate),
             ("pet reaction geometry", petReactionGeometry),
+            ("fish launch prank returns to its original position", fishLaunchPrankReturns),
             ("task carousel geometry", taskCarouselGeometry),
             ("continuous task spinner timeline", continuousTaskSpinnerTimeline),
             ("inactive preview releases without lazy weak crash", inactivePreviewReleasesWithoutLazyWeakCrash),
@@ -76,6 +77,7 @@ enum SelfCheck {
             ("fish visit appearance stays encrypted", fishVisitEncryption),
             ("fish delivery receipts and remote actions stay encrypted", fishReceiptAndInteractionEncryption),
             ("fish delivery states advance without regressing", fishDeliveryStatesAdvance),
+            ("fish prank interactions respect cooldown and suppression", fishPrankPolicy),
             ("fish history preserves unread messages", fishHistoryPersistence),
             ("fish history migrates legacy delivery state", fishHistoryMigratesDeliveryState),
             ("fish history rejects unsafe state files", fishHistoryRejectsUnsafeStateFiles),
@@ -284,6 +286,55 @@ enum SelfCheck {
             && FishDeliveryStatePolicy.relayed(after: .sending) == .relayed
     }
 
+    private static func fishPrankPolicy() -> Bool {
+        let now = Date(timeIntervalSince1970: 1_000)
+        return FishRemoteInteraction.allCases.contains(.launch)
+            && FishRemoteInteraction.allCases.contains(.bomb)
+            && FishRemoteInteraction.launch.isPrank
+            && FishRemoteInteraction.bomb.isPrank
+            && !FishRemoteInteraction.hug.isPrank
+            && FishPrankPolicy.remainingCooldown(
+                lastSentAt: now.addingTimeInterval(-10), now: now
+            ) == 20
+            && FishPrankPolicy.remainingCooldown(
+                lastSentAt: now.addingTimeInterval(-31), now: now
+            ) == nil
+            && FishPrankPolicy.shouldPlay(
+                enabled: true, doNotDisturb: false, busy: false, age: 59
+            )
+            && !FishPrankPolicy.shouldPlay(
+                enabled: true, doNotDisturb: false, busy: false, age: 61
+            )
+            && !FishPrankPolicy.shouldPlay(
+                enabled: true, doNotDisturb: true, busy: false, age: 1
+            )
+            && !FishPrankPolicy.shouldPlay(
+                enabled: true, doNotDisturb: false, busy: true, age: 1
+            )
+            && !FishPrankPolicy.shouldPlay(
+                enabled: false, doNotDisturb: false, busy: false, age: 1
+            )
+    }
+
+    private static func fishLaunchPrankReturns() -> Bool {
+        let allowed = NSRect(x: 0, y: 0, width: 500, height: 400)
+        let original = NSPoint(x: 20, y: 30)
+        let target = NSPoint(x: 250, y: 200)
+        let start = FishPrankAnimationGeometry.launchOrigin(
+            original: original, target: target, phase: 0, allowed: allowed
+        )
+        let airborne = FishPrankAnimationGeometry.launchOrigin(
+            original: original, target: target, phase: 0.34, allowed: allowed
+        )
+        let center = FishPrankAnimationGeometry.launchOrigin(
+            original: original, target: target, phase: 0.52, allowed: allowed
+        )
+        let end = FishPrankAnimationGeometry.launchOrigin(
+            original: original, target: target, phase: 1, allowed: allowed
+        )
+        return start == original && center == target && end == original && airborne.y > target.y
+    }
+
     private static func fishHistoryPersistence() throws -> Bool {
         try withPrivateDirectory { directory in
             let store = FishFriendStore(directoryURL: directory)
@@ -348,6 +399,8 @@ enum SelfCheck {
         configured.messageDisplaySeconds = -5
         return migrated.messageDisplaySeconds == nil
             && migrated.effectiveMessageDisplaySeconds == 20
+            && migrated.effectiveFriendPranksEnabled
+            && migrated.effectiveFriendPrankSoundEnabled
             && roundTrip.effectiveMessageDisplaySeconds == 36
             && configured.effectiveMessageDisplaySeconds == 1
     }

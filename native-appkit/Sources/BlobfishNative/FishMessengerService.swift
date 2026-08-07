@@ -202,6 +202,7 @@ enum FishMessengerServiceError: LocalizedError {
     case rejectedInvalidEnvelope
     case visitsUnavailable
     case profileCreationInProgress
+    case prankCooldown(seconds: Int)
 
     var errorDescription: String? {
         switch self {
@@ -215,6 +216,8 @@ enum FishMessengerServiceError: LocalizedError {
             return "Fish visits are disabled or this contact is muted."
         case .profileCreationInProgress:
             return "A fish identity is already being created."
+        case .prankCooldown(let seconds):
+            return "Please wait \(seconds) seconds before sending another fish prank."
         }
     }
 }
@@ -335,6 +338,7 @@ final class FishMessengerService: NSObject {
     private var profileCreationInProgress = false
     private var stateObservers: [() -> Void] = []
     private var deferredErrors: [Error] = []
+    private var lastPrankSentAtByContact: [UUID: Date] = [:]
     var onMessage: ((FishMessage, FishContact) -> Void)?
     var onError: ((Error) -> Void)? {
         didSet { flushDeferredErrors() }
@@ -569,6 +573,16 @@ final class FishMessengerService: NSObject {
             guard FishVisitPolicy.canActivate(contact: contact, preferences: preferences) else {
                 throw FishMessengerServiceError.visitsUnavailable
             }
+        }
+        if let interaction, interaction.isPrank {
+            let now = Date()
+            if let remaining = FishPrankPolicy.remainingCooldown(
+                lastSentAt: lastPrankSentAtByContact[contact.id],
+                now: now
+            ) {
+                throw FishMessengerServiceError.prankCooldown(seconds: remaining)
+            }
+            lastPrankSentAtByContact[contact.id] = now
         }
         let message = try FishMessage(
             senderName: profile.displayName, text: text, replyTo: replyTo,

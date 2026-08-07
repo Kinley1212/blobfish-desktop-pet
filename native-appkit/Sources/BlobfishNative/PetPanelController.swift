@@ -165,6 +165,40 @@ enum PetMovementGeometry {
     }
 }
 
+enum FishPrankAnimationGeometry {
+    static func launchOrigin(
+        original: NSPoint,
+        target: NSPoint,
+        phase: CGFloat,
+        allowed: NSRect
+    ) -> NSPoint {
+        let value = min(1, max(0, phase))
+        let origin: NSPoint
+        switch value {
+        case ..<0.16:
+            origin = original
+        case ..<0.52:
+            let local = (value - 0.16) / 0.36
+            let eased = 1 - pow(1 - local, 3)
+            origin = NSPoint(
+                x: original.x + (target.x - original.x) * eased,
+                y: original.y + (target.y - original.y) * eased + sin(local * .pi) * 72
+            )
+        case ..<0.70:
+            let wobble = sin((value - 0.52) / 0.18 * .pi * 3) * 5
+            origin = NSPoint(x: target.x + wobble, y: target.y)
+        default:
+            let local = (value - 0.70) / 0.30
+            let eased = local * local * (3 - 2 * local)
+            origin = NSPoint(
+                x: target.x + (original.x - target.x) * eased,
+                y: target.y + (original.y - target.y) * eased
+            )
+        }
+        return PetMovementGeometry.clamped(origin, to: allowed)
+    }
+}
+
 enum PetFormationGeometry {
     static func movementBounds(
         primaryBounds: NSRect,
@@ -201,6 +235,9 @@ final class PetPanelController {
     private var lastAutomaticOrigin: NSPoint?
     private var config: AppConfig
     private var interactionTimer: Timer?
+    private var remotePrankTimer: Timer?
+    private var remotePrankOriginalOrigin: NSPoint?
+    private weak var remotePrankOverlay: NSTextField?
     private var friendBubbleTimer: Timer?
     private var speakingTimers: [PetMessageSpeaker: Timer] = [:]
     private var speakingPresentations: [PetMessageSpeaker: PetSpeakingPresentation] = [:]
@@ -220,6 +257,10 @@ final class PetPanelController {
     private var lastPettingAt: TimeInterval = 0
     private var motionState = PetMotionTiming.State.idle
     private var statusFaceID: String?
+
+    var isBusyForRemotePrank: Bool {
+        composerPaused || menuPaused || dragging
+    }
 
     var onClick: (() -> Void)? {
         didSet { petView.onClick = onClick }
@@ -390,6 +431,7 @@ final class PetPanelController {
         movementDisplayLink.stop()
         interactionTimer?.invalidate()
         interactionTimer = nil
+        cancelRemotePrank(restorePosition: false)
         friendBubbleTimer?.invalidate()
         friendBubbleTimer = nil
         speakingTimers.values.forEach { $0.invalidate() }
@@ -453,7 +495,16 @@ final class PetPanelController {
 
     func playRemoteInteraction(_ interaction: FishRemoteInteraction, incoming: Bool) {
         interactionTimer?.invalidate()
+        cancelRemotePrank(restorePosition: true)
         interactionPaused = true
+        if interaction == .launch {
+            incoming ? playIncomingLaunchPrank() : playLaunchPreview()
+            return
+        }
+        if interaction == .bomb {
+            playBombPrank(incoming: incoming)
+            return
+        }
         let target = incoming || guestView.isHidden ? petView : guestView
         switch interaction {
         case .pet:
@@ -464,12 +515,182 @@ final class PetPanelController {
         case .highFive:
             petView.playFriendlyEffect()
             if !guestView.isHidden { guestView.playFriendlyEffect() }
+        case .launch, .bomb:
+            break
         }
         interactionTimer = Timer.scheduledTimer(withTimeInterval: 0.85, repeats: false) { [weak self] _ in
             self?.interactionPaused = false
             self?.interactionTimer = nil
         }
         RunLoop.main.add(interactionTimer!, forMode: .common)
+    }
+
+    private func playIncomingLaunchPrank() {
+        flingVelocity = nil
+        let original = panel.frame.origin
+        remotePrankOriginalOrigin = original
+        let visibleFrame = (panel.screen ?? NSScreen.main)?.visibleFrame
+        let movementBounds = currentMovementBounds
+        guard let visibleFrame,
+              let allowed = PetMovementGeometry.allowedOrigins(
+                visibleFrames: [visibleFrame],
+                visualBounds: movementBounds,
+                currentOrigin: original
+              ) else {
+            finishRemotePrank()
+            return
+        }
+        let target = PetMovementGeometry.clamped(NSPoint(
+            x: visibleFrame.midX - movementBounds.midX,
+            y: visibleFrame.midY - movementBounds.midY
+        ), to: allowed)
+        petView.playClickEffect()
+        let started = Date()
+        let duration: TimeInterval = 2.8
+        remotePrankTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            let phase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
+            let origin = FishPrankAnimationGeometry.launchOrigin(
+                original: original,
+                target: target,
+                phase: phase,
+                allowed: allowed
+            )
+            self.setPanelOriginIfChanged(origin)
+            self.syncSceneOverlay()
+            if phase >= 1 {
+                timer.invalidate()
+                self.remotePrankTimer = nil
+                self.finishRemotePrank()
+            }
+        }
+        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
+    }
+
+    private func playLaunchPreview() {
+        let source = NSPoint(x: petView.characterBounds.midX, y: petView.characterBounds.midY)
+        let target = guestView.isHidden
+            ? NSPoint(x: petView.characterBounds.maxX - 14, y: petView.characterBounds.midY)
+            : NSPoint(
+                x: guestView.frame.minX + guestView.characterBounds.midX,
+                y: guestView.frame.minY + guestView.characterBounds.midY
+            )
+        animatePrankSymbol("🚀", from: source, to: target, duration: 1.15) { [weak self] in
+            guard let self else { return }
+            (self.guestView.isHidden ? self.petView : self.guestView).playClickEffect()
+            self.finishRemotePrank()
+        }
+    }
+
+    private func playBombPrank(incoming: Bool) {
+        let targetView = incoming || guestView.isHidden ? petView : guestView
+        let target = targetView === petView
+            ? NSPoint(x: petView.characterBounds.midX, y: petView.characterBounds.midY)
+            : NSPoint(
+                x: guestView.frame.minX + guestView.characterBounds.midX,
+                y: guestView.frame.minY + guestView.characterBounds.midY
+            )
+        let source = incoming
+            ? NSPoint(x: min(petView.bounds.maxX - 18, target.x + 120), y: min(petView.bounds.maxY - 24, target.y + 58))
+            : NSPoint(x: petView.characterBounds.midX, y: petView.characterBounds.midY)
+        let label = prankLabel(text: "💣", fontSize: 30)
+        let started = Date()
+        let duration: TimeInterval = 1.75
+        var exploded = false
+        remotePrankTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self, weak label] timer in
+            guard let self, let label else { timer.invalidate(); return }
+            let phase = min(1, Date().timeIntervalSince(started) / duration)
+            if phase < 0.58 {
+                let value = CGFloat(phase / 0.58)
+                let eased = value * value * (3 - 2 * value)
+                let point = NSPoint(
+                    x: source.x + (target.x - source.x) * eased,
+                    y: source.y + (target.y - source.y) * eased + sin(value * .pi) * 48
+                )
+                self.positionPrankLabel(label, center: point)
+                label.stringValue = "💣"
+            } else if !exploded {
+                exploded = true
+                label.stringValue = "💥"
+                label.font = .systemFont(ofSize: 42)
+                self.positionPrankLabel(label, center: target)
+                targetView.playClickEffect()
+            } else if phase > 0.78 {
+                label.stringValue = "💨"
+                label.alphaValue = CGFloat(max(0, 1 - (phase - 0.78) / 0.22))
+                self.positionPrankLabel(label, center: NSPoint(x: target.x, y: target.y + CGFloat((phase - 0.78) * 45)))
+            }
+            if phase >= 1 {
+                timer.invalidate()
+                self.remotePrankTimer = nil
+                self.finishRemotePrank()
+            }
+        }
+        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
+    }
+
+    private func animatePrankSymbol(
+        _ symbol: String,
+        from source: NSPoint,
+        to target: NSPoint,
+        duration: TimeInterval,
+        completion: @escaping () -> Void
+    ) {
+        let label = prankLabel(text: symbol, fontSize: 28)
+        let started = Date()
+        remotePrankTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self, weak label] timer in
+            guard let self, let label else { timer.invalidate(); return }
+            let phase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
+            let point = NSPoint(
+                x: source.x + (target.x - source.x) * phase,
+                y: source.y + (target.y - source.y) * phase + sin(phase * .pi) * 36
+            )
+            self.positionPrankLabel(label, center: point)
+            if phase >= 1 {
+                timer.invalidate()
+                self.remotePrankTimer = nil
+                completion()
+            }
+        }
+        if let remotePrankTimer { RunLoop.main.add(remotePrankTimer, forMode: .common) }
+    }
+
+    private func prankLabel(text: String, fontSize: CGFloat) -> NSTextField {
+        let label = NSTextField(labelWithString: text)
+        label.font = .systemFont(ofSize: fontSize)
+        label.alignment = .center
+        label.frame.size = NSSize(width: 58, height: 58)
+        label.isBezeled = false
+        label.drawsBackground = false
+        label.isSelectable = false
+        petView.addSubview(label, positioned: .above, relativeTo: guestView)
+        remotePrankOverlay = label
+        return label
+    }
+
+    private func positionPrankLabel(_ label: NSTextField, center: NSPoint) {
+        label.frame.origin = NSPoint(x: center.x - label.frame.width / 2, y: center.y - label.frame.height / 2)
+    }
+
+    private func cancelRemotePrank(restorePosition: Bool) {
+        remotePrankTimer?.invalidate()
+        remotePrankTimer = nil
+        remotePrankOverlay?.removeFromSuperview()
+        remotePrankOverlay = nil
+        if restorePosition, let original = remotePrankOriginalOrigin {
+            setPanelOriginIfChanged(original)
+            preciseOrigin = original
+            bobBaselineY = original.y
+            lastAutomaticOrigin = panel.frame.origin
+            syncSceneOverlay()
+        }
+        remotePrankOriginalOrigin = nil
+    }
+
+    private func finishRemotePrank() {
+        cancelRemotePrank(restorePosition: true)
+        interactionPaused = false
+        lastFrameUptime = ProcessInfo.processInfo.systemUptime
     }
 
     func setMenuPaused(_ paused: Bool) {
