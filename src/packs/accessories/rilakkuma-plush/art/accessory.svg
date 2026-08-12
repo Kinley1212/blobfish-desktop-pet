@@ -1,0 +1,36 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="輕鬆熊玩偶">
+  <defs>
+    <clipPath id="rilakkuma-plush-left-ear">
+      <circle cx="96" cy="99" r="72.2"/>
+    </clipPath>
+    <clipPath id="rilakkuma-plush-right-ear">
+      <circle cx="417" cy="109" r="71.2"/>
+    </clipPath>
+  </defs>
+  <g transform="translate(19.28 3.5) scale(0.12)">
+    <circle cx="96" cy="99" r="78" fill="#cf8611"/>
+    <circle cx="417" cy="109" r="77" fill="#cf8611"/>
+    <circle cx="64" cy="134" r="44" fill="#ffd713" clip-path="url(#rilakkuma-plush-left-ear)"/>
+    <circle cx="457" cy="138" r="42" fill="#ffd713" clip-path="url(#rilakkuma-plush-right-ear)"/>
+
+    <path d="M 174 376 C 142 386 114 423 98 468 C 88 494 90 518 103 529 C 116 539 132 526 144 504 C 159 475 173 432 183 394 Z"
+          fill="#cf8611" transform="translate(256 365) scale(1.1) translate(-256 -365)"/>
+    <path d="M 338 376 C 370 386 398 423 414 468 C 424 494 422 518 409 529 C 396 539 380 526 368 504 C 353 475 339 432 329 394 Z"
+          fill="#cf8611" transform="translate(256 365) scale(1.1) translate(-256 -365)"/>
+
+    <path d="M 158 365 C 149 395 146 430 148 466 C 150 500 145 535 147 565 C 148 596 151 633 147 670 C 143 695 156 718 179 725 C 201 732 218 718 223 695 L 238 606 L 238 602 Q 238 598 242 598 L 270 598 Q 274 598 274 602 L 289 695 C 294 718 311 732 333 725 C 356 718 369 695 365 670 C 361 633 364 596 365 565 C 367 535 362 500 364 466 C 366 430 363 395 354 365 Z"
+          fill="#cf8611" transform="translate(256 365) scale(1.1) translate(-256 -365)"/>
+
+    <path d="M 51 222 C 61 137 141 73 256 73 C 371 73 451 137 461 222 C 466 265 461 306 442 334 C 423 362 392 376 354 381 C 300 388 212 388 158 381 C 120 376 89 362 70 334 C 51 306 46 265 51 222 Z"
+          fill="#cf8611"/>
+    <path d="M 256 404 C 214 404 187 435 184 482 C 181 531 204 560 256 563 C 308 560 331 531 328 482 C 325 435 298 404 256 404 Z"
+          fill="#ffffff" transform="translate(256 365) scale(1.1) translate(-256 -365)"/>
+
+    <circle cx="160" cy="267" r="22" fill="#213639"/>
+    <circle cx="344" cy="267" r="22" fill="#213639"/>
+    <ellipse cx="252" cy="300" rx="64" ry="47" fill="#ffffff"/>
+    <ellipse cx="252" cy="284" rx="15" ry="13" fill="#213639"/>
+    <path d="M 252 294 C 249 304 239 315 228 321 M 252 294 C 255 304 265 315 280 321"
+          fill="none" stroke="#213639" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
