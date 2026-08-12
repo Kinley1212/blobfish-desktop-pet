@@ -223,6 +223,63 @@
     return Boolean(slots && ACCESSORY_SLOTS.some((slot) => slots[slot.key]));
   }
 
+  const POSITIVE_FACES = new Set([
+    'face-coy', 'face-happy', 'face-love', 'face-money', 'face-nosebleed',
+    'face-proud', 'face-relieved', 'face-satisfied', 'face-shy', 'face-smug',
+    'face-sparkle', 'face-star-eye', 'face-swirl-cheek', 'face-teasing', 'face-wink',
+  ]);
+  const WORRIED_FACES = new Set([
+    'face-angry', 'face-annoyed', 'face-cold', 'face-cry', 'face-dizzy', 'face-doubt',
+    'face-hungry', 'face-panic', 'face-pitiful', 'face-question', 'face-scared', 'face-shocked',
+  ]);
+  const CALM_FACES = new Set(['face-blank', 'face-determined', 'face-side-eye', 'face-sleepy']);
+
+  function semanticFaceMood(faceId) {
+    if (POSITIVE_FACES.has(faceId)) return 'happy';
+    if (WORRIED_FACES.has(faceId)) return 'worried';
+    if (CALM_FACES.has(faceId)) return 'calm';
+    return null;
+  }
+
+  function isAccessoryCompatible(accessory, manifest) {
+    if (!accessory || !manifest) return false;
+    if (Array.isArray(accessory.characterPackIds)
+        && !accessory.characterPackIds.includes(manifest.id)) return false;
+    if (accessory.slot !== 'face') return true;
+    const expressions = manifest.expressions;
+    if (expressions?.mode === 'native') {
+      return typeof accessory.nativeExpression === 'string'
+        && Object.values(expressions.moods || {}).includes(accessory.id);
+    }
+    return !accessory.nativeExpression;
+  }
+
+  function compatibleAccessories(catalog, manifest, slot = null) {
+    if (!Array.isArray(catalog)) return [];
+    return catalog.filter((accessory) => (
+      (!slot || accessory.slot === slot) && isAccessoryCompatible(accessory, manifest)
+    ));
+  }
+
+  function resolveFaceId(faceId, manifest, catalog) {
+    const faces = compatibleAccessories(catalog, manifest, 'face');
+    if (typeof faceId === 'string' && faces.some((face) => face.id === faceId)) return faceId;
+    const expressions = manifest?.expressions;
+    if (typeof faceId !== 'string' || expressions?.mode !== 'native') return null;
+    const mood = semanticFaceMood(faceId);
+    if (!mood) return null;
+    const mapped = expressions.moods?.[mood] || expressions.default;
+    return faces.some((face) => face.id === mapped) ? mapped : null;
+  }
+
+  function nativeExpressionForFace(faceId, manifest, catalog) {
+    const expressions = manifest?.expressions;
+    if (expressions?.mode !== 'native') return null;
+    const resolved = resolveFaceId(faceId, manifest, catalog) || expressions.default;
+    return compatibleAccessories(catalog, manifest, 'face')
+      .find((face) => face.id === resolved)?.nativeExpression || null;
+  }
+
   function round(value) {
     return Number(value.toFixed(3));
   }
@@ -284,6 +341,17 @@
     return group;
   }
 
+  function applyNativeExpression(svgRoot, expressionName) {
+    const expressions = [...svgRoot.querySelectorAll('[data-native-expression]')];
+    if (expressions.length === 0) return;
+    const selected = expressions.find((node) => node.getAttribute('data-native-expression') === expressionName)
+      || expressions[0];
+    for (const node of expressions) {
+      if (node === selected) node.style.removeProperty('display');
+      else node.style.setProperty('display', 'none');
+    }
+  }
+
   // Accessories are drawn last so they sit on top of the character, and are
   // rebuilt from scratch each time rather than patched in place.
   function applyAccessoriesToSvg(svgRoot, manifest, catalog, spec) {
@@ -299,14 +367,26 @@
     const slots = getCharacterSlots(manifest);
     if (!slots || !Array.isArray(catalog)) return;
     const normalized = normalizeAccessories(spec);
+    applyNativeExpression(svgRoot, nativeExpressionForFace(
+      normalized.equipped.face,
+      manifest,
+      catalog,
+    ));
 
     for (const slot of ACCESSORY_SLOTS) {
       const id = normalized.equipped[slot.key];
       const slotAnchor = slots[slot.key];
       if (!id || !slotAnchor) continue;
 
-      const accessory = catalog.find((item) => item.id === id && item.slot === slot.key);
+      const accessory = catalog.find((item) => (
+        item.id === id && item.slot === slot.key && isAccessoryCompatible(item, manifest)
+      ));
       if (!accessory) continue;
+
+      if (slot.key === 'face' && accessory.nativeExpression) {
+        applyNativeExpression(svgRoot, accessory.nativeExpression);
+        continue;
+      }
 
       const art = parseAccessoryArt(accessory.svg, svgRoot.ownerDocument);
       if (!art) continue;
@@ -338,10 +418,12 @@
     accessoryTransform,
     applyAccessoriesToSvg,
     createLatestRequestGate,
+    compatibleAccessories,
     defaultAccessories,
     defaultTuning,
     getCharacterSlots,
     getTuning,
+    isAccessoryCompatible,
     isDangerousSvgElementName,
     isDefaultTuning,
     isEmptyAccessories,
@@ -349,6 +431,8 @@
     normalizeAccessories,
     normalizeAccessoryMap,
     normalizeTuning,
+    nativeExpressionForFace,
+    resolveFaceId,
     sanitizeSvgTree,
     supportsAccessories,
     tuningFieldsForAccessory,

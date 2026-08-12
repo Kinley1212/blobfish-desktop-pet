@@ -114,10 +114,35 @@ function validateManifest(manifest, expectedId) {
   }
   if (manifest.accessories !== undefined) validateAccessorySlots(manifest.accessories);
   if (manifest.diy !== undefined) validateDiy(manifest.diy);
+  if (manifest.expressions !== undefined) validateExpressions(manifest.expressions);
   if (manifest.settingsCopy !== undefined && (
     typeof manifest.settingsCopy !== 'string' || !manifest.settingsCopy.endsWith('.json')
   )) {
     throw new Error('Character settingsCopy must be a .json file');
+  }
+}
+
+function validateExpressions(expressions) {
+  if (!expressions || typeof expressions !== 'object' || Array.isArray(expressions)) {
+    throw new Error('Character expressions must be an object');
+  }
+  if (expressions.mode !== 'native') {
+    throw new Error(`Unsupported character expression mode: ${expressions.mode}`);
+  }
+  if (!PACK_ID_PATTERN.test(expressions.default || '')) {
+    throw new Error('Native expressions require a valid default face id');
+  }
+  if (!expressions.moods || typeof expressions.moods !== 'object' || Array.isArray(expressions.moods)) {
+    throw new Error('Native expressions require a mood map');
+  }
+  const entries = Object.entries(expressions.moods);
+  if (entries.length === 0 || entries.some(([mood, faceId]) => (
+    !PACK_ID_PATTERN.test(mood) || !PACK_ID_PATTERN.test(faceId)
+  ))) {
+    throw new Error('Native expression moods must map valid ids');
+  }
+  if (!entries.some(([, faceId]) => faceId === expressions.default)) {
+    throw new Error('Native expression default must be listed in its mood map');
   }
 }
 
@@ -266,6 +291,7 @@ module.exports = {
   loadCharacterPack,
   validateAccessorySlots,
   validateDiy,
+  validateExpressions,
   validateManifest,
   validateSettingsCopy,
 };

@@ -18,6 +18,7 @@ enum SelfCheck {
             ("phrase rules and templates", phraseRulesAndTemplates),
             ("shared runtime recovery", sharedRuntimeRecovery),
             ("custom SVG and accessory rendering", customSVGAndAccessoryRendering),
+            ("grass native expressions stay isolated", grassNativeExpressionsStayIsolated),
             ("alarm clock tuning has a wider safe range", alarmClockTuningHasWiderSafeRange),
             ("alarm clock position uses fish center", alarmClockPositionUsesFishCenter),
             ("shared alarm and timer state", sharedAlarmAndTimerState),
@@ -941,6 +942,77 @@ enum SelfCheck {
         return true
     }
 
+    private static func grassNativeExpressionsStayIsolated() throws -> Bool {
+        let catalog = try PackCatalog()
+        let accessories = try catalog.accessories()
+        let grass = try catalog.character(id: "grass-buddy")
+        let blobfish = try catalog.character(id: "blobfish")
+        let grassFaces = CharacterExpressionCompatibility.accessories(
+            accessories, compatibleWith: grass, slot: "face"
+        )
+        let blobfishFaces = CharacterExpressionCompatibility.accessories(
+            accessories, compatibleWith: blobfish, slot: "face"
+        )
+        let defaultSVG = SVGAppearanceRenderer.renderedSVGData(
+            character: grass, customization: nil, blinking: false
+        ).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        let worriedSVG = SVGAppearanceRenderer.renderedSVGData(
+            character: grass, customization: nil, blinking: false, nativeExpression: "worried"
+        ).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        let switchingView = PetView(frame: NSRect(x: 0, y: 0, width: 340, height: 165), contentMode: .artwork)
+        switchingView.accessoryPacks = accessories
+        switchingView.character = blobfish
+        switchingView.accessorySpec = CharacterAccessories(.object([
+            "equipped": .object(["face": .string("face-happy")]),
+        ]))
+        let blobfishRendersOverlayFace = switchingView.debugRenderedAccessoryIDs().contains("face-happy")
+        switchingView.character = grass
+        let grassClearsOverlayFace = switchingView.debugRenderedAccessoryIDs().allSatisfy {
+            !$0.hasPrefix("face-")
+        }
+
+        return Set(grassFaces.map(\.id)) == Set([
+            "face-grass-calm", "face-grass-happy", "face-grass-worried",
+        ])
+            && !blobfishFaces.contains(where: { $0.id.hasPrefix("face-grass-") })
+            && CharacterExpressionCompatibility.resolveFaceID(
+                "face-happy", for: grass, accessories: accessories
+            ) == "face-grass-happy"
+            && CharacterExpressionCompatibility.resolveFaceID(
+                "face-pitiful", for: grass, accessories: accessories
+            ) == "face-grass-worried"
+            && CharacterExpressionCompatibility.resolveFaceID(
+                "face-determined", for: grass, accessories: accessories
+            ) == "face-grass-calm"
+            && CharacterExpressionCompatibility.resolveFaceID(
+                "face-grass-happy", for: blobfish, accessories: accessories
+            ) == nil
+            && CharacterExpressionCompatibility.portableFaceID(
+                "face-grass-happy", for: grass, accessories: accessories
+            ) == "face-happy"
+            && CharacterExpressionCompatibility.portableFaceID(
+                "face-grass-worried", for: grass, accessories: accessories
+            ) == "face-pitiful"
+            && CharacterExpressionCompatibility.portableFaceID(
+                "face-grass-calm", for: grass, accessories: accessories
+            ) == "face-blank"
+            && CharacterExpressionCompatibility.resolveFaceID(
+                CharacterExpressionCompatibility.portableFaceID(
+                    "face-grass-happy", for: grass, accessories: accessories
+                ),
+                for: blobfish,
+                accessories: accessories
+            ) == "face-happy"
+            && blobfishRendersOverlayFace
+            && grassClearsOverlayFace
+            && defaultSVG.contains(#"data-native-expression="calm""#)
+            && !defaultSVG.contains(#"data-native-expression="happy""#)
+            && !defaultSVG.contains(#"data-native-expression="worried""#)
+            && worriedSVG.contains(#"data-native-expression="worried""#)
+            && !worriedSVG.contains(#"data-native-expression="calm""#)
+            && worriedSVG.contains("eye-left")
+    }
+
     private static func visualStyleSelectionsMigrateSafely() throws -> Bool {
         let legacyClock = Data(#"""
         {
@@ -1835,7 +1907,9 @@ enum SelfCheck {
             "face-sleepy": 53, "face-smug": 58, "face-sparkle": 53, "face-star-eye": 52,
             "face-swirl-cheek": 53, "face-teasing": 49, "face-wink": 50,
         ]
-        let faces = try PackCatalog().accessories().filter { $0.manifest.slot == "face" }
+        let faces = try PackCatalog().accessories().filter {
+            $0.manifest.slot == "face" && $0.manifest.nativeExpression == nil
+        }
         guard faces.count == expected.count else { return false }
         return faces.allSatisfy { face in
             face.manifest.anchor.x == 50 && face.manifest.anchor.y == expected[face.id]

@@ -7,6 +7,7 @@ const {
   assertInside,
   loadCharacterPack,
   validateDiy,
+  validateExpressions,
   validateManifest,
   validateSettingsCopy,
 } = require('../src/core/pack-loader');
@@ -60,6 +61,15 @@ test('loads the grass buddy pack with compositor-friendly standard actions', () 
   assert.doesNotMatch(pack.svg, /grass-highlight/);
   assert.match(pack.svg, /class="eye eye-left"/);
   assert.equal(pack.styles.length, pack.manifest.styles.length);
+  assert.deepEqual(pack.manifest.expressions, {
+    mode: 'native',
+    default: 'face-grass-calm',
+    moods: {
+      calm: 'face-grass-calm',
+      happy: 'face-grass-happy',
+      worried: 'face-grass-worried',
+    },
+  });
 
   const animationCss = pack.styles.map((style) => style.css).join('\n');
   for (const action of REQUIRED_ACTIONS) {
@@ -69,6 +79,11 @@ test('loads the grass buddy pack with compositor-friendly standard actions', () 
   assert.match(animationCss, /grass-buddy-walk/);
   assert.match(animationCss, /grass-buddy-working/);
   assert.match(animationCss, /grass-buddy-exit/);
+  assert.doesNotMatch(
+    animationCss,
+    /(?:mouth-smile|mouth-neutral|mouth-frown)\s*\{[\s\S]*?opacity\s*:/,
+    'motion CSS must not override the selected native expression',
+  );
 
   const mouthY = Number(pack.svg.match(/class="mouth mouth-smile" d="M \d+ (\d+)/)?.[1]);
   const leftArmY = Number(pack.svg.match(/class="fin arm fin-left arm-left" d="M \d+ (\d+)/)?.[1]);
@@ -130,6 +145,25 @@ test('DIY presets reject anything that is not plain path data', () => {
     }),
     /duplicate id/,
   );
+});
+
+test('native expression catalogs validate without changing legacy manifests', () => {
+  assert.doesNotThrow(() => validateExpressions({
+    mode: 'native',
+    default: 'face-grass-calm',
+    moods: { calm: 'face-grass-calm', happy: 'face-grass-happy' },
+  }));
+  assert.throws(
+    () => validateExpressions({ mode: 'overlay', default: 'face-a', moods: { calm: 'face-a' } }),
+    /Unsupported character expression mode/,
+  );
+  assert.throws(
+    () => validateExpressions({ mode: 'native', default: 'face-missing', moods: { calm: 'face-a' } }),
+    /default must be listed/,
+  );
+  const legacy = loadCharacterPack(charactersRoot, 'blobfish').manifest;
+  assert.equal(legacy.expressions, undefined);
+  assert.doesNotThrow(() => validateManifest(legacy, 'blobfish'));
 });
 
 test('a character manifest with a broken DIY block fails to load', () => {

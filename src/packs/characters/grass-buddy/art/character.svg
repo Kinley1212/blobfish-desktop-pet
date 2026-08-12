@@ -13,12 +13,20 @@
         <path class="fin arm fin-left arm-left" d="M 56 95 Q 58 110 66 111 Q 75 111 76 95" />
         <path class="fin arm fin-right arm-right" d="M 113 95 Q 113 111 122 111 Q 132 111 134 94" />
       </g>
-      <g class="grass-face" stroke="#593b1d" stroke-linecap="round">
+      <g class="grass-face native-expression" data-native-expression="calm" stroke="#593b1d" stroke-linecap="round">
         <path class="eye eye-left" d="M 70 67 L 70 68" stroke-width="7" />
         <path class="eye eye-right" d="M 116 67 L 116 68" stroke-width="7" />
-        <path class="mouth mouth-smile" d="M 78 79 Q 94 86 110 79" fill="none" stroke-width="4.5" />
-        <path class="mouth mouth-neutral" d="M 80 82 Q 94 84 108 82" fill="none" stroke-width="4.5" opacity="0" />
-        <path class="mouth mouth-frown" d="M 80 85 Q 94 76 108 85" fill="none" stroke-width="4.5" opacity="0" />
+        <path class="mouth mouth-neutral" d="M 82 82 Q 94 84 106 82" fill="none" stroke-width="4.5" />
+      </g>
+      <g class="grass-face native-expression" data-native-expression="happy" stroke="#593b1d" stroke-linecap="round" style="display:none">
+        <path class="eye eye-left" d="M 70 67 L 70 68" stroke-width="7" />
+        <path class="eye eye-right" d="M 116 67 L 116 68" stroke-width="7" />
+        <path class="mouth mouth-smile" d="M 78 79 Q 94 88 110 79" fill="none" stroke-width="4.5" />
+      </g>
+      <g class="grass-face native-expression" data-native-expression="worried" stroke="#593b1d" stroke-linecap="round" style="display:none">
+        <path class="eye eye-left" d="M 70 67 L 70 68" stroke-width="7" />
+        <path class="eye eye-right" d="M 116 67 L 116 68" stroke-width="7" />
+        <path class="mouth mouth-frown" d="M 80 86 Q 94 76 108 86" fill="none" stroke-width="4.5" />
       </g>
     </g>
   </g>

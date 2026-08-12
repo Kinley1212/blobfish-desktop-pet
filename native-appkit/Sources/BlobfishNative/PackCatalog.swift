@@ -9,6 +9,17 @@ struct CharacterPack: Equatable, Identifiable {
         let id: String; let label: String; let d: String?; let left: String?; let right: String?; let hideShading: Bool?
     }
     struct DIY: Codable, Equatable { let enabled: Bool; let shapes: [String: [Shape]]? }
+    struct Expressions: Codable, Equatable {
+        let mode: String
+        let defaultFaceID: String
+        let moods: [String: String]
+
+        private enum CodingKeys: String, CodingKey {
+            case mode
+            case defaultFaceID = "default"
+            case moods
+        }
+    }
     struct Manifest: Codable, Equatable {
         let id: String
         let displayName: String
@@ -20,6 +31,7 @@ struct CharacterPack: Equatable, Identifiable {
         let defaultLanguagePack: String?
         let accessories: Accessories?
         let diy: DIY?
+        let expressions: Expressions?
     }
 
     let manifest: Manifest
@@ -33,6 +45,8 @@ struct AccessoryPack: Equatable, Identifiable {
     struct Manifest: Codable, Equatable {
         let id: String; let displayName: String; let version: Int; let slot: String
         let art: String; let anchor: Point; let hidesEyes: Bool?
+        let characterPackIds: [String]?
+        let nativeExpression: String?
     }
     let manifest: Manifest
     let directoryURL: URL
@@ -119,7 +133,8 @@ final class PackCatalog {
             let manifest: CharacterPack.Manifest = try self.decodeJSON(directory.appendingPathComponent("manifest.json"))
             guard Self.isPackID(manifest.id), directory.lastPathComponent == manifest.id,
                   manifest.version == 1, manifest.renderer == "svg",
-                  manifest.size.width > 0, manifest.size.height > 0 else {
+                  manifest.size.width > 0, manifest.size.height > 0,
+                  Self.validExpressions(manifest.expressions) else {
                 throw PackCatalogError.invalidManifest(directory.lastPathComponent)
             }
             let art = try self.safeChild(manifest.art, of: directory)
@@ -160,7 +175,9 @@ final class PackCatalog {
             let manifest: AccessoryPack.Manifest = try self.decodeJSON(directory.appendingPathComponent("manifest.json"))
             guard Self.isPackID(manifest.id), directory.lastPathComponent == manifest.id,
                   manifest.version == 1,
-                  ["face", "hat", "eyewear", "hand", "clock", "message-indicator"].contains(manifest.slot) else {
+                  ["face", "hat", "eyewear", "hand", "clock", "message-indicator"].contains(manifest.slot),
+                  Self.validCharacterPackIDs(manifest.characterPackIds),
+                  Self.validNativeExpression(manifest) else {
                 throw PackCatalogError.invalidManifest(directory.lastPathComponent)
             }
             let art = try self.safeChild(manifest.art, of: directory)
@@ -255,6 +272,121 @@ final class PackCatalog {
     private static func isPackID(_ value: String) -> Bool {
         value.range(of: #"^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$"#, options: .regularExpression) != nil
     }
+
+    private static func validExpressions(_ expressions: CharacterPack.Expressions?) -> Bool {
+        guard let expressions else { return true }
+        guard expressions.mode == "native",
+              isPackID(expressions.defaultFaceID),
+              !expressions.moods.isEmpty,
+              expressions.moods.keys.allSatisfy(isPackID),
+              expressions.moods.values.allSatisfy(isPackID) else { return false }
+        return expressions.moods.values.contains(expressions.defaultFaceID)
+    }
+
+    private static func validNativeExpression(_ manifest: AccessoryPack.Manifest) -> Bool {
+        guard let nativeExpression = manifest.nativeExpression else { return true }
+        return manifest.slot == "face"
+            && isPackID(nativeExpression)
+            && !(manifest.characterPackIds?.isEmpty ?? true)
+            && manifest.hidesEyes != true
+    }
+
+    private static func validCharacterPackIDs(_ ids: [String]?) -> Bool {
+        guard let ids else { return true }
+        return !ids.isEmpty && ids.allSatisfy(isPackID) && Set(ids).count == ids.count
+    }
+}
+
+enum CharacterExpressionCompatibility {
+    static func isCompatible(_ accessory: AccessoryPack, with character: CharacterPack) -> Bool {
+        if let characterPackIds = accessory.manifest.characterPackIds,
+           !characterPackIds.contains(character.id) {
+            return false
+        }
+        guard accessory.manifest.slot == "face" else { return true }
+        if let expressions = character.manifest.expressions, expressions.mode == "native" {
+            return accessory.manifest.nativeExpression != nil
+                && expressions.moods.values.contains(accessory.id)
+        }
+        return accessory.manifest.nativeExpression == nil
+    }
+
+    static func accessories(
+        _ accessories: [AccessoryPack], compatibleWith character: CharacterPack?, slot: String? = nil
+    ) -> [AccessoryPack] {
+        accessories.filter { accessory in
+            (slot == nil || accessory.manifest.slot == slot)
+                && character.map { isCompatible(accessory, with: $0) } != false
+        }
+    }
+
+    static func resolveFaceID(
+        _ requestedFaceID: String?, for character: CharacterPack?, accessories: [AccessoryPack]
+    ) -> String? {
+        guard let character else { return nil }
+        let compatibleFaces = self.accessories(accessories, compatibleWith: character, slot: "face")
+        if let requestedFaceID,
+           compatibleFaces.contains(where: { $0.id == requestedFaceID }) {
+            return requestedFaceID
+        }
+        guard let requestedFaceID,
+              let expressions = character.manifest.expressions,
+              expressions.mode == "native",
+              let mood = semanticMood(for: requestedFaceID) else { return nil }
+        let mapped = expressions.moods[mood] ?? expressions.defaultFaceID
+        return compatibleFaces.contains(where: { $0.id == mapped }) ? mapped : nil
+    }
+
+    static func nativeExpression(
+        for requestedFaceID: String?, character: CharacterPack?, accessories: [AccessoryPack]
+    ) -> String? {
+        guard let character,
+              let expressions = character.manifest.expressions,
+              expressions.mode == "native" else { return nil }
+        let resolved = resolveFaceID(requestedFaceID, for: character, accessories: accessories)
+            ?? expressions.defaultFaceID
+        return accessories.first(where: {
+            $0.id == resolved && isCompatible($0, with: character)
+        })?.manifest.nativeExpression
+    }
+
+    static func portableFaceID(
+        _ faceID: String?, for character: CharacterPack?, accessories: [AccessoryPack]
+    ) -> String? {
+        guard let faceID, !faceID.isEmpty else { return nil }
+        guard let character,
+              let expressions = character.manifest.expressions,
+              expressions.mode == "native",
+              let nativeExpression = nativeExpression(
+                  for: faceID, character: character, accessories: accessories
+              ) else { return faceID }
+        switch nativeExpression {
+        case "happy": return "face-happy"
+        case "worried": return "face-pitiful"
+        case "calm": return "face-blank"
+        default: return expressions.defaultFaceID
+        }
+    }
+
+    private static func semanticMood(for faceID: String) -> String? {
+        if positiveFaceIDs.contains(faceID) { return "happy" }
+        if worriedFaceIDs.contains(faceID) { return "worried" }
+        if calmFaceIDs.contains(faceID) { return "calm" }
+        return nil
+    }
+
+    private static let positiveFaceIDs: Set<String> = [
+        "face-coy", "face-happy", "face-love", "face-money", "face-nosebleed",
+        "face-proud", "face-relieved", "face-satisfied", "face-shy", "face-smug",
+        "face-sparkle", "face-star-eye", "face-swirl-cheek", "face-teasing", "face-wink",
+    ]
+    private static let worriedFaceIDs: Set<String> = [
+        "face-angry", "face-annoyed", "face-cold", "face-cry", "face-dizzy", "face-doubt",
+        "face-hungry", "face-panic", "face-pitiful", "face-question", "face-scared", "face-shocked",
+    ]
+    private static let calmFaceIDs: Set<String> = [
+        "face-blank", "face-determined", "face-side-eye", "face-sleepy",
+    ]
 }
 
 enum ResourceLocator {

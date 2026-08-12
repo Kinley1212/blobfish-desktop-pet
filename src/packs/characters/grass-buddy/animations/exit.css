@@ -20,14 +20,6 @@
   animation: grass-buddy-exit-leg-right var(--exit-duration, 1700ms) ease-in forwards;
 }
 
-#pet.is-exiting .mouth-smile {
-  opacity: 0;
-}
-
-#pet.is-exiting .mouth-neutral {
-  opacity: 1;
-}
-
 @keyframes grass-buddy-exit {
   0% { opacity: 1; transform: translateX(-50%) scaleX(var(--dir)) translateY(0) scale(1); }
   20% { opacity: 1; transform: translateX(-50%) scaleX(var(--dir)) translateY(-4px) scale(1); }

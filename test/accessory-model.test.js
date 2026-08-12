@@ -6,15 +6,19 @@ const {
   ACCESSORY_SLOTS,
   DEFAULT_TUNING,
   accessoryTransform,
+  compatibleAccessories,
   createLatestRequestGate,
   defaultAccessories,
   defaultTuning,
   getTuning,
   isDangerousSvgElementName,
+  isAccessoryCompatible,
   isEmptyAccessories,
   isSafeSvgAttribute,
   normalizeAccessories,
   normalizeAccessoryMap,
+  nativeExpressionForFace,
+  resolveFaceId,
   supportsAccessories,
   tuningFieldsForAccessory,
   withAccessoryEquipped,
@@ -210,11 +214,11 @@ test('SVG safety rules reject active content and external references without rem
 test('every bundled accessory declares a slot, an anchor and real art', () => {
   const catalog = loadAccessoryCatalog(accessoriesRoot);
 
-  assert.equal(catalog.length, 100);
+  assert.equal(catalog.length, 103);
   const counts = {};
   for (const item of catalog) counts[item.slot] = (counts[item.slot] || 0) + 1;
   assert.deepEqual(counts, {
-    face: 31,
+    face: 34,
     hat: 32,
     eyewear: 11,
     hand: 18,
@@ -227,8 +231,44 @@ test('every bundled accessory declares a slot, an anchor and real art', () => {
     assert.ok(item.anchor.x >= 0 && item.anchor.x <= 100);
     assert.ok(item.anchor.y >= 0 && item.anchor.y <= 100);
     assert.ok(item.displayName.length > 0);
-    assert.equal(item.hidesEyes, item.slot === 'face', `${item.id} should only hide the eyes when it is an expression`);
+    assert.equal(
+      item.hidesEyes,
+      item.slot === 'face' && !item.nativeExpression,
+      `${item.id} should only hide eyes when it draws a replacement face`,
+    );
   }
+});
+
+test('grass buddy exposes only its three native expressions', () => {
+  const catalog = loadAccessoryCatalog(accessoriesRoot);
+  const grass = loadCharacterPack(charactersRoot, 'grass-buddy').manifest;
+  const blobfish = loadCharacterPack(charactersRoot, 'blobfish').manifest;
+  const grassFaces = compatibleAccessories(catalog, grass, 'face');
+  const blobfishFaces = compatibleAccessories(catalog, blobfish, 'face');
+
+  assert.deepEqual(
+    grassFaces.map((face) => face.id).sort(),
+    ['face-grass-calm', 'face-grass-happy', 'face-grass-worried'],
+  );
+  assert.equal(blobfishFaces.length, 31);
+  assert.equal(blobfishFaces.some((face) => face.id.startsWith('face-grass-')), false);
+  assert.ok(isAccessoryCompatible(catalog.find((item) => item.id === 'crown'), grass));
+  assert.equal(isAccessoryCompatible(catalog.find((item) => item.id === 'face-happy'), grass), false);
+  assert.equal(isAccessoryCompatible(catalog.find((item) => item.id === 'face-grass-happy'), blobfish), false);
+});
+
+test('legacy and hard-coded blobfish faces map safely onto grass moods', () => {
+  const catalog = loadAccessoryCatalog(accessoriesRoot);
+  const grass = loadCharacterPack(charactersRoot, 'grass-buddy').manifest;
+  const blobfish = loadCharacterPack(charactersRoot, 'blobfish').manifest;
+
+  assert.equal(resolveFaceId('face-happy', grass, catalog), 'face-grass-happy');
+  assert.equal(resolveFaceId('face-pitiful', grass, catalog), 'face-grass-worried');
+  assert.equal(resolveFaceId('face-determined', grass, catalog), 'face-grass-calm');
+  assert.equal(resolveFaceId('face-does-not-exist', grass, catalog), null);
+  assert.equal(resolveFaceId('face-grass-happy', blobfish, catalog), null);
+  assert.equal(nativeExpressionForFace('face-pitiful', grass, catalog), 'worried');
+  assert.equal(nativeExpressionForFace(null, grass, catalog), 'calm');
 });
 
 test('accessory manifests are checked before their art is read', () => {
@@ -239,6 +279,10 @@ test('accessory manifests are checked before their art is read', () => {
   assert.throws(() => validateAccessoryManifest({ ...valid, slot: 'tail' }, 'crown'), /Unsupported accessory slot/);
   assert.throws(() => validateAccessoryManifest({ ...valid, art: 'art/evil.js' }, 'crown'), /\.svg art file/);
   assert.throws(() => validateAccessoryManifest({ ...valid, anchor: { x: 150, y: 4 } }, 'crown'), /inside the 100x100/);
+  assert.throws(
+    () => validateAccessoryManifest({ ...valid, slot: 'face', nativeExpression: 'happy' }, 'crown'),
+    /Native expressions require/,
+  );
   assert.throws(() => loadAccessory(accessoriesRoot, '../characters'), /Invalid accessory id/);
 });
 

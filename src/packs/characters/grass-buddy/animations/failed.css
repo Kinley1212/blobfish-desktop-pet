@@ -11,15 +11,6 @@
   animation: grass-buddy-failed-arm 0.92s ease-in-out;
 }
 
-#pet.is-failed .mouth-smile,
-#pet.is-failed .mouth-neutral {
-  opacity: 0;
-}
-
-#pet.is-failed .mouth-frown {
-  opacity: 1;
-}
-
 @keyframes grass-buddy-failed {
   0%, 100% { transform: translateX(-50%) scaleX(var(--dir)) translateY(0); }
   55% { transform: translateX(-50%) scaleX(var(--dir)) translateY(7px); }

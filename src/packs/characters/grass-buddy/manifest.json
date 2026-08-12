@@ -84,5 +84,14 @@
     "success": "idle",
     "failed": "idle"
   },
-  "defaultLanguagePack": "grass-buddy-zh-CN"
+  "defaultLanguagePack": "grass-buddy-zh-CN",
+  "expressions": {
+    "mode": "native",
+    "default": "face-grass-calm",
+    "moods": {
+      "calm": "face-grass-calm",
+      "happy": "face-grass-happy",
+      "worried": "face-grass-worried"
+    }
+  }
 }

@@ -73,11 +73,11 @@ final class SettingsViewModel: ObservableObject {
     let messengerService: FishMessengerService?
     private let soundPlayer = SoundPlayer()
     private var availableUpdate: (NativeUpdateManifest, NativeUpdateManifest.Asset)?
-    private let onApply: () -> Void
+    private let onApply: @MainActor () -> Void
 
     init(
         runtime: AppRuntime, clockService: ClockService?, messengerService: FishMessengerService?,
-        onApply: @escaping () -> Void
+        onApply: @escaping @MainActor () -> Void
     ) {
         self.runtime = runtime
         self.clockService = clockService
@@ -186,10 +186,20 @@ final class SettingsViewModel: ObservableObject {
 
     func statusFaceBinding(_ status: FishUserStatus) -> Binding<String> {
         Binding(
-            get: { self.fishPreferences.faceID(for: status) },
+            get: {
+                CharacterExpressionCompatibility.resolveFaceID(
+                    self.fishPreferences.faceID(for: status),
+                    for: self.selectedCharacter,
+                    accessories: self.accessories
+                ) ?? ""
+            },
             set: { value in
                 var values = self.fishPreferences.statusFaceIDs ?? [:]
-                values[status.rawValue] = value
+                values[status.rawValue] = CharacterExpressionCompatibility.portableFaceID(
+                    value,
+                    for: self.selectedCharacter,
+                    accessories: self.accessories
+                ) ?? ""
                 self.fishPreferences.statusFaceIDs = values
             }
         )
@@ -268,7 +278,11 @@ final class SettingsViewModel: ObservableObject {
 
     func statusSlotBinding(_ status: FishUserStatus, slot: String) -> Binding<String> {
         Binding(
-            get: { self.statusPreviewAccessorySpec(status).equipped[slot] ?? "" },
+            get: {
+                guard let id = self.statusPreviewAccessorySpec(status).equipped[slot],
+                      self.compatibleAccessories(slot: slot).contains(where: { $0.id == id }) else { return "" }
+                return id
+            },
             set: { value in
                 var all = self.fishPreferences.statusAccessorySpecs ?? [:]
                 var root = all[status.rawValue]?.objectValue ?? [:]
@@ -692,6 +706,16 @@ final class SettingsViewModel: ObservableObject {
         languages.filter { isLanguage($0, compatibleWith: draft.pet.characterPackId) }
     }
 
+    var selectedCharacter: CharacterPack? {
+        characters.first(where: { $0.id == draft.pet.characterPackId })
+    }
+
+    func compatibleAccessories(slot: String) -> [AccessoryPack] {
+        CharacterExpressionCompatibility.accessories(
+            accessories, compatibleWith: selectedCharacter, slot: slot
+        )
+    }
+
     private func isLanguage(_ language: LanguagePack, compatibleWith characterID: String) -> Bool {
         if let ids = language.manifest.characterPackIds { return ids.contains(characterID) }
         return characterID == "grass-buddy"
@@ -1084,7 +1108,7 @@ struct BrandedSettingsView: View {
                 .font(.subheadline.weight(.semibold))
             Picker(t("表情", "Expression"), selection: model.statusFaceBinding(status)) {
                 Text(t("無表情", "No expression")).tag("")
-                ForEach(model.accessories.filter { $0.manifest.slot == "face" }) { accessory in
+                ForEach(model.compatibleAccessories(slot: "face")) { accessory in
                     Text(accessory.manifest.displayName).tag(accessory.id)
                 }
             }
@@ -1092,7 +1116,7 @@ struct BrandedSettingsView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Picker(slotName(slot), selection: model.statusSlotBinding(status, slot: slot)) {
                         Text(t("不使用", "None")).tag("")
-                        ForEach(model.accessories.filter { $0.manifest.slot == slot }) { accessory in
+                        ForEach(model.compatibleAccessories(slot: slot)) { accessory in
                             Text(accessory.manifest.displayName).tag(accessory.id)
                         }
                     }
@@ -1233,7 +1257,7 @@ struct BrandedSettingsView: View {
             ForEach(["face", "hat", "eyewear", "hand"], id: \.self) { slot in
                 Picker(slotName(slot), selection: accessoryBinding(slot: slot)) {
                     Text(t("不使用", "None")).tag("")
-                    ForEach(model.accessories.filter { $0.manifest.slot == slot }) { accessory in
+                    ForEach(model.compatibleAccessories(slot: slot)) { accessory in
                         Text(accessory.manifest.displayName).tag(accessory.id)
                     }
                 }
@@ -1308,10 +1332,17 @@ struct BrandedSettingsView: View {
     private func accessoryBinding(slot: String) -> Binding<String> {
         Binding(
             get: {
-                AppearanceJSON.accessorySpec(
+                let id = AppearanceJSON.accessorySpec(
                     in: model.draft,
                     characterID: model.draft.pet.characterPackId
                 ).equipped[slot] ?? ""
+                if slot == "face" {
+                    return CharacterExpressionCompatibility.resolveFaceID(
+                        id, for: model.selectedCharacter, accessories: model.accessories
+                    ) ?? ""
+                }
+                guard model.compatibleAccessories(slot: slot).contains(where: { $0.id == id }) else { return "" }
+                return id
             },
             set: {
                 AppearanceJSON.replacingAccessory(
@@ -1678,7 +1709,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private var refreshTimer: Timer?
     init(
         runtime: AppRuntime, clockService: ClockService?, messengerService: FishMessengerService?,
-        onApply: @escaping () -> Void
+        onApply: @escaping @MainActor () -> Void
     ) {
         let viewModel = SettingsViewModel(
             runtime: runtime, clockService: clockService, messengerService: messengerService,

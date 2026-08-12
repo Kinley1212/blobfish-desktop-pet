@@ -406,6 +406,7 @@ final class PetView: NSView, CALayerDelegate {
             guard oldValue != character else { return }
             if contentMode.drawsArtwork {
                 characterViewBox = character.flatMap(SVGAppearanceRenderer.viewBox)
+                rebuildAccessoryImages()
                 rebuildCharacterImage()
             }
             invalidateOverlay()
@@ -1014,6 +1015,8 @@ final class PetView: NSView, CALayerDelegate {
         rebuildCharacterImage()
     }
 
+    func debugRenderedAccessoryIDs() -> [String] { accessoryImages.map { $0.0.id } }
+
     func beginSpeakingPresentation(_ presentation: PetSpeakingPresentation) {
         guard speakingPresentation != presentation else { return }
         speakingPresentation = presentation
@@ -1143,28 +1146,43 @@ final class PetView: NSView, CALayerDelegate {
         let byID = Dictionary(uniqueKeysWithValues: accessoryPacks.map { ($0.id, $0) })
         var equipped = accessorySpec.equipped
         if let moodFaceID { equipped["face"] = moodFaceID }
+        if equipped["face"] != nil {
+            equipped["face"] = CharacterExpressionCompatibility.resolveFaceID(
+                equipped["face"], for: character, accessories: accessoryPacks
+            )
+        }
         let ids = AccessoryLayerOrder.orderedIDs(
             equipped: equipped,
             systemAccessoryIDs: alarmClockRenderVisible ? [alarmClockAccessoryID] : []
         )
         accessoryImages = ids.compactMap { id in
-            guard let pack = byID[id], let image = NSImage(contentsOf: pack.artURL) else { return nil }
+            guard let pack = byID[id],
+                  character.map({ CharacterExpressionCompatibility.isCompatible(pack, with: $0) }) != false,
+                  pack.manifest.nativeExpression == nil,
+                  let image = NSImage(contentsOf: pack.artURL) else { return nil }
             return (pack, image)
         }
         rebuildArtworkLayer()
     }
 
     private func rebuildCharacterImage() {
-        let faceID = moodFaceID ?? accessorySpec.equipped["face"]
+        let requestedFaceID = moodFaceID ?? accessorySpec.equipped["face"]
+        let faceID = CharacterExpressionCompatibility.resolveFaceID(
+            requestedFaceID, for: character, accessories: accessoryPacks
+        )
+        let nativeExpression = CharacterExpressionCompatibility.nativeExpression(
+            for: requestedFaceID, character: character, accessories: accessoryPacks
+        )
         let hidesBaseEyes = accessoryPacks.first {
             $0.id == faceID && $0.manifest.slot == "face"
-        }?.manifest.hidesEyes == true
+        }.map { $0.manifest.nativeExpression == nil && $0.manifest.hidesEyes == true } ?? false
         characterImage = character.flatMap {
             SVGAppearanceRenderer.image(
                 character: $0,
                 customization: customization,
                 blinking: blinking,
-                hidesBaseEyes: hidesBaseEyes
+                hidesBaseEyes: hidesBaseEyes,
+                nativeExpression: nativeExpression
             )
         }
         rebuildArtworkLayer()
@@ -1249,7 +1267,8 @@ final class PetView: NSView, CALayerDelegate {
         guard contentMode.drawsOverlay,
               let pack = accessoryPacks.first(where: {
                   $0.id == messageIndicatorID && $0.manifest.slot == "message-indicator"
-              }) else {
+              }),
+              character.map({ CharacterExpressionCompatibility.isCompatible(pack, with: $0) }) != false else {
             messageIndicatorImage = nil
             return
         }

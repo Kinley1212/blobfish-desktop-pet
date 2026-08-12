@@ -12,13 +12,15 @@ enum SVGAppearanceRenderer {
         character: CharacterPack,
         customization: JSONValue?,
         blinking: Bool,
-        hidesBaseEyes: Bool = false
+        hidesBaseEyes: Bool = false,
+        nativeExpression: String? = nil
     ) -> NSImage? {
         guard let data = renderedSVGData(
             character: character,
             customization: customization,
             blinking: blinking,
-            hidesBaseEyes: hidesBaseEyes
+            hidesBaseEyes: hidesBaseEyes,
+            nativeExpression: nativeExpression
         ) else { return nil }
         return NSImage(data: data)
     }
@@ -27,15 +29,36 @@ enum SVGAppearanceRenderer {
         character: CharacterPack,
         customization: JSONValue?,
         blinking: Bool,
-        hidesBaseEyes: Bool = false
+        hidesBaseEyes: Bool = false,
+        nativeExpression: String? = nil
     ) -> Data? {
         guard let document = try? XMLDocument(contentsOf: character.artURL, options: [.nodePreserveAll]),
               let root = document.rootElement(), root.name?.lowercased() == "svg" else { return nil }
         sanitize(root)
+        applyNativeExpression(nativeExpression, to: root)
         hideRestingTearsAndCoveredEyes(root, hidesBaseEyes: hidesBaseEyes)
         applyShapes(root, manifest: character.manifest, customization: customization)
         applyTransforms(root, customization: customization, blinking: blinking)
         return document.xmlData(options: [])
+    }
+
+    private static func applyNativeExpression(_ name: String?, to root: XMLElement) {
+        let nodes = ((try? root.nodes(forXPath: ".//*[@data-native-expression]")) ?? [])
+            .compactMap { $0 as? XMLElement }
+        guard !nodes.isEmpty else { return }
+        let selected = name.flatMap { requested in
+            nodes.first { $0.attribute(forName: "data-native-expression")?.stringValue == requested }
+        } ?? nodes[0]
+        for node in nodes where node !== selected { node.detach() }
+        guard let style = selected.attribute(forName: "style")?.stringValue else { return }
+        let retained = style.split(separator: ";").filter { declaration in
+            guard let property = declaration.split(separator: ":", maxSplits: 1).first else { return true }
+            return String(property).trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != "display"
+        }.joined(separator: ";")
+        selected.removeAttribute(forName: "style")
+        if !retained.isEmpty {
+            selected.addAttribute(XMLNode.attribute(withName: "style", stringValue: retained) as! XMLNode)
+        }
     }
 
     private static func hideRestingTearsAndCoveredEyes(_ root: XMLElement, hidesBaseEyes: Bool) {

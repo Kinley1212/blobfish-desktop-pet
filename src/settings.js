@@ -647,13 +647,24 @@ function renderAccessoryControls() {
     none.value = '';
     none.textContent = tr(slot.empty);
     select.appendChild(none);
-    for (const item of accessoryCatalog.filter((entry) => entry.slot === slot.key)) {
+    const characterManifest = {
+      id: diyArt.id,
+      accessories: diyArt.accessories,
+      expressions: diyArt.expressions,
+    };
+    for (const item of accessoryModel.compatibleAccessories(
+      accessoryCatalog,
+      characterManifest,
+      slot.key,
+    )) {
       const option = document.createElement('option');
       option.value = item.id;
       option.textContent = uiI18n.localizeAccessoryName(item.id, item.displayName, currentUiLocale);
       select.appendChild(option);
     }
-    const worn = spec.equipped[slot.key];
+    const worn = slot.key === 'face'
+      ? accessoryModel.resolveFaceId(spec.equipped[slot.key], characterManifest, accessoryCatalog)
+      : spec.equipped[slot.key];
     select.value = [...select.options].some((option) => option.value === worn) ? worn : '';
     field.appendChild(select);
     container.appendChild(field);
@@ -715,7 +726,7 @@ function renderDiyPreview() {
   diyModel.applyDiyToSvg(svg, currentDiySpec(), { diy: diyArt.diy });
   accessoryModel.applyAccessoriesToSvg(
     svg,
-    { accessories: diyArt.accessories },
+    { id: diyArt.id, accessories: diyArt.accessories, expressions: diyArt.expressions },
     accessoryCatalog,
     accessoryModel.withAccessoryEquipped(currentAccessorySpec(), 'clock', 'alarm-clock'),
   );

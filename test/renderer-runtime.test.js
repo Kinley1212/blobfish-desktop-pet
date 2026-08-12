@@ -182,6 +182,7 @@ function createRendererHarness() {
     accessoryModel: {
       applyAccessoriesToSvg() {},
       normalizeAccessories: () => ({ equipped: {} }),
+      resolveFaceId: (faceId) => faceId || null,
       sanitizeSvgTree: (root) => root,
       withAccessoryEquipped: (spec) => spec,
     },

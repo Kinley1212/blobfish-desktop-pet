@@ -2849,6 +2849,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
         size: pack.manifest.size,
         diy: pack.manifest.diy || null,
         accessories: pack.manifest.accessories || null,
+        expressions: pack.manifest.expressions || null,
       };
     } catch (error) {
       console.error(`Cannot preview character pack ${packId}: ${error.message}`);

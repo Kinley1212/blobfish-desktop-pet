@@ -1,0 +1,11 @@
+{
+  "id": "face-grass-calm",
+  "displayName": "平静",
+  "version": 1,
+  "slot": "face",
+  "art": "art/accessory.svg",
+  "anchor": { "x": 50, "y": 50 },
+  "hidesEyes": false,
+  "characterPackIds": ["grass-buddy"],
+  "nativeExpression": "calm"
+}

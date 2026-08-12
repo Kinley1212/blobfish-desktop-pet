@@ -19,6 +19,7 @@ const { applyDiyToSvg } = globalThis.diyModel;
 const {
   applyAccessoriesToSvg,
   normalizeAccessories,
+  resolveFaceId,
   sanitizeSvgTree,
   withAccessoryEquipped,
 } = globalThis.accessoryModel;
@@ -346,18 +347,19 @@ function clearMoodExpression() {
 }
 
 function faceIsBundled(faceId) {
-  return accessoryCatalog.some((item) => item.slot === 'face' && item.id === faceId);
+  return Boolean(resolveFaceId(faceId, characterManifest, accessoryCatalog));
 }
 
 // Wears an expression for a while, then hands the slot back to whatever the
 // user picked. Used both by speech moods and by dialogue reactions.
 function wearMoodExpression(faceId, durationMs) {
-  if (!faceId || !faceIsBundled(faceId)) {
+  const resolvedFaceId = resolveFaceId(faceId, characterManifest, accessoryCatalog);
+  if (!resolvedFaceId || !faceIsBundled(resolvedFaceId)) {
     clearMoodExpression();
     return;
   }
   clearTimeout(moodExpressionTimer);
-  moodExpressionId = faceId;
+  moodExpressionId = resolvedFaceId;
   renderAccessories();
   moodExpressionTimer = setTimeout(clearMoodExpression, Math.max(800, durationMs || 0));
 }
@@ -365,7 +367,9 @@ function wearMoodExpression(faceId, durationMs) {
 // Sometimes a line comes with a face. It lasts as long as the bubble does, and
 // only borrows the slot - whatever the user picked is restored afterwards.
 function showMoodExpression(event, durationMs) {
-  const faces = accessoryCatalog.filter((item) => item.slot === 'face').map((item) => item.id);
+  const faces = accessoryCatalog
+    .filter((item) => item.slot === 'face' && !item.nativeExpression)
+    .map((item) => item.id);
   if (faces.length === 0) return;
   wearMoodExpression(pickExpression(event, { available: faces }), durationMs);
 }

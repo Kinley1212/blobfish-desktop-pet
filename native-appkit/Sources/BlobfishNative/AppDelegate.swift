@@ -69,9 +69,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         panelController.moodFaceProvider = { [weak self] event in
             guard let self else { return nil }
             let available = Set(self.runtime.accessories
-                .filter { $0.manifest.slot == "face" }
+                .filter { $0.manifest.slot == "face" && $0.manifest.nativeExpression == nil }
                 .map(\.id))
-            return ExpressionMoodSelector.pick(event: event, available: available)
+            let selected = ExpressionMoodSelector.pick(event: event, available: available)
+            return self.compatibleFaceID(selected)
         }
         panelController.onClick = { [weak self] in
             guard let self else { return }
@@ -174,13 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 indicatorID: messenger.preferences.effectiveMessageIndicatorID
             )
             self.updateMessengerMenu(unreadCount: messenger.unreadCount)
-            let status = messenger.preferences.currentStatus
-            self.panelController.setStatusAppearance(
-                faceID: status.map { messenger.preferences.faceID(for: $0) },
-                accessoryID: status.flatMap { messenger.preferences.accessoryID(for: $0) },
-                accessories: status.flatMap { messenger.preferences.statusAccessorySpecs?[$0.rawValue] },
-                customization: self.runtime.config.pet.customization[self.runtime.config.pet.characterPackId]
-            )
+            self.refreshMessengerStatusAppearance(using: messenger)
             if let contactID = messenger.activeVisitContactID,
                let contact = messenger.profile?.contacts.first(where: { $0.id == contactID }),
                let presence = contact.lastPresence {
@@ -839,6 +834,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return providers
     }
 
+    private func compatibleFaceID(_ faceID: String?) -> String? {
+        CharacterExpressionCompatibility.resolveFaceID(
+            faceID, for: runtime.character, accessories: runtime.accessories
+        )
+    }
+
+    @MainActor private func refreshMessengerStatusAppearance(using messenger: FishMessengerService? = nil) {
+        guard let messenger = messenger ?? messengerService else { return }
+        let status = messenger.preferences.currentStatus
+        panelController.setStatusAppearance(
+            faceID: status.flatMap { compatibleFaceID(messenger.preferences.faceID(for: $0)) },
+            accessoryID: status.flatMap { messenger.preferences.accessoryID(for: $0) },
+            accessories: status.flatMap { messenger.preferences.statusAccessorySpecs?[$0.rawValue] },
+            customization: runtime.config.pet.customization[runtime.config.pet.characterPackId]
+        )
+    }
+
     @MainActor private func currentFishPresence() -> FishPresence {
         let status = messengerService?.preferences.currentStatus
         return FishPresence(
@@ -846,7 +858,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             customization: runtime.config.pet.customization[runtime.config.pet.characterPackId],
             accessories: runtime.config.pet.accessories[runtime.config.pet.characterPackId],
             status: status,
-            statusFaceID: status.map { messengerService?.preferences.faceID(for: $0) ?? $0.faceID },
+            statusFaceID: status.flatMap {
+                compatibleFaceID(messengerService?.preferences.faceID(for: $0) ?? $0.faceID)
+            },
             statusAccessoryID: status.flatMap { messengerService?.preferences.accessoryID(for: $0) },
             statusAccessories: status.flatMap { messengerService?.preferences.statusAccessorySpecs?[$0.rawValue] }
         )
@@ -863,13 +877,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     customization: base.customization,
                     accessories: base.accessories,
                     status: status,
-                    statusFaceID: status.map { messengerService.preferences.faceID(for: $0) },
+                    statusFaceID: status.flatMap {
+                        compatibleFaceID(messengerService.preferences.faceID(for: $0))
+                    },
                     statusAccessoryID: status.flatMap { messengerService.preferences.accessoryID(for: $0) },
                     statusAccessories: status.flatMap { messengerService.preferences.statusAccessorySpecs?[$0.rawValue] }
                 )
                 try await messengerService.updateStatus(status, presence: presence)
                 panelController.setStatusAppearance(
-                    faceID: status.map { messengerService.preferences.faceID(for: $0) },
+                    faceID: status.flatMap {
+                        compatibleFaceID(messengerService.preferences.faceID(for: $0))
+                    },
                     accessoryID: status.flatMap { messengerService.preferences.accessoryID(for: $0) },
                     accessories: status.flatMap { messengerService.preferences.statusAccessorySpecs?[$0.rawValue] },
                     customization: runtime.config.pet.customization[runtime.config.pet.characterPackId]
@@ -1139,6 +1157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             ) { [weak self] in
                 guard let self else { return }
                 self.panelController.apply(runtime: self.runtime)
+                self.refreshMessengerStatusAppearance()
                 self.taskMonitor?.includeTitles = self.runtime.config.privacy.includeTaskTitles
                 self.taskMonitor?.enabledProviders = self.enabledProviders()
                 self.clockService?.workdays = self.runtime.config.schedule.workdays

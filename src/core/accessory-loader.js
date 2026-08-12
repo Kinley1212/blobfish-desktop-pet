@@ -35,6 +35,23 @@ function validateAccessoryManifest(manifest, expectedId) {
   if (manifest.hidesEyes !== undefined && typeof manifest.hidesEyes !== 'boolean') {
     throw new Error('Accessory hidesEyes must be a boolean');
   }
+  if (manifest.characterPackIds !== undefined && (
+    !Array.isArray(manifest.characterPackIds)
+    || manifest.characterPackIds.length === 0
+    || manifest.characterPackIds.some((id) => !ACCESSORY_ID_PATTERN.test(id))
+    || new Set(manifest.characterPackIds).size !== manifest.characterPackIds.length
+  )) {
+    throw new Error('Accessory characterPackIds must contain unique pack ids');
+  }
+  if (manifest.nativeExpression !== undefined && (
+    manifest.slot !== 'face'
+    || !ACCESSORY_ID_PATTERN.test(manifest.nativeExpression)
+    || !Array.isArray(manifest.characterPackIds)
+    || manifest.characterPackIds.length === 0
+    || manifest.hidesEyes === true
+  )) {
+    throw new Error('Native expressions require a face slot, compatible characters, and visible base eyes');
+  }
 }
 
 function loadAccessory(accessoriesRoot, id) {
@@ -58,6 +75,8 @@ function loadAccessory(accessoriesRoot, id) {
     slot: manifest.slot,
     anchor: { x: manifest.anchor.x, y: manifest.anchor.y },
     hidesEyes: manifest.hidesEyes === true,
+    characterPackIds: Array.isArray(manifest.characterPackIds) ? [...manifest.characterPackIds] : null,
+    nativeExpression: manifest.nativeExpression || null,
     svg: fs.readFileSync(artPath, 'utf8'),
   };
 }

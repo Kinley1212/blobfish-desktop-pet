@@ -21,8 +21,3 @@
 #pet .leg {
   transform-origin: center top;
 }
-
-#pet .mouth-neutral,
-#pet .mouth-frown {
-  opacity: 0;
-}
