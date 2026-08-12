@@ -19,6 +19,7 @@
       "additions/agents.json",
       "additions/clock.json",
       "additions/messenger.json",
+      "additions/state-variants.json",
       "additions/rare.json"
     ]
   }
