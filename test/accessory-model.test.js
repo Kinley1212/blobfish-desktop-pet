@@ -210,14 +210,14 @@ test('SVG safety rules reject active content and external references without rem
 test('every bundled accessory declares a slot, an anchor and real art', () => {
   const catalog = loadAccessoryCatalog(accessoriesRoot);
 
-  assert.equal(catalog.length, 96);
+  assert.equal(catalog.length, 100);
   const counts = {};
   for (const item of catalog) counts[item.slot] = (counts[item.slot] || 0) + 1;
   assert.deepEqual(counts, {
     face: 31,
-    hat: 30,
-    eyewear: 10,
-    hand: 17,
+    hat: 32,
+    eyewear: 11,
+    hand: 18,
     clock: 4,
     'message-indicator': 4,
   });

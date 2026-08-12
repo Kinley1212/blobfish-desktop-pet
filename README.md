@@ -12,7 +12,7 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 ![platform](https://img.shields.io/badge/platform-macOS-1f2328?style=flat-square)
 ![native](https://img.shields.io/badge/native-Swift%20%2F%20AppKit-f05138?style=flat-square)
 ![macOS](https://img.shields.io/badge/macOS-%E2%89%A513.0-1f2328?style=flat-square)
-![version](https://img.shields.io/badge/version-2.5.3-c87d95?style=flat-square)
+![version](https://img.shields.io/badge/version-2.5.4-c87d95?style=flat-square)
 
 </div>
 
@@ -38,14 +38,14 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 - 所有调整存在配置里、渲染时叠加，**角色美术文件不会被改动**，随时一键还原
 - 每只角色分别保存，互不影响
 
-**表情与饰品（88 件）**
+**表情与饰品（92 件）**
 
 | 位置 | 数量 | 举例 |
 | --- | --- | --- |
 | 表情 | 31 | 晕、生气、困、撒娇、可怜、得意、心动、慌张、害羞、认真、财迷、吐舌…… |
-| 头顶 | 30 | 草帽、贝雷帽、礼帽、渔夫帽、学士帽、猫耳、兔耳、樱桃、小蘑菇、光环…… |
-| 眼镜 | 10 | 圆框眼镜、墨镜、爱心镜、星星镜、方框眼镜、泳镜、眼罩…… |
-| 手边 | 17 | 咖啡杯、珍珠奶茶、冰淇淋、甜甜圈、小雨伞、小手机、棒棒糖、小玩偶…… |
+| 头顶 | 32 | 草帽、贝雷帽、礼帽、渔夫帽、学士帽、猫耳、兔耳、轻松熊鸭舌帽…… |
+| 眼镜 | 11 | 圆框眼镜、墨镜、爱心镜、星星镜、方框眼镜、轻松熊眼镜…… |
+| 手边 | 18 | 咖啡杯、珍珠奶茶、冰淇淋、甜甜圈、小雨伞、小手机、轻松熊玩偶…… |
 
 饰品可调大小、宽高和位置，**每件各自记住自己的数值**，换来换去不会丢。说话时还会按场合临时借用表情——被揍会惊慌，任务做完会得意，快到饭点会饿——气泡消失后换回你选的那个。
 
@@ -184,14 +184,14 @@ A native macOS desktop pet built with Swift, AppKit and SwiftUI. It lives in a t
 - Every tweak lives in your config and is layered on at render time — **the character art files are never modified**, so one click puts everything back
 - Saved separately per character
 
-**Expressions and accessories (88 pieces)**
+**Expressions and accessories (92 pieces)**
 
 | Slot | Count | Examples |
 | --- | --- | --- |
 | Expression | 31 | dizzy, angry, sleepy, coy, pitiful, proud, smitten, panicked, shy, determined, tongue-out… |
-| Head | 30 | straw hat, beret, top hat, bucket hat, graduation cap, cat ears, bunny ears, cherries, mushroom, halo… |
-| Eyewear | 10 | round glasses, sunglasses, heart glasses, star glasses, square glasses, goggles, eyepatch… |
-| Hand | 17 | coffee, bubble tea, ice cream, donut, umbrella, phone, lollipop, plushie… |
+| Head | 32 | straw hat, beret, top hat, bucket hat, graduation cap, cat ears, bunny ears, Rilakkuma caps… |
+| Eyewear | 11 | round glasses, sunglasses, heart glasses, star glasses, square glasses, Rilakkuma glasses… |
+| Hand | 18 | coffee, bubble tea, ice cream, donut, umbrella, phone, lollipop, Rilakkuma plushie… |
 
 Accessories can be resized and repositioned, and **each piece remembers its own fit** — swapping between two hats never loses either one's adjustment. Speech also borrows an expression to suit the moment: alarmed when punched, proud when a task finishes, hungry near lunchtime. Whatever you picked comes back when the bubble goes.
 

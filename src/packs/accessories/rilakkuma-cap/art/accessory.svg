@@ -1,0 +1,39 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="輕鬆熊鴨舌帽">
+  <defs>
+    <linearGradient id="rilakkuma-cap-crown" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#da941a"/>
+      <stop offset="1" stop-color="#c97f0e"/>
+    </linearGradient>
+    <linearGradient id="rilakkuma-cap-brim" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#bd730c"/>
+      <stop offset="1" stop-color="#9f5d08"/>
+    </linearGradient>
+    <clipPath id="rilakkuma-cap-left-ear">
+      <circle cx="145" cy="83" r="47"/>
+    </clipPath>
+    <clipPath id="rilakkuma-cap-right-ear">
+      <circle cx="367" cy="83" r="47"/>
+    </clipPath>
+  </defs>
+  <g transform="translate(4 8) scale(0.18)">
+    <circle cx="145" cy="83" r="52" fill="#cf8611"/>
+    <circle cx="367" cy="83" r="52" fill="#cf8611"/>
+    <circle cx="125" cy="100" r="28" fill="#ffd713" clip-path="url(#rilakkuma-cap-left-ear)"/>
+    <circle cx="387" cy="100" r="28" fill="#ffd713" clip-path="url(#rilakkuma-cap-right-ear)"/>
+    <path d="M 91 220 C 95 130 156 72 256 72 C 356 72 417 130 421 220 C 338 244 174 244 91 220 Z"
+          fill="url(#rilakkuma-cap-crown)"/>
+    <path d="M 256 76 C 251 112 251 162 256 218" fill="none" stroke="#b66d0b" stroke-width="5" stroke-linecap="round" opacity="0.48"/>
+    <ellipse cx="256" cy="74" rx="12" ry="7" fill="#b86e0a"/>
+    <g transform="translate(256 153) scale(0.56) translate(-252 -300)">
+      <circle cx="160" cy="267" r="22" fill="#213639"/>
+      <circle cx="344" cy="267" r="22" fill="#213639"/>
+      <ellipse cx="252" cy="300" rx="64" ry="47" fill="#ffffff"/>
+      <ellipse cx="252" cy="284" rx="15" ry="13" fill="#213639"/>
+      <path d="M 252 294 C 249 304 239 315 228 321 M 252 294 C 255 304 265 315 280 321"
+            fill="none" stroke="#213639" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <path d="M 111 217 C 184 205 299 209 400 228 C 439 235 458 248 452 261 C 445 276 416 282 380 275 C 286 257 204 252 130 260 C 105 263 90 252 94 239 C 97 228 102 222 111 217 Z"
+          fill="url(#rilakkuma-cap-brim)"/>
+    <path d="M 108 226 C 195 216 307 220 415 243" fill="none" stroke="#e0a03a" stroke-width="4" stroke-linecap="round" opacity="0.62"/>
+  </g>
+</svg>

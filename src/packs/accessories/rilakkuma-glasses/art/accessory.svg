@@ -1,0 +1,35 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="輕鬆熊眼鏡">
+  <defs>
+    <path id="rilakkuma-glasses-frame" d="M 51 222
+      C 53.120 203.983 58.384 186.910 66.460 171.190
+      A 78 78 0 1 1 172.841 85.604
+      C 197.689 77.465 225.623 73 256 73
+      C 288.042 73 317.367 77.968 343.217 86.975
+      A 77 77 0 1 1 449.238 178.926
+      C 455.237 192.461 459.223 206.899 461 222
+      C 466 265 461 306 442 334
+      C 423 362 392 376 354 381
+      C 300 388 212 388 158 381
+      C 120 376 89 362 70 334
+      C 51 306 46 265 51 222 Z"/>
+    <clipPath id="rilakkuma-glasses-left-interior" clipPathUnits="userSpaceOnUse">
+      <use href="#rilakkuma-glasses-frame" transform="translate(100 0) scale(0.5)"/>
+    </clipPath>
+    <clipPath id="rilakkuma-glasses-right-interior" clipPathUnits="userSpaceOnUse">
+      <use href="#rilakkuma-glasses-frame" transform="translate(640 0) scale(-0.5 0.5)"/>
+    </clipPath>
+  </defs>
+  <g transform="translate(0.6 37) scale(0.13)" fill="none" stroke="#8a5108" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 126 126 L 70 108" stroke-width="30"/>
+    <path d="M 614 126 L 670 108" stroke-width="30"/>
+    <g stroke-width="60">
+      <g clip-path="url(#rilakkuma-glasses-left-interior)">
+        <use href="#rilakkuma-glasses-frame" transform="translate(100 0) scale(0.5)"/>
+      </g>
+      <g clip-path="url(#rilakkuma-glasses-right-interior)">
+        <use href="#rilakkuma-glasses-frame" transform="translate(640 0) scale(-0.5 0.5)"/>
+      </g>
+    </g>
+    <path d="M 330 121 C 350 103 390 103 410 121" stroke-width="30"/>
+  </g>
+</svg>

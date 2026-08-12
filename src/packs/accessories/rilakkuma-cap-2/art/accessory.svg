@@ -1,0 +1,38 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="輕鬆熊鴨舌帽2">
+  <defs>
+    <linearGradient id="rilakkuma-cap-2-crown" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#da941a"/>
+      <stop offset="1" stop-color="#c97f0e"/>
+    </linearGradient>
+    <linearGradient id="rilakkuma-cap-2-brim" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#bd730c"/>
+      <stop offset="1" stop-color="#9f5d08"/>
+    </linearGradient>
+    <clipPath id="rilakkuma-cap-2-left-ear">
+      <circle cx="145" cy="83" r="47"/>
+    </clipPath>
+    <clipPath id="rilakkuma-cap-2-right-ear">
+      <circle cx="367" cy="83" r="47"/>
+    </clipPath>
+  </defs>
+  <g transform="translate(4 8) scale(0.18)">
+    <circle cx="145" cy="83" r="52" fill="#cf8611"/>
+    <circle cx="367" cy="83" r="52" fill="#cf8611"/>
+    <circle cx="125" cy="100" r="28" fill="#ffd713" clip-path="url(#rilakkuma-cap-2-left-ear)"/>
+    <circle cx="387" cy="100" r="28" fill="#ffd713" clip-path="url(#rilakkuma-cap-2-right-ear)"/>
+    <path d="M 91 220 C 95 130 156 72 256 72 C 356 72 417 130 421 220 C 338 244 174 244 91 220 Z"
+          fill="url(#rilakkuma-cap-2-crown)"/>
+    <path d="M 256 76 C 251 112 251 162 256 218" fill="none" stroke="#b66d0b" stroke-width="5" stroke-linecap="round" opacity="0.48"/>
+    <ellipse cx="256" cy="74" rx="12" ry="7" fill="#b86e0a"/>
+    <g transform="translate(256 153) scale(0.56) translate(-252 -300)">
+      <circle cx="160" cy="267" r="22" fill="#213639"/>
+      <circle cx="344" cy="267" r="22" fill="#213639"/>
+      <ellipse cx="252" cy="300" rx="64" ry="47" fill="#ffffff"/>
+      <ellipse cx="252" cy="284" rx="15" ry="13" fill="#213639"/>
+      <path d="M 252 294 C 249 304 239 315 228 321 M 252 294 C 255 304 265 315 280 321"
+            fill="none" stroke="#213639" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <path d="M 43 217 C 143 215 319 215 405 217 C 415 218 421 222 421 229 C 421 235 415 239 405 240 L 43 240 C 23 240 13 236 13 229 C 13 222 23 218 43 217 Z"
+          fill="url(#rilakkuma-cap-2-brim)"/>
+  </g>
+</svg>
