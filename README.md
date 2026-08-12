@@ -12,7 +12,7 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 ![platform](https://img.shields.io/badge/platform-macOS-1f2328?style=flat-square)
 ![native](https://img.shields.io/badge/native-Swift%20%2F%20AppKit-f05138?style=flat-square)
 ![macOS](https://img.shields.io/badge/macOS-%E2%89%A513.0-1f2328?style=flat-square)
-![version](https://img.shields.io/badge/version-2.5.4-c87d95?style=flat-square)
+![version](https://img.shields.io/badge/version-2.6.0-c87d95?style=flat-square)
 
 </div>
 
@@ -100,12 +100,12 @@ make archive ARCH=x86_64  # Intel
 发布 `vX.Y.Z` 时，Release assets 至少要上传当前 Mac 自动安装需要的完整安装包：
 
 ```text
-BlobfishPro-X.Y.Z-macOS-arm64.zip
-BlobfishPro-X.Y.Z-macOS-x64.zip
-blobfish-latest.json
+BlobfishNative-X.Y.Z-macOS-arm64.zip
+BlobfishNative-X.Y.Z-macOS-x64.zip
+blobfish-native-latest.json
 ```
 
-先运行 `npm run package:mac`，再运行 `npm run release:manifest` 生成 `blobfish-latest.json`。Release 资产文件名请保持纯英文/ASCII；应用内显示名仍然可以是“水滴鱼”。应用会优先读取这个清单，避开 GitHub API 频率限制；清单缺失时才退回 GitHub API。Release 没有对应 zip 或清单校验信息时，设置页会提示没有适用于这台 Mac 的完整安装包。
+推送与 `Info.plist` 版本一致的 `vX.Y.Z` tag 后，`.github/workflows/release.yml` 会分别构建 arm64 / x86_64、做 ad-hoc 签名、生成 `blobfish-native-latest.json` 并发布正式 Release。Release 资产文件名保持纯英文/ASCII；应用会读取这份清单以选择架构并校验 SHA-256。Release 缺少对应 zip 或清单校验信息时，设置页会提示没有适用于这台 Mac 的完整安装包。
 
 ### 加一件自己的饰品
 
@@ -240,12 +240,12 @@ The updater downloads and verifies the matching package inside the app, then lau
 When publishing `vX.Y.Z`, attach at least the complete macOS packages needed by the in-app updater:
 
 ```text
-BlobfishPro-X.Y.Z-macOS-arm64.zip
-BlobfishPro-X.Y.Z-macOS-x64.zip
-blobfish-latest.json
+BlobfishNative-X.Y.Z-macOS-arm64.zip
+BlobfishNative-X.Y.Z-macOS-x64.zip
+blobfish-native-latest.json
 ```
 
-Run `npm run package:mac`, then `npm run release:manifest` to generate `blobfish-latest.json`. Keep Release asset filenames ASCII-only; the in-app display name can still stay Chinese. The app reads this manifest first to avoid GitHub API rate limits, and falls back to the GitHub API only when the manifest is missing. If the Release has no matching zip or digest metadata, Settings will report that no complete installer is available for this Mac.
+Push a `vX.Y.Z` tag that matches the version in `Info.plist`. `.github/workflows/release.yml` then builds arm64 and x86_64 packages, applies ad-hoc signatures, generates `blobfish-native-latest.json`, and publishes the formal Release. Keep asset filenames ASCII-only; the app reads this manifest to select the architecture and verify SHA-256. If the Release has no matching zip or digest metadata, Settings reports that no complete installer is available for this Mac.
 
 ### Adding your own accessory
 
