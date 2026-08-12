@@ -1,6 +1,6 @@
 {
   "id": "message-mailbox",
-  "displayName": "举旗小邮箱",
+  "displayName": "海葵举旗邮箱",
   "version": 1,
   "slot": "message-indicator",
   "art": "art/accessory.svg",

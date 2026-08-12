@@ -1,6 +1,6 @@
 {
   "id": "message-envelope",
-  "displayName": "软角信封",
+  "displayName": "月贝封信",
   "version": 1,
   "slot": "message-indicator",
   "art": "art/accessory.svg",

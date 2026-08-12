@@ -1,7 +1,22 @@
-<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="海沫小鐘"><g class="alarm-clock-shaker">
-  <path d="M30 83 23 93h13l4-10Z" fill="#4A978E" stroke="#355D59" stroke-width="4" stroke-linejoin="round"/><path d="m70 83 7 10H64l-4-10Z" fill="#4A978E" stroke="#355D59" stroke-width="4" stroke-linejoin="round"/>
-  <path d="M35 24C28 10 14 11 10 24c-2 8 3 13 11 14Z" fill="#7ED4C8" stroke="#355D59" stroke-width="5" stroke-linejoin="round"/><path d="M65 24C72 10 86 11 90 24c2 8-3 13-11 14Z" fill="#7ED4C8" stroke="#355D59" stroke-width="5" stroke-linejoin="round"/>
-  <rect x="42" y="8" width="16" height="12" rx="6" fill="#F29A80" stroke="#355D59" stroke-width="4"/><rect x="16" y="27" width="68" height="62" rx="25" fill="#4A978E" stroke="#355D59" stroke-width="5"/>
-  <circle cx="50" cy="55" r="26" fill="#E8FFF8" stroke="#355D59" stroke-width="4"/><path d="M31 50c3-10 12-17 23-18" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity=".85"/>
-  <path d="M50 39v17L39 64" fill="none" stroke="#355D59" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="56" r="4" fill="#F29A80"/>
-</g></svg>
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="海泡貝殼鐘">
+  <g class="alarm-clock-shaker">
+    <ellipse cx="50" cy="91" rx="34" ry="4" fill="#65a99f" opacity=".2"/>
+    <circle cx="18" cy="29" r="7" fill="#bde8dc"/>
+    <circle cx="82" cy="25" r="5" fill="#d4f1e8"/>
+    <circle cx="73" cy="14" r="3" fill="#a6dcd0"/>
+    <path d="M8 69c4-25 19-48 42-58 23 10 38 33 42 58-6 14-21 23-42 23S14 83 8 69Z" fill="#75bdb2"/>
+    <path d="M12 68c4 7 11 12 19 15L50 17 20 70c-3 1-6 0-8-2Z" fill="#9dd7cc"/>
+    <path d="M50 17 39 88c4 2 8 3 11 3 4 0 8-1 12-2L50 17Z" fill="#69aca3" opacity=".7"/>
+    <path d="M50 17 71 84c7-3 12-7 16-13L50 17Z" fill="#5fa198" opacity=".52"/>
+    <path d="M13 69c10 3 22 5 37 5s27-2 37-5c-7 14-20 21-37 21S20 83 13 69Z" fill="#4f948b"/>
+    <circle cx="50" cy="57" r="25" fill="#e7f5ed"/>
+    <circle cx="48" cy="55" r="20" fill="#f6fbf5"/>
+    <ellipse cx="40" cy="43" rx="8" ry="5" fill="#ffffff" opacity=".54" transform="rotate(-25 40 43)"/>
+    <circle cx="50" cy="39" r="2.3" fill="#78aaa3"/>
+    <circle cx="32" cy="57" r="2.3" fill="#78aaa3"/>
+    <circle cx="68" cy="57" r="2.3" fill="#78aaa3"/>
+    <rect x="47.6" y="42" width="4.8" height="16" rx="2.4" fill="#5e8580"/>
+    <rect x="47.6" y="55" width="4.8" height="15" rx="2.4" fill="#5e8580" transform="rotate(224 50 57)"/>
+    <circle cx="50" cy="57" r="4" fill="#efaa91"/>
+  </g>
+</svg>

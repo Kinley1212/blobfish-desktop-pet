@@ -1,6 +1,6 @@
 {
   "id": "message-sea-mail",
-  "displayName": "漂流瓶信",
+  "displayName": "海瓶漂流信",
   "version": 1,
   "slot": "message-indicator",
   "art": "art/accessory.svg",

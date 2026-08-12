@@ -1,8 +1,13 @@
-<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="軟角信封消息提示">
-  <path d="M15 28h70c6 0 10 4 10 10v43c0 6-4 10-10 10H15C9 91 5 87 5 81V38c0-6 4-10 10-10Z" fill="#DCCFED" stroke="#594E69" stroke-width="5"/>
-  <path d="M13 23h70c6 0 10 4 10 10v43c0 6-4 10-10 10H13C7 86 3 82 3 76V33c0-6 4-10 10-10Z" fill="#FFF0CF" stroke="#594E69" stroke-width="5"/>
-  <path d="m8 80 29-27c7-6 18-6 25 0l26 27" fill="#F7DFAE" stroke="#594E69" stroke-width="4" stroke-linejoin="round"/>
-  <path d="m8 29 31 27c6 5 15 5 21 0l28-27" fill="#FFF8E7" stroke="#594E69" stroke-width="4" stroke-linejoin="round"/>
-  <path d="M19 31h28" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity=".85"/>
-  <path d="M50 57c7 0 12 5 12 12 0 6-5 11-12 11s-12-5-12-11c0-7 5-12 12-12Z" fill="#9A83B5" stroke="#594E69" stroke-width="4"/>
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="月貝封信消息提示">
+  <ellipse cx="50" cy="91" rx="37" ry="4" fill="#8a7696" opacity=".18"/>
+  <path d="M7 62c0-26 19-45 43-45s43 19 43 45c0 17-16 29-43 29S7 79 7 62Z" fill="#c7b9d2"/>
+  <path d="M7 62c8-8 17-11 27-8 10 3 19 3 28-1 11-5 21-1 31 9-1 17-17 29-43 29S8 79 7 62Z" fill="#a998b8"/>
+  <path d="M15 60c7 5 15 8 24 10L50 22 24 66c-4-1-7-3-9-6Z" fill="#ded3e4"/>
+  <path d="M50 22 61 70c9-2 17-5 24-10L50 22Z" fill="#b4a3c1"/>
+  <path d="M15 60c10 7 22 10 35 10s25-3 35-10c-8 15-20 23-35 23S23 75 15 60Z" fill="#f3e6cf"/>
+  <path d="M18 62c12 5 22 8 32 8s21-3 32-8L62 79c-7 6-17 6-24 0L18 62Z" fill="#fff2dc"/>
+  <circle cx="50" cy="69" r="12" fill="#756484"/>
+  <ellipse cx="44" cy="27" rx="10" ry="5" fill="#ffffff" opacity=".35" transform="rotate(-18 44 27)"/>
+  <circle cx="14" cy="38" r="3" fill="#e7dced"/>
+  <circle cx="86" cy="37" r="2.5" fill="#e7dced"/>
 </svg>

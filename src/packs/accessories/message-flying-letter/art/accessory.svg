@@ -1,5 +1,16 @@
-<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="飛來信消息提示">
-  <path d="M7 38h19M4 51h15M10 64h18" fill="none" stroke="#F4C96A" stroke-width="6" stroke-linecap="round"/><path d="M28 21h59c5 0 9 4 9 9v43c0 5-4 9-9 9H28c-5 0-9-4-9-9V30c0-5 4-9 9-9Z" fill="#91CDD2" stroke="#3F6570" stroke-width="5"/>
-  <path d="m23 77 25-23c6-5 14-5 20 0l23 23" fill="#AEE0E1" stroke="#3F6570" stroke-width="4" stroke-linejoin="round"/><path d="m23 27 27 25c5 4 12 4 17 0l24-25" fill="#DDF8F5" stroke="#3F6570" stroke-width="4" stroke-linejoin="round"/>
-  <path d="M32 30h25" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity=".85"/><path d="m82 10 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z" fill="#F4C96A" stroke="#3F6570" stroke-width="3" stroke-linejoin="round"/>
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="魟魚飛信消息提示">
+  <ellipse cx="56" cy="86" rx="31" ry="4" fill="#659ca0" opacity=".17"/>
+  <rect x="5" y="36" width="20" height="6" rx="3" fill="#d9c995"/>
+  <rect x="1" y="49" width="16" height="6" rx="3" fill="#b9d7d2"/>
+  <rect x="8" y="62" width="18" height="6" rx="3" fill="#e4d8ac"/>
+  <path d="M18 50c13-21 28-31 44-31 13 0 23 7 29 20 4 9 3 20-3 30-7-8-15-12-24-11-13 2-24 0-32-5-5-3-10-4-14-3Z" fill="#8fc4c1"/>
+  <path d="M22 47c10-14 22-21 36-22-11 7-16 16-17 29-7-5-13-8-19-7Z" fill="#b4d9d2"/>
+  <path d="M63 20c13 1 23 8 28 19 4 9 3 20-3 30-6-7-12-10-19-11 4-14 2-27-6-38Z" fill="#70aaa9"/>
+  <path d="M55 57c14 0 24 7 29 21-9-7-18-9-28-7-9 2-17 7-25 15 3-16 11-26 24-29Z" fill="#648f95" opacity=".68"/>
+  <rect x="45" y="43" width="34" height="31" rx="9" fill="#f2e8cb"/>
+  <path d="M48 46h28L62 57 48 46Z" fill="#fff7df"/>
+  <path d="M48 70 58 56c2-2 6-2 8 0l10 14H48Z" fill="#d9caa8"/>
+  <rect x="48" y="47" width="26" height="22" rx="7" fill="#f7edcf"/>
+  <ellipse cx="42" cy="30" rx="9" ry="4" fill="#d7ebe3" opacity=".45" transform="rotate(-20 42 30)"/>
+  <circle cx="87" cy="22" r="4" fill="#ead9a4"/>
 </svg>

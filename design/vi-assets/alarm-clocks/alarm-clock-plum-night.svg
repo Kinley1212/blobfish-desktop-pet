@@ -1,12 +1,22 @@
-<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="梅子夜鐘">
-  <path d="M28 84 22 94h13l4-10Z" fill="#684F76" stroke="#4D3A59" stroke-width="4" stroke-linejoin="round"/>
-  <path d="m72 84 6 10H65l-4-10Z" fill="#684F76" stroke="#4D3A59" stroke-width="4" stroke-linejoin="round"/>
-  <path d="M34 23C27 10 14 12 10 24c-2 7 2 12 10 14Z" fill="#A98AB8" stroke="#4D3A59" stroke-width="5" stroke-linejoin="round"/>
-  <path d="M66 23C73 10 86 12 90 24c2 7-2 12-10 14Z" fill="#A98AB8" stroke="#4D3A59" stroke-width="5" stroke-linejoin="round"/>
-  <rect x="42" y="7" width="16" height="13" rx="6.5" fill="#D6B6DF" stroke="#4D3A59" stroke-width="4"/>
-  <circle cx="50" cy="58" r="33" fill="#684F76" stroke="#4D3A59" stroke-width="5"/>
-  <circle cx="50" cy="55" r="27" fill="#F8F0FF" stroke="#4D3A59" stroke-width="4"/>
-  <path d="M32 47c5-9 13-14 23-14" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity=".78"/>
-  <path d="M50 39v17l-10 9" fill="none" stroke="#4D3A59" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="50" cy="56" r="4" fill="#B77BAA"/>
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="月光水母鐘">
+  <g class="alarm-clock-shaker">
+    <ellipse cx="50" cy="93" rx="30" ry="4" fill="#7c6992" opacity=".2"/>
+    <circle cx="50" cy="10" r="6" fill="#ead6e9"/>
+    <circle cx="50" cy="10" r="3" fill="#fff2db"/>
+    <circle cx="18" cy="31" r="3" fill="#d8c5e2"/>
+    <circle cx="83" cy="36" r="2.5" fill="#efd9d2"/>
+    <path d="M13 58c0-24 16-42 37-42s37 18 37 42c0 7-2 13-5 18-6-6-11-6-16 0-5 7-11 7-16 0-5-6-10-6-16 0-5 6-11 6-16 0-3-5-5-11-5-18Z" fill="#84709a"/>
+    <path d="M20 53c2-17 13-29 28-33-11 10-16 25-15 46-5 0-9-3-15-8l2-5Z" fill="#a895b8"/>
+    <path d="M62 19c15 5 25 20 25 39 0 7-2 13-5 18-5-5-10-6-14-2 4-19 2-38-6-55Z" fill="#68587d" opacity=".55"/>
+    <ellipse cx="50" cy="51" rx="25" ry="24" fill="#eee7f0"/>
+    <path d="M48 29c-8 6-12 14-12 23 0 10 6 18 15 23-14-1-24-10-24-23 0-12 9-22 21-23Z" fill="#fff7e7"/>
+    <circle cx="50" cy="51" r="3.8" fill="#c293ac"/>
+    <rect x="47.7" y="36" width="4.6" height="16" rx="2.3" fill="#756682"/>
+    <rect x="47.7" y="48" width="4.6" height="15" rx="2.3" fill="#756682" transform="rotate(58 50 51)"/>
+    <circle cx="58" cy="39" r="2" fill="#d3bdd7"/>
+    <circle cx="67" cy="51" r="2.5" fill="#d3bdd7"/>
+    <path d="M25 76c7 2 10 8 7 17h10c2-8 0-14-5-18l-12 1Z" fill="#756288"/>
+    <path d="M43 76c7 4 8 10 5 18h10c3-8 2-14-3-18H43Z" fill="#9a83aa"/>
+    <path d="M61 75c7 4 10 10 7 18h9c3-9 0-15-6-19l-10 1Z" fill="#6f5c82"/>
+  </g>
 </svg>

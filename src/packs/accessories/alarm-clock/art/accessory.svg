@@ -1,15 +1,20 @@
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="珊瑚抱抱鐘">
   <g class="alarm-clock-shaker">
-    <path d="M28 84 20 94h14l4-10Z" fill="#D94D5C" stroke="#5B3B43" stroke-width="4" stroke-linejoin="round"/>
-    <path d="m72 84 8 10H66l-4-10Z" fill="#D94D5C" stroke="#5B3B43" stroke-width="4" stroke-linejoin="round"/>
-    <path d="M32 22C26 9 12 10 8 23c-2 7 1 12 8 14Z" fill="#F06469" stroke="#5B3B43" stroke-width="5" stroke-linejoin="round"/>
-    <path d="M68 22C74 9 88 10 92 23c2 7-1 12-8 14Z" fill="#F06469" stroke="#5B3B43" stroke-width="5" stroke-linejoin="round"/>
-    <path d="M19 38 12 32M81 38l7-6" fill="none" stroke="#5B3B43" stroke-width="5" stroke-linecap="round"/>
-    <rect x="44" y="7" width="12" height="13" rx="6" fill="#F7A8A6" stroke="#5B3B43" stroke-width="4"/>
-    <circle cx="50" cy="59" r="33" fill="#D94D5C" stroke="#5B3B43" stroke-width="5"/>
-    <circle cx="50" cy="56" r="28" fill="#FFF5E9" stroke="#5B3B43" stroke-width="4"/>
-    <path d="M31 48c4-10 13-16 23-16" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity=".8"/>
-    <path d="M50 39v18l12 8" fill="none" stroke="#5B3B43" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="50" cy="57" r="4" fill="#F06469"/>
+    <ellipse cx="50" cy="92" rx="29" ry="4" fill="#c98591" opacity=".22"/>
+    <path d="M22 78C13 70 10 58 14 48c3-7 8-10 14-14-5-5-6-13-2-18 4-6 13-5 17 3 3-8 13-11 19-6 4 3 5 9 3 15 8-5 18-1 20 7 2 7-2 13-8 17 6 8 6 19 1 27-6 10-17 14-29 14-10 0-20-4-27-15Z" fill="#e8929f"/>
+    <path d="M16 55c5 6 11 9 18 10-5 7-5 16-1 24-9-4-15-12-17-21-1-4-1-8 0-13Z" fill="#d97989"/>
+    <path d="M84 49c4 9 2 21-5 30-6 8-15 12-25 13 15-7 24-20 24-35l6-8Z" fill="#cf7484" opacity=".7"/>
+    <ellipse cx="50" cy="58" rx="29" ry="30" fill="#f9e5df"/>
+    <ellipse cx="48" cy="55" rx="24" ry="25" fill="#fff3ec"/>
+    <ellipse cx="39" cy="42" rx="10" ry="6" fill="#ffffff" opacity=".48" transform="rotate(-24 39 42)"/>
+    <circle cx="50" cy="36" r="2.5" fill="#c7828e"/>
+    <circle cx="29" cy="57" r="2.5" fill="#c7828e"/>
+    <circle cx="71" cy="57" r="2.5" fill="#c7828e"/>
+    <circle cx="50" cy="79" r="2.5" fill="#c7828e"/>
+    <rect x="47.5" y="40" width="5" height="19" rx="2.5" fill="#91606b"/>
+    <rect x="47.5" y="55" width="5" height="17" rx="2.5" fill="#91606b" transform="rotate(126 50 58)"/>
+    <circle cx="50" cy="58" r="4.5" fill="#e68c98"/>
+    <ellipse cx="34" cy="20" rx="5" ry="3" fill="#f7b8bc" opacity=".72" transform="rotate(-28 34 20)"/>
+    <ellipse cx="76" cy="37" rx="4" ry="2.5" fill="#f7b8bc" opacity=".62" transform="rotate(-34 76 37)"/>
   </g>
 </svg>

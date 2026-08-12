@@ -1,11 +1,15 @@
-<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="舉旗小郵箱消息提示">
-  <path d="M46 75h12v18H46Z" fill="#4E8997" stroke="#355A66" stroke-width="5" stroke-linejoin="round"/>
-  <path d="M31 93h42" fill="none" stroke="#355A66" stroke-width="6" stroke-linecap="round"/>
-  <path d="M15 37c0-13 10-23 23-23h28c12 0 22 10 22 22v39H15Z" fill="#69AFC0" stroke="#355A66" stroke-width="5" stroke-linejoin="round"/>
-  <path d="M49 15c11 0 20 9 20 20v40H31V35c0-11 7-20 18-20Z" fill="#89C7D3"/>
-  <path d="M31 75V35c0-11 7-20 18-20" fill="none" stroke="#355A66" stroke-width="5" stroke-linecap="round"/>
-  <path d="M44 39h27v20H44Z" fill="#FFF4D6" stroke="#355A66" stroke-width="4" stroke-linejoin="round"/>
-  <path d="m45 41 13 10 12-10" fill="none" stroke="#D6A85B" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M70 43V12" fill="none" stroke="#355A66" stroke-width="5" stroke-linecap="round"/>
-  <path d="M70 13h22v17H70Z" fill="#FFE5A3" stroke="#355A66" stroke-width="4" stroke-linejoin="round"/>
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="海葵舉旗郵箱消息提示">
+  <ellipse cx="49" cy="93" rx="31" ry="4" fill="#67999c" opacity=".2"/>
+  <path d="M41 69h16v23H41Z" fill="#73aaa8"/>
+  <path d="M28 88c7-4 14-4 21 0 8-4 16-4 24 1l-4 6H31l-3-7Z" fill="#a8cfbd"/>
+  <path d="M11 48c0-18 14-31 32-31h18c17 0 29 13 29 30v31H11V48Z" fill="#86bab6"/>
+  <path d="M11 56c8-4 15-3 22 3 7 5 14 5 21 0 8-7 17-7 26-1l10 7v13H11V56Z" fill="#70a8a7"/>
+  <path d="M17 48c0-14 10-25 25-25h8c-12 7-18 19-18 37v18H17V48Z" fill="#a6d0c7"/>
+  <rect x="41" y="42" width="33" height="23" rx="8" fill="#f3e7c9"/>
+  <path d="M43 45h29L58 56 43 45Z" fill="#fff5df"/>
+  <path d="M43 62 54 53c2-2 5-2 7 0l11 9H43Z" fill="#ddcba7"/>
+  <rect x="67" y="14" width="7" height="41" rx="3.5" fill="#5d8e90"/>
+  <path d="M70 13h17c4 0 7 3 7 7v3c0 4-3 7-7 7H70V13Z" fill="#f1d99d"/>
+  <circle cx="24" cy="36" r="4" fill="#c6e0d4"/>
+  <circle cx="84" cy="41" r="3" fill="#b9d8cf"/>
 </svg>
