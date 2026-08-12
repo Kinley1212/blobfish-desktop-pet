@@ -96,8 +96,14 @@ enum PetMotionTiming {
 }
 
 enum PetMovementPause {
-    static func shouldPause(hovering: Bool, menuOpen: Bool, interacting: Bool, dragging: Bool) -> Bool {
-        hovering || menuOpen || interacting || dragging
+    static func shouldPause(
+        hovering: Bool,
+        menuOpen: Bool,
+        interacting: Bool,
+        dragging: Bool,
+        flinging: Bool
+    ) -> Bool {
+        menuOpen || interacting || dragging || (hovering && !flinging)
     }
 }
 
@@ -1519,7 +1525,8 @@ final class PetPanelController {
             hovering: hoverPaused,
             menuOpen: menuPaused,
             interacting: interactionPaused || composerPaused,
-            dragging: dragging
+            dragging: dragging,
+            flinging: flingVelocity != nil
         )
         bobElapsed = PetMotionTiming.advancedBobElapsed(
             current: bobElapsed,

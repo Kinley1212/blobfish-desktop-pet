@@ -46,7 +46,7 @@ enum SelfCheck {
             ("friend messages stack and expire", friendMessagesStackAndExpire),
             ("friend speaking tokens preserve base motion", friendSpeakingTokensPreserveBaseMotion),
             ("display-paced pet motion", displayPacedPetMotion),
-            ("hover and menu pause pet motion", hoverAndMenuPausePetMotion),
+            ("hover ignores active fling while explicit pauses win", hoverIgnoresActiveFling),
             ("paused bob timeline resumes without snapping", pausedBobTimelineResumesWithoutSnapping),
             ("bob visibility transitions smoothly across frame rates", bobVisibilityTransitionsSmoothlyAcrossFrameRates),
             ("primary double click stays distinct from drag", primaryDoubleClickStaysDistinctFromDrag),
@@ -557,12 +557,25 @@ enum SelfCheck {
             ) == first
     }
 
-    private static func hoverAndMenuPausePetMotion() -> Bool {
-        !PetMovementPause.shouldPause(hovering: false, menuOpen: false, interacting: false, dragging: false)
-            && PetMovementPause.shouldPause(hovering: true, menuOpen: false, interacting: false, dragging: false)
-            && PetMovementPause.shouldPause(hovering: false, menuOpen: true, interacting: false, dragging: false)
-            && PetMovementPause.shouldPause(hovering: false, menuOpen: false, interacting: true, dragging: false)
-            && PetMovementPause.shouldPause(hovering: false, menuOpen: false, interacting: false, dragging: true)
+    private static func hoverIgnoresActiveFling() -> Bool {
+        !PetMovementPause.shouldPause(
+            hovering: false, menuOpen: false, interacting: false, dragging: false, flinging: false
+        )
+            && PetMovementPause.shouldPause(
+                hovering: true, menuOpen: false, interacting: false, dragging: false, flinging: false
+            )
+            && !PetMovementPause.shouldPause(
+                hovering: true, menuOpen: false, interacting: false, dragging: false, flinging: true
+            )
+            && PetMovementPause.shouldPause(
+                hovering: true, menuOpen: true, interacting: false, dragging: false, flinging: true
+            )
+            && PetMovementPause.shouldPause(
+                hovering: true, menuOpen: false, interacting: true, dragging: false, flinging: true
+            )
+            && PetMovementPause.shouldPause(
+                hovering: true, menuOpen: false, interacting: false, dragging: true, flinging: true
+            )
     }
 
     private static func pausedBobTimelineResumesWithoutSnapping() -> Bool {
