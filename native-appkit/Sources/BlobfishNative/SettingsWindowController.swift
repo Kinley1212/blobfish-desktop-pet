@@ -729,6 +729,27 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum SettingsSurfacePalette {
+    static var windowBackground: Color { Color(nsColor: .windowBackgroundColor) }
+    static var controlBackground: Color { Color(nsColor: .controlBackgroundColor) }
+    static var previewBackground: Color { Color(nsColor: .textBackgroundColor) }
+    static var separator: Color { Color(nsColor: .separatorColor) }
+    static var subtleFill: Color { Color(nsColor: .quaternaryLabelColor) }
+
+    // Keep this list beside the SwiftUI tokens so the native self-check can
+    // verify that every settings surface still resolves through AppKit's
+    // light/dark appearance system instead of a fixed light color.
+    static var adaptiveNativeColors: [NSColor] {
+        [
+            .windowBackgroundColor,
+            .controlBackgroundColor,
+            .textBackgroundColor,
+            .separatorColor,
+            .quaternaryLabelColor,
+        ]
+    }
+}
+
 struct BrandedSettingsView: View {
     @ObservedObject var model: SettingsViewModel
 
@@ -755,20 +776,14 @@ struct BrandedSettingsView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Color.white.opacity(0.74))
+                .background(.regularMaterial)
                 .fixedSize(horizontal: false, vertical: true)
                 .layoutPriority(1)
             }
             .frame(minWidth: 576, minHeight: 540)
         }
         .frame(minWidth: 760, minHeight: 540)
-        .background(
-            LinearGradient(
-                colors: [Color(red: 0.95, green: 0.98, blue: 0.97), Color(red: 0.98, green: 0.97, blue: 0.95)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
+        .background(SettingsSurfacePalette.windowBackground)
     }
 
     private var brandedSidebar: some View {
@@ -796,7 +811,7 @@ struct BrandedSettingsView: View {
         .padding(16)
         .frame(width: 184)
         .frame(maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.white.opacity(0.58))
+        .background(.thinMaterial)
         .overlay(alignment: .trailing) { Divider() }
     }
 
@@ -1102,7 +1117,7 @@ struct BrandedSettingsView: View {
                 showsAlarmClock: false
             )
             .frame(height: 125)
-            .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
+            .background(SettingsSurfacePalette.previewBackground, in: RoundedRectangle(cornerRadius: 12))
             let status = model.fishStatusPreview
             Text("\(status.emoji) \(status.title(isEnglish: model.isEnglish)) · \(t("細節 DIY", "Detailed DIY"))")
                 .font(.subheadline.weight(.semibold))
@@ -1141,7 +1156,7 @@ struct BrandedSettingsView: View {
             .foregroundStyle(selected ? Color.white : Color.primary)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(selected ? Color.accentColor : Color.black.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+            .background(selected ? Color.accentColor : SettingsSurfacePalette.subtleFill, in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
     }
@@ -1194,8 +1209,8 @@ struct BrandedSettingsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 .padding(12)
-                .background(Color.white.opacity(0.86), in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.black.opacity(0.07)))
+                .background(SettingsSurfacePalette.previewBackground, in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(SettingsSurfacePalette.separator))
 
                 Picker(t("角色", "Character"), selection: Binding(
                     get: { model.draft.pet.characterPackId },
@@ -1225,7 +1240,7 @@ struct BrandedSettingsView: View {
                     Toggle(t("撞击反弹后翻转鱼鱼", "Flip fish after bouncing"), isOn: $model.draft.pet.flipOnBounce)
                 }
                 .padding(12)
-                .background(Color.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 14))
+                .background(SettingsSurfacePalette.controlBackground, in: RoundedRectangle(cornerRadius: 14))
                 }
                 .frame(width: 254, alignment: .topLeading)
             }
@@ -1592,13 +1607,13 @@ struct BrandedSettingsView: View {
                         .background(
                             selection.wrappedValue == id
                                 ? Color.accentColor.opacity(0.14)
-                                : Color.black.opacity(0.035),
+                                : SettingsSurfacePalette.subtleFill,
                             in: RoundedRectangle(cornerRadius: 10)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 10)
                                 .stroke(
-                                    selection.wrappedValue == id ? Color.accentColor : Color.black.opacity(0.08),
+                                    selection.wrappedValue == id ? Color.accentColor : SettingsSurfacePalette.separator,
                                     lineWidth: selection.wrappedValue == id ? 1.5 : 1
                                 )
                         )
@@ -1699,8 +1714,8 @@ struct SettingsCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 10) { content }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.background.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(.separator.opacity(0.6)))
+            .background(SettingsSurfacePalette.controlBackground, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(SettingsSurfacePalette.separator))
     }
 }
 

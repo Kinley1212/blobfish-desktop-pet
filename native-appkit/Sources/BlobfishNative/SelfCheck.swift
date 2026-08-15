@@ -13,6 +13,7 @@ enum SelfCheck {
             ("shared config migration", sharedConfigMigration),
             ("config round trip", configRoundTrip),
             ("quick settings merge preserves unrelated draft", quickSettingsMergePreservesUnrelatedDraft),
+            ("settings surfaces follow system appearance", settingsSurfacesFollowSystemAppearance),
             ("unsafe config rejection", unsafeConfigRejection),
             ("shared pack compatibility", sharedPackCompatibility),
             ("phrase rules and templates", phraseRulesAndTemplates),
@@ -852,6 +853,35 @@ enum SelfCheck {
             && merged.startup.launchAtLogin
             && merged.pet.speed == 9.5
             && !merged.language.idleEnabled
+    }
+
+    private static func settingsSurfacesFollowSystemAppearance() -> Bool {
+        guard let lightAppearance = NSAppearance(named: .aqua),
+              let darkAppearance = NSAppearance(named: .darkAqua) else { return false }
+
+        func components(of color: NSColor, in appearance: NSAppearance) -> [CGFloat]? {
+            var resolved: NSColor?
+            appearance.performAsCurrentDrawingAppearance {
+                resolved = color.usingColorSpace(.deviceRGB)
+            }
+            guard let resolved else { return nil }
+            return [
+                resolved.redComponent,
+                resolved.greenComponent,
+                resolved.blueComponent,
+                resolved.alphaComponent,
+            ]
+        }
+
+        for color in SettingsSurfacePalette.adaptiveNativeColors {
+            guard let light = components(of: color, in: lightAppearance),
+                  let dark = components(of: color, in: darkAppearance) else { return false }
+            let appearanceDelta = zip(light, dark).reduce(CGFloat.zero) {
+                $0 + abs($1.0 - $1.1)
+            }
+            guard appearanceDelta > 0.1 else { return false }
+        }
+        return true
     }
 
     private static func unsafeConfigRejection() throws -> Bool {

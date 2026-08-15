@@ -12,7 +12,7 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 ![platform](https://img.shields.io/badge/platform-macOS-1f2328?style=flat-square)
 ![native](https://img.shields.io/badge/native-Swift%20%2F%20AppKit-f05138?style=flat-square)
 ![macOS](https://img.shields.io/badge/macOS-%E2%89%A513.0-1f2328?style=flat-square)
-![version](https://img.shields.io/badge/version-2.6.0-c87d95?style=flat-square)
+![version](https://img.shields.io/badge/version-2.6.1-c87d95?style=flat-square)
 
 </div>
 
