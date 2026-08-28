@@ -52,6 +52,18 @@
       "weight": 4
     },
     {
+      "id": "grass-en-messenger-visit-offline-01",
+      "event": "messenger.visitOffline",
+      "text": "{friend} went offline. The leaves waved goodbye; visit ended.",
+      "weight": 5
+    },
+    {
+      "id": "grass-en-messenger-visit-offline-02",
+      "event": "messenger.visitOffline",
+      "text": "I cannot hear {friend} anymore. The wind carried the visit away.",
+      "weight": 4
+    },
+    {
       "id": "grass-en-messenger-sent-01",
       "event": "messenger.sent",
       "text": "Message delivered—the leaf courier did not get lost.",

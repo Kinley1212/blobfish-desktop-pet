@@ -52,6 +52,18 @@
       "weight": 4
     },
     {
+      "id": "grass-messenger-visit-offline-01",
+      "event": "messenger.visitOffline",
+      "text": "{friend} 下线了。叶子挥过手，串门结束。",
+      "weight": 5
+    },
+    {
+      "id": "grass-messenger-visit-offline-02",
+      "event": "messenger.visitOffline",
+      "text": "听不到 {friend} 了。风把串门轻轻收走。",
+      "weight": 4
+    },
+    {
       "id": "grass-messenger-sent-01",
       "event": "messenger.sent",
       "text": "传话送到啦，草叶邮差没有迷路。",
