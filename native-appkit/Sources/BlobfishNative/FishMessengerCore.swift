@@ -129,6 +129,8 @@ struct FishMessage: Codable, Equatable {
 }
 
 struct FishEncryptedEnvelope: Codable, Equatable {
+    static let maximumCombinedBytes = 4_096
+
     let version: Int
     let senderPublicKey: String
     let ciphertext: String
@@ -155,6 +157,9 @@ struct FishMessengerIdentity {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .millisecondsSince1970
         let sealed = try ChaChaPoly.seal(encoder.encode(message), using: key)
+        guard sealed.combined.count <= FishEncryptedEnvelope.maximumCombinedBytes else {
+            throw FishMessengerError.invalidMessage
+        }
         return FishEncryptedEnvelope(
             version: 1,
             senderPublicKey: publicKey,
@@ -168,7 +173,7 @@ struct FishMessengerIdentity {
               let senderData = Data(base64Encoded: envelope.senderPublicKey),
               let sender = try? Curve25519.KeyAgreement.PublicKey(rawRepresentation: senderData),
               let combined = Data(base64Encoded: envelope.ciphertext),
-              combined.count <= 4_096,
+              combined.count <= FishEncryptedEnvelope.maximumCombinedBytes,
               let box = try? ChaChaPoly.SealedBox(combined: combined) else {
             throw FishMessengerError.decryptionFailed
         }

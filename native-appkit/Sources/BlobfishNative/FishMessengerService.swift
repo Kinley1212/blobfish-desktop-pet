@@ -108,6 +108,7 @@ enum FishMessengerVaultStatePolicy {
 }
 
 final class FishMessengerVault {
+    private static let maximumFileBytes = 256 * 1024
     private let service = "com.blobfish.desktop-pet.native.fish-messenger"
     private let account = "profile-v1"
 
@@ -136,7 +137,7 @@ final class FishMessengerVault {
         if status == errSecItemNotFound { return nil }
         guard status == errSecSuccess else { throw FishMessengerVaultError.keychain(status) }
         guard let data = result as? Data,
-              data.count <= 64 * 1024,
+              data.count <= Self.maximumFileBytes,
               let profile = try? JSONDecoder().decode(FishMessengerProfile.self, from: data) else {
             throw FishMessengerVaultError.invalidState
         }
@@ -147,6 +148,9 @@ final class FishMessengerVault {
     func save(_ profile: FishMessengerProfile) throws {
         try validate(profile)
         let data = try JSONEncoder().encode(profile)
+        guard data.count <= Self.maximumFileBytes else {
+            throw FishMessengerVaultError.invalidState
+        }
         let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

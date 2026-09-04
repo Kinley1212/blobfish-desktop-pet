@@ -78,10 +78,17 @@ final class NativeUpdater {
         try FileManager.default.copyItem(at: zipURL, to: zip)
         let expanded = updates.appendingPathComponent("expanded", isDirectory: true)
         try FileManager.default.createDirectory(at: expanded, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-        let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = ["-x", "-k", "--sequesterRsrc", "--rsrc", zip.path, expanded.path]
-        process.standardOutput = Pipe(); process.standardError = Pipe(); try process.run(); process.waitUntilExit()
-        guard process.terminationStatus == 0 else { throw UpdaterError.extractFailed }
+        let extraction: BoundedProcessResult
+        do {
+            extraction = try BoundedProcessRunner.run(
+                executableURL: URL(fileURLWithPath: "/usr/bin/ditto"),
+                arguments: ["-x", "-k", "--sequesterRsrc", "--rsrc", zip.path, expanded.path],
+                timeout: 60
+            )
+        } catch {
+            throw UpdaterError.extractFailed
+        }
+        guard extraction.terminationStatus == 0 else { throw UpdaterError.extractFailed }
         let candidates = try FileManager.default.contentsOfDirectory(at: expanded, includingPropertiesForKeys: [.isDirectoryKey])
             .filter { $0.pathExtension == "app" }
         guard candidates.count == 1, let bundle = Bundle(url: candidates[0]),
@@ -89,9 +96,16 @@ final class NativeUpdater {
               bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String == version else {
             throw UpdaterError.invalidBundle
         }
-        let verification = Process(); verification.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-        verification.arguments = ["--verify", "--deep", "--strict", candidates[0].path]
-        verification.standardOutput = Pipe(); verification.standardError = Pipe(); try verification.run(); verification.waitUntilExit()
+        let verification: BoundedProcessResult
+        do {
+            verification = try BoundedProcessRunner.run(
+                executableURL: URL(fileURLWithPath: "/usr/bin/codesign"),
+                arguments: ["--verify", "--deep", "--strict", candidates[0].path],
+                timeout: 30
+            )
+        } catch {
+            throw UpdaterError.invalidBundle
+        }
         guard verification.terminationStatus == 0 else { throw UpdaterError.invalidBundle }
         let currentBundle = Bundle.main.bundleURL
         let preferredDirectory = currentBundle.pathExtension == "app" ? currentBundle.deletingLastPathComponent() : URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Applications")

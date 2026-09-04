@@ -38,6 +38,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var clockSnoozeItem: NSMenuItem?
     private var clockDismissItem: NSMenuItem?
     private var timerControlItem: NSMenuItem?
+    private var timerPauseItem: NSMenuItem?
+    private var timerExtendItem: NSMenuItem?
+    private var timerCancelItem: NSMenuItem?
     private var quickTimerItem: NSMenuItem?
     private var previousSnapshot = TaskSnapshot.idle
     private var clickCount = 0
@@ -379,6 +382,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let performance = PerformanceMonitor()
         performance.memoryLimitMB = runtime.config.performance.memoryLimitMb
         performance.autoQuitEnabled = runtime.config.performance.autoQuitEnabled
+        performance.policy = PerformanceMonitoringPolicy.resolve(
+            panelEnabled: runtime.config.performance.panelEnabled,
+            autoQuitEnabled: runtime.config.performance.autoQuitEnabled
+        )
         performance.onSample = { [weak self] sample in
             guard let self else { return }
             self.panelController.updatePerformance(self.runtime.config.performance.panelEnabled ? sample : nil)
@@ -530,6 +537,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let timerControl = NSMenuItem(title: "计时器", action: nil, keyEquivalent: "")
         timerControl.isHidden = true
+        let timerControlMenu = NSMenu()
+        let timerPause = NSMenuItem(
+            title: "暂停计时",
+            action: #selector(pauseOrResumeTimer),
+            keyEquivalent: ""
+        )
+        timerPause.target = self
+        timerControlMenu.addItem(timerPause)
+        timerPauseItem = timerPause
+        let timerExtend = NSMenuItem(
+            title: "增加 5 分钟",
+            action: #selector(extendTimer),
+            keyEquivalent: ""
+        )
+        timerExtend.target = self
+        timerControlMenu.addItem(timerExtend)
+        timerExtendItem = timerExtend
+        let timerCancel = NSMenuItem(
+            title: "取消计时",
+            action: #selector(cancelTimer),
+            keyEquivalent: ""
+        )
+        timerCancel.target = self
+        timerControlMenu.addItem(timerCancel)
+        timerCancelItem = timerCancel
+        timerControl.submenu = timerControlMenu
         menu.addItem(timerControl)
         timerControlItem = timerControl
 
@@ -769,6 +802,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             try runtime.update { $0.pet.roamWhenNoTasks.toggle() }
             panelController.apply(runtime: runtime)
             syncQuickSettingsMenu()
+            settingsController?.mergeQuickSettingsFromRuntime()
         } catch {
             panelController.say("没能改好游动设置。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
         }
@@ -780,7 +814,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func togglePerformancePanel() {
         updateQuickSetting(event: "interaction.performancePanelToggle") { $0.performance.panelEnabled.toggle() }
+        syncPerformanceMonitoringPolicy()
         if !runtime.config.performance.panelEnabled { panelController.updatePerformance(nil) }
+    }
+
+    private func syncPerformanceMonitoringPolicy() {
+        guard let performanceMonitor else { return }
+        performanceMonitor.memoryLimitMB = runtime.config.performance.memoryLimitMb
+        performanceMonitor.autoQuitEnabled = runtime.config.performance.autoQuitEnabled
+        performanceMonitor.policy = PerformanceMonitoringPolicy.resolve(
+            panelEnabled: runtime.config.performance.panelEnabled,
+            autoQuitEnabled: runtime.config.performance.autoQuitEnabled
+        )
     }
 
     @objc private func toggleLaunchAtLogin() {
@@ -960,20 +1005,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         quickTimerItem?.isHidden = state.timer != nil
         guard let timer = state.timer else { return }
         timerControlItem?.title = "\(english ? "Timer" : "计时器") · \(clockService?.remainingTimerText() ?? "00:00")"
-        let submenu = NSMenu()
-        let pause = NSMenuItem(
-            title: timer.state == "running"
-                ? (english ? "Pause timer" : "暂停计时")
-                : (english ? "Resume timer" : "继续计时"),
-            action: #selector(pauseOrResumeTimer),
-            keyEquivalent: ""
-        )
-        pause.target = self; submenu.addItem(pause)
-        let extend = NSMenuItem(title: english ? "Add 5 minutes" : "增加 5 分钟", action: #selector(extendTimer), keyEquivalent: "")
-        extend.target = self; submenu.addItem(extend)
-        let cancel = NSMenuItem(title: english ? "Cancel timer" : "取消计时", action: #selector(cancelTimer), keyEquivalent: "")
-        cancel.target = self; submenu.addItem(cancel)
-        timerControlItem?.submenu = submenu
+        timerPauseItem?.title = timer.state == "running"
+            ? (english ? "Pause timer" : "暂停计时")
+            : (english ? "Resume timer" : "继续计时")
+        timerExtendItem?.title = english ? "Add 5 minutes" : "增加 5 分钟"
+        timerCancelItem?.title = english ? "Cancel timer" : "取消计时"
     }
 
     @objc private func snoozeClockAlert() {
@@ -1037,13 +1073,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self?.presentSentFishMessage(result, contact: contact)
                 }
             )
-            fishChatController?.onVisibilityChanged = { [weak self] visible in
-                self?.panelController.setComposerPaused(visible)
-            }
         }
         fishChatController?.showHistory(contactID: contactID, preferUnread: preferUnread)
         fishChatController?.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     @MainActor @objc private func openFishMessageComposer() {
@@ -1077,8 +1109,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             preferredContactID: preferredContactID,
             sceneAnchor: panelController.sceneAnchor
         )
-        fishMessageComposeController?.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     @MainActor private func presentSentFishMessage(
@@ -1168,8 +1198,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self.fishMessageComposeController?.updateLocale(self.runtime.config.ui.locale)
                     self.clockQuickController?.updateLocale(self.runtime.config.ui.locale)
                 }
-                self.performanceMonitor?.memoryLimitMB = self.runtime.config.performance.memoryLimitMb
-                self.performanceMonitor?.autoQuitEnabled = self.runtime.config.performance.autoQuitEnabled
+                self.syncPerformanceMonitoringPolicy()
                 if !self.runtime.config.performance.panelEnabled { self.panelController.updatePerformance(nil) }
                 self.calendarService?.stop()
                 self.calendarService?.start()

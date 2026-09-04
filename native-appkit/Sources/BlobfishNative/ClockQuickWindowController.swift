@@ -160,16 +160,10 @@ struct ClockQuickView: View {
             .frame(minHeight: 20)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(Color.white.opacity(0.7))
+            .background(.regularMaterial)
         }
         .frame(minWidth: 460, minHeight: 500)
-        .background(
-            LinearGradient(
-                colors: [Color(red: 0.95, green: 0.98, blue: 0.97), Color(red: 0.99, green: 0.97, blue: 0.94)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
+        .background(SettingsSurfacePalette.windowBackground)
     }
 
     private var header: some View {
@@ -178,7 +172,7 @@ struct ClockQuickView: View {
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(Color(red: 0.82, green: 0.31, blue: 0.34))
                 .frame(width: 44, height: 44)
-                .background(Color.white.opacity(0.78), in: RoundedRectangle(cornerRadius: 13))
+                .background(SettingsSurfacePalette.controlBackground, in: RoundedRectangle(cornerRadius: 13))
             VStack(alignment: .leading, spacing: 2) {
                 Text(t("闹钟与计时器", "Alarms & Timers"))
                     .font(.system(size: 22, weight: .bold, design: .rounded))
@@ -188,7 +182,7 @@ struct ClockQuickView: View {
             Spacer()
         }
         .padding(14)
-        .background(Color.white.opacity(0.58))
+        .background(.thinMaterial)
         .overlay(alignment: .bottom) { Divider() }
     }
 
@@ -376,8 +370,8 @@ private struct QuickClockCard<Content: View>: View {
         VStack(alignment: .leading, spacing: 10) { content }
             .padding(13)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white.opacity(0.82), in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.black.opacity(0.07)))
+            .background(SettingsSurfacePalette.controlBackground, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(SettingsSurfacePalette.separator))
     }
 }
 
@@ -420,7 +414,9 @@ final class ClockQuickWindowController: NSWindowController, NSWindowDelegate {
     private func startRefreshTimer() {
         stopRefreshTimer()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            self?.viewModel.refresh()
+            Task { @MainActor [weak self] in
+                self?.viewModel.refresh()
+            }
         }
         if let refreshTimer { RunLoop.main.add(refreshTimer, forMode: .common) }
     }

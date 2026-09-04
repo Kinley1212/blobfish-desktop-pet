@@ -182,12 +182,15 @@ final class RoutineService {
         batteryPollGeneration = generation
         batteryQueue.async { [weak self] in
             let sample: BatterySample
-            let process = Process(); process.executableURL = URL(fileURLWithPath: "/usr/bin/pmset"); process.arguments = ["-g", "batt"]
-            let pipe = Pipe(); process.standardOutput = pipe; process.standardError = Pipe()
             do {
-                try process.run(); process.waitUntilExit()
-                guard process.terminationStatus == 0,
-                      let text = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) else {
+                let result = try BoundedProcessRunner.run(
+                    executableURL: URL(fileURLWithPath: "/usr/bin/pmset"),
+                    arguments: ["-g", "batt"],
+                    timeout: 5,
+                    captureStandardOutput: true
+                )
+                guard result.terminationStatus == 0,
+                      let text = String(data: result.standardOutput, encoding: .utf8) else {
                     sample = .unavailable
                     DispatchQueue.main.async { self?.finishBatteryPoll(sample, generation: generation) }
                     return

@@ -19,6 +19,10 @@ enum PetMotionTiming {
     static let swimDistance = 5.0
     static let bobVisibilityTransitionDuration: TimeInterval = 0.2
 
+    static func clampedFrameElapsed(_ elapsed: TimeInterval) -> TimeInterval {
+        max(0, min(elapsed, 0.05))
+    }
+
     static func cubicBezier(
         _ progress: Double,
         x1: Double, y1: Double,
@@ -50,7 +54,7 @@ enum PetMotionTiming {
     }
 
     static func travelDistance(speed: Double, elapsed: TimeInterval) -> CGFloat {
-        CGFloat(speed * pointsPerSecondPerSpeedUnit * max(0, min(elapsed, 0.05)))
+        CGFloat(speed * pointsPerSecondPerSpeedUnit * clampedFrameElapsed(elapsed))
     }
 
     static func advancedBobElapsed(
@@ -602,6 +606,8 @@ final class PetPanelController {
     private let petView: PetView
     private let guestView: PetView
     private let overlayView: PetView
+    private var visibleFrames = NSScreen.screens.map(\.visibleFrame)
+    private var screenParametersObserver: NSObjectProtocol?
     private lazy var movementDisplayLink = DisplayLinkDriver { [weak self] _ in
         self?.moveOneFrame()
     }
@@ -753,6 +759,19 @@ final class PetPanelController {
         centerOnPrimaryScreen()
         syncSceneOverlay()
         syncMovementTimer()
+        screenParametersObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.refreshVisibleFrames()
+        }
+    }
+
+    deinit {
+        if let screenParametersObserver {
+            NotificationCenter.default.removeObserver(screenParametersObserver)
+        }
     }
 
     func show() {
@@ -1059,7 +1078,6 @@ final class PetPanelController {
                 allowed: allowed
             )
             self.setPanelOriginIfChanged(origin)
-            self.syncSceneOverlay()
             if phase >= 1 {
                 timer.invalidate()
                 self.remoteInteractionTimer = nil
@@ -1508,15 +1526,17 @@ final class PetPanelController {
     }
 
     private func moveOneFrame() {
+        let frameVisibleFrames = visibleFrames
         let visualBounds = currentMovementBounds
         let actualOrigin = panel.frame.origin
         guard let allowed = PetMovementGeometry.allowedOrigins(
-            visibleFrames: NSScreen.screens.map(\.visibleFrame),
+            visibleFrames: frameVisibleFrames,
             visualBounds: visualBounds,
             currentOrigin: actualOrigin
         ) else { return }
         let uptime = ProcessInfo.processInfo.systemUptime
         let elapsed = uptime - (lastFrameUptime ?? uptime - 1.0 / PetMotionTiming.framesPerSecond)
+        let physicsElapsed = PetMotionTiming.clampedFrameElapsed(elapsed)
         lastFrameUptime = uptime
         let step = PetMotionTiming.travelDistance(speed: config.pet.speed, elapsed: elapsed)
         let motionElapsed = uptime - motionStartUptime
@@ -1559,12 +1579,13 @@ final class PetPanelController {
             guestView.motionState = motionState
             guestView.updateMotion(elapsed: motionElapsed, bobOffset: bob)
         }
-        syncSceneOverlay()
-
         if dragging { return }
         if movementPaused { return }
         if var velocity = flingVelocity {
-            let intended = NSPoint(x: origin.x + velocity.dx * elapsed, y: origin.y + velocity.dy * elapsed)
+            let intended = NSPoint(
+                x: origin.x + velocity.dx * physicsElapsed,
+                y: origin.y + velocity.dy * physicsElapsed
+            )
             origin = PetMovementGeometry.clamped(intended, to: allowed)
             var bounced = false
             if abs(origin.x - intended.x) > 0.001 {
@@ -1576,7 +1597,7 @@ final class PetPanelController {
                 bounced = true
             }
             if bounced { petView.playBumpEffect() }
-            let decay = pow(0.985, elapsed / 0.03)
+            let decay = pow(0.985, physicsElapsed / 0.03)
             velocity.dx *= decay
             velocity.dy *= decay
             if hypot(velocity.dx, velocity.dy) < 16.67 {
@@ -1588,7 +1609,9 @@ final class PetPanelController {
                 petView.direction = velocity.dx >= 0 ? 1 : -1
                 guestView.direction = petView.direction
             }
-            setPanelOriginIfChanged(origin)
+            if setPanelOriginIfChanged(origin, syncOverlay: false) {
+                syncSceneOverlay(visibleFrames: frameVisibleFrames)
+            }
             preciseOrigin = origin
             // A fling is also a deliberate placement. Keep its latest height
             // as the horizontal-roaming baseline so the first frame after the
@@ -1632,7 +1655,9 @@ final class PetPanelController {
             petView.direction = movementDirection
             guestView.direction = movementDirection
         }
-        setPanelOriginIfChanged(origin)
+        if setPanelOriginIfChanged(origin, syncOverlay: false) {
+            syncSceneOverlay(visibleFrames: frameVisibleFrames)
+        }
         preciseOrigin = origin
         bobBaselineY = origin.y
         lastAutomaticOrigin = panel.frame.origin
@@ -1729,11 +1754,15 @@ final class PetPanelController {
         onPetting?(pettingStreak)
     }
 
-    private func setPanelOriginIfChanged(_ origin: NSPoint) {
+    @discardableResult
+    private func setPanelOriginIfChanged(_ origin: NSPoint, syncOverlay: Bool = true) -> Bool {
         let current = panel.frame.origin
-        guard abs(current.x - origin.x) > 0.001 || abs(current.y - origin.y) > 0.001 else { return }
+        guard abs(current.x - origin.x) > 0.001 || abs(current.y - origin.y) > 0.001 else {
+            return false
+        }
         panel.setFrameOrigin(origin)
-        syncSceneOverlay()
+        if syncOverlay { syncSceneOverlay() }
+        return true
     }
 
     private var currentMovementBounds: NSRect {
@@ -1744,7 +1773,16 @@ final class PetPanelController {
         )
     }
 
+    private func refreshVisibleFrames() {
+        visibleFrames = NSScreen.screens.map(\.visibleFrame)
+        syncSceneOverlay()
+    }
+
     private func syncSceneOverlay() {
+        syncSceneOverlay(visibleFrames: visibleFrames)
+    }
+
+    private func syncSceneOverlay(visibleFrames: [NSRect]) {
         // Overlay cards follow the panel/formation, not the five-point artwork
         // bob. This preserves the previous stable-card behavior and avoids a
         // full visible-frame redraw on every idle display-link tick.
@@ -1760,7 +1798,7 @@ final class PetPanelController {
         guard let nextAnchor = PetAttachedWindowGeometry.anchor(
             primaryFrame: primary,
             formationFrame: formation,
-            visibleFrames: NSScreen.screens.map(\.visibleFrame)
+            visibleFrames: visibleFrames
         ) else { return }
         let visibleFrame = nextAnchor.visibleFrame
         let sceneFrame = PetOverlayScreenGeometry.sceneFrame(

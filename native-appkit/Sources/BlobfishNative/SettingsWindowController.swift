@@ -92,7 +92,6 @@ final class SettingsViewModel: ObservableObject {
         accessories = runtime.accessories
         self.onApply = onApply
         if !runtime.warnings.isEmpty { message = runtime.warnings.joined(separator: "\n") }
-        refreshIntegrations()
         loadFishDrafts()
         refreshFishState()
         messengerService?.addStateObserver { [weak self] in self?.refreshFishState() }
@@ -179,7 +178,13 @@ final class SettingsViewModel: ObservableObject {
             if messengerService.profile != nil {
                 try messengerService.updateDisplayName(fishDisplayName)
             }
-            try messengerService.updatePreferences(fishPreferences)
+            var nextPreferences = fishPreferences
+            // Status is controlled by the context menu, not this settings
+            // draft. Preserve its latest service value when saving other fish
+            // preferences so an older open window cannot roll it back.
+            nextPreferences.currentStatus = messengerService.preferences.currentStatus
+            try messengerService.updatePreferences(nextPreferences)
+            fishPreferences = nextPreferences
             message = isEnglish ? "Fish friend settings saved." : "鱼友设置已保存。"
         } catch { message = error.localizedDescription }
     }
@@ -459,7 +464,7 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func refreshIntegrations() {
-        for provider in ["codex", "claude"] {
+        for provider in ["codex", "claude"] where !integrationBusy.contains(provider) {
             integrationBusy.insert(provider)
             integrationManager.inspect(provider) { [weak self] status in
                 self?.integrationStatuses[provider] = status
@@ -469,6 +474,7 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func connectIntegration(_ provider: String) {
+        guard !integrationBusy.contains(provider) else { return }
         integrationBusy.insert(provider)
         integrationManager.connect(provider) { [weak self] result in
             guard let self else { return }

@@ -376,7 +376,7 @@ final class FishFriendStore {
         }
     }
 
-    private static let maximumFileBytes = 2 * 1024 * 1024
+    private static let maximumFileBytes = 4 * 1024 * 1024
     private let fileURL: URL
 
     init(directoryURL: URL) {
@@ -422,8 +422,14 @@ final class FishFriendStore {
         }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(State(preferences: preferences, records: FishMessageHistory.bounded(records)))
-            .write(to: fileURL, options: .atomic)
+        let data = try encoder.encode(State(
+            preferences: preferences,
+            records: FishMessageHistory.bounded(records)
+        ))
+        guard data.count <= Self.maximumFileBytes else {
+            throw StoreError.invalidStateFile
+        }
+        try data.write(to: fileURL, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
     }
 }

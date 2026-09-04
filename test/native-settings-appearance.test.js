@@ -10,6 +10,13 @@ const settingsSource = fs.readFileSync(
 const viewStart = settingsSource.indexOf('struct BrandedSettingsView: View');
 const viewEnd = settingsSource.indexOf('final class SettingsWindowController');
 const viewSource = settingsSource.slice(viewStart, viewEnd);
+const clockQuickSource = fs.readFileSync(
+  path.join(__dirname, '..', 'native-appkit', 'Sources', 'BlobfishNative', 'ClockQuickWindowController.swift'),
+  'utf8',
+);
+const clockQuickViewStart = clockQuickSource.indexOf('struct ClockQuickView: View');
+const clockQuickViewEnd = clockQuickSource.indexOf('final class ClockQuickWindowController');
+const clockQuickViewSource = clockQuickSource.slice(clockQuickViewStart, clockQuickViewEnd);
 
 test('native settings surfaces use system-adaptive colors and materials', () => {
   assert.notEqual(viewStart, -1);
@@ -35,4 +42,20 @@ test('native settings surfaces do not reintroduce fixed light fills', () => {
     viewSource,
     /colors:\s*\[\s*Color\(red:\s*0\.95[\s\S]*?Color\(red:\s*0\.98/,
   );
+});
+
+test('quick clock surfaces use system-adaptive colors and materials', () => {
+  assert.notEqual(clockQuickViewStart, -1);
+  assert.notEqual(clockQuickViewEnd, -1);
+  assert.match(clockQuickViewSource, /\.background\(SettingsSurfacePalette\.windowBackground\)/);
+  assert.match(clockQuickViewSource, /SettingsSurfacePalette\.controlBackground/);
+  assert.match(clockQuickViewSource, /SettingsSurfacePalette\.separator/);
+  assert.match(clockQuickViewSource, /\.background\(\.thinMaterial\)/);
+  assert.match(clockQuickViewSource, /\.background\(\.regularMaterial\)/);
+});
+
+test('quick clock surfaces do not reintroduce fixed light fills', () => {
+  assert.doesNotMatch(clockQuickViewSource, /\.background\(\s*Color\.white\b/);
+  assert.doesNotMatch(clockQuickViewSource, /Color\.black\b/);
+  assert.doesNotMatch(clockQuickViewSource, /LinearGradient\s*\(/);
 });

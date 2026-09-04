@@ -51,60 +51,118 @@ enum PerformanceMath {
     }
 }
 
+enum PerformanceMonitoringPolicy: Equatable {
+    case disabled
+    case memoryOnly
+    case full
+
+    static func resolve(panelEnabled: Bool, autoQuitEnabled: Bool) -> Self {
+        if panelEnabled { return .full }
+        if autoQuitEnabled { return .memoryOnly }
+        return .disabled
+    }
+
+    var schedulesTimer: Bool { self != .disabled }
+    var collectsSystemMetrics: Bool { self == .full }
+}
+
 final class PerformanceMonitor {
     var onSample: ((PerformanceSample) -> Void)?
     var onSustainedMemoryLimit: (() -> Void)?
     var memoryLimitMB = 1024.0
-    var autoQuitEnabled = false
+    var autoQuitEnabled = false {
+        didSet {
+            if !autoQuitEnabled { memoryExceededAt = nil }
+        }
+    }
+    var policy = PerformanceMonitoringPolicy.disabled {
+        didSet {
+            guard oldValue != policy else { return }
+            timer?.invalidate()
+            timer = nil
+            resetCPUBaseline()
+            if policy == .disabled { memoryExceededAt = nil }
+            syncTimer()
+        }
+    }
 
     private var timer: Timer?
+    private var isRunning = false
     private var previousCPU: (idle: UInt64, total: UInt64)?
     private var previousProcessCPU: TimeInterval?
     private var previousDate: Date?
     private var memoryExceededAt: Date?
 
+    deinit {
+        timer?.invalidate()
+    }
+
     func start() {
-        guard timer == nil else { return }
-        sample()
-        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.sample() }
-        RunLoop.main.add(timer!, forMode: .common)
+        guard !isRunning else { return }
+        isRunning = true
+        resetCPUBaseline()
+        syncTimer()
     }
 
     func stop() {
+        isRunning = false
         timer?.invalidate()
         timer = nil
-        previousCPU = nil
-        previousProcessCPU = nil
-        previousDate = nil
+        resetCPUBaseline()
         memoryExceededAt = nil
     }
 
+    private func syncTimer() {
+        guard isRunning else { return }
+        guard policy.schedulesTimer else {
+            timer?.invalidate()
+            timer = nil
+            return
+        }
+        guard timer == nil else { return }
+        sample()
+        guard isRunning, policy.schedulesTimer, timer == nil else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            self?.sample()
+        }
+        if let timer { RunLoop.main.add(timer, forMode: .common) }
+    }
+
+    private func resetCPUBaseline() {
+        previousCPU = nil
+        previousProcessCPU = nil
+        previousDate = nil
+    }
+
     private func sample() {
+        guard policy.schedulesTimer else { return }
         let now = Date()
-        let cpu = readSystemCPU()
-        let processCPUTime = readProcessCPUTime()
-        let processCPU: Double
-        if let prior = previousProcessCPU, let priorDate = previousDate {
-            processCPU = PerformanceMath.processCPUPercent(
-                cpuTimeDelta: processCPUTime - prior,
-                elapsed: now.timeIntervalSince(priorDate),
-                logicalProcessorCount: ProcessInfo.processInfo.activeProcessorCount
-            )
-        } else { processCPU = 0 }
-        previousProcessCPU = processCPUTime; previousDate = now
-        let memory = readSystemMemoryPercent()
         let appMemory = readAppMemoryMB()
-        let value = PerformanceSample(
-            systemCPUPercent: cpu,
-            systemRAMPercent: memory,
-            appCPUPercent: processCPU,
-            appRAMPercent: PerformanceMath.appRAMPercent(
-                appMemoryMB: appMemory,
-                physicalMemory: ProcessInfo.processInfo.physicalMemory
-            ),
-            appMemoryMB: appMemory
-        )
-        onSample?(value)
+        if policy.collectsSystemMetrics {
+            let cpu = readSystemCPU()
+            let processCPUTime = readProcessCPUTime()
+            let processCPU: Double
+            if let prior = previousProcessCPU, let priorDate = previousDate {
+                processCPU = PerformanceMath.processCPUPercent(
+                    cpuTimeDelta: processCPUTime - prior,
+                    elapsed: now.timeIntervalSince(priorDate),
+                    logicalProcessorCount: ProcessInfo.processInfo.activeProcessorCount
+                )
+            } else { processCPU = 0 }
+            previousProcessCPU = processCPUTime; previousDate = now
+            let memory = readSystemMemoryPercent()
+            let value = PerformanceSample(
+                systemCPUPercent: cpu,
+                systemRAMPercent: memory,
+                appCPUPercent: processCPU,
+                appRAMPercent: PerformanceMath.appRAMPercent(
+                    appMemoryMB: appMemory,
+                    physicalMemory: ProcessInfo.processInfo.physicalMemory
+                ),
+                appMemoryMB: appMemory
+            )
+            onSample?(value)
+        }
 
         if autoQuitEnabled, appMemory >= memoryLimitMB {
             if memoryExceededAt == nil { memoryExceededAt = now }

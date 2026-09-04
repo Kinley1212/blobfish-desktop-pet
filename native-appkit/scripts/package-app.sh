@@ -29,7 +29,7 @@ SIGN_IDENTITY=${CODE_SIGN_IDENTITY:--}
 if [ "$SIGN_IDENTITY" = "-" ]; then
   codesign --force --sign - "$CONTENTS/Resources/native/blobfish-agent-event-sender"
   codesign --force --sign - "$APP"
-  printf '%s\n' 'Warning: packaged with an ad-hoc signature for local development only.' >&2
+  printf '%s\n' 'Packaged with an ad-hoc signature; no Developer ID or notarization.' >&2
 else
   codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" \
     "$CONTENTS/Resources/native/blobfish-agent-event-sender"

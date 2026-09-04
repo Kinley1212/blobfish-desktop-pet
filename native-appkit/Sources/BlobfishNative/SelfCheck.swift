@@ -32,6 +32,7 @@ enum SelfCheck {
             ("native prerelease versions compare correctly", nativePrereleaseVersionsCompareCorrectly),
             ("directory install restores backup on failure", directoryInstallRestoresBackupOnFailure),
             ("native updater cleans install staging on failure", nativeUpdaterCleansInstallStagingOnFailure),
+            ("bounded subprocesses drain output and time out", boundedSubprocessesDrainOutputAndTimeOut),
             ("single instance lock", singleInstanceLock),
             ("login item setting rolls back on save failure", loginItemSettingRollsBackOnSaveFailure),
             ("dragged height preservation", draggedHeightPreservation),
@@ -60,6 +61,7 @@ enum SelfCheck {
             ("expression respects character viewBox origin", expressionRespectsCharacterViewBoxOrigin),
             ("non-face accessories respect character viewBox origin", nonFaceAccessoryRespectsCharacterViewBoxOrigin),
             ("performance percentages share system capacity", performancePercentagesShareSystemCapacity),
+            ("performance monitor selects minimal sampling policy", performanceMonitorSelectsMinimalSamplingPolicy),
             ("system RAM excludes reclaimable cache", systemRAMExcludesReclaimableCache),
             ("performance panel stays on canvas", performancePanelStaysOnCanvas),
             ("performance bars nest and animate", performanceBarsNestAndAnimate),
@@ -91,7 +93,9 @@ enum SelfCheck {
             ("fish chat preserves a changed draft", fishChatPreservesChangedDraft),
             ("fish history opens the intended contact", fishHistoryOpensIntendedContact),
             ("fish composer chooses an explicit recipient", fishComposerChoosesExplicitRecipient),
+            ("fish stationery preserves multiline drafts and screen bounds", fishStationeryContract),
             ("task monitor drops callbacks after stop", taskMonitorDropsCallbacksAfterStop),
+            ("task monitor skips disabled providers and duplicate snapshots", taskMonitorSkipsDisabledProvidersAndDuplicates),
             ("bounded reminder history keeps recent deduplication", boundedReminderHistoryKeepsRecentDeduplication),
         ]
         var passed = 0
@@ -213,6 +217,30 @@ enum SelfCheck {
         return true
     }
 
+    private static func fishStationeryContract() throws -> Bool {
+        let text = "第一行。\n第二行，魚魚慢慢說。"
+        let sender = FishMessengerIdentity(), recipient = FishMessengerIdentity()
+        let message = try FishMessage(senderName: "魚魚", text: text)
+        let envelope = try sender.encrypt(message, for: recipient.publicKey)
+        guard try recipient.decrypt(envelope, expectedSenderPublicKey: sender.publicKey).text == text else { return false }
+        let contact = UUID()
+        guard !FishChatDraftPolicy.shouldClear(
+            currentDraft: text + "\n新的一行", draftAtSend: text,
+            selectedContactID: contact, sentContactID: contact
+        ) else { return false }
+        let screen = NSRect(x: -1280, y: 180, width: 1280, height: 800)
+        for origin in [NSPoint(x: -1280, y: 180), NSPoint(x: -105, y: 890)] {
+            let character = NSRect(origin: origin, size: NSSize(width: 105, height: 90))
+            guard let anchor = PetAttachedWindowGeometry.anchor(
+                primaryFrame: character, formationFrame: character, visibleFrames: [screen]
+            ) else { return false }
+            // Includes room for the standard title bar; no window is shown.
+            let frame = PetAttachedWindowGeometry.frame(windowSize: NSSize(width: 360, height: 390), anchor: anchor)
+            guard screen.contains(frame), !frame.intersects(character) else { return false }
+        }
+        return true
+    }
+
     private static func fishMessageEncryption() throws -> Bool {
         let sender = FishMessengerIdentity()
         let recipient = FishMessengerIdentity()
@@ -244,7 +272,29 @@ enum SelfCheck {
         )
         let envelope = try sender.encrypt(message, for: recipient.publicKey)
         let decoded = try recipient.decrypt(envelope, expectedSenderPublicKey: sender.publicKey)
-        return decoded.kind == .visitStart && decoded.presence == presence && decoded.bubbleColor == "#1F7AE8"
+        let combinedByteCount = Data(base64Encoded: envelope.ciphertext)?.count ?? Int.max
+        guard decoded.kind == .visitStart,
+              decoded.presence == presence,
+              decoded.bubbleColor == "#1F7AE8",
+              combinedByteCount <= FishEncryptedEnvelope.maximumCombinedBytes else { return false }
+
+        let oversizedPresence = FishPresence(
+            characterPackID: String(repeating: "x", count: FishEncryptedEnvelope.maximumCombinedBytes * 2),
+            customization: nil,
+            accessories: nil
+        )
+        let oversized = try FishMessage(
+            senderName: "小鱼",
+            text: "来串门啦！",
+            kind: .visitStart,
+            presence: oversizedPresence
+        )
+        do {
+            _ = try sender.encrypt(oversized, for: recipient.publicKey)
+            return false
+        } catch FishMessengerError.invalidMessage {
+            return true
+        }
     }
 
     private static func fishReceiptAndInteractionEncryption() throws -> Bool {
@@ -1738,6 +1788,27 @@ enum SelfCheck {
         }
     }
 
+    private static func boundedSubprocessesDrainOutputAndTimeOut() throws -> Bool {
+        let completed = try BoundedProcessRunner.run(
+            executableURL: URL(fileURLWithPath: "/usr/bin/seq"),
+            arguments: ["1", "20000"],
+            timeout: 3,
+            captureStandardOutput: true
+        )
+        guard completed.terminationStatus == 0,
+              completed.standardOutput.count > 64 * 1024 else { return false }
+        do {
+            _ = try BoundedProcessRunner.run(
+                executableURL: URL(fileURLWithPath: "/bin/sleep"),
+                arguments: ["2"],
+                timeout: 0.05
+            )
+            return false
+        } catch BoundedProcessRunnerError.timedOut {
+            return true
+        }
+    }
+
     private static func taskMonitorDropsCallbacksAfterStop() throws -> Bool {
         try withPrivateDirectory { directory in
             let monitor = TaskMonitor(directoryURL: directory)
@@ -1754,6 +1825,48 @@ enum SelfCheck {
             monitor.stop()
             return updates == 1
         }
+    }
+
+    private static func taskMonitorSkipsDisabledProvidersAndDuplicates() throws -> Bool {
+        var reads = 0
+        let disabled = try TaskMonitorPollingPolicy.snapshot(
+            enabledProviders: [],
+            includeTitles: true,
+            nowMilliseconds: 10_000,
+            readLeases: {
+                reads += 1
+                return []
+            }
+        )
+        guard disabled == .idle, reads == 0 else { return false }
+
+        let lease = TaskLease(
+            version: 1,
+            provider: "codex",
+            event: .running,
+            sessionId: "task-1",
+            turnId: nil,
+            title: "Running task",
+            timestamp: 9_000,
+            startedAt: 8_000
+        )
+        let running = try TaskMonitorPollingPolicy.snapshot(
+            enabledProviders: ["codex"],
+            includeTitles: true,
+            nowMilliseconds: 10_000,
+            readLeases: {
+                reads += 1
+                return [lease]
+            }
+        )
+        guard reads == 1, running.state == .running else { return false }
+
+        var deduplicator = TaskSnapshotDeduplicator()
+        guard deduplicator.shouldDeliver(running),
+              !deduplicator.shouldDeliver(running),
+              deduplicator.shouldDeliver(.idle) else { return false }
+        deduplicator.reset()
+        return deduplicator.shouldDeliver(.idle)
     }
 
     private static func boundedReminderHistoryKeepsRecentDeduplication() -> Bool {
@@ -1838,6 +1951,8 @@ enum SelfCheck {
         let grassIdle = PetMotionTiming.swimOffset(elapsed: 1.8, characterID: "grass-buddy", state: .idle)
         let grassRoam = PetMotionTiming.swimOffset(elapsed: 0.42, characterID: "grass-buddy", state: .roam)
         return PetMotionTiming.framesPerSecond == 60
+            && PetMotionTiming.clampedFrameElapsed(-1) == 0
+            && PetMotionTiming.clampedFrameElapsed(2) == 0.05
             && abs(oneSecondDistance - 50) < 0.001
             && abs(PetMotionTiming.swimOffset(elapsed: 0)) < 0.001
             && abs(PetMotionTiming.swimOffset(elapsed: 0.45) - 5) < 0.001
@@ -1996,6 +2111,34 @@ enum SelfCheck {
             physicalMemory: 16 * 1_024 * 1_024 * 1_024
         )
         return abs(cpu - 4.25) < 0.001 && abs(ram - 1.5625) < 0.001
+    }
+
+    private static func performanceMonitorSelectsMinimalSamplingPolicy() -> Bool {
+        let disabled = PerformanceMonitoringPolicy.resolve(
+            panelEnabled: false,
+            autoQuitEnabled: false
+        )
+        let memoryOnly = PerformanceMonitoringPolicy.resolve(
+            panelEnabled: false,
+            autoQuitEnabled: true
+        )
+        let panelOnly = PerformanceMonitoringPolicy.resolve(
+            panelEnabled: true,
+            autoQuitEnabled: false
+        )
+        let panelAndAutoQuit = PerformanceMonitoringPolicy.resolve(
+            panelEnabled: true,
+            autoQuitEnabled: true
+        )
+        return disabled == .disabled
+            && !disabled.schedulesTimer
+            && !disabled.collectsSystemMetrics
+            && memoryOnly == .memoryOnly
+            && memoryOnly.schedulesTimer
+            && !memoryOnly.collectsSystemMetrics
+            && panelOnly == .full
+            && panelOnly.collectsSystemMetrics
+            && panelAndAutoQuit == .full
     }
 
     private static func systemRAMExcludesReclaimableCache() -> Bool {
