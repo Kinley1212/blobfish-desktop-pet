@@ -52,6 +52,18 @@
       "weight": 4
     },
     {
+      "id": "en-messenger-visit-offline-01",
+      "event": "messenger.visitOffline",
+      "text": "{friend} went offline… I suppose the desk is mine again. Visit ended.",
+      "weight": 5
+    },
+    {
+      "id": "en-messenger-visit-offline-02",
+      "event": "messenger.visitOffline",
+      "text": "No answer from {friend}. They probably sank… visit ended.",
+      "weight": 4
+    },
+    {
       "id": "en-messenger-sent-01",
       "event": "messenger.sent",
       "text": "Message delivered… I kept the letter dry.",

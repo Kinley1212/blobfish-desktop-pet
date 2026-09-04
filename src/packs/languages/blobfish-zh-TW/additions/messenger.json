@@ -52,6 +52,18 @@
       "weight": 4
     },
     {
+      "id": "messenger-visit-offline-01",
+      "event": "messenger.visitOffline",
+      "text": "{friend} 下線了……那我把桌面空回來。串門結束。",
+      "weight": 5
+    },
+    {
+      "id": "messenger-visit-offline-02",
+      "event": "messenger.visitOffline",
+      "text": "{friend} 沒有回應。大概沉下去了……串門先結束。",
+      "weight": 4
+    },
+    {
       "id": "messenger-sent-01",
       "event": "messenger.sent",
       "text": "傳話送到了……我游得很輕，沒把信弄濕。",

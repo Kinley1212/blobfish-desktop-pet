@@ -347,6 +347,7 @@ final class FishMessengerService: NSObject {
     private var stateObservers: [() -> Void] = []
     private var deferredErrors: [Error] = []
     var onMessage: ((FishMessage, FishContact) -> Void)?
+    var onVisitTimedOut: ((FishContact) -> Void)?
     var onError: ((Error) -> Void)? {
         didSet { flushDeferredErrors() }
     }
@@ -697,15 +698,17 @@ final class FishMessengerService: NSObject {
     }
 
     private func endVisitIfPeerIsOffline(now: Date) {
-        guard activeVisitContactID != nil,
+        guard let contactID = activeVisitContactID,
               FishVisitLivenessPolicy.shouldEndVisit(
                 lastSeenAt: activeVisitLastSeenAt,
                 now: now
               ) else { return }
+        let contact = profile?.contacts.first(where: { $0.id == contactID })
         activeVisitContactID = nil
         activeVisitLastSeenAt = nil
         lastVisitHeartbeatSentAt = nil
         notifyState()
+        if let contact { onVisitTimedOut?(contact) }
     }
 
     @discardableResult

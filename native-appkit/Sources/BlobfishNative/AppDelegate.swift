@@ -202,6 +202,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             indicatorID: messenger.preferences.effectiveMessageIndicatorID
         )
         updateMessengerMenu(unreadCount: messenger.unreadCount)
+        messenger.onVisitTimedOut = { [weak self] contact in
+            guard let self else { return }
+            let friendName = contact.nickname ?? contact.invite.displayName
+            let phrase = self.runtime.phrase(
+                event: "messenger.visitOffline",
+                context: ["friend": .string(friendName)]
+            ) ?? (self.runtime.config.ui.locale == "en"
+                ? "\(friendName) went offline. The visit ended."
+                : "\(friendName) 下線啦，串門結束。")
+            self.panelController.say(
+                phrase,
+                event: "messenger.visitOffline",
+                duration: 4.5,
+                priority: SpeechPriority.messenger,
+                replaceKey: "messenger.visitOffline"
+            )
+        }
         messenger.onMessage = { [weak self, weak messenger] message, contact in
             guard let self, let messenger, !contact.muted else { return }
             let kind = message.kind ?? .text
