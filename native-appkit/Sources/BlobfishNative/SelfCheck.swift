@@ -234,9 +234,13 @@ enum SelfCheck {
             guard let anchor = PetAttachedWindowGeometry.anchor(
                 primaryFrame: character, formationFrame: character, visibleFrames: [screen]
             ) else { return false }
-            // Includes room for the standard title bar; no window is shown.
-            let frame = PetAttachedWindowGeometry.frame(windowSize: NSSize(width: 360, height: 390), anchor: anchor)
-            guard screen.contains(frame), !frame.intersects(character) else { return false }
+            for hasIncoming in [false, true] {
+                // Both compact states include room for the native title bar.
+                var size = FishComposeLayout.contentSize(hasIncoming: hasIncoming)
+                size.height += 34
+                let frame = PetAttachedWindowGeometry.frame(windowSize: size, anchor: anchor)
+                guard screen.contains(frame), !frame.intersects(character) else { return false }
+            }
         }
         return true
     }

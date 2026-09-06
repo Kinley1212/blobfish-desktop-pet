@@ -1,53 +1,20 @@
 import AppKit
 import SwiftUI
 
-// A compact, code-native post office: warm paper, a rose envelope and a
-// vertical action rail. Explicit light/dark pairs avoid pale-paper/white-text
-// mismatches; no image generation, external assets or continuous animation.
+// Share content dimensions with AppKit; the native title bar sits outside.
+enum FishComposeLayout {
+    static func contentSize(hasIncoming: Bool) -> NSSize {
+        NSSize(width: 240, height: hasIncoming ? 178 : 132)
+    }
+}
+
 private struct FishStationPalette {
     let dark: Bool
     var backdrop: Color { dark ? Color(red: 0.16, green: 0.12, blue: 0.15) : Color(red: 0.98, green: 0.94, blue: 0.95) }
     var paper: Color { dark ? Color(red: 0.23, green: 0.20, blue: 0.22) : Color(red: 1, green: 0.985, blue: 0.96) }
-    var envelope: Color { dark ? Color(red: 0.42, green: 0.23, blue: 0.31) : Color(red: 0.95, green: 0.70, blue: 0.77) }
-    var fold: Color { dark ? Color(red: 0.50, green: 0.28, blue: 0.37) : Color(red: 0.99, green: 0.79, blue: 0.83) }
     var ink: Color { dark ? Color(red: 0.98, green: 0.92, blue: 0.93) : Color(red: 0.30, green: 0.16, blue: 0.22) }
     var muted: Color { dark ? Color(red: 0.82, green: 0.72, blue: 0.77) : Color(red: 0.48, green: 0.32, blue: 0.38) }
     var stamp: Color { Color(red: 0.61, green: 0.21, blue: 0.35) }
-}
-
-private struct EnvelopeFold: Shape {
-    func path(in rect: CGRect) -> Path {
-        Path { path in
-            path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-            path.addLine(to: CGPoint(x: rect.midX, y: rect.height * 0.58))
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-            path.closeSubpath()
-        }
-    }
-}
-
-private struct ShellDoor: View {
-    let open: Bool
-    let palette: FishStationPalette
-
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            ForEach(0..<5) { index in
-                Ellipse()
-                    .fill(index.isMultiple(of: 2) ? palette.fold : palette.envelope)
-                    .frame(width: 16, height: 31)
-                    .rotationEffect(.degrees(Double(index - 2) * 24), anchor: .bottom)
-            }
-            RoundedRectangle(cornerRadius: 8)
-                .fill(open ? palette.ink : palette.stamp)
-                .frame(width: open ? 14 : 5, height: 20)
-            Ellipse().fill(palette.fold).frame(width: 38, height: 7).offset(y: 3)
-        }
-        .frame(width: 54, height: 38)
-        .accessibilityHidden(true)
-    }
 }
 
 struct FishMessageComposeView: View {
@@ -55,107 +22,35 @@ struct FishMessageComposeView: View {
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var writing: Bool
     private var palette: FishStationPalette { FishStationPalette(dark: colorScheme == .dark) }
+    private var size: NSSize { FishComposeLayout.contentSize(hasIncoming: !model.unreadIncomingMessages.isEmpty) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: "envelope.fill")
-                Text(t("魚魚小郵局", "Fish post office")).font(.system(.headline, design: .rounded))
-                Spacer()
-            }
-            .foregroundStyle(palette.ink)
-
+        VStack(alignment: .leading, spacing: 6) {
             if model.availableContacts.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(t("信紙準備好了。", "The paper is ready.")).font(.headline)
-                    Text(t("還沒有可以傳話的魚友，請先在設定中完成配對。", "Pair a fish in Settings before writing your first letter."))
-                        .foregroundStyle(palette.muted)
-                }
-                .padding(18)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .background(palette.paper, in: RoundedRectangle(cornerRadius: 14))
+                Label(t("還沒有魚友", "No fish friends yet"), systemImage: "envelope")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                Text(t("先在設定中配對，就可以傳話了。", "Pair a friend in Settings to start writing."))
+                    .font(.system(size: 12)).foregroundStyle(palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
             } else {
-                HStack(alignment: .top, spacing: 10) {
-                    letter
-                    actionRail
-                }
-                status
+                recipient.frame(height: 22)
+                if !model.unreadIncomingMessages.isEmpty { incomingMail }
+                editor.frame(height: 58)
+                footer.frame(height: 24)
             }
         }
-        .padding(12)
-        .frame(width: 360, height: 356)
+        .padding(8)
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
         .background(palette.backdrop)
         .foregroundStyle(palette.ink)
         .tint(palette.stamp)
     }
 
-    private var letter: some View {
-        VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 8) {
-                recipient
-                if !model.unreadIncomingMessages.isEmpty {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(t("新來信", "Incoming mail"))
-                            .font(.caption.weight(.semibold)).foregroundStyle(palette.muted)
-                        ScrollView {
-                            VStack(alignment: .leading, spacing: 6) {
-                                ForEach(model.unreadIncomingMessages.suffix(6)) { message in
-                                    Text(message.text).font(.callout).textSelection(.enabled)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                            }
-                        }
-                        .frame(height: 44)
-                    }
-                }
-                ZStack(alignment: .topLeading) {
-                    TextEditor(text: $model.draft)
-                        .font(.system(size: 14))
-                        .scrollContentBackground(.hidden)
-                        .focused($writing)
-                        .onAppear { writing = true }
-                        .accessibilityLabel(t("信件正文", "Letter body"))
-                    if model.draft.isEmpty {
-                        Text(t("想說的話，寫在這裡……", "Write a little note…"))
-                            .font(.system(size: 14)).foregroundStyle(palette.muted)
-                            .padding(.leading, 5).padding(.top, 8)
-                            .allowsHitTesting(false).accessibilityHidden(true)
-                    }
-                }
-                .frame(maxHeight: .infinity)
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(palette.paper, in: RoundedRectangle(cornerRadius: 12))
-            .padding(.horizontal, 6).padding(.top, 6)
-
-            HStack(spacing: 6) {
-                Text(t("⌘↩ 寄出", "⌘↩ Send"))
-                    .font(.caption).foregroundStyle(palette.ink)
-                Spacer(minLength: 0)
-                Button(action: sendMessageSafely) {
-                    Label(model.isSending ? t("忙碌中", "Busy") : t("寄出", "Send"), systemImage: "envelope.fill")
-                        .font(.system(.caption, design: .rounded).weight(.bold))
-                        .padding(.horizontal, 10).padding(.vertical, 8)
-                        .foregroundStyle(.white)
-                        .background(palette.stamp, in: RoundedRectangle(cornerRadius: 5))
-                }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.return, modifiers: [.command])
-                .disabled(model.sendDisabled)
-                .opacity(model.sendDisabled ? 0.55 : 1)
-                .help(t("寄出信件（Command + Return）", "Send letter (Command + Return)"))
-            }
-            .padding(10)
-            .background(EnvelopeFold().fill(palette.fold).accessibilityHidden(true))
-        }
-        .background(palette.envelope, in: RoundedRectangle(cornerRadius: 15))
-        .clipShape(RoundedRectangle(cornerRadius: 15))
-    }
-
     private var recipient: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(t("寄給", "To")).font(.caption).foregroundStyle(palette.muted)
+        HStack(spacing: 5) {
+            Image(systemName: "envelope.fill")
+                .font(.system(size: 11)).foregroundStyle(palette.muted).accessibilityHidden(true)
             if model.availableContacts.count > 1 {
                 Picker(t("收件魚友", "Recipient"), selection: $model.selectedContactID) {
                     ForEach(model.availableContacts) { contact in
@@ -163,75 +58,103 @@ struct FishMessageComposeView: View {
                     }
                 }
                 .labelsHidden().controlSize(.small)
-                .disabled(model.isSending)
+                .frame(maxWidth: .infinity).disabled(model.isSending)
             } else if let contact = model.selectedContact {
                 Text(contact.nickname ?? contact.invite.displayName)
-                    .font(.system(.callout, design: .rounded).weight(.semibold))
-                    .lineLimit(1)
-                    .help(contact.nickname ?? contact.invite.displayName)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .lineLimit(1).help(contact.nickname ?? contact.invite.displayName)
+                Spacer(minLength: 0)
             }
+            Menu {
+                ForEach(model.quickInteractions) { interaction in
+                    Button { model.sendInteraction(interaction) } label: {
+                        Label(interaction.title(isEnglish: model.isEnglish), systemImage: interaction.symbolName)
+                    }
+                }
+                Divider()
+                Button { model.toggleVisit() } label: {
+                    Label(visitTitle, systemImage: model.isActiveVisit ? "house.fill" : "door.left.hand.open")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle").font(.system(size: 15))
+                    .frame(width: 24, height: 22).contentShape(Rectangle())
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .disabled(model.isSending || model.selectedContact == nil)
+            .accessibilityLabel(t("互動與串門", "Gestures and visits"))
+            .help(t("互動與串門", "Gestures and visits"))
         }
     }
 
-    private var actionRail: some View {
-        VStack(spacing: 7) {
-            Text(t("輕輕碰一下", "Little gestures"))
-                .font(.caption).foregroundStyle(palette.muted)
-            ForEach(model.quickInteractions) { interaction in
-                Button { model.sendInteraction(interaction) } label: {
-                    VStack(spacing: 3) {
-                        Image(systemName: interaction.symbolName).font(.system(size: 16))
-                        Text(interaction.title(isEnglish: model.isEnglish))
-                            .font(.caption).multilineTextAlignment(.center).lineLimit(2)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 42)
-                    .padding(.vertical, 3)
-                    .background(palette.paper, in: RoundedRectangle(cornerRadius: 10))
-                    .contentShape(RoundedRectangle(cornerRadius: 10))
+    private var visitTitle: String {
+        model.isChangingVisit ? t("處理中…", "Please wait…")
+            : (model.isActiveVisit ? t("回自己家", "Head home") : t("去串門", "Visit friend"))
+    }
+
+    private var incomingMail: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 5) {
+                // Keep all captured letters reachable, not just the last six.
+                ForEach(model.unreadIncomingMessages) { message in
+                    Text(message.text).font(.system(size: 12)).textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .buttonStyle(.plain)
-                .disabled(model.isSending || model.selectedContact == nil)
             }
-            Spacer(minLength: 2)
-            Button { model.toggleVisit() } label: {
-                VStack(spacing: 3) {
-                    ShellDoor(open: model.isActiveVisit, palette: palette)
-                    Text(model.isChangingVisit ? t("處理中…", "Please wait…") : (model.isActiveVisit ? t("回自己家", "Head home") : t("去串門", "Visit friend")))
-                        .font(.caption.weight(.semibold)).multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
+            .padding(.horizontal, 6).padding(.vertical, 3)
+        }
+        .frame(height: 40)
+        .background(palette.paper, in: RoundedRectangle(cornerRadius: 6))
+        .accessibilityLabel(t("新來信", "Incoming mail"))
+    }
+
+    private var editor: some View {
+        ZStack(alignment: .topLeading) {
+            TextEditor(text: $model.draft)
+                .font(.system(size: 13)).scrollContentBackground(.hidden)
+                .focused($writing).onAppear { writing = true }
+                .accessibilityLabel(t("傳話內容", "Message"))
+            if model.draft.isEmpty {
+                Text(t("說點什麼…", "Say something…"))
+                    .font(.system(size: 13)).foregroundStyle(palette.muted)
+                    .padding(.leading, 5).padding(.top, 8)
+                    .allowsHitTesting(false).accessibilityHidden(true)
+            }
+        }
+        .background(palette.paper, in: RoundedRectangle(cornerRadius: 7))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+    }
+
+    private var footer: some View {
+        HStack(spacing: 6) {
+            Text(statusText).font(.system(size: 10))
+                .foregroundStyle(model.draftExceedsLimit || !model.errorMessage.isEmpty ? .red : palette.muted)
+                .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+                .help(statusText).accessibilityLabel(statusText)
+            Button(action: sendMessageSafely) {
+                Label(model.isSending ? t("傳送中", "Sending") : t("寄出", "Send"), systemImage: "arrow.up")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 9).frame(height: 24)
+                    .foregroundStyle(.white).background(palette.stamp, in: Capsule())
             }
             .buttonStyle(.plain)
-            .disabled(model.isSending || model.selectedContact == nil)
-            .help(model.isActiveVisit ? t("結束與這位魚友的串門", "End this visit") : t("去這位魚友家串門", "Visit this fish friend"))
+            .keyboardShortcut(.return, modifiers: [.command])
+            .disabled(model.sendDisabled).opacity(model.sendDisabled ? 0.55 : 1)
+            .help(t("寄出（⌘↩）· Enter 換行", "Send (⌘↩) · Enter for a new line"))
         }
-        .frame(width: 86)
-        .opacity(model.isSending ? 0.6 : 1)
     }
 
-    private var status: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            if model.draftExceedsLimit {
-                Text("\(model.draftByteCount) / \(FishMessage.maximumTextBytes) UTF-8")
-                    .foregroundStyle(.red)
-            } else if !model.errorMessage.isEmpty {
-                Text(model.errorMessage).foregroundStyle(.red)
-            } else if !model.statusMessage.isEmpty {
-                Text(model.statusMessage).foregroundStyle(palette.muted)
-            } else {
-                Text(t("Enter 換行 · 最多 1,000 UTF-8 字節", "Enter for a new line · 1,000 UTF-8 bytes max"))
-                    .foregroundStyle(palette.muted)
-            }
+    private var statusText: String {
+        if model.draftExceedsLimit {
+            return t("內容太長，請縮短", "Message too long")
+                + " (\(model.draftByteCount)/\(FishMessage.maximumTextBytes))"
         }
-        .font(.caption).lineLimit(2)
-        .frame(maxWidth: .infinity, minHeight: 30, maxHeight: 30, alignment: .topLeading)
+        if !model.errorMessage.isEmpty { return model.errorMessage }
+        if !model.statusMessage.isEmpty { return model.statusMessage }
+        return t("⌘↩ 寄出 · ↩ 換行", "⌘↩ Send · ↩ New line")
     }
 
     private func sendMessageSafely() {
-        // Do not submit or discard an in-progress Chinese/Japanese IME
-        // composition. TextEditor keeps the binding current without resigning
-        // first responder (which could otherwise steal the user's next input).
+        // Preserve unfinished Chinese/Japanese IME composition and focus.
         if let editor = NSApp.keyWindow?.firstResponder as? NSTextView, editor.hasMarkedText() { return }
         model.sendMessage()
     }

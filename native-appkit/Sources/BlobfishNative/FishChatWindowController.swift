@@ -709,6 +709,7 @@ final class FishMessageComposeViewModel: ObservableObject {
 @MainActor
 final class FishMessageComposeWindowController: NSWindowController, NSWindowDelegate {
     private let viewModel: FishMessageComposeViewModel
+    private var incomingLayoutSubscription: AnyCancellable?
     private var latestSceneAnchor: PetSceneAnchor?
     var onVisibilityChanged: ((Bool) -> Void)?
 
@@ -728,11 +729,23 @@ final class FishMessageComposeWindowController: NSWindowController, NSWindowDele
         let hosting = NSHostingController(rootView: FishMessageComposeView(model: viewModel))
         let window = FishMessagePanel(hosting: hosting)
         window.title = locale == "en" ? "Send Fish Message" : "讓魚傳話"
-        window.setContentSize(NSSize(width: 360, height: 356))
+        window.setContentSize(FishComposeLayout.contentSize(hasIncoming: false))
         window.isReleasedWhenClosed = false
         window.center()
         super.init(window: window)
         window.delegate = self
+        incomingLayoutSubscription = viewModel.$displayedUnreadMessages
+            .map { !$0.isEmpty }
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] hasIncoming in
+                guard let self, let window = self.window else { return }
+                let size = FishComposeLayout.contentSize(hasIncoming: hasIncoming)
+                if window.contentView?.frame.size != size { window.setContentSize(size) }
+                // Hosting may already have adopted the new intrinsic size;
+                // still recheck the edge so expanded mail cannot go offscreen.
+                if window.isVisible { self.reposition(force: true) }
+            }
     }
 
     func showComposer(

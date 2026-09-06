@@ -39,18 +39,8 @@ test('stationery editor is multiline and guards IME composition before sending',
   assert.match(view, /disabled\(model.sendDisabled\)/);
 });
 
-test('stationery keeps gestures vertical and bounds incoming mail independently', () => {
-  const rail = view.slice(view.indexOf('private var actionRail:'), view.indexOf('private var status:'));
-  assert.match(rail, /VStack\(spacing: 7\)/);
-  assert.match(rail, /ForEach\(model.quickInteractions\)/);
-  assert.doesNotMatch(rail, /HStack/);
-  assert.match(rail, /ShellDoor\(open: model.isActiveVisit/);
-  assert.match(view, /ScrollView[\s\S]*?unreadIncomingMessages.suffix\(6\)[\s\S]*?frame\(height: 44\)/);
-  assert.match(view, /frame\(width: 360, height: 356\)/);
-});
-
 test('stationery pairs paper and ink in both appearances without outlined art', () => {
-  for (const token of ['backdrop', 'paper', 'envelope', 'fold', 'ink', 'muted']) {
+  for (const token of ['backdrop', 'paper', 'ink', 'muted']) {
     assert.match(view, new RegExp('var ' + token + ': Color \\{ dark \\?'));
   }
   assert.match(view, /colorScheme == \.dark/);
