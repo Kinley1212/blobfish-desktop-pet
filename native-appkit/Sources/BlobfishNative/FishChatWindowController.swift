@@ -297,6 +297,8 @@ final class FishChatViewModel: ObservableObject {
 
 struct FishChatView: View {
     @ObservedObject var model: FishChatViewModel
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: FishStationPalette { FishStationPalette(dark: colorScheme == .dark) }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -305,42 +307,43 @@ struct FishChatView: View {
             conversation
         }
         .frame(minWidth: 390, minHeight: 260)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(palette.backdrop)
+        .foregroundStyle(palette.ink)
+        .tint(palette.stamp)
     }
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(t("魚魚歷史", "Fish History"))
-                    .font(.title3.weight(.bold))
-                Spacer()
+            HStack(spacing: 4) {
+                Image(systemName: "envelope.fill").foregroundStyle(palette.stamp)
+                Text(t("來信", "Letters"))
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
                 if model.totalUnreadCount > 0 {
-                    Text("\(model.totalUnreadCount)")
-                        .font(.caption.bold())
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(Color.red, in: Capsule())
+                    Text(model.totalUnreadCount > 99 ? "99+" : "\(model.totalUnreadCount)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(palette.muted)
                 }
             }
-            .padding(16)
+            .padding(.horizontal, 9).frame(height: 52)
 
             Divider()
 
             if model.contacts.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "person.2.slash")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 22))
+                        .foregroundStyle(palette.muted)
                     Text(t("還沒有配對好友", "No paired friends"))
-                        .font(.headline)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
                     Text(t("請先在設定中完成魚魚配對。", "Pair a fish in Settings first."))
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(palette.muted)
                         .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(20)
+                .padding(9)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 4) {
@@ -348,12 +351,12 @@ struct FishChatView: View {
                             contactButton(contact)
                         }
                     }
-                    .padding(8)
+                    .padding(6)
                 }
             }
         }
         .frame(width: 104)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+        .background(palette.stamp.opacity(colorScheme == .dark ? 0.10 : 0.04))
     }
 
     private func contactButton(_ contact: FishContact) -> some View {
@@ -365,29 +368,31 @@ struct FishChatView: View {
             HStack(spacing: 6) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(contact.nickname ?? contact.invite.displayName)
-                        .font(.callout.weight(.semibold))
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .lineLimit(1)
                     Text(contactStatus(contact))
                         .font(.caption2)
-                        .foregroundStyle(selected ? Color.white.opacity(0.78) : Color.secondary)
+                        .foregroundStyle(palette.muted)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 4)
                 if unread > 0 {
                     Text(unread > 99 ? "99+" : "\(unread)")
                         .font(.caption2.bold())
-                        .foregroundStyle(selected ? Color.accentColor : Color.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(selected ? Color.white : Color.red, in: Capsule())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(palette.stamp, in: Capsule())
                 }
             }
-            .padding(.horizontal, 10)
-            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-            .background(selected ? Color.accentColor : Color.clear, in: RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, 7)
+            .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+            .foregroundStyle(palette.ink)
+            .background(selected ? palette.paper : Color.clear, in: RoundedRectangle(cornerRadius: 10))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .help(contact.nickname ?? contact.invite.displayName)
     }
 
     @ViewBuilder private var conversation: some View {
@@ -401,12 +406,12 @@ struct FishChatView: View {
             }
         } else {
             VStack(spacing: 12) {
-                Image(systemName: "bubble.left.and.bubble.right")
-                    .font(.system(size: 36))
-                    .foregroundStyle(.secondary)
-                Text(t("選擇一位好友開始傳話", "Choose a friend to start chatting"))
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
+                Image(systemName: "envelope.open.fill")
+                    .font(.system(size: 28)).foregroundStyle(palette.stamp)
+                Text(t("選一位魚友，寫封小信。", "Choose a fish. Write a little note."))
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(palette.muted)
+                    .multilineTextAlignment(.center).padding(.horizontal, 12)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -416,10 +421,11 @@ struct FishChatView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(contact.nickname ?? contact.invite.displayName)
-                    .font(.headline)
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .lineLimit(1).help(contact.nickname ?? contact.invite.displayName)
                 Text(contactStatus(contact))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(palette.muted)
                 if !model.errorMessage.isEmpty {
                     Text(model.errorMessage)
                         .font(.caption2)
@@ -432,17 +438,17 @@ struct FishChatView: View {
             Button {
                 model.toggleVisit()
             } label: {
-                Label(
-                    model.isActiveVisit(contact.id)
-                        ? t("結束串門", "End Visit")
-                        : t("邀請串門", "Invite Over"),
-                    systemImage: model.isActiveVisit(contact.id) ? "door.left.hand.open" : "heart.circle"
-                )
+                Image(systemName: model.isActiveVisit(contact.id) ? "house.fill" : "door.left.hand.open")
+                    .font(.system(size: 14)).frame(width: 28, height: 28)
+                    .background(palette.paper, in: RoundedRectangle(cornerRadius: 9))
             }
+            .buttonStyle(.plain)
+            .help(model.isActiveVisit(contact.id) ? t("回自己家", "Head home") : t("去串門", "Visit friend"))
+            .accessibilityLabel(model.isActiveVisit(contact.id) ? t("回自己家", "Head home") : t("去串門", "Visit friend"))
             .disabled(model.visitButtonDisabled(for: contact))
         }
-        .padding(.horizontal, 18)
-        .frame(height: 58)
+        .padding(.horizontal, 12)
+        .frame(height: model.errorMessage.isEmpty ? 52 : 72)
     }
 
     private var messageTimeline: some View {
@@ -450,14 +456,14 @@ struct FishChatView: View {
             ScrollView {
                 if model.selectedRecords.isEmpty {
                     VStack(spacing: 8) {
-                        Image(systemName: "text.bubble")
+                        Image(systemName: "envelope.badge")
                             .font(.system(size: 28))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(palette.stamp)
                         Text(t("還沒有對話紀錄", "No messages yet"))
-                            .font(.headline)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
                         Text(t("在下方寫下第一句話吧。", "Write your first message below."))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(palette.muted)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 20)
@@ -472,7 +478,7 @@ struct FishChatView: View {
                                 .id(record.id)
                         }
                     }
-                    .padding(18)
+                    .padding(12)
                 }
             }
             .onAppear { scrollToLatest(proxy) }
@@ -483,22 +489,37 @@ struct FishChatView: View {
 
     private var replyComposer: some View {
         VStack(spacing: 4) {
-            FishComposeEditor(text: $model.draft, ink: .labelColor,
-                              accessibilityLabel: t("傳話內容", "Message"), onSend: sendReply)
-                .id(model.selectedContactID)
-                .frame(height: 44)
-                .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
-                .disabled(model.selectedContact?.blocked != false)
+            ZStack(alignment: .topLeading) {
+                FishComposeEditor(text: $model.draft, ink: NSColor(palette.ink),
+                                  accessibilityLabel: t("傳話內容", "Message"), onSend: sendReply)
+                    .id(model.selectedContactID)
+                    .disabled(model.selectedContact?.blocked != false)
+                if model.draft.isEmpty {
+                    Text(t("寫給魚友的一句話…", "A little note for your fish…"))
+                        .font(.system(size: 12)).foregroundStyle(palette.muted)
+                        .padding(.leading, 5).padding(.top, 8)
+                        .allowsHitTesting(false).accessibilityHidden(true)
+                }
+            }
+            .frame(height: 44)
+            .background(palette.paper, in: RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
             HStack(spacing: 6) {
                 Text(model.draftByteCount > FishMessage.maximumTextBytes
                      ? "\(model.draftByteCount)/\(FishMessage.maximumTextBytes) UTF-8"
                      : t("↩ 寄出 · ⌘↩ 換行", "↩ Send · ⌘↩ New line"))
                     .font(.caption2)
-                    .foregroundStyle(model.draftByteCount > FishMessage.maximumTextBytes ? Color.red : Color.secondary)
+                    .foregroundStyle(model.draftByteCount > FishMessage.maximumTextBytes ? Color.red : palette.muted)
                     .lineLimit(1)
                 Spacer(minLength: 0)
-                Button(model.isSending ? t("傳送中", "Sending") : t("寄出", "Send"), action: sendReply)
-                    .controlSize(.small).disabled(model.sendDisabled)
+                Button(action: sendReply) {
+                    Label(model.isSending ? t("傳送中", "Sending") : t("寄出", "Send"), systemImage: "arrow.up")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .padding(.horizontal, 9).frame(height: 24)
+                        .foregroundStyle(.white).background(palette.stamp, in: Capsule())
+                }
+                .buttonStyle(.plain).disabled(model.sendDisabled)
+                .opacity(model.sendDisabled ? 0.55 : 1)
             }
         }
         .padding(8)
@@ -872,22 +893,26 @@ private struct FishChatMessageRow: View {
     let record: FishMessageRecord
     let isEnglish: Bool
     let onRetry: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    private var palette: FishStationPalette { FishStationPalette(dark: colorScheme == .dark) }
 
     var body: some View {
         HStack(alignment: .bottom) {
-            if record.direction == .outgoing { Spacer(minLength: 72) }
+            if record.direction == .outgoing { Spacer(minLength: 24) }
             VStack(alignment: record.direction == .incoming ? .leading : .trailing, spacing: 4) {
                 if record.direction == .incoming {
                     Text(record.senderName)
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(palette.muted)
                 }
                 Text(displayText)
+                    .font(.system(size: 13))
                     .textSelection(.enabled)
                     .padding(.horizontal, 11)
                     .padding(.vertical, 8)
-                    .foregroundStyle(record.direction == .outgoing ? Color.white : Color.primary)
+                    .foregroundStyle(palette.ink)
                     .background(bubbleColor, in: RoundedRectangle(cornerRadius: 12))
+                    .background(palette.paper, in: RoundedRectangle(cornerRadius: 12))
                 HStack(spacing: 5) {
                     Text(record.sentAt.formatted(date: .omitted, time: .shortened))
                     if let deliveryText {
@@ -901,9 +926,9 @@ private struct FishChatMessageRow: View {
                     }
                 }
                 .font(.caption2)
-                .foregroundStyle(record.effectiveDeliveryState == .failed ? Color.red : Color.secondary)
+                .foregroundStyle(record.effectiveDeliveryState == .failed ? Color.red : palette.muted)
             }
-            if record.direction == .incoming { Spacer(minLength: 72) }
+            if record.direction == .incoming { Spacer(minLength: 24) }
         }
         .frame(maxWidth: .infinity)
     }
@@ -949,11 +974,12 @@ private struct FishChatMessageRow: View {
     }
 
     private var bubbleColor: Color {
-        if record.direction == .outgoing {
-            return Color.fishChatHex(record.bubbleColor) ?? .accentColor
-        }
-        return Color.fishChatHex(record.bubbleColor)?.opacity(0.16)
-            ?? Color(nsColor: .controlBackgroundColor)
+        // Preserve a friend's chosen hue as a soft tint; paired ink stays
+        // readable even when the saved color is very pale or very dark.
+        let tint = Color.fishChatHex(record.bubbleColor)
+            ?? (record.direction == .outgoing ? palette.stamp : .clear)
+        let opacity = record.direction == .outgoing ? 0.18 : 0.06
+        return tint.opacity(opacity)
     }
 }
 

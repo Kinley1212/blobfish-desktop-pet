@@ -8,7 +8,7 @@ enum FishComposeLayout {
     }
 }
 
-private struct FishStationPalette {
+struct FishStationPalette {
     let dark: Bool
     var backdrop: Color { dark ? Color(red: 0.16, green: 0.12, blue: 0.15) : Color(red: 0.98, green: 0.94, blue: 0.95) }
     var paper: Color { dark ? Color(red: 0.23, green: 0.20, blue: 0.22) : Color(red: 1, green: 0.985, blue: 0.96) }
