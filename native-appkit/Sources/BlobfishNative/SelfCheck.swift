@@ -94,6 +94,7 @@ enum SelfCheck {
             ("fish history opens the intended contact", fishHistoryOpensIntendedContact),
             ("fish composer chooses an explicit recipient", fishComposerChoosesExplicitRecipient),
             ("fish stationery preserves multiline drafts and screen bounds", fishStationeryContract),
+            ("fish composer Return sends and Command Return inserts newline", fishComposeReturnKeys),
             ("task monitor drops callbacks after stop", taskMonitorDropsCallbacksAfterStop),
             ("task monitor skips disabled providers and duplicate snapshots", taskMonitorSkipsDisabledProvidersAndDuplicates),
             ("bounded reminder history keeps recent deduplication", boundedReminderHistoryKeepsRecentDeduplication),
@@ -215,6 +216,24 @@ enum SelfCheck {
         )
         try FishContactImportPolicy.validate(friendInvite, for: profile)
         return true
+    }
+
+    private static func fishComposeReturnKeys() -> Bool {
+        for key: UInt16 in [36, 76] {
+            for marked in [false, true] {
+                for repeatKey in [false, true] {
+                    let plain = FishComposeReturnAction.resolve(keyCode: key, modifiers: [], hasMarkedText: marked, isRepeat: repeatKey)
+                    let command = FishComposeReturnAction.resolve(keyCode: key, modifiers: .command, hasMarkedText: marked, isRepeat: repeatKey)
+                    guard plain == (marked ? .system : (repeatKey ? .consume : .send)),
+                          command == (marked ? .system : .newline) else { return false }
+                }
+            }
+            for modifiers: NSEvent.ModifierFlags in [.shift, .option, .control, [.command, .shift]] {
+                guard FishComposeReturnAction.resolve(keyCode: key, modifiers: modifiers, hasMarkedText: false, isRepeat: false) == .system else { return false }
+            }
+        }
+        return FishComposeReturnAction.resolve(keyCode: 0, modifiers: [], hasMarkedText: false, isRepeat: false) == .system
+            && FishComposeReturnAction.resolve(keyCode: 36, modifiers: .capsLock, hasMarkedText: false, isRepeat: false) == .send
     }
 
     private static func fishStationeryContract() throws -> Bool {

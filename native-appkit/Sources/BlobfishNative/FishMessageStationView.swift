@@ -20,7 +20,6 @@ private struct FishStationPalette {
 struct FishMessageComposeView: View {
     @ObservedObject var model: FishMessageComposeViewModel
     @Environment(\.colorScheme) private var colorScheme
-    @FocusState private var writing: Bool
     private var palette: FishStationPalette { FishStationPalette(dark: colorScheme == .dark) }
     private var size: NSSize { FishComposeLayout.contentSize(hasIncoming: !model.unreadIncomingMessages.isEmpty) }
 
@@ -109,10 +108,9 @@ struct FishMessageComposeView: View {
 
     private var editor: some View {
         ZStack(alignment: .topLeading) {
-            TextEditor(text: $model.draft)
-                .font(.system(size: 13)).scrollContentBackground(.hidden)
-                .focused($writing).onAppear { writing = true }
-                .accessibilityLabel(t("傳話內容", "Message"))
+            FishComposeEditor(text: $model.draft, ink: NSColor(palette.ink),
+                              accessibilityLabel: t("傳話內容", "Message"),
+                              onSend: sendMessageSafely)
             if model.draft.isEmpty {
                 Text(t("說點什麼…", "Say something…"))
                     .font(.system(size: 13)).foregroundStyle(palette.muted)
@@ -137,9 +135,8 @@ struct FishMessageComposeView: View {
                     .foregroundStyle(.white).background(palette.stamp, in: Capsule())
             }
             .buttonStyle(.plain)
-            .keyboardShortcut(.return, modifiers: [.command])
             .disabled(model.sendDisabled).opacity(model.sendDisabled ? 0.55 : 1)
-            .help(t("寄出（⌘↩）· Enter 換行", "Send (⌘↩) · Enter for a new line"))
+            .help(t("Enter 寄出 · ⌘↩ 換行", "Enter to send · ⌘↩ for a new line"))
         }
     }
 
@@ -150,7 +147,7 @@ struct FishMessageComposeView: View {
         }
         if !model.errorMessage.isEmpty { return model.errorMessage }
         if !model.statusMessage.isEmpty { return model.statusMessage }
-        return t("⌘↩ 寄出 · ↩ 換行", "⌘↩ Send · ↩ New line")
+        return t("↩ 寄出 · ⌘↩ 換行", "↩ Send · ⌘↩ New line")
     }
 
     private func sendMessageSafely() {

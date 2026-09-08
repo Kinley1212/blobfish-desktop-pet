@@ -32,8 +32,8 @@ test('message entry points never activate the entire application', () => {
 });
 
 test('stationery editor is multiline and guards IME composition before sending', () => {
-  assert.match(view, /TextEditor\(text: \$model.draft\)/);
-  assert.match(view, /keyboardShortcut\(\.return, modifiers: \[\.command\]\)/);
+  assert.match(view, /FishComposeEditor\(text: \$model.draft/);
+  assert.doesNotMatch(view, /keyboardShortcut\(\.return/);
   assert.match(view, /editor.hasMarkedText\(\) \{ return \}[\s\S]*?model.sendMessage\(\)/);
   assert.doesNotMatch(view, /onSubmit|makeFirstResponder\(nil\)/);
   assert.match(view, /disabled\(model.sendDisabled\)/);
