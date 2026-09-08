@@ -51,7 +51,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let friendHitBubbleID = UUID()
     private let soundPlayer = SoundPlayer()
     private let instanceGuard = SingleInstanceGuard()
-    private var terminationReplyPending = false
+    private let terminationGate = AppTerminationGate()
+    private var shutdownTask: Task<Void, Never>?
+    private var shutdownDeadline: DispatchWorkItem?
+    private var quitRequested = false
 
     init(openSettingsAtLaunch: Bool = false) {
         self.openSettingsAtLaunch = openSettingsAtLaunch
@@ -430,6 +433,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        shutdownDeadline?.cancel()
+        shutdownTask?.cancel()
         taskMonitor?.stop()
         clockService?.stop()
         routineService?.stop()
@@ -441,20 +446,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard messengerService?.activeVisitContactID != nil else { return .terminateNow }
-        guard !terminationReplyPending else { return .terminateLater }
-        terminationReplyPending = true
-        Task { @MainActor [weak self] in
-            await self?.messengerService?.endActiveVisitForShutdown()
-            self?.terminationReplyPending = false
-            sender.reply(toApplicationShouldTerminate: true)
+        // System logout / external termination must not wait on the network.
+        // Our menu and updater call requestTermination before entering AppKit.
+        .terminateNow
+    }
+
+    @MainActor func requestTermination() {
+        switch terminationGate.request(needsCleanup: messengerService?.activeVisitContactID != nil) {
+        case .terminateNow: NSApp.terminate(nil); return
+        case .wait: return
+        case .prepare: break
         }
-        return .terminateLater
+        let deadline = DispatchWorkItem { [weak self] in self?.finishShutdown() }
+        shutdownDeadline = deadline
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: deadline)
+        shutdownTask = Task { @MainActor [weak self] in
+            await self?.messengerService?.endActiveVisitForShutdown()
+            self?.finishShutdown()
+        }
+    }
+
+    private func finishShutdown() {
+        guard terminationGate.finish() else { return }
+        shutdownDeadline?.cancel()
+        shutdownDeadline = nil
+        shutdownTask?.cancel()
+        shutdownTask = nil
+        NSApp.terminate(nil)
     }
 
     private func configureStatusMenu() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        item.button?.title = "🐟"
+        item.button?.image = StatusBarFishIcon.image(catalog: runtime.catalog)
+        item.button?.title = item.button?.image == nil ? "水滴鱼" : ""
+        item.button?.imagePosition = .imageOnly
+        item.button?.imageScaling = .scaleProportionallyDown
+        item.button?.setAccessibilityLabel("水滴鱼")
         item.button?.toolTip = "水滴鱼"
 
         let menu = NSMenu()
@@ -810,7 +837,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
               clockService?.state.alerts.isEmpty != false else { return }
         panelController.say(runtime.phrase(event: "system.memoryExit") ?? "内存一直太高。我先沉下去。", event: "system.memoryExit", duration: 5, priority: SpeechPriority.urgent, replaceKey: "system.memoryExit")
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
-            self?.panelController.animateExit { NSApp.terminate(nil) }
+            self?.panelController.animateExit { [weak self] in self?.requestTermination() }
         }
     }
 
@@ -1227,11 +1254,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    @objc private func quitApplication() {
+    @MainActor @objc private func quitApplication() {
+        guard !quitRequested else { requestTermination(); return }
+        quitRequested = true
         let goodbye = runtime.phrase(event: "interaction.goodbye") ?? "好吧，我先沉下去了。"
         panelController.say(goodbye, event: "interaction.goodbye", duration: 1.2, priority: SpeechPriority.interaction, replaceKey: "interaction.goodbye")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-            self?.panelController.animateExit { NSApp.terminate(nil) }
+            self?.panelController.animateExit { [weak self] in self?.requestTermination() }
         }
     }
 }

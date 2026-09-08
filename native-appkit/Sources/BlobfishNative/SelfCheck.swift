@@ -34,6 +34,9 @@ enum SelfCheck {
             ("native updater cleans install staging on failure", nativeUpdaterCleansInstallStagingOnFailure),
             ("bounded subprocesses drain output and time out", boundedSubprocessesDrainOutputAndTimeOut),
             ("single instance lock", singleInstanceLock),
+            ("quit cleanup completes once without deferred AppKit termination", terminationGateCompletesOnce),
+            ("updater relaunch waits for exit and has a deadline", relaunchWaitsForExit),
+            ("menu bar uses a non-template pink blobfish", statusBarUsesPinkFish),
             ("login item setting rolls back on save failure", loginItemSettingRollsBackOnSaveFailure),
             ("dragged height preservation", draggedHeightPreservation),
             ("nearest display preserves pet height", nearestDisplayPreservesPetHeight),
@@ -91,6 +94,7 @@ enum SelfCheck {
             ("fish acknowledgement waits for persistence", fishAcknowledgementWaitsForPersistence),
             ("fish polling waits for profile without losing start intent", fishPollingWaitsForProfile),
             ("fish chat preserves a changed draft", fishChatPreservesChangedDraft),
+            ("history reply drafts stay separate across contacts and sends", historyReplyDraftsStaySeparate),
             ("fish history opens the intended contact", fishHistoryOpensIntendedContact),
             ("fish composer chooses an explicit recipient", fishComposerChoosesExplicitRecipient),
             ("fish stationery preserves multiline drafts and screen bounds", fishStationeryContract),
@@ -216,6 +220,18 @@ enum SelfCheck {
         )
         try FishContactImportPolicy.validate(friendInvite, for: profile)
         return true
+    }
+
+    private static func historyReplyDraftsStaySeparate() -> Bool {
+        let first = UUID(), second = UUID()
+        var drafts = FishConversationDrafts()
+        drafts[first] = "第一位的草稿"
+        drafts[second] = "第二位的草稿"
+        drafts.clearAfterSending("第一位的草稿", to: first)
+        guard drafts[first].isEmpty, drafts[second] == "第二位的草稿" else { return false }
+        drafts[first] = "发送后继续写的新草稿"
+        drafts.clearAfterSending("第一位的草稿", to: first)
+        return drafts[first] == "发送后继续写的新草稿" && drafts[nil].isEmpty
     }
 
     private static func fishComposeReturnKeys() -> Bool {
@@ -1900,6 +1916,57 @@ enum SelfCheck {
             && !history.insert("recent")
             && !history.insert("newest")
             && history.insert("old")
+    }
+
+    private static func terminationGateCompletesOnce() -> Bool {
+        let immediate = AppTerminationGate()
+        guard immediate.request(needsCleanup: false) == .terminateNow,
+              !immediate.finish() else { return false }
+        for _ in 0..<2 { // Completion-first and deadline-first share one finish gate.
+            let gate = AppTerminationGate()
+            guard gate.request(needsCleanup: true) == .prepare,
+                  gate.request(needsCleanup: true) == .wait,
+                  gate.request(needsCleanup: false) == .wait,
+                  gate.finish(), !gate.finish(),
+                  gate.request(needsCleanup: true) == .terminateNow else { return false }
+        }
+        return true
+    }
+
+    private static func relaunchWaitsForExit() throws -> Bool {
+        let oldProcess = Process()
+        oldProcess.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        oldProcess.arguments = ["0.4"]
+        try oldProcess.run()
+        defer { if oldProcess.isRunning { oldProcess.terminate() } }
+        let literalPath = "/tmp/水滴 鱼 ' $(not-a-command).app"
+        let result = try BoundedProcessRunner.run(
+            executableURL: URL(fileURLWithPath: "/bin/sh"),
+            arguments: NativeRelaunchHelper.arguments(
+                parentPID: oldProcess.processIdentifier,
+                command: ["/usr/bin/printf", "%s", literalPath], attempts: 30
+            ), timeout: 5, captureStandardOutput: true
+        )
+        guard result.terminationStatus == 0, !oldProcess.isRunning,
+              String(data: result.standardOutput, encoding: .utf8) == literalPath else { return false }
+        let timeout = try BoundedProcessRunner.run(
+            executableURL: URL(fileURLWithPath: "/bin/sh"),
+            arguments: NativeRelaunchHelper.arguments(
+                parentPID: ProcessInfo.processInfo.processIdentifier,
+                command: ["/usr/bin/printf", "must-not-launch"], attempts: 2
+            ), timeout: 3, captureStandardOutput: true
+        )
+        return timeout.terminationStatus == 75 && timeout.standardOutput.isEmpty
+    }
+
+    private static func statusBarUsesPinkFish() throws -> Bool {
+        let catalog = try PackCatalog(packsRoot: ResourceLocator.packsRoot())
+        guard let image = StatusBarFishIcon.image(catalog: catalog),
+              let data = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: data),
+              let corner = bitmap.colorAt(x: 0, y: 0) else { return false }
+        return !image.isTemplate && image.size == NSSize(width: 21, height: 18)
+            && bitmap.hasAlpha && corner.alphaComponent < 0.01
     }
 
     private static func singleInstanceLock() throws -> Bool {

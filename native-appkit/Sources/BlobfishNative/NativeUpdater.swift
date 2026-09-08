@@ -18,6 +18,7 @@ final class NativeUpdater {
     static let maximumAssetBytes = 256 * 1024 * 1024
 
     private let session: URLSession
+    private var relaunchProcess: Process?
     let currentVersion: String
 
     init(session: URLSession = .shared) {
@@ -66,8 +67,22 @@ final class NativeUpdater {
     }
 
     func relaunch(at applicationURL: URL, completion: @escaping (Error?) -> Void) {
-        let configuration = NSWorkspace.OpenConfiguration(); configuration.activates = true
-        NSWorkspace.shared.openApplication(at: applicationURL, configuration: configuration) { _, error in completion(error) }
+        // Opening the bundle now can return the still-running old instance.
+        // Arm an independent child before requesting normal application exit.
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = NativeRelaunchHelper.arguments(
+            parentPID: ProcessInfo.processInfo.processIdentifier,
+            command: ["/usr/bin/open", "-n", applicationURL.path]
+        )
+        process.standardInput = FileHandle.nullDevice
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            relaunchProcess = process
+            completion(nil)
+        } catch { completion(error) }
     }
 
     private static func stageAndInstall(zipURL: URL, version: String) throws -> URL {

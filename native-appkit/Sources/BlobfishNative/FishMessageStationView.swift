@@ -64,24 +64,23 @@ struct FishMessageComposeView: View {
                     .lineLimit(1).help(contact.nickname ?? contact.invite.displayName)
                 Spacer(minLength: 0)
             }
-            Menu {
+            HStack(spacing: 2) {
                 ForEach(model.quickInteractions) { interaction in
                     Button { model.sendInteraction(interaction) } label: {
-                        Label(interaction.title(isEnglish: model.isEnglish), systemImage: interaction.symbolName)
+                        Image(systemName: interaction.symbolName)
+                            .frame(width: 22, height: 22).contentShape(Rectangle())
                     }
+                    .help(interaction.title(isEnglish: model.isEnglish))
+                    .accessibilityLabel(interaction.title(isEnglish: model.isEnglish))
                 }
-                Divider()
                 Button { model.toggleVisit() } label: {
-                    Label(visitTitle, systemImage: model.isActiveVisit ? "house.fill" : "door.left.hand.open")
+                    Image(systemName: model.isActiveVisit ? "house.fill" : "door.left.hand.open")
+                        .frame(width: 22, height: 22).contentShape(Rectangle())
                 }
-            } label: {
-                Image(systemName: "ellipsis.circle").font(.system(size: 15))
-                    .frame(width: 24, height: 22).contentShape(Rectangle())
+                .help(visitTitle).accessibilityLabel(visitTitle)
             }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .font(.system(size: 12)).buttonStyle(.plain).fixedSize()
             .disabled(model.isSending || model.selectedContact == nil)
-            .accessibilityLabel(t("互動與串門", "Gestures and visits"))
-            .help(t("互動與串門", "Gestures and visits"))
         }
     }
 

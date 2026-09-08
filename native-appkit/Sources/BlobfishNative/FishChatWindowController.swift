@@ -71,6 +71,20 @@ enum FishComposeRecipientPolicy {
     }
 }
 
+struct FishConversationDrafts {
+    private var values: [UUID: String] = [:]
+    subscript(_ contactID: UUID?) -> String {
+        get { contactID.flatMap { values[$0] } ?? "" }
+        set {
+            guard let contactID else { return }
+            values[contactID] = newValue.isEmpty ? nil : newValue
+        }
+    }
+    mutating func clearAfterSending(_ sentDraft: String, to contactID: UUID) {
+        if values[contactID] == sentDraft { values[contactID] = nil }
+    }
+}
+
 @MainActor
 final class FishChatViewModel: ObservableObject {
     @Published private(set) var contacts: [FishContact] = []
@@ -78,6 +92,23 @@ final class FishChatViewModel: ObservableObject {
     @Published private(set) var selectedContactID: UUID?
     @Published private(set) var isSending = false
     @Published private(set) var errorMessage = ""
+    @Published private var drafts = FishConversationDrafts()
+
+    var draft: String {
+        get { drafts[selectedContactID] }
+        set { drafts[selectedContactID] = newValue }
+    }
+    var draftByteCount: Int { draft.trimmingCharacters(in: .whitespacesAndNewlines).utf8.count }
+    var sendDisabled: Bool {
+        isSending || selectedContact?.blocked != false || draftByteCount == 0
+            || draftByteCount > FishMessage.maximumTextBytes
+    }
+
+    func sendMessage() {
+        guard !sendDisabled, let contact = selectedContact else { return }
+        performSend(text: draft.trimmingCharacters(in: .whitespacesAndNewlines),
+                    contact: contact, kind: .text, presence: nil, draftAtSend: draft)
+    }
 
     @Published private(set) var locale: String
     private let messengerService: FishMessengerService
@@ -228,7 +259,8 @@ final class FishChatViewModel: ObservableObject {
         text: String,
         contact: FishContact,
         kind: FishMessageKind,
-        presence: FishPresence?
+        presence: FishPresence?,
+        draftAtSend: String? = nil
     ) {
         isSending = true
         errorMessage = ""
@@ -242,6 +274,7 @@ final class FishChatViewModel: ObservableObject {
                     kind: kind,
                     presence: presence
                 )
+                if let draftAtSend { self.drafts.clearAfterSending(draftAtSend, to: contact.id) }
                 if !result.historyPersisted {
                     self.errorMessage = self.isEnglish
                         ? "Delivered, but the local history could not be saved. Do not resend it."
@@ -363,6 +396,8 @@ struct FishChatView: View {
                 conversationHeader(contact)
                 Divider()
                 messageTimeline
+                Divider()
+                replyComposer
             }
         } else {
             VStack(spacing: 12) {
@@ -390,6 +425,7 @@ struct FishChatView: View {
                         .font(.caption2)
                         .foregroundStyle(.red)
                         .lineLimit(2)
+                        .help(model.errorMessage)
                 }
             }
             Spacer()
@@ -419,12 +455,12 @@ struct FishChatView: View {
                             .foregroundStyle(.secondary)
                         Text(t("還沒有對話紀錄", "No messages yet"))
                             .font(.headline)
-                        Text(t("可以從右鍵選單另行打開發消息視窗。", "Open the separate message composer from the context menu."))
+                        Text(t("在下方寫下第一句話吧。", "Write your first message below."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.top, 90)
+                    .padding(.vertical, 20)
                 } else {
                     LazyVStack(spacing: 10) {
                         ForEach(model.selectedRecords) { record in
@@ -443,6 +479,34 @@ struct FishChatView: View {
             .onChange(of: model.selectedContactID) { _ in scrollToLatest(proxy) }
             .onChange(of: model.selectedRecords.count) { _ in scrollToLatest(proxy) }
         }
+    }
+
+    private var replyComposer: some View {
+        VStack(spacing: 4) {
+            FishComposeEditor(text: $model.draft, ink: .labelColor,
+                              accessibilityLabel: t("傳話內容", "Message"), onSend: sendReply)
+                .id(model.selectedContactID)
+                .frame(height: 44)
+                .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+                .disabled(model.selectedContact?.blocked != false)
+            HStack(spacing: 6) {
+                Text(model.draftByteCount > FishMessage.maximumTextBytes
+                     ? "\(model.draftByteCount)/\(FishMessage.maximumTextBytes) UTF-8"
+                     : t("↩ 寄出 · ⌘↩ 換行", "↩ Send · ⌘↩ New line"))
+                    .font(.caption2)
+                    .foregroundStyle(model.draftByteCount > FishMessage.maximumTextBytes ? Color.red : Color.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Button(model.isSending ? t("傳送中", "Sending") : t("寄出", "Send"), action: sendReply)
+                    .controlSize(.small).disabled(model.sendDisabled)
+            }
+        }
+        .padding(8)
+    }
+
+    private func sendReply() {
+        if let editor = NSApp.keyWindow?.firstResponder as? NSTextView, editor.hasMarkedText() { return }
+        model.sendMessage()
     }
 
     private func contactStatus(_ contact: FishContact) -> String {

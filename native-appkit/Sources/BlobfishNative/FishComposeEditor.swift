@@ -54,6 +54,7 @@ final class FishComposeTextView: NSTextView {
 
 struct FishComposeEditor: NSViewRepresentable {
     @Binding var text: String
+    @Environment(\.isEnabled) private var isEnabled
     let ink: NSColor
     let accessibilityLabel: String
     let onSend: () -> Void
@@ -99,10 +100,17 @@ struct FishComposeEditor: NSViewRepresentable {
     }
 
     private func configure(_ editor: FishComposeTextView) {
+        editor.isEditable = isEnabled
         editor.textColor = ink
         editor.insertionPointColor = ink
         editor.setAccessibilityLabel(accessibilityLabel)
         editor.onSend = onSend
+    }
+
+    static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
+        guard let editor = scroll.documentView as? FishComposeTextView else { return }
+        editor.delegate = nil
+        editor.onSend = {}
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {

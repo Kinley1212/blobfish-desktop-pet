@@ -492,6 +492,7 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func checkUpdate() {
+        guard updateProgress == nil else { return }
         updateStatus = isEnglish ? "Checking the native release channel…" : "正在检查原生版更新…"
         updateProgress = 0
         updater.check { [weak self] result in
@@ -514,7 +515,7 @@ final class SettingsViewModel: ObservableObject {
     }
 
     func installUpdate() {
-        guard let update = availableUpdate else { return }
+        guard updateProgress == nil, let update = availableUpdate else { return }
         updateProgress = 0.05
         updateStatus = isEnglish ? "Downloading and verifying…" : "正在下载并校验…"
         updater.install(manifest: update.0, asset: update.1, progress: { [weak self] value in
@@ -523,10 +524,16 @@ final class SettingsViewModel: ObservableObject {
             guard let self else { return }
             switch result {
             case .success(let url):
+                self.updateAvailable = false
+                self.availableUpdate = nil
                 self.updateStatus = self.isEnglish ? "Installed. Restarting…" : "安装完成，正在重新打开…"
                 self.updater.relaunch(at: url) { error in
                     DispatchQueue.main.async {
-                        if let error { self.updateStatus = (self.isEnglish ? "Could not restart: " : "无法重新打开：") + error.localizedDescription }
+                        if let error {
+                            self.updateProgress = nil
+                            self.updateStatus = (self.isEnglish ? "Installed. Please reopen the app manually: " : "已安装，请手动重新打开应用：") + error.localizedDescription
+                        }
+                        else if let delegate = NSApp.delegate as? AppDelegate { delegate.requestTermination() }
                         else { NSApp.terminate(nil) }
                     }
                 }
@@ -1692,6 +1699,7 @@ struct BrandedSettingsView: View {
                     Button(t("检查原生版更新", "Check native updates")) { model.checkUpdate() }
                     if model.updateAvailable { Button(t("下载并安装", "Download and install")) { model.installUpdate() } }
                 }
+                .disabled(model.updateProgress != nil)
                 Text(t("全程在应用内完成，不会打开终端；只接受原生渠道、匹配芯片且通过 SHA-256 与应用身份校验的安装包。", "Runs entirely in-app with no Terminal; only native-channel packages matching the Mac architecture, SHA-256 digest and app identity are accepted."))
                     .font(.caption).foregroundStyle(.secondary)
             }
