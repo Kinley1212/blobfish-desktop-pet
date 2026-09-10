@@ -72,7 +72,7 @@
     {
       "id": "messenger-friend-hit-01",
       "event": "messenger.friendHit",
-      "text": "喂……別打我",
+      "text": "餵……別打我",
       "weight": 5
     },
     { "id": "messenger-sent-02", "event": "messenger.sent", "text": "送到了。別催，我的魚鰭已經很努力了。", "weight": 4 },

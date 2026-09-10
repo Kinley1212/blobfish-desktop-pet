@@ -26,7 +26,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var performanceMonitor: PerformanceMonitor?
     private var messengerService: FishMessengerService?
     private var statusItem: NSStatusItem?
+    private var localizedMenuItems: [(item: NSMenuItem, chinese: String, english: String)] = []
     private var messengerMenuItem: NSMenuItem?
+    private var messengerMenuUnreadCount = 0
     private var messengerSendMenuItem: NSMenuItem?
     private var fishStatusMenuItem: NSMenuItem?
     private var friendInteractionMenuItem: NSMenuItem?
@@ -93,7 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.runtime.phrase(
                     event: "interaction.click",
                     context: ["clickCount": .number(Double(self.clickCount))]
-                ) ?? "……你戳我干嘛。",
+                ) ?? self.runtime.speechText("……你戳我干嘛。", "…Why are you poking me?"),
                 event: "interaction.click",
                 duration: 0.8,
                 priority: SpeechPriority.interaction,
@@ -136,7 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                   let contact = messenger.profile?.contacts.first(where: { $0.id == contactID }) else { return }
             self.panelController.playCompanionHitReaction()
             let phrase = self.runtime.phrase(event: "messenger.friendHit")
-                ?? (self.runtime.config.ui.locale == "en" ? "Hey! Why did you hit me?" : "喂！怎麼還打串門的小魚呀！")
+                ?? (self.runtime.speechText("喂！怎麼還打串門的小魚呀！", "Hey! Why did you hit me?"))
             if messenger.preferences.currentStatus != .doNotDisturb {
                 self.panelController.showFriendMessage(
                     id: self.friendHitBubbleID, contactID: contact.id, text: phrase,
@@ -211,9 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let phrase = self.runtime.phrase(
                 event: "messenger.visitOffline",
                 context: ["friend": .string(friendName)]
-            ) ?? (self.runtime.config.ui.locale == "en"
-                ? "\(friendName) went offline. The visit ended."
-                : "\(friendName) 下線啦，串門結束。")
+            ) ?? self.runtime.speechText("{friend} 下线啦，串门结束。", "{friend} went offline. The visit ended.").replacingOccurrences(of: "{friend}", with: friendName)
             self.panelController.say(
                 phrase,
                 event: "messenger.visitOffline",
@@ -234,7 +234,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if kind == .visitStart, messenger.preferences.visitsEnabled {
                 Task { @MainActor in
                     let reply = self.runtime.phrase(event: "messenger.visitAccept")
-                        ?? (self.runtime.config.ui.locale == "en" ? "I'm here!" : "我來啦！")
+                        ?? (self.runtime.speechText("我來啦！", "I'm here!"))
                     do {
                         let result = try await messenger.send(
                             text: reply, to: contact.id, kind: .visitAccept,
@@ -251,9 +251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                         }
                     } catch {
                         self.panelController.say(
-                            self.runtime.config.ui.locale == "en"
-                                ? "I couldn't answer the visit invitation."
-                                : "刚才没能回应串门邀请。",
+                            self.runtime.speechText("刚才没能回应串门邀请。", "I couldn't answer the visit invitation."),
                             event: "messenger.error",
                             duration: 5,
                             priority: SpeechPriority.interaction,
@@ -312,7 +310,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 guard let interaction = message.interaction else { break }
                 self.panelController.playRemoteInteraction(interaction, incoming: true)
                 let response = self.runtime.phrase(event: interaction.phraseEvent)
-                    ?? (self.runtime.config.ui.locale == "en" ? "I felt that!" : "我感覺到啦！")
+                    ?? (self.runtime.speechText("我感覺到啦！", "I felt that!"))
                 self.panelController.say(
                     response,
                     event: interaction.phraseEvent,
@@ -336,9 +334,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     return
                 case .persistenceFailed:
                     self.panelController.say(
-                        self.runtime.config.ui.locale == "en"
-                            ? "I couldn't save the latest fish-message state."
-                            : "刚才的鱼鱼消息状态没有保存好。",
+                        self.runtime.speechText("刚才的鱼鱼消息状态没有保存好。", "I couldn't save the latest fish-message state."),
                         event: "messenger.persistenceError",
                         duration: 5,
                         priority: SpeechPriority.urgent,
@@ -350,7 +346,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
             }
             self.panelController.say(
-                self.runtime.config.ui.locale == "en" ? "I couldn't reach your friend's fish." : "刚才没联系上朋友的鱼。",
+                self.runtime.speechText("刚才没联系上朋友的鱼。", "I couldn't reach your friend's fish."),
                 event: "messenger.error",
                 duration: 5,
                 priority: SpeechPriority.interaction,
@@ -475,6 +471,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
+    private func localizedMenuItem(_ chinese: String, _ english: String, action: Selector? = nil, keyEquivalent: String = "") -> NSMenuItem {
+        let item = NSMenuItem(title: runtime.config.ui.locale == "en" ? english : chinese, action: action, keyEquivalent: keyEquivalent)
+        localizedMenuItems.append((item, chinese, english))
+        return item
+    }
+
     private func configureStatusMenu() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.image = StatusBarFishIcon.image(catalog: runtime.catalog)
@@ -487,21 +489,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
 
-        let settings = NSMenuItem(title: "设置…", action: #selector(openSettings), keyEquivalent: ",")
+        let settings = localizedMenuItem("设置…", "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
 
-        let sendMessage = NSMenuItem(title: "魚魚傳話…", action: #selector(openFishMessageComposer), keyEquivalent: "")
+        let sendMessage = localizedMenuItem("鱼鱼传话…", "Fish Message…", action: #selector(openFishMessageComposer))
         sendMessage.target = self
         menu.addItem(sendMessage)
         messengerSendMenuItem = sendMessage
 
-        let messages = NSMenuItem(title: "聊天紀錄", action: #selector(openFishChat), keyEquivalent: "")
+        let messages = localizedMenuItem("聊天记录", "Chat History", action: #selector(openFishChat))
         messages.target = self
         menu.addItem(messages)
         messengerMenuItem = messages
 
-        let fishStatus = NSMenuItem(title: "我的狀態", action: nil, keyEquivalent: "")
+        let fishStatus = localizedMenuItem("我的状态", "My Status")
         let fishStatusMenu = NSMenu()
         for status in FishUserStatus.allCases {
             let option = NSMenuItem(
@@ -514,22 +516,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             fishStatusMenu.addItem(option)
         }
         fishStatusMenu.addItem(.separator())
-        let clearStatus = NSMenuItem(
-            title: runtime.config.ui.locale == "en" ? "Clear Status" : "清除狀態",
-            action: #selector(selectFishStatus(_:)),
-            keyEquivalent: ""
-        )
+        let clearStatus = localizedMenuItem("清除状态", "Clear Status", action: #selector(selectFishStatus(_:)))
         clearStatus.target = self
         fishStatusMenu.addItem(clearStatus)
         fishStatus.submenu = fishStatusMenu
         menu.addItem(fishStatus)
         fishStatusMenuItem = fishStatus
 
-        let chat = NSMenuItem(title: "和水滴魚聊天…", action: #selector(openDialogue), keyEquivalent: "")
+        let chat = localizedMenuItem("和角色聊天…", "Chat with Pet…", action: #selector(openDialogue))
         chat.target = self
         menu.addItem(chat)
 
-        let friendInteraction = NSMenuItem(title: "魚友互動", action: nil, keyEquivalent: "")
+        let friendInteraction = localizedMenuItem("鱼友互动", "Fish Friend Actions")
         let friendInteractionMenu = NSMenu()
         for interaction in FishRemoteInteraction.allCases {
             let option = NSMenuItem(
@@ -545,64 +543,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(friendInteraction)
         friendInteractionMenuItem = friendInteraction
 
-        let taskRoam = NSMenuItem(title: "任务进行时游动", action: #selector(toggleTaskRoam), keyEquivalent: "")
+        let taskRoam = localizedMenuItem("任务进行时游动", "Move while tasks run", action: #selector(toggleTaskRoam))
         taskRoam.target = self
         menu.addItem(taskRoam)
         taskRoamItem = taskRoam
 
-        let pause = NSMenuItem(title: "没有任务时也继续游动", action: #selector(togglePause), keyEquivalent: "")
+        let pause = localizedMenuItem("没有任务时也继续游动", "Move while idle", action: #selector(togglePause))
         pause.target = self
         menu.addItem(pause)
         pauseItem = pause
 
-        let performance = NSMenuItem(title: "显示性能面板", action: #selector(togglePerformancePanel), keyEquivalent: "")
+        let performance = localizedMenuItem("显示性能面板", "Show performance panel", action: #selector(togglePerformancePanel))
         performance.target = self
         menu.addItem(performance)
         performanceItem = performance
 
-        let launch = NSMenuItem(title: "登录后自动启动", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        let launch = localizedMenuItem("登录后自动启动", "Open at login", action: #selector(toggleLaunchAtLogin))
         launch.target = self
         menu.addItem(launch)
         launchAtLoginItem = launch
-        syncQuickSettingsMenu()
-
-        let locate = NSMenuItem(title: "把鱼移到屏幕中间", action: #selector(locatePet), keyEquivalent: "")
+        let locate = localizedMenuItem("把角色移到屏幕中间", "Move pet to screen center", action: #selector(locatePet))
         locate.target = self
         menu.addItem(locate)
-        let alertTitle = NSMenuItem(title: "时间到了", action: nil, keyEquivalent: "")
+        let alertTitle = localizedMenuItem("时间到了", "Time is up")
         alertTitle.isEnabled = false
         alertTitle.isHidden = true
         menu.addItem(alertTitle)
         clockAlertTitleItem = alertTitle
-        let snooze = NSMenuItem(title: "稍后 5 分钟", action: #selector(snoozeClockAlert), keyEquivalent: "")
+        let snooze = localizedMenuItem("稍后 5 分钟", "Snooze 5 minutes", action: #selector(snoozeClockAlert))
         snooze.target = self; snooze.isHidden = true; menu.addItem(snooze); clockSnoozeItem = snooze
-        let dismiss = NSMenuItem(title: "知道了", action: #selector(dismissFirstClockAlert), keyEquivalent: "")
+        let dismiss = localizedMenuItem("知道了", "Dismiss", action: #selector(dismissFirstClockAlert))
         dismiss.target = self; dismiss.isHidden = true; menu.addItem(dismiss); clockDismissItem = dismiss
 
-        let timerControl = NSMenuItem(title: "计时器", action: nil, keyEquivalent: "")
+        let timerControl = localizedMenuItem("计时器", "Timer")
         timerControl.isHidden = true
         let timerControlMenu = NSMenu()
-        let timerPause = NSMenuItem(
-            title: "暂停计时",
-            action: #selector(pauseOrResumeTimer),
-            keyEquivalent: ""
-        )
+        let timerPause = localizedMenuItem("暂停计时", "Pause timer", action: #selector(pauseOrResumeTimer))
         timerPause.target = self
         timerControlMenu.addItem(timerPause)
         timerPauseItem = timerPause
-        let timerExtend = NSMenuItem(
-            title: "增加 5 分钟",
-            action: #selector(extendTimer),
-            keyEquivalent: ""
-        )
+        let timerExtend = localizedMenuItem("增加 5 分钟", "Add 5 minutes", action: #selector(extendTimer))
         timerExtend.target = self
         timerControlMenu.addItem(timerExtend)
         timerExtendItem = timerExtend
-        let timerCancel = NSMenuItem(
-            title: "取消计时",
-            action: #selector(cancelTimer),
-            keyEquivalent: ""
-        )
+        let timerCancel = localizedMenuItem("取消计时", "Cancel timer", action: #selector(cancelTimer))
         timerCancel.target = self
         timerControlMenu.addItem(timerCancel)
         timerCancelItem = timerCancel
@@ -610,26 +594,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(timerControl)
         timerControlItem = timerControl
 
-        let quickTimer = NSMenuItem(title: "快速计时", action: nil, keyEquivalent: "")
+        let quickTimer = localizedMenuItem("快速计时", "Quick Timer")
         let quickMenu = NSMenu()
         for minutes in [5, 15, 25, 45] {
             let title = minutes == 25 ? "25 分钟专注" : "\(minutes) 分钟"
-            let option = NSMenuItem(title: title, action: #selector(startQuickTimer(_:)), keyEquivalent: "")
+            let englishTitle = minutes == 25 ? "25-minute focus" : "\(minutes) minutes"
+            let option = localizedMenuItem(title, englishTitle, action: #selector(startQuickTimer(_:)))
             option.target = self; option.representedObject = minutes; quickMenu.addItem(option)
         }
         quickTimer.submenu = quickMenu
         menu.addItem(quickTimer)
         quickTimerItem = quickTimer
-        let clocks = NSMenuItem(title: "闹钟与计时器…", action: #selector(openClocks), keyEquivalent: "")
+        let clocks = localizedMenuItem("闹钟与计时器…", "Alarms & Timers…", action: #selector(openClocks))
         clocks.target = self; menu.addItem(clocks)
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "退出水滴鱼", action: #selector(quitApplication), keyEquivalent: "q")
+        let quit = localizedMenuItem("退出水滴鱼", "Quit Blobfish", action: #selector(quitApplication), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
         item.menu = menu
         panelController.panel.contentView?.menu = menu
         statusItem = item
+        syncQuickSettingsMenu()
     }
 
     func menuWillOpen(_ menu: NSMenu) {
@@ -642,12 +628,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func updateMessengerMenu(unreadCount: Int) {
-        let title = runtime.config.ui.locale == "en" ? "Chat History" : "聊天紀錄"
+        messengerMenuUnreadCount = unreadCount
+        let english = runtime.config.ui.locale == "en"
+        let title = english ? "Chat History" : "聊天记录"
         messengerMenuItem?.title = unreadCount > 0
             ? "\(title) · \(unreadCount > 99 ? "99+" : String(unreadCount))"
             : title
-        messengerSendMenuItem?.title = runtime.config.ui.locale == "en" ? "Fish Message…" : "魚魚傳話…"
-        friendInteractionMenuItem?.title = runtime.config.ui.locale == "en" ? "Fish Friend Actions" : "魚友互動"
+        messengerSendMenuItem?.title = english ? "Fish Message…" : "鱼鱼传话…"
+        friendInteractionMenuItem?.title = english ? "Fish Friend Actions" : "鱼友互动"
+        fishStatusMenuItem?.title = english ? "My Status" : "我的状态"
+        for item in fishStatusMenuItem?.submenu?.items ?? [] where !item.isSeparatorItem {
+            if let raw = item.representedObject as? String, let status = FishUserStatus(rawValue: raw) {
+                item.title = NativeLocalization.simplified(status.title(isEnglish: english))
+            } else {
+                item.title = english ? "Clear Status" : "清除状态"
+            }
+        }
+        for item in friendInteractionMenuItem?.submenu?.items ?? [] {
+            guard let raw = item.representedObject as? String, let interaction = FishRemoteInteraction(rawValue: raw) else { continue }
+            item.title = NativeLocalization.simplified(interaction.title(isEnglish: english))
+        }
     }
 
     @MainActor private func visibleUnreadCount(_ messenger: FishMessengerService) -> Int {
@@ -676,19 +676,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             panelController.say(runtime.phrase(
                 event: "agent.needsInput",
                 context: ["activeCount": .number(Double(isActive))]
-            ) ?? "这里要你决定。", event: "agent.needsInput", priority: SpeechPriority.urgent, replaceKey: "agent.needsInput")
+            ) ?? runtime.speechText("这里要你决定。", "This needs your decision."), event: "agent.needsInput", priority: SpeechPriority.urgent, replaceKey: "agent.needsInput")
             panelController.playEffect(.waiting)
         } else if snapshot.state == .failed && previousSnapshot.state != .failed {
             if runtime.config.sound.taskComplete.enabled, !isQuietNow() {
                 soundPlayer.play(id: runtime.config.sound.taskComplete.soundId)
             }
-            panelController.say(runtime.phrase(event: "agent.failed") ?? "这个没弄成。", event: "agent.failed", priority: SpeechPriority.urgent, replaceKey: "agent.failed")
+            panelController.say(runtime.phrase(event: "agent.failed") ?? runtime.speechText("这个没弄成。", "That did not work."), event: "agent.failed", priority: SpeechPriority.urgent, replaceKey: "agent.failed")
             panelController.playEffect(.failed)
         } else if snapshot.state == .completed && previousSnapshot.state != .completed {
             if runtime.config.sound.taskComplete.enabled, !isQuietNow() {
                 soundPlayer.play(id: runtime.config.sound.taskComplete.soundId)
             }
-            panelController.say(runtime.phrase(event: "agent.allCompleted", context: ["remaining": .number(0)]) ?? "都结束了……终于。", event: "agent.allCompleted", priority: SpeechPriority.agent, replaceKey: "agent.allCompleted")
+            panelController.say(runtime.phrase(event: "agent.allCompleted", context: ["remaining": .number(0)]) ?? runtime.speechText("都结束了……终于。", "All done…finally."), event: "agent.allCompleted", priority: SpeechPriority.agent, replaceKey: "agent.allCompleted")
             panelController.playCompletionEffect(all: true)
         } else if wasActive > isActive, isActive > 0 {
             if runtime.config.sound.taskComplete.enabled, !isQuietNow() {
@@ -697,13 +697,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             panelController.say(runtime.phrase(
                 event: "agent.completed",
                 context: ["remaining": .number(Double(isActive))]
-            ) ?? "这个好了。", event: "agent.completed", priority: SpeechPriority.agent, replaceKey: "agent.completed")
+            ) ?? runtime.speechText("这个好了。", "That one is done."), event: "agent.completed", priority: SpeechPriority.agent, replaceKey: "agent.completed")
             panelController.playCompletionEffect(all: false)
         } else if isActive > wasActive {
             panelController.say(runtime.phrase(
                 event: "agent.started",
                 context: ["activeCount": .number(Double(isActive))]
-            ) ?? "又开始了……我去游。", event: "agent.started", priority: SpeechPriority.agent, replaceKey: "agent.started")
+            ) ?? runtime.speechText("又开始了……我去游。", "Starting again…I will swim."), event: "agent.started", priority: SpeechPriority.agent, replaceKey: "agent.started")
         }
     }
 
@@ -731,9 +731,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                   self.clockService?.state.alerts.contains(where: { $0.state == "ringing" }) != true,
                   !self.isQuietNow(),
                   Double.random(in: 0..<1) < 0.5 else { return }
-            let lines = self.runtime.config.ui.locale == "en"
+            let lines = self.runtime.speechIsEnglish
                 ? ["…Got a minute?", "Want to talk for a bit?", "Hey… busy?", "I am bored. Talk?"]
-                : ["……有空吗。", "陪我说会儿话？", "喂……在忙吗。", "有点无聊。要不聊聊？"]
+                : ["……有空吗。", "陪我说会儿话？", "喂……在忙吗。", "有点无聊。要不聊聊？"].map { self.runtime.speechText($0, $0) }
             self.chatInviteUntil = Date().addingTimeInterval(9)
             self.panelController.say(
                 lines.randomElement()!,
@@ -758,7 +758,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             panelController.say(runtime.phrase(
                 event: "clock.alarmRinging",
                 context: alert.label.isEmpty ? [:] : ["label": .string(alert.label)]
-            ) ?? (alert.label.isEmpty ? "闹钟响了。" : "\(alert.label) 到时间了。"), event: "clock.alarmRinging", priority: SpeechPriority.urgent, replaceKey: "clock.ringing")
+            ) ?? runtime.speechText("闹钟响了。", "The alarm is ringing."), event: "clock.alarmRinging", priority: SpeechPriority.urgent, replaceKey: "clock.ringing")
         case .timerDue(let alert):
             if state.preferences.timerSound.enabled,
                state.preferences.allowSoundDuringQuietHours || !isQuietNow() {
@@ -767,7 +767,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             panelController.say(runtime.phrase(
                 event: "clock.timerCompleted",
                 context: alert.label.isEmpty ? [:] : ["label": .string(alert.label)]
-            ) ?? "计时结束了。", event: "clock.timerCompleted", priority: SpeechPriority.urgent, replaceKey: "clock.ringing")
+            ) ?? runtime.speechText("计时结束了。", "The timer is done."), event: "clock.timerCompleted", priority: SpeechPriority.urgent, replaceKey: "clock.ringing")
             panelController.playCompletionEffect(all: false)
         case .changed(let reason):
             let eventName: String?
@@ -790,9 +790,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func reportClockPersistenceError(_ error: Error) {
         NSLog("Clock state could not be persisted: %@", error.localizedDescription)
         panelController.say(
-            runtime.config.ui.locale == "en"
-                ? "I couldn't save that clock change. Please try again."
-                : "闹钟状态没有保存好，请再试一次。",
+            runtime.speechText("闹钟状态没有保存好，请再试一次。", "I couldn't save that clock change. Please try again."),
             event: "clock.persistenceError",
             duration: 5,
             priority: SpeechPriority.urgent,
@@ -835,7 +833,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
               settingsController?.window?.isVisible != true,
               clockQuickController?.window?.isVisible != true,
               clockService?.state.alerts.isEmpty != false else { return }
-        panelController.say(runtime.phrase(event: "system.memoryExit") ?? "内存一直太高。我先沉下去。", event: "system.memoryExit", duration: 5, priority: SpeechPriority.urgent, replaceKey: "system.memoryExit")
+        panelController.say(runtime.phrase(event: "system.memoryExit") ?? runtime.speechText("内存一直太高。我先沉下去。", "Memory has stayed too high. I need to rest."), event: "system.memoryExit", duration: 5, priority: SpeechPriority.urgent, replaceKey: "system.memoryExit")
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
             self?.panelController.animateExit { [weak self] in self?.requestTermination() }
         }
@@ -848,7 +846,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             syncQuickSettingsMenu()
             settingsController?.mergeQuickSettingsFromRuntime()
         } catch {
-            panelController.say("没能改好游动设置。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
+            panelController.say(runtime.speechText("没能改好游动设置。", "I could not save the movement settings."), event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
         }
     }
 
@@ -887,7 +885,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             syncQuickSettingsMenu()
             settingsController?.mergeQuickSettingsFromRuntime()
         } catch {
-            panelController.say("开机启动设置没有改成功。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
+            panelController.say(runtime.speechText("开机启动设置没有改成功。", "I could not change the login setting."), event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
         }
     }
 
@@ -901,11 +899,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 panelController.say(phrase, event: event, priority: SpeechPriority.interaction, replaceKey: event)
             }
         } catch {
-            panelController.say("设置没有改成功。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
+            panelController.say(runtime.speechText("设置没有改成功。", "I could not save that setting."), event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
         }
     }
 
     private func syncQuickSettingsMenu() {
+        let english = runtime.config.ui.locale == "en"
+        for entry in localizedMenuItems {
+            entry.item.title = english ? entry.english : entry.chinese
+        }
+        statusItem?.button?.setAccessibilityLabel(english ? "Blobfish" : "水滴鱼")
+        statusItem?.button?.toolTip = english ? "Blobfish" : "水滴鱼"
+        if statusItem?.button?.image == nil { statusItem?.button?.title = english ? "Blobfish" : "水滴鱼" }
+        updateMessengerMenu(unreadCount: messengerMenuUnreadCount)
+        if let state = clockService?.state { updateClockMenu(state) }
         pauseItem?.title = runtime.config.ui.locale == "en" ? "Move while idle" : "没有任务时也继续游动"
         pauseItem?.state = runtime.config.pet.roamWhenNoTasks ? .on : .off
         taskRoamItem?.title = runtime.config.ui.locale == "en" ? "Move while tasks run" : "任务进行时游动"
@@ -983,7 +990,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 )
             } catch {
                 panelController.say(
-                    runtime.config.ui.locale == "en" ? "Status could not be shared." : "狀態暫時沒能同步。",
+                    runtime.speechText("狀態暫時沒能同步。", "Status could not be shared."),
                     event: "messenger.error", duration: 4,
                     priority: SpeechPriority.interaction, replaceKey: "messenger.status.error"
                 )
@@ -1007,7 +1014,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 presentSentFishMessage(result, contact: contact)
             } catch {
                 panelController.say(
-                    runtime.config.ui.locale == "en" ? "That action did not reach your friend." : "剛才的互動沒有送到好友那邊。",
+                    runtime.speechText("剛才的互動沒有送到好友那邊。", "That action did not reach your friend."),
                     event: "messenger.error",
                     duration: 4,
                     priority: SpeechPriority.interaction,
@@ -1027,9 +1034,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let label = minutes == 25 ? (runtime.config.ui.locale == "en" ? "Focus" : "专注") : ""
         do {
             try clockService?.startTimer(minutes: minutes, label: label, source: ClockTimerSource.quick)
-            panelController.say("计时开始了。", event: "clock.timerStarted", priority: SpeechPriority.schedule, replaceKey: "clock.control")
+            panelController.say(runtime.speechText("计时开始了。", "The timer has started."), event: "clock.timerStarted", priority: SpeechPriority.schedule, replaceKey: "clock.control")
         }
-        catch { panelController.say("计时器没能开始。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
+        catch { panelController.say(runtime.speechText("计时器没能开始。", "I could not start the timer."), event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
     }
 
     private func updateClockMenu(_ state: ClockState) {
@@ -1059,30 +1066,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func snoozeClockAlert() {
         guard let id = clockService?.state.alerts.first(where: { $0.state == "ringing" })?.id else { return }
         do { try clockService?.snoozeAlert(id: id, minutes: 5) }
-        catch { panelController.say("稍后提醒没有设好。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
+        catch { panelController.say(runtime.speechText("稍后提醒没有设好。", "I could not snooze the reminder."), event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
     }
 
     @objc private func dismissFirstClockAlert() {
         guard let id = clockService?.state.alerts.first(where: { $0.state == "ringing" })?.id else { return }
         do { try clockService?.dismissAlert(id: id) }
-        catch { panelController.say("提醒没有关掉。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
+        catch { panelController.say(runtime.speechText("提醒没有关掉。", "I could not dismiss the reminder."), event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
     }
 
     @objc private func pauseOrResumeTimer() {
         do {
             if clockService?.state.timer?.state == "running" { try clockService?.pauseTimer() }
             else { try clockService?.resumeTimer() }
-        } catch { panelController.say("计时器没有改好。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
+        } catch { panelController.say(runtime.speechText("计时器没有改好。", "I could not change the timer."), event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
     }
 
     @objc private func extendTimer() {
         do { try clockService?.extendTimer(minutes: 5) }
-        catch { panelController.say("计时器没有延长。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
+        catch { panelController.say(runtime.speechText("计时器没有延长。", "I could not extend the timer."), event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
     }
 
     @objc private func cancelTimer() {
         do { try clockService?.cancelTimer() }
-        catch { panelController.say("计时器没有取消。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
+        catch { panelController.say(runtime.speechText("计时器没有取消。", "I could not cancel the timer."), event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error") }
     }
 
     @MainActor @objc private func openClocks() {
@@ -1176,7 +1183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             )
         } else {
             let acknowledgement = runtime.phrase(event: "messenger.sent")
-                ?? (runtime.config.ui.locale == "en" ? "Message delivered." : "傳話送到啦。")
+                ?? runtime.speechText("传话送到啦。", "Message delivered.")
             panelController.say(
                 acknowledgement, event: "messenger.sent", duration: 2.8,
                 priority: SpeechPriority.interaction, replaceKey: "messenger.sent"
@@ -1193,19 +1200,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @MainActor @objc private func openDialogue() {
-        if let window = dialogueController?.window, window.isVisible {
+        guard let packID = runtime.language?.id,
+              let pack = try? runtime.catalog?.dialogue(id: packID) else {
+            dialogueController?.close()
+            panelController.say(runtime.speechText("聊天内容没有加载好。", "I couldn't load our conversation."), event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
+            return
+        }
+        if let controller = dialogueController, let window = controller.window, window.isVisible {
+            controller.synchronize(pack: pack)
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-        guard let catalog = runtime.catalog else {
-            panelController.say("聊天内容没有加载好。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
-            return
-        }
-        let pack = (try? catalog.dialogue(id: runtime.config.language.packId))
-            ?? (try? catalog.dialogue(id: "blobfish-zh-TW"))
-        guard let pack else {
-            panelController.say("聊天内容没有加载好。", event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
             return
         }
         let controller = DialogueWindowController(runtime: runtime, pack: pack) { [weak self] text, face in
@@ -1241,6 +1245,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self.fishChatController?.updateLocale(self.runtime.config.ui.locale)
                     self.fishMessageComposeController?.updateLocale(self.runtime.config.ui.locale)
                     self.clockQuickController?.updateLocale(self.runtime.config.ui.locale)
+                    if let packID = self.runtime.language?.id,
+                       let pack = try? self.runtime.catalog?.dialogue(id: packID) {
+                        self.dialogueController?.synchronize(pack: pack)
+                    } else {
+                        self.dialogueController?.close()
+                        self.dialogueController = nil
+                    }
                 }
                 self.syncPerformanceMonitoringPolicy()
                 if !self.runtime.config.performance.panelEnabled { self.panelController.updatePerformance(nil) }
@@ -1257,7 +1268,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @MainActor @objc private func quitApplication() {
         guard !quitRequested else { requestTermination(); return }
         quitRequested = true
-        let goodbye = runtime.phrase(event: "interaction.goodbye") ?? "好吧，我先沉下去了。"
+        let goodbye = runtime.phrase(event: "interaction.goodbye") ?? runtime.speechText("好吧，我先沉下去了。", "All right. I am sinking down for now.")
         panelController.say(goodbye, event: "interaction.goodbye", duration: 1.2, priority: SpeechPriority.interaction, replaceKey: "interaction.goodbye")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
             self?.panelController.animateExit { [weak self] in self?.requestTermination() }

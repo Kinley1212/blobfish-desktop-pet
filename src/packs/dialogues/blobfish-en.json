@@ -1,40 +1,569 @@
 {
   "nodes": {
-    "check-in": {
-      "prompt": "You are still here. How is it going?",
+    "poke": {
+      "prompt": "…What was that poke for?",
       "options": [
-        { "label": "Pretty well", "reply": "Good. Keep a little energy for yourself.", "face": "face-satisfied" },
-        { "label": "I am tired", "reply": "Then rest. The world can wait for five minutes.", "face": "face-sleepy" },
-        { "label": "Not great", "reply": "…Stay here for a moment. You do not have to solve it all now.", "face": "face-coy" }
+        {
+          "label": "Just looking",
+          "reply": "Looked enough? …You can stay a little.",
+          "face": "face-side-eye"
+        },
+        {
+          "label": "Let's talk",
+          "reply": "Fine. My schedule is mostly nothing.",
+          "face": "face-blank",
+          "next": "chat"
+        },
+        {
+          "label": "Play something?",
+          "reply": "…You have energy to spare.",
+          "face": "face-sparkle",
+          "next": "games"
+        }
+      ],
+      "opener": true
+    },
+    "mood": {
+      "prompt": "My mood is average. Yours?",
+      "options": [
+        {
+          "label": "Pretty good",
+          "reply": "Lucky you. Spare me some.",
+          "face": "face-smug",
+          "next": "goodmood"
+        },
+        {
+          "label": "A bit tired",
+          "reply": "Then we can both do nothing.",
+          "face": "face-sleepy",
+          "next": "tired"
+        },
+        {
+          "label": "Not good",
+          "reply": "…Stay here. No need to carry it alone.",
+          "face": "face-coy",
+          "next": "comfort"
+        }
+      ],
+      "opener": true
+    },
+    "hungry": {
+      "prompt": "I'm hungry. Have you eaten?",
+      "options": [
+        {
+          "label": "Yes",
+          "reply": "…Without inviting me. Typical.",
+          "face": "face-annoyed",
+          "next": "ate"
+        },
+        {
+          "label": "Not yet",
+          "reply": "Let's eat. Mine will be imaginary.",
+          "face": "face-sparkle",
+          "next": "eat"
+        },
+        {
+          "label": "I brought you food",
+          "reply": "…I suppose I can accept it.",
+          "face": "face-satisfied",
+          "next": "fed"
+        }
       ],
       "opener": true
     },
     "work": {
-      "prompt": "Still working? Of course you are.",
+      "prompt": "Still working? Look at the time.",
       "options": [
-        { "label": "Almost done", "reply": "Finish the small part, then stop.", "face": "face-determined" },
-        { "label": "There is too much", "reply": "Choose one thing. The rest can be tomorrow's problem.", "face": "face-blank" },
-        { "label": "I am procrastinating", "reply": "Reasonable. Just do one tiny step before we continue.", "face": "face-side-eye" }
+        {
+          "label": "Almost done",
+          "reply": "Then take a break. No heroic overtime.",
+          "face": "face-determined",
+          "next": "almost"
+        },
+        {
+          "label": "Too much left",
+          "reply": "Tomorrow exists for a reason.",
+          "face": "face-cold",
+          "next": "overwork"
+        },
+        {
+          "label": "Taking a break",
+          "reply": "A break with a fish. Reasonable.",
+          "face": "face-teasing",
+          "next": "games"
+        }
       ],
       "opener": true
     },
-    "food": {
-      "prompt": "Have you eaten? I cannot keep reminding you forever.",
+    "praise": {
+      "prompt": "Do you think I'm… cute?",
       "options": [
-        { "label": "Yes", "reply": "Good. One less concern.", "face": "face-satisfied" },
-        { "label": "Not yet", "reply": "Go eat something. I will guard the cursor.", "face": "face-annoyed" },
-        { "label": "Later", "reply": "Later has a habit of becoming never.", "face": "face-side-eye" }
+        {
+          "label": "Very cute",
+          "reply": "…Noted. You can stop now.",
+          "face": "face-shy",
+          "next": "shy"
+        },
+        {
+          "label": "You're all right",
+          "reply": "All right? Care to reconsider?",
+          "face": "face-angry",
+          "next": "provoke"
+        },
+        {
+          "label": "Oddly cute",
+          "reply": "…An oddly shaped compliment.",
+          "face": "face-blank",
+          "next": "uglycute"
+        }
       ],
       "opener": true
     },
-    "fish": {
-      "prompt": "You opened a whole window just to talk to a fish.",
+    "weather": {
+      "prompt": "What's it like outside? I haven't checked.",
       "options": [
-        { "label": "Worth it", "reply": "…That was almost nice.", "face": "face-shy" },
-        { "label": "I needed a break", "reply": "Then take one. We can stare at nothing together.", "face": "face-blank" },
-        { "label": "I was curious", "reply": "Curiosity confirmed. Still a fish.", "face": "face-smug" }
+        {
+          "label": "Sunny",
+          "reply": "Good weather for doing very little.",
+          "face": "face-satisfied",
+          "next": "sunny"
+        },
+        {
+          "label": "Raining",
+          "reply": "…An excellent excuse to stay in.",
+          "face": "face-relieved",
+          "next": "rainy"
+        },
+        {
+          "label": "No idea",
+          "reply": "Neither of us has moved much, then.",
+          "face": "face-side-eye"
+        }
       ],
       "opener": true
+    },
+    "secret": {
+      "prompt": "I'll tell you a secret. Actually, I…",
+      "options": [
+        {
+          "label": "You what?",
+          "reply": "…Have no secret. That was the secret.",
+          "face": "face-teasing",
+          "next": "tricked"
+        },
+        {
+          "label": "Want a pat?",
+          "reply": "How did you know? Keep it quiet.",
+          "face": "face-shy"
+        },
+        {
+          "label": "This sounds ominous",
+          "reply": "It's a fish talking. Nothing worse.",
+          "face": "face-coy"
+        }
+      ],
+      "opener": true
+    },
+    "bored": {
+      "prompt": "I'm bored. Shall we do something?",
+      "options": [
+        {
+          "label": "Let's play",
+          "reply": "Fine. I won't let you win.",
+          "face": "face-determined",
+          "next": "games"
+        },
+        {
+          "label": "I have a story",
+          "reply": "Go on. I'm listening.",
+          "face": "face-blank",
+          "next": "listen"
+        },
+        {
+          "label": "Just sit together",
+          "reply": "…Finally, my specialty.",
+          "face": "face-blank",
+          "next": "daze"
+        }
+      ],
+      "opener": true
+    },
+    "care": {
+      "prompt": "Have you had any water today?",
+      "options": [
+        {
+          "label": "Yes",
+          "reply": "Good. Keep that up.",
+          "face": "face-happy"
+        },
+        {
+          "label": "Forgot",
+          "reply": "Go get some. I'll wait.",
+          "face": "face-annoyed",
+          "next": "drink"
+        },
+        {
+          "label": "Don't fuss",
+          "reply": "…Fine. Quiet concern it is.",
+          "face": "face-pitiful",
+          "next": "sulk"
+        }
+      ],
+      "opener": true
+    },
+    "games": {
+      "prompt": "Pick a game. Try to lose gracefully.",
+      "options": [
+        {
+          "label": "Rock, paper, scissors",
+          "face": "face-determined",
+          "game": "rps"
+        },
+        {
+          "label": "High or low",
+          "face": "face-teasing",
+          "game": "dice"
+        },
+        {
+          "label": "Riddles",
+          "face": "face-doubt",
+          "game": "riddle"
+        },
+        {
+          "label": "Let's not",
+          "reply": "…Fine. Conversation it is.",
+          "face": "face-annoyed",
+          "next": "chat"
+        }
+      ]
+    },
+    "chat": {
+      "prompt": "So… what shall we talk about?",
+      "options": [
+        {
+          "label": "A compliment for you",
+          "reply": "Go on. I wasn't stopping you.",
+          "face": "face-love",
+          "next": "more-chat"
+        },
+        {
+          "label": "Something's bothering me",
+          "reply": "Tell me. I've got time.",
+          "face": "face-determined",
+          "next": "vent"
+        },
+        {
+          "label": "Let's play instead",
+          "reply": "…All right. Pick one.",
+          "face": "face-sparkle",
+          "next": "games"
+        }
+      ]
+    },
+    "more-chat": {
+      "prompt": "Anything else? I'm still listening.",
+      "options": [
+        {
+          "label": "You look nice today",
+          "reply": "…Enough. I'm getting warm.",
+          "face": "face-shy"
+        },
+        {
+          "label": "Glad you're here",
+          "reply": "Slightly embarrassing. I'll remember it.",
+          "face": "face-coy"
+        }
+      ]
+    },
+    "vent": {
+      "prompt": "What's bothering you? No rush.",
+      "options": [
+        {
+          "label": "Just feeling low",
+          "reply": "…All right. I'm here.",
+          "face": "face-love"
+        },
+        {
+          "label": "Talking helped",
+          "reply": "Good. You needn't keep it bottled up.",
+          "face": "face-satisfied"
+        }
+      ]
+    },
+    "goodmood": {
+      "prompt": "Can I have some of that good mood?",
+      "options": [
+        {
+          "label": "Here you go",
+          "reply": "…Received. A decent day after all.",
+          "face": "face-happy"
+        },
+        {
+          "label": "Get your own",
+          "reply": "…Very generous of you.",
+          "face": "face-annoyed"
+        }
+      ]
+    },
+    "tired": {
+      "prompt": "You can rest a moment. I'll stay.",
+      "options": [
+        {
+          "label": "I'll rest",
+          "reply": "Good. Just a little while.",
+          "face": "face-satisfied"
+        },
+        {
+          "label": "Need to keep going",
+          "reply": "…Then at least stretch first.",
+          "face": "face-side-eye"
+        }
+      ]
+    },
+    "comfort": {
+      "prompt": "Tell me when you're ready.",
+      "options": [
+        {
+          "label": "I might cry",
+          "reply": "…That's allowed. I'll stay nearby.",
+          "face": "face-love"
+        },
+        {
+          "label": "This helps",
+          "reply": "Good. I'll keep doing very little.",
+          "face": "face-swirl-cheek"
+        }
+      ]
+    },
+    "ate": {
+      "prompt": "What did you eat? Let me envy it.",
+      "options": [
+        {
+          "label": "Hot pot",
+          "reply": "…You said that on purpose.",
+          "face": "face-cry"
+        },
+        {
+          "label": "Something quick",
+          "reply": "Next meal, give yourself a proper break.",
+          "face": "face-annoyed"
+        }
+      ]
+    },
+    "eat": {
+      "prompt": "What would you like? I can supervise.",
+      "options": [
+        {
+          "label": "Hot pot",
+          "reply": "With a fish watching? Bold choice.",
+          "face": "face-scared"
+        },
+        {
+          "label": "Anything",
+          "reply": "Anything is annoyingly hard to order.",
+          "face": "face-annoyed"
+        },
+        {
+          "label": "What you're having",
+          "reply": "Air. Are you sure about this?",
+          "face": "face-teasing"
+        }
+      ]
+    },
+    "fed": {
+      "prompt": "You really brought something? What?",
+      "options": [
+        {
+          "label": "Your favorite",
+          "reply": "…You remembered. Hmph.",
+          "face": "face-shy"
+        },
+        {
+          "label": "Just teasing",
+          "reply": "…I had already made room.",
+          "face": "face-angry"
+        }
+      ]
+    },
+    "almost": {
+      "prompt": "Finish this bit, then stop. Deal?",
+      "options": [
+        {
+          "label": "Deal",
+          "reply": "Good. I'll hold you to it.",
+          "face": "face-satisfied"
+        },
+        {
+          "label": "We'll see",
+          "reply": "…That sounds suspiciously like more work.",
+          "face": "face-cold"
+        }
+      ]
+    },
+    "overwork": {
+      "prompt": "Can one part of this wait until tomorrow?",
+      "options": [
+        {
+          "label": "I'll leave some",
+          "reply": "Good. Tomorrow can do its share.",
+          "face": "face-satisfied"
+        },
+        {
+          "label": "Not this time",
+          "reply": "…Then take a small break when you can.",
+          "face": "face-cold"
+        }
+      ]
+    },
+    "shy": {
+      "prompt": "…You don't have to keep staring.",
+      "options": [
+        {
+          "label": "I'm staying",
+          "reply": "Suit yourself. I won't swim away.",
+          "face": "face-coy"
+        },
+        {
+          "label": "I'll look away",
+          "reply": "…Not forever, though.",
+          "face": "face-pitiful"
+        }
+      ]
+    },
+    "provoke": {
+      "prompt": "All right, was it? One more chance.",
+      "options": [
+        {
+          "label": "Extremely cute",
+          "reply": "…Better.",
+          "face": "face-smug"
+        },
+        {
+          "label": "Still all right",
+          "reply": "…Your appeal has been noted.",
+          "face": "face-angry"
+        }
+      ]
+    },
+    "uglycute": {
+      "prompt": "Oddly cute is still cute, right?",
+      "options": [
+        {
+          "label": "Definitely cute",
+          "reply": "…I'll accept that wording.",
+          "face": "face-satisfied"
+        },
+        {
+          "label": "Mostly odd",
+          "reply": "…You can stop reviewing me now.",
+          "face": "face-cry"
+        }
+      ]
+    },
+    "sunny": {
+      "prompt": "Shall we do nothing in the sunshine?",
+      "options": [
+        {
+          "label": "Sounds good",
+          "reply": "…At last, a sensible plan.",
+          "face": "face-satisfied"
+        },
+        {
+          "label": "I have work",
+          "reply": "Work again. Even the fish is tired.",
+          "face": "face-sleepy"
+        }
+      ]
+    },
+    "rainy": {
+      "prompt": "Best thing to do on a rainy day?",
+      "options": [
+        {
+          "label": "Sleep",
+          "reply": "…A sound answer.",
+          "face": "face-sleepy"
+        },
+        {
+          "label": "Sit with you",
+          "reply": "Then sit. We've got time.",
+          "face": "face-blank"
+        }
+      ]
+    },
+    "tricked": {
+      "prompt": "Annoyed? It was a small joke.",
+      "options": [
+        {
+          "label": "Not annoyed",
+          "reply": "Good. You may pat the fish.",
+          "face": "face-coy"
+        },
+        {
+          "label": "A little",
+          "reply": "…All right. Sorry about that.",
+          "face": "face-pitiful"
+        }
+      ]
+    },
+    "listen": {
+      "prompt": "Go on. I'm all ears. Figuratively.",
+      "options": [
+        {
+          "label": "Something happened today",
+          "reply": "…And then? Don't stop there.",
+          "face": "face-sparkle"
+        },
+        {
+          "label": "I'll tell you later",
+          "reply": "Fine. I'll be here, mildly curious.",
+          "face": "face-annoyed"
+        }
+      ]
+    },
+    "daze": {
+      "prompt": "…Doing absolutely nothing together.",
+      "options": [
+        {
+          "label": "Keep sitting",
+          "reply": "…An excellent use of this moment.",
+          "face": "face-blank"
+        },
+        {
+          "label": "That will do",
+          "reply": "Time passes. Even when we don't.",
+          "face": "face-satisfied"
+        }
+      ]
+    },
+    "drink": {
+      "prompt": "Had some water yet?",
+      "options": [
+        {
+          "label": "Yes",
+          "reply": "Good. One less thing to worry about.",
+          "face": "face-love"
+        },
+        {
+          "label": "In a minute",
+          "reply": "…Make it an actual minute.",
+          "face": "face-annoyed"
+        }
+      ]
+    },
+    "sulk": {
+      "prompt": "…I'll stop fussing. Mostly.",
+      "options": [
+        {
+          "label": "Don't be cross",
+          "reply": "I'm not. Just slightly rumpled.",
+          "face": "face-coy"
+        },
+        {
+          "label": "Sorry",
+          "reply": "It's fine. I wasn't really angry.",
+          "face": "face-shy"
+        }
+      ]
     }
   }
 }

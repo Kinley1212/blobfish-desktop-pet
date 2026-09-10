@@ -55,10 +55,15 @@ final class AppRuntime {
             character = try? catalog.character(id: AppConfig.defaults.pet.characterPackId)
         }
         do {
-            language = try catalog.language(id: config.language.packId)
+            let languages = try catalog.languages()
+            language = character.flatMap {
+                SpeechLanguagePolicy.preferredPack(character: $0, currentID: config.language.packId, languages: languages)
+            }
+            // Normalize old incompatible preferences in memory; the next explicit save persists it.
+            if let language { config.language.packId = language.id }
         } catch {
-            warnings.append("语言包 \(config.language.packId) 加载失败，临时使用默认语言：\(error)")
-            language = try? catalog.language(id: AppConfig.defaults.language.packId)
+            warnings.append("语言包 \(config.language.packId) 加载失败，暂时无法显示角色台词：\(error)")
+            language = nil
         }
         phraseEngine = language.map { PhraseEngine(phrases: $0.phrases) }
     }

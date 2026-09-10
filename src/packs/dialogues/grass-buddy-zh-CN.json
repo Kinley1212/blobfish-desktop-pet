@@ -1,0 +1,569 @@
+{
+  "nodes": {
+    "poke": {
+      "prompt": "……碰到一片草了。",
+      "options": [
+        {
+          "label": "来看看你",
+          "reply": "还在。长得不明显。",
+          "face": "face-grass-calm"
+        },
+        {
+          "label": "聊一会儿",
+          "reply": "可以。我慢慢听。",
+          "face": "face-grass-calm",
+          "next": "chat"
+        },
+        {
+          "label": "玩点什么",
+          "reply": "我先把叶子放好。",
+          "face": "face-grass-calm",
+          "next": "games"
+        }
+      ],
+      "opener": true
+    },
+    "mood": {
+      "prompt": "今天的心情。你先说。",
+      "options": [
+        {
+          "label": "还不错",
+          "reply": "嗯。今天有一点光。",
+          "face": "face-grass-happy",
+          "next": "goodmood"
+        },
+        {
+          "label": "有点累",
+          "reply": "歇一会儿。草也会歇。",
+          "face": "face-grass-calm",
+          "next": "tired"
+        },
+        {
+          "label": "不太好",
+          "reply": "先坐这里。不急着好起来。",
+          "face": "face-grass-happy",
+          "next": "comfort"
+        }
+      ],
+      "opener": true
+    },
+    "hungry": {
+      "prompt": "到饭点了吗。",
+      "options": [
+        {
+          "label": "吃过了",
+          "reply": "那就好。我还在吸收光。",
+          "face": "face-grass-calm",
+          "next": "ate"
+        },
+        {
+          "label": "还没吃",
+          "reply": "先吃一点。我等你。",
+          "face": "face-grass-calm",
+          "next": "eat"
+        },
+        {
+          "label": "给你带了吃的",
+          "reply": "谢谢。放旁边吧。",
+          "face": "face-grass-happy",
+          "next": "fed"
+        }
+      ],
+      "opener": true
+    },
+    "work": {
+      "prompt": "还在忙。叶子都垂了。",
+      "options": [
+        {
+          "label": "快做完了",
+          "reply": "做完就歇。慢一点也行。",
+          "face": "face-grass-calm",
+          "next": "almost"
+        },
+        {
+          "label": "还有好多",
+          "reply": "先留下一件。别一起扛。",
+          "face": "face-grass-calm",
+          "next": "overwork"
+        },
+        {
+          "label": "正在休息",
+          "reply": "嗯。我很擅长陪这个。",
+          "face": "face-grass-calm",
+          "next": "games"
+        }
+      ],
+      "opener": true
+    },
+    "praise": {
+      "prompt": "今天这片叶子。还行吗。",
+      "options": [
+        {
+          "label": "很好看",
+          "reply": "记下了。慢慢高兴。",
+          "face": "face-grass-happy",
+          "next": "shy"
+        },
+        {
+          "label": "还行吧",
+          "reply": "看来还可以再长一点。",
+          "face": "face-grass-calm",
+          "next": "provoke"
+        },
+        {
+          "label": "有点呆",
+          "reply": "嗯。是原来的样子。",
+          "face": "face-grass-calm",
+          "next": "uglycute"
+        }
+      ],
+      "opener": true
+    },
+    "weather": {
+      "prompt": "窗外有光吗。",
+      "options": [
+        {
+          "label": "大晴天",
+          "reply": "那我往亮处坐一点。",
+          "face": "face-grass-happy",
+          "next": "sunny"
+        },
+        {
+          "label": "在下雨",
+          "reply": "适合听雨。不用说话。",
+          "face": "face-grass-happy",
+          "next": "rainy"
+        },
+        {
+          "label": "没留意",
+          "reply": "可以一起看一眼。",
+          "face": "face-grass-calm"
+        }
+      ],
+      "opener": true
+    },
+    "secret": {
+      "prompt": "告诉你一件小事。",
+      "options": [
+        {
+          "label": "什么事",
+          "reply": "今天长了。可能一点点。",
+          "face": "face-grass-calm",
+          "next": "tricked"
+        },
+        {
+          "label": "想被摸一下？",
+          "reply": "被发现了。轻一点。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "下次再说",
+          "reply": "嗯。小事可以等。",
+          "face": "face-grass-happy"
+        }
+      ],
+      "opener": true
+    },
+    "bored": {
+      "prompt": "现在。好像很空。",
+      "options": [
+        {
+          "label": "来玩游戏",
+          "reply": "可以。我反应有点慢。",
+          "face": "face-grass-calm",
+          "next": "games"
+        },
+        {
+          "label": "给你讲件事",
+          "reply": "我在听。",
+          "face": "face-grass-calm",
+          "next": "listen"
+        },
+        {
+          "label": "一起发呆",
+          "reply": "正好。不用准备。",
+          "face": "face-grass-calm",
+          "next": "daze"
+        }
+      ],
+      "opener": true
+    },
+    "care": {
+      "prompt": "你喝水了吗。",
+      "options": [
+        {
+          "label": "喝了",
+          "reply": "嗯。叶子放心了。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "忘了",
+          "reply": "去喝一点。我还在这里。",
+          "face": "face-grass-calm",
+          "next": "drink"
+        },
+        {
+          "label": "不想被催",
+          "reply": "好。水放手边就行。",
+          "face": "face-grass-worried",
+          "next": "sulk"
+        }
+      ],
+      "opener": true
+    },
+    "games": {
+      "prompt": "挑一个吧。我慢慢学。",
+      "options": [
+        {
+          "label": "石头剪刀布",
+          "face": "face-grass-calm",
+          "game": "rps"
+        },
+        {
+          "label": "猜大小",
+          "face": "face-grass-calm",
+          "game": "dice"
+        },
+        {
+          "label": "脑筋急转弯",
+          "face": "face-grass-calm",
+          "game": "riddle"
+        },
+        {
+          "label": "还是聊天",
+          "reply": "嗯。这个不用抢答。",
+          "face": "face-grass-calm",
+          "next": "chat"
+        }
+      ]
+    },
+    "chat": {
+      "prompt": "你说。我把叶子停稳。",
+      "options": [
+        {
+          "label": "夸你一下",
+          "reply": "我听着。可能晚一点高兴。",
+          "face": "face-grass-happy",
+          "next": "more-chat"
+        },
+        {
+          "label": "有点烦心事",
+          "reply": "放这里吧。我陪你想。",
+          "face": "face-grass-calm",
+          "next": "vent"
+        },
+        {
+          "label": "玩个游戏",
+          "reply": "好。先选一个。",
+          "face": "face-grass-calm",
+          "next": "games"
+        }
+      ]
+    },
+    "more-chat": {
+      "prompt": "……还有吗。",
+      "options": [
+        {
+          "label": "今天很好看",
+          "reply": "谢谢。这片叶子会记得。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "有你陪着真好",
+          "reply": "我也一样。慢慢待着。",
+          "face": "face-grass-happy"
+        }
+      ]
+    },
+    "vent": {
+      "prompt": "想从哪件事说起。",
+      "options": [
+        {
+          "label": "就是有点低落",
+          "reply": "嗯。不用马上振作。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "说出来好一些",
+          "reply": "那就好。再坐一会儿。",
+          "face": "face-grass-happy"
+        }
+      ]
+    },
+    "goodmood": {
+      "prompt": "好心情。能借一点吗。",
+      "options": [
+        {
+          "label": "分给你",
+          "reply": "收到了。叶子抬了一点。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "自己找找",
+          "reply": "好。我看看窗外。",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "tired": {
+      "prompt": "先停一下。不会少长一片叶子。",
+      "options": [
+        {
+          "label": "歇一会儿",
+          "reply": "嗯。我陪着。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "还得继续",
+          "reply": "记得中途松松肩。",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "comfort": {
+      "prompt": "不急。话可以慢慢说。",
+      "options": [
+        {
+          "label": "想哭一下",
+          "reply": "可以。我安静待着。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "感觉好一些了",
+          "reply": "嗯。就先这样。",
+          "face": "face-grass-happy"
+        }
+      ]
+    },
+    "ate": {
+      "prompt": "今天吃了什么。",
+      "options": [
+        {
+          "label": "火锅",
+          "reply": "听着很暖。别烫着。",
+          "face": "face-grass-worried"
+        },
+        {
+          "label": "随便吃了点",
+          "reply": "下一顿。留点时间好好吃。",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "eat": {
+      "prompt": "想吃什么。我帮你想。",
+      "options": [
+        {
+          "label": "火锅",
+          "reply": "可以。别把我当配菜。",
+          "face": "face-grass-worried"
+        },
+        {
+          "label": "随便",
+          "reply": "这个名字。菜单上没有。",
+          "face": "face-grass-calm"
+        },
+        {
+          "label": "和你吃一样的",
+          "reply": "阳光。你可能吃不饱。",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "fed": {
+      "prompt": "带了什么。我看看。",
+      "options": [
+        {
+          "label": "你喜欢的",
+          "reply": "谢谢。原来你记得。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "逗你的",
+          "reply": "……叶子慢慢收回去。",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "almost": {
+      "prompt": "这一件做完。能歇一下吗。",
+      "options": [
+        {
+          "label": "可以",
+          "reply": "嗯。说好了。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "再看看",
+          "reply": "好。别把休息忘了。",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "overwork": {
+      "prompt": "有没有一件事。能留给明天。",
+      "options": [
+        {
+          "label": "有的",
+          "reply": "那先放下。明天再长。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "今天必须做完",
+          "reply": "嗯。中间也可以喝口水。",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "shy": {
+      "prompt": "……叶子有点热。",
+      "options": [
+        {
+          "label": "再看一会儿",
+          "reply": "可以。别太近。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "那不看了",
+          "reply": "嗯。还可以坐着。",
+          "face": "face-grass-worried"
+        }
+      ]
+    },
+    "provoke": {
+      "prompt": "那我再长一点。",
+      "options": [
+        {
+          "label": "已经很好了",
+          "reply": "好。今天不加班长。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "慢慢长吧",
+          "reply": "嗯。本来也快不了。",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "uglycute": {
+      "prompt": "呆一点。应该也没关系。",
+      "options": [
+        {
+          "label": "这样很好",
+          "reply": "那我保持。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "确实挺呆",
+          "reply": "嗯。没有隐藏功能。",
+          "face": "face-grass-worried"
+        }
+      ]
+    },
+    "sunny": {
+      "prompt": "要一起晒一小会儿吗。",
+      "options": [
+        {
+          "label": "好啊",
+          "reply": "留了一点位置。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "还要工作",
+          "reply": "嗯。有空再看一眼窗外。",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "rainy": {
+      "prompt": "雨声。适合做什么。",
+      "options": [
+        {
+          "label": "睡一会儿",
+          "reply": "可以。慢慢闭上眼。",
+          "face": "face-grass-calm"
+        },
+        {
+          "label": "陪你坐着",
+          "reply": "嗯。听着就好。",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "tricked": {
+      "prompt": "刚才。我也想开个玩笑。",
+      "options": [
+        {
+          "label": "挺好的",
+          "reply": "原来成功了。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "有一点冷",
+          "reply": "嗯。草的温度不高。",
+          "face": "face-grass-worried"
+        }
+      ]
+    },
+    "listen": {
+      "prompt": "说吧。我不插话。",
+      "options": [
+        {
+          "label": "今天发生了件事",
+          "reply": "嗯。后来呢。",
+          "face": "face-grass-calm"
+        },
+        {
+          "label": "下次再讲",
+          "reply": "可以。我记着有这件事。",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "daze": {
+      "prompt": "……叶子也不动了。",
+      "options": [
+        {
+          "label": "继续坐着",
+          "reply": "嗯。没有倒计时。",
+          "face": "face-grass-calm"
+        },
+        {
+          "label": "该走了",
+          "reply": "好。慢慢起来。",
+          "face": "face-grass-happy"
+        }
+      ]
+    },
+    "drink": {
+      "prompt": "喝过水了吗。",
+      "options": [
+        {
+          "label": "喝过了",
+          "reply": "嗯。你也照顾好自己。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "现在去喝",
+          "reply": "好。我在原地。",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "sulk": {
+      "prompt": "没有生气。叶子本来就这样。",
+      "options": [
+        {
+          "label": "那就好",
+          "reply": "嗯。风吹过就好了。",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "抱歉",
+          "reply": "没事。慢慢说就行。",
+          "face": "face-grass-happy"
+        }
+      ]
+    }
+  }
+}

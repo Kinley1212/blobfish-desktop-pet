@@ -69,14 +69,14 @@ enum FishRemoteInteraction: String, Codable, CaseIterable, Identifiable, Hashabl
 
     func title(isEnglish: Bool) -> String {
         switch self {
-        case .pet: return isEnglish ? "Pet" : "摸摸頭"
+        case .pet: return isEnglish ? "Pet" : "摸摸头"
         case .hug: return isEnglish ? "Hug" : "抱抱"
-        case .highFive: return isEnglish ? "High five" : "擊掌"
-        case .launch: return isEnglish ? "Launch" : "彈射"
-        case .bomb: return isEnglish ? "Fish bomb" : "魚魚炸彈"
-        case .vortex: return isEnglish ? "Vortex" : "漩渦"
+        case .highFive: return isEnglish ? "High five" : "击掌"
+        case .launch: return isEnglish ? "Launch" : "弹射"
+        case .bomb: return isEnglish ? "Fish bomb" : "鱼鱼炸弹"
+        case .vortex: return isEnglish ? "Vortex" : "漩涡"
         case .wave: return isEnglish ? "Wave" : "海浪"
-        case .bubble: return isEnglish ? "Bubble transport" : "傳送泡泡"
+        case .bubble: return isEnglish ? "Bubble transport" : "传送泡泡"
         }
     }
 
@@ -142,12 +142,12 @@ enum FishUserStatus: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
     func title(isEnglish: Bool) -> String {
         switch self {
-        case .fishing: return isEnglish ? "Slacking" : "摸魚"
+        case .fishing: return isEnglish ? "Slacking" : "摸鱼"
         case .working: return isEnglish ? "Working" : "工作"
-        case .doNotDisturb: return isEnglish ? "Do Not Disturb" : "勿擾"
+        case .doNotDisturb: return isEnglish ? "Do Not Disturb" : "勿扰"
         case .resting: return isEnglish ? "Resting" : "休息"
-        case .happy: return isEnglish ? "Happy" : "開心"
-        case .unhappy: return isEnglish ? "Unhappy" : "不開心"
+        case .happy: return isEnglish ? "Happy" : "开心"
+        case .unhappy: return isEnglish ? "Unhappy" : "不开心"
         }
     }
     var emoji: String {

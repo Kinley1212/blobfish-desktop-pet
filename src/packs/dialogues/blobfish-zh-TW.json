@@ -1,22 +1,22 @@
 {
   "nodes": {
     "poke": {
-      "prompt": "……你戳我干嘛。",
+      "prompt": "……你戳我乾嘛。",
       "options": [
         {
           "label": "就想看看你",
-          "reply": "看够了没。……那再看一会儿也行。",
+          "reply": "看夠了沒。……那再看一會兒也行。",
           "face": "face-side-eye"
         },
         {
-          "label": "陪你聊会儿",
-          "reply": "……行吧。反正我也没在忙。",
+          "label": "陪你聊會兒",
+          "reply": "……行吧。反正我也沒在忙。",
           "face": "face-blank",
           "next": "chat"
         },
         {
-          "label": "玩点什么？",
-          "reply": "……哦？你还挺有兴致。",
+          "label": "玩點什麼？",
+          "reply": "……哦？你還挺有興致。",
           "face": "face-sparkle",
           "next": "games"
         }
@@ -28,19 +28,19 @@
       "options": [
         {
           "label": "我很好！",
-          "reply": "……真好啊你。分我一点。",
+          "reply": "……真好啊你。分我一點。",
           "face": "face-smug",
           "next": "goodmood"
         },
         {
-          "label": "有点累",
-          "reply": "那就一起烂着。谁也别动。",
+          "label": "有點累",
+          "reply": "那就一起爛著。誰也別動。",
           "face": "face-sleepy",
           "next": "tired"
         },
         {
           "label": "不太好",
-          "reply": "……过来。别一个人扛。",
+          "reply": "……過來。別一個人扛。",
           "face": "face-coy",
           "next": "comfort"
         }
@@ -48,7 +48,7 @@
       "opener": true
     },
     "hungry": {
-      "prompt": "我有点饿了……你吃了没。",
+      "prompt": "我有點餓了……你吃了沒。",
       "options": [
         {
           "label": "吃了",
@@ -57,14 +57,14 @@
           "next": "ate"
         },
         {
-          "label": "还没",
-          "reply": "那一起？我请你看我吃（空气）。",
+          "label": "還沒",
+          "reply": "那一起？我請你看我吃（空氣）。",
           "face": "face-sparkle",
           "next": "eat"
         },
         {
-          "label": "给你带了吃的",
-          "reply": "……勉为其难，收下了。",
+          "label": "給你帶了吃的",
+          "reply": "……勉為其難，收下了。",
           "face": "face-satisfied",
           "next": "fed"
         }
@@ -72,23 +72,23 @@
       "opener": true
     },
     "work": {
-      "prompt": "还在工作？都几点了。",
+      "prompt": "還在工作？都幾點了。",
       "options": [
         {
           "label": "快做完了",
-          "reply": "做完就歇。别硬撑。",
+          "reply": "做完就歇。別硬撐。",
           "face": "face-determined",
           "next": "almost"
         },
         {
           "label": "做不完了",
-          "reply": "……做不完就明天。地球不会爆。",
+          "reply": "……做不完就明天。地球不會爆。",
           "face": "face-cold",
           "next": "overwork"
         },
         {
-          "label": "在摸鱼",
-          "reply": "……摸鱼还带上我。行，一起。",
+          "label": "在摸魚",
+          "reply": "……摸魚還帶上我。行，一起。",
           "face": "face-teasing",
           "next": "games"
         }
@@ -96,23 +96,23 @@
       "opener": true
     },
     "praise": {
-      "prompt": "你觉得……我可爱吗。",
+      "prompt": "你覺得……我可愛嗎。",
       "options": [
         {
-          "label": "超可爱",
-          "reply": "……知道了。别说了。",
+          "label": "超可愛",
+          "reply": "……知道了。別說了。",
           "face": "face-shy",
           "next": "shy"
         },
         {
-          "label": "还行吧",
-          "reply": "『还行』？你再说一次试试。",
+          "label": "還行吧",
+          "reply": "『還行』？你再說一次試試。",
           "face": "face-angry",
           "next": "provoke"
         },
         {
-          "label": "丑萌丑萌的",
-          "reply": "……我谢谢你啊。",
+          "label": "醜萌醜萌的",
+          "reply": "……我謝謝你啊。",
           "face": "face-blank",
           "next": "uglycute"
         }
@@ -120,68 +120,68 @@
       "opener": true
     },
     "weather": {
-      "prompt": "外面……是什么天气。我好久没出去了。",
+      "prompt": "外面……是什麼天氣。我好久沒出去了。",
       "options": [
         {
           "label": "大晴天",
-          "reply": "晒得人发懒。适合躺着。",
+          "reply": "曬得人發懶。適合躺著。",
           "face": "face-satisfied",
           "next": "sunny"
         },
         {
           "label": "在下雨",
-          "reply": "……下雨好。有借口不出门。",
+          "reply": "……下雨好。有藉口不出門。",
           "face": "face-relieved",
           "next": "rainy"
         },
         {
           "label": "我也不知道",
-          "reply": "……你也一天没动了吧。彼此彼此。",
+          "reply": "……你也一天沒動了吧。彼此彼此。",
           "face": "face-side-eye"
         }
       ],
       "opener": true
     },
     "secret": {
-      "prompt": "告诉你个秘密……其实我。",
+      "prompt": "告訴你個秘密……其實我。",
       "options": [
         {
-          "label": "其实你什么",
-          "reply": "……其实我也没什么秘密。骗你的。",
+          "label": "其實你什麼",
+          "reply": "……其實我也沒什麼秘密。騙你的。",
           "face": "face-teasing",
           "next": "tricked"
         },
         {
           "label": "我猜你想被摸",
-          "reply": "……你怎么知道。不许说出去。",
+          "reply": "……你怎麼知道。不許說出去。",
           "face": "face-shy"
         },
         {
-          "label": "先别说，吓人",
-          "reply": "……胆子这么小。抱一下？",
+          "label": "先別說，嚇人",
+          "reply": "……膽子這麼小。抱一下？",
           "face": "face-coy"
         }
       ],
       "opener": true
     },
     "bored": {
-      "prompt": "好无聊啊……做点什么吧。",
+      "prompt": "好無聊啊……做點什麼吧。",
       "options": [
         {
-          "label": "来玩游戏",
-          "reply": "……可以。我不会让着你的。",
+          "label": "來玩遊戲",
+          "reply": "……可以。我不會讓著你的。",
           "face": "face-determined",
           "next": "games"
         },
         {
-          "label": "给你讲件事",
-          "reply": "嗯。你说，我听着。",
+          "label": "給你講件事",
+          "reply": "嗯。你說，我聽著。",
           "face": "face-blank",
           "next": "listen"
         },
         {
-          "label": "一起发呆",
-          "reply": "……这个我在行。",
+          "label": "一起發呆",
+          "reply": "……這個我在行。",
           "face": "face-blank",
           "next": "daze"
         }
@@ -189,22 +189,22 @@
       "opener": true
     },
     "care": {
-      "prompt": "你今天……喝水了吗。",
+      "prompt": "你今天……喝水了嗎。",
       "options": [
         {
           "label": "喝了",
-          "reply": "乖。继续保持。",
+          "reply": "乖。繼續保持。",
           "face": "face-happy"
         },
         {
           "label": "忘了",
-          "reply": "……去喝。现在。我看着你。",
+          "reply": "……去喝。現在。我看著你。",
           "face": "face-annoyed",
           "next": "drink"
         },
         {
           "label": "你管我",
-          "reply": "……我关心你，你还凶我。",
+          "reply": "……我關心你，你還凶我。",
           "face": "face-pitiful",
           "next": "sulk"
         }
@@ -212,7 +212,7 @@
       "opener": true
     },
     "games": {
-      "prompt": "想玩哪个？输了不许哭。",
+      "prompt": "想玩哪個？輸了不許哭。",
       "options": [
         {
           "label": "猜拳",
@@ -225,35 +225,35 @@
           "game": "dice"
         },
         {
-          "label": "脑筋急转弯",
+          "label": "腦筋急轉彎",
           "face": "face-doubt",
           "game": "riddle"
         },
         {
           "label": "算了不玩",
-          "reply": "……啧，没劲。那聊天？",
+          "reply": "……嘖，沒勁。那聊天？",
           "face": "face-annoyed",
           "next": "chat"
         }
       ]
     },
     "chat": {
-      "prompt": "那……说点什么。别冷场。",
+      "prompt": "那……說點什麼。別冷場。",
       "options": [
         {
-          "label": "夸夸你",
-          "reply": "……继续。我听着呢。",
+          "label": "誇誇你",
+          "reply": "……繼續。我聽著呢。",
           "face": "face-love",
           "next": "more-chat"
         },
         {
-          "label": "讲个烦心事",
-          "reply": "嗯。倒吧，我接着。",
+          "label": "講個煩心事",
+          "reply": "嗯。倒吧，我接著。",
           "face": "face-determined",
           "next": "vent"
         },
         {
-          "label": "玩个游戏吧",
+          "label": "玩個遊戲吧",
           "reply": "……好啊。走。",
           "face": "face-sparkle",
           "next": "games"
@@ -261,260 +261,260 @@
       ]
     },
     "more-chat": {
-      "prompt": "还有呢？我可没听够。",
+      "prompt": "還有呢？我可沒聽夠。",
       "options": [
         {
           "label": "你今天很好看",
-          "reply": "……行了行了。脸都热了。",
+          "reply": "……行了行了。臉都熱了。",
           "face": "face-shy"
         },
         {
           "label": "有你真好",
-          "reply": "……肉麻。但……我记下了。",
+          "reply": "……肉麻。但……我記下了。",
           "face": "face-coy"
         }
       ]
     },
     "vent": {
-      "prompt": "谁惹你了。说，我帮你记仇。",
+      "prompt": "誰惹你了。說，我幫你記仇。",
       "options": [
         {
-          "label": "就是有点丧",
-          "reply": "……嗯。没事，我在。",
+          "label": "就是有點喪",
+          "reply": "……嗯。沒事，我在。",
           "face": "face-love"
         },
         {
-          "label": "说出来好多了",
-          "reply": "那就好。憋着最难受。",
+          "label": "說出來好多了",
+          "reply": "那就好。憋著最難受。",
           "face": "face-satisfied"
         }
       ]
     },
     "goodmood": {
-      "prompt": "那把好心情分我一半呗。",
+      "prompt": "那把好心情分我一半唄。",
       "options": [
         {
           "label": "分你！",
-          "reply": "……收到了。今天也算不错。",
+          "reply": "……收到了。今天也算不錯。",
           "face": "face-happy"
         },
         {
           "label": "想得美",
-          "reply": "……小气。",
+          "reply": "……小氣。",
           "face": "face-annoyed"
         }
       ]
     },
     "tired": {
-      "prompt": "累了就别撑。要不要靠一会儿。",
+      "prompt": "累了就別撐。要不要靠一會兒。",
       "options": [
         {
           "label": "靠一下",
-          "reply": "……嗯。就一会儿。",
+          "reply": "……嗯。就一會兒。",
           "face": "face-satisfied"
         },
         {
-          "label": "还得撑",
-          "reply": "……逞强。那我盯着你，别睡着。",
+          "label": "還得撐",
+          "reply": "……逞強。那我盯著你，別睡著。",
           "face": "face-side-eye"
         }
       ]
     },
     "comfort": {
-      "prompt": "说吧，怎么了。我不催你。",
+      "prompt": "說吧，怎麼了。我不催你。",
       "options": [
         {
-          "label": "有点想哭",
-          "reply": "……哭吧。我挡着，没人看。",
+          "label": "有點想哭",
+          "reply": "……哭吧。我擋著，沒人看。",
           "face": "face-love"
         },
         {
-          "label": "被你治愈了",
-          "reply": "……哼，算你识货。",
+          "label": "被你治癒了",
+          "reply": "……哼，算你識貨。",
           "face": "face-swirl-cheek"
         }
       ]
     },
     "ate": {
-      "prompt": "吃的什么？说来馋馋我。",
+      "prompt": "吃的什麼？說來饞饞我。",
       "options": [
         {
-          "label": "火锅",
+          "label": "火鍋",
           "reply": "……你是不是故意的。",
           "face": "face-cry"
         },
         {
-          "label": "随便对付的",
-          "reply": "……那不行。下顿好好吃。",
+          "label": "隨便對付的",
+          "reply": "……那不行。下頓好好吃。",
           "face": "face-annoyed"
         }
       ]
     },
     "eat": {
-      "prompt": "你想吃啥？我帮你选（虽然吃不着）。",
+      "prompt": "你想吃啥？我幫你選（雖然吃不著）。",
       "options": [
         {
-          "label": "火锅！",
-          "reply": "……水滴鱼进火锅？你狠。",
+          "label": "火鍋！",
+          "reply": "……水滴魚進火鍋？你狠。",
           "face": "face-scared"
         },
         {
-          "label": "随便",
-          "reply": "『随便』最难点了。你懂不懂。",
+          "label": "隨便",
+          "reply": "『隨便』最難點了。你懂不懂。",
           "face": "face-annoyed"
         },
         {
-          "label": "跟你一样",
-          "reply": "我吃……空气。你确定跟？",
+          "label": "跟你一樣",
+          "reply": "我吃……空氣。你確定跟？",
           "face": "face-teasing"
         }
       ]
     },
     "fed": {
-      "prompt": "……真给我带了？什么。",
+      "prompt": "……真給我帶了？什麼。",
       "options": [
         {
-          "label": "你最爱的",
-          "reply": "……你还记得。哼。",
+          "label": "你最愛的",
+          "reply": "……你還記得。哼。",
           "face": "face-shy"
         },
         {
           "label": "逗你的",
-          "reply": "……啊？你给我下来。",
+          "reply": "……啊？你給我下來。",
           "face": "face-angry"
         }
       ]
     },
     "almost": {
-      "prompt": "做完这件就收工，答应我。",
+      "prompt": "做完這件就收工，答應我。",
       "options": [
         {
-          "label": "答应你",
-          "reply": "……嗯。说话算话。",
+          "label": "答應你",
+          "reply": "……嗯。說話算話。",
           "face": "face-satisfied"
         },
         {
           "label": "再看看",
-          "reply": "……又拖。那我陪着。",
+          "reply": "……又拖。那我陪著。",
           "face": "face-cold"
         }
       ]
     },
     "overwork": {
-      "prompt": "答应我，做完这件就下班。行不行。",
+      "prompt": "答應我，做完這件就下班。行不行。",
       "options": [
         {
-          "label": "答应你",
-          "reply": "……嗯。说话算话。",
+          "label": "答應你",
+          "reply": "……嗯。說話算話。",
           "face": "face-satisfied"
         },
         {
           "label": "做不到",
-          "reply": "……那我坐这陪你熬。",
+          "reply": "……那我坐這陪你熬。",
           "face": "face-cold"
         }
       ]
     },
     "shy": {
-      "prompt": "……别、别一直看着我。",
+      "prompt": "……別、別一直看著我。",
       "options": [
         {
           "label": "偏要看",
-          "reply": "……随你。我不躲了。",
+          "reply": "……隨你。我不躲了。",
           "face": "face-coy"
         },
         {
           "label": "好，不看了",
-          "reply": "……诶，也别真不看。",
+          "reply": "……誒，也別真不看。",
           "face": "face-pitiful"
         }
       ]
     },
     "provoke": {
-      "prompt": "说啊，再说一次『还行』。",
+      "prompt": "說啊，再說一次『還行』。",
       "options": [
         {
-          "label": "超级可爱！",
-          "reply": "……这还差不多。",
+          "label": "超級可愛！",
+          "reply": "……這還差不多。",
           "face": "face-smug"
         },
         {
-          "label": "……还行",
-          "reply": "……你等着。",
+          "label": "……還行",
+          "reply": "……你等著。",
           "face": "face-angry"
         }
       ]
     },
     "uglycute": {
-      "prompt": "丑萌也是萌，对吧对吧？",
+      "prompt": "醜萌也是萌，對吧對吧？",
       "options": [
         {
-          "label": "对，最萌",
-          "reply": "……嗯。勉强接受这个说法。",
+          "label": "對，最萌",
+          "reply": "……嗯。勉強接受這個說法。",
           "face": "face-satisfied"
         },
         {
-          "label": "主要是丑",
-          "reply": "……你给我出去。",
+          "label": "主要是醜",
+          "reply": "……你給我出去。",
           "face": "face-cry"
         }
       ]
     },
     "sunny": {
-      "prompt": "晒太阳的话……要不要一起懒着。",
+      "prompt": "曬太陽的話……要不要一起懶著。",
       "options": [
         {
           "label": "好啊",
-          "reply": "……难得你上道。",
+          "reply": "……難得你上道。",
           "face": "face-satisfied"
         },
         {
           "label": "我得工作",
-          "reply": "……工作工作。鱼都替你累。",
+          "reply": "……工作工作。魚都替你累。",
           "face": "face-sleepy"
         }
       ]
     },
     "rainy": {
-      "prompt": "下雨天，最适合干嘛你知道吗。",
+      "prompt": "下雨天，最適合乾嘛你知道嗎。",
       "options": [
         {
-          "label": "睡觉",
-          "reply": "……英雄所见略同。",
+          "label": "睡覺",
+          "reply": "……英雄所見略同。",
           "face": "face-sleepy"
         },
         {
-          "label": "陪你发呆",
+          "label": "陪你發呆",
           "reply": "……那正好。坐下。",
           "face": "face-blank"
         }
       ]
     },
     "tricked": {
-      "prompt": "生气啦？逗你玩的嘛。",
+      "prompt": "生氣啦？逗你玩的嘛。",
       "options": [
         {
-          "label": "不生气",
-          "reply": "……乖。奖励你摸一下。",
+          "label": "不生氣",
+          "reply": "……乖。獎勵你摸一下。",
           "face": "face-coy"
         },
         {
           "label": "哼",
-          "reply": "……别哼了。我错了还不行。",
+          "reply": "……別哼了。我錯了還不行。",
           "face": "face-pitiful"
         }
       ]
     },
     "listen": {
-      "prompt": "嗯，你讲，我竖着耳朵（虽然没有）。",
+      "prompt": "嗯，你講，我竪著耳朵（雖然沒有）。",
       "options": [
         {
-          "label": "今天发生了件事",
-          "reply": "……然后呢？别停啊。",
+          "label": "今天發生了件事",
+          "reply": "……然後呢？別停啊。",
           "face": "face-sparkle"
         },
         {
-          "label": "算了改天讲",
+          "label": "算了改天講",
           "reply": "……吊人胃口。哼。",
           "face": "face-annoyed"
         }
@@ -524,28 +524,28 @@
       "prompt": "……（和你一起放空）",
       "options": [
         {
-          "label": "继续发呆",
+          "label": "繼續發呆",
           "reply": "……嗯……（放空中）",
           "face": "face-blank"
         },
         {
-          "label": "发够了",
-          "reply": "……时间过得真快。",
+          "label": "發夠了",
+          "reply": "……時間過得真快。",
           "face": "face-satisfied"
         }
       ]
     },
     "drink": {
-      "prompt": "喝完了吗。别糊弄我。",
+      "prompt": "喝完了嗎。別糊弄我。",
       "options": [
         {
           "label": "喝完了",
-          "reply": "乖。你对自己好点，我才放心。",
+          "reply": "乖。你對自己好點，我才放心。",
           "face": "face-love"
         },
         {
-          "label": "马上就喝",
-          "reply": "……就现在。别拖。",
+          "label": "馬上就喝",
+          "reply": "……就現在。別拖。",
           "face": "face-annoyed"
         }
       ]
@@ -554,13 +554,13 @@
       "prompt": "……我不管你了。（才怪）",
       "options": [
         {
-          "label": "别生气嘛",
-          "reply": "……哼。下不为例。",
+          "label": "別生氣嘛",
+          "reply": "……哼。下不為例。",
           "face": "face-coy"
         },
         {
-          "label": "对不起",
-          "reply": "……算了。我也没真生气。",
+          "label": "對不起",
+          "reply": "……算了。我也沒真生氣。",
           "face": "face-shy"
         }
       ]

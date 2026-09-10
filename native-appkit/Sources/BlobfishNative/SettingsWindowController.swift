@@ -707,11 +707,9 @@ final class SettingsViewModel: ObservableObject {
 
     func selectCharacter(_ id: String) {
         draft.pet.characterPackId = id
-        let compatible = languages.filter { isLanguage($0, compatibleWith: id) }
-        if !compatible.contains(where: { $0.id == draft.language.packId }) {
-            draft.language.packId = characters.first(where: { $0.id == id })?.manifest.defaultLanguagePack
-                ?? compatible.first?.id
-                ?? AppConfig.defaults.language.packId
+        if let character = characters.first(where: { $0.id == id }),
+           let selected = SpeechLanguagePolicy.preferredPack(character: character, currentID: draft.language.packId, languages: languages) {
+            draft.language.packId = selected.id
         }
     }
 
@@ -730,10 +728,7 @@ final class SettingsViewModel: ObservableObject {
     }
 
     private func isLanguage(_ language: LanguagePack, compatibleWith characterID: String) -> Bool {
-        if let ids = language.manifest.characterPackIds { return ids.contains(characterID) }
-        return characterID == "grass-buddy"
-            ? language.id.hasPrefix("grass-buddy-")
-            : language.id.hasPrefix("blobfish-")
+        SpeechLanguagePolicy.compatible(language, characterID: characterID)
     }
 }
 
@@ -803,7 +798,7 @@ struct BrandedSettingsView: View {
         VStack(alignment: .leading, spacing: 6) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("DESKTOP PET").font(.caption.weight(.bold)).tracking(2.2).foregroundStyle(Color(red: 0.28, green: 0.48, blue: 0.47))
-                Text(currentCharacter?.manifest.displayName ?? t("水滴鱼", "Blobfish"))
+                Text(characterDisplayName(currentCharacter))
                     .font(.system(size: 21, weight: .bold, design: .rounded))
                 Text(t("陪你工作，也记得喘口气。", "A quiet companion for focused work."))
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -1137,7 +1132,7 @@ struct BrandedSettingsView: View {
             Picker(t("表情", "Expression"), selection: model.statusFaceBinding(status)) {
                 Text(t("無表情", "No expression")).tag("")
                 ForEach(model.compatibleAccessories(slot: "face")) { accessory in
-                    Text(accessory.manifest.displayName).tag(accessory.id)
+                    Text(accessoryDisplayName(id: accessory.id)).tag(accessory.id)
                 }
             }
             ForEach(["hat", "eyewear", "hand"], id: \.self) { slot in
@@ -1145,7 +1140,7 @@ struct BrandedSettingsView: View {
                     Picker(slotName(slot), selection: model.statusSlotBinding(status, slot: slot)) {
                         Text(t("不使用", "None")).tag("")
                         ForEach(model.compatibleAccessories(slot: slot)) { accessory in
-                            Text(accessory.manifest.displayName).tag(accessory.id)
+                            Text(accessoryDisplayName(id: accessory.id)).tag(accessory.id)
                         }
                     }
                     if let id = model.statusPreviewAccessorySpec(status).equipped[slot], !id.isEmpty {
@@ -1216,7 +1211,7 @@ struct BrandedSettingsView: View {
                         alarmClockAccessoryID: model.clockState.preferences.effectiveAlarmAccessoryID
                     )
                     .frame(width: 220, height: 140)
-                    Text(currentCharacter?.manifest.displayName ?? t("角色预览", "Character preview"))
+                    Text(characterDisplayName(currentCharacter))
                         .font(.headline)
                     Text(t("拖动滑杆会立即反映在这里", "Changes appear here immediately"))
                         .font(.caption).foregroundStyle(.secondary)
@@ -1229,7 +1224,7 @@ struct BrandedSettingsView: View {
                     get: { model.draft.pet.characterPackId },
                     set: { model.selectCharacter($0) }
                 )) {
-                    ForEach(model.characters) { Text($0.manifest.displayName).tag($0.id) }
+                    ForEach(model.characters) { Text(characterDisplayName($0)).tag($0.id) }
                 }
                 .pickerStyle(.menu)
 
@@ -1286,7 +1281,7 @@ struct BrandedSettingsView: View {
                 Picker(slotName(slot), selection: accessoryBinding(slot: slot)) {
                     Text(t("不使用", "None")).tag("")
                     ForEach(model.compatibleAccessories(slot: slot)) { accessory in
-                        Text(accessory.manifest.displayName).tag(accessory.id)
+                        Text(accessoryDisplayName(id: accessory.id)).tag(accessory.id)
                     }
                 }
                 if let id = AppearanceJSON.accessorySpec(
@@ -1318,7 +1313,9 @@ struct BrandedSettingsView: View {
                 ForEach(["body", "fins"], id: \.self) { part in
                     if let shapes = manifest.diy?.shapes?[part], !shapes.isEmpty {
                         Picker(part == "body" ? t("身体形状", "Body shape") : t("手 / 鱼鳍形状", "Arm / fin shape"), selection: diyShapeBinding(part: part)) {
-                            ForEach(shapes, id: \.id) { Text($0.label).tag($0.id) }
+                            ForEach(shapes, id: \.id) {
+                                Text(NativeLocalization.shapeName(label: $0.label, locale: model.draft.ui.locale)).tag($0.id)
+                            }
                         }
                     }
                 }
@@ -1451,8 +1448,12 @@ struct BrandedSettingsView: View {
                     Text("简体中文").tag("zh-CN"); Text("English").tag("en")
                 }
                 Picker(t("语言包", "Dialogue pack"), selection: $model.draft.language.packId) {
-                    ForEach(model.compatibleLanguages) { Text($0.manifest.displayName).tag($0.id) }
+                    ForEach(model.compatibleLanguages) {
+                        Text(NativeLocalization.languageName(id: $0.id, fallback: $0.manifest.displayName, locale: model.draft.ui.locale)).tag($0.id)
+                    }
                 }
+                Text(t("界面与台词语言独立设置。点“应用”后生效；更换角色会尽量保留台词语言。", "Interface and speech languages are independent. Select Apply to save; changing characters preserves the speech language when available."))
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle(t("闲聊", "Idle chatter"), isOn: $model.draft.language.idleEnabled)
                 Toggle(t("罕见台词", "Rare lines"), isOn: $model.draft.language.rareEnabled)
                 Stepper(t("最短间隔：\(Int(model.draft.language.idleMinMinutes)) 分钟", "Minimum interval: \(Int(model.draft.language.idleMinMinutes)) min"), value: $model.draft.language.idleMinMinutes, in: 1...180)
@@ -1644,8 +1645,17 @@ struct BrandedSettingsView: View {
         return NSImage(contentsOf: accessory.artURL)
     }
 
+    private func characterDisplayName(_ character: CharacterPack?) -> String {
+        guard let character else { return t("角色预览", "Character preview") }
+        return NativeLocalization.characterName(id: character.id, fallback: character.manifest.displayName, locale: model.draft.ui.locale)
+    }
+
     private func accessoryDisplayName(id: String) -> String {
-        model.accessories.first(where: { $0.id == id })?.manifest.displayName ?? id
+        NativeLocalization.accessoryName(
+            id: id,
+            fallback: model.accessories.first(where: { $0.id == id })?.manifest.displayName ?? id,
+            locale: model.draft.ui.locale
+        )
     }
 
     private func alarmModeName(_ mode: String) -> String {

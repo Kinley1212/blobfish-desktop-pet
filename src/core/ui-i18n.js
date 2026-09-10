@@ -8,6 +8,13 @@
   const originalTextNodes = new WeakMap();
 
   const EN = Object.freeze({
+    '碰到边界后转身': 'Turn after hitting an edge',
+    '甩动或游动撞到屏幕边缘时，让角色面向反弹方向。': 'Face the rebound direction when thrown or swimming into a screen edge.',
+    '面板位置': 'Panel position',
+    '角色左侧': 'Left of the pet',
+    '角色右侧': 'Right of the pet',
+    '上下位置': 'Vertical position',
+    '离角色距离': 'Distance from the pet',
     '水滴鱼设置': 'Blobfish Settings',
     '水滴鱼': 'Blobfish',
     '别排太满。鱼也要喘气。': 'Do not pack the day too tight. Fish need room to breathe.',
@@ -422,7 +429,21 @@
 
   function localizeAccessoryName(accessoryId, fallback, locale) {
     if (normalizeLocale(locale) !== 'en') return fallback;
-    return titleCaseId(accessoryId) || fallback;
+    // Match NativeLocalization: IDs are stable keys, not always the current artwork's name.
+    const names = {
+      'alarm-clock': 'Coral Hug Clock', 'alarm-clock-honey': 'Honey Sugar-Cube Clock',
+      'alarm-clock-plum-night': 'Moonlight Jellyfish Clock', 'alarm-clock-seafoam': 'Seafoam Shell Clock',
+      'message-envelope': 'Moon-Shell Envelope', 'message-flying-letter': 'Ray Flying Letter',
+      'message-mailbox': 'Anemone Flag Mailbox', 'message-sea-mail': 'Sea Bottle Letter',
+      'face-grass-calm': 'Calm', 'face-grass-happy': 'Happy', 'face-grass-worried': 'Worried',
+      'face-blank': 'Speechless', 'face-coy': 'Affectionate', 'face-money': 'Money Eyes',
+      'face-nosebleed': 'Smitten', 'face-question': 'Puzzled', 'face-smug': 'Unbothered',
+      'face-star-eye': 'Starry Eyes', 'face-swirl-cheek': 'Giddy',
+      'half-moon': 'Half-Moon Glasses', 'eye-mask': 'Cloth Eye Mask',
+      'rilakkuma-cap': 'Rilakkuma Baseball Cap', 'rilakkuma-cap-2': 'Rilakkuma Baseball Cap (Style 2)',
+      'rilakkuma-glasses': 'Rilakkuma Glasses', 'rilakkuma-plush': 'Rilakkuma Plush Toy',
+    };
+    return names[accessoryId] || titleCaseId(accessoryId) || fallback;
   }
 
   function localizeSoundName(soundId, fallback, locale) {

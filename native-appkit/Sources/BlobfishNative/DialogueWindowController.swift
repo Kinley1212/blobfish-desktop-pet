@@ -14,7 +14,9 @@ final class DialogueViewModel: ObservableObject {
     @Published var moodFaceID: String?
 
     let runtime: AppRuntime
-    private let pack: DialoguePack
+    private var pack: DialoguePack
+    @Published private(set) var uiLocale: String
+    private var characterID: String
     private let onReact: (String, String?) -> Void
     private var currentNodeID: String?
     private var transition: DispatchWorkItem?
@@ -22,11 +24,23 @@ final class DialogueViewModel: ObservableObject {
     init(runtime: AppRuntime, pack: DialoguePack, onReact: @escaping (String, String?) -> Void) {
         self.runtime = runtime
         self.pack = pack
+        self.uiLocale = runtime.config.ui.locale
+        self.characterID = runtime.config.pet.characterPackId
         self.onReact = onReact
         startFresh()
     }
 
     deinit { transition?.cancel() }
+
+    func synchronize(pack: DialoguePack) {
+        uiLocale = runtime.config.ui.locale
+        let changed = self.pack != pack || characterID != runtime.config.pet.characterPackId
+        self.pack = pack
+        characterID = runtime.config.pet.characterPackId
+        if changed { startFresh() }
+    }
+
+    private func t(_ chinese: String, _ english: String) -> String { runtime.speechText(chinese, english) }
 
     func startFresh() {
         transition?.cancel()
@@ -62,8 +76,13 @@ final class DialogueViewModel: ObservableObject {
 
     private func react(_ text: String, face: String?) {
         prompt = text
-        moodFaceID = face
-        onReact(text, face)
+        let compatibleFace: String?
+        if characterID == "grass-buddy", let face, !face.hasPrefix("face-grass-") {
+            compatibleFace = ["face-proud", "face-star-eye", "face-smug", "face-satisfied"].contains(face)
+                ? "face-grass-happy" : "face-grass-calm"
+        } else { compatibleFace = face }
+        moodFaceID = compatibleFace
+        onReact(text, compatibleFace)
     }
 
     private func schedule(after delay: TimeInterval, _ action: @escaping () -> Void) {
@@ -85,15 +104,15 @@ final class DialogueViewModel: ObservableObject {
 
     private func afterRound(replay: @escaping () -> Void) {
         choices = [
-            Choice(label: "再来一局", action: replay),
-            Choice(label: "换个游戏") { [weak self] in self?.renderNode("games") },
-            Choice(label: "不玩了") { [weak self] in self?.startFresh() },
+            Choice(label: t("再来一局", "Play again"), action: replay),
+            Choice(label: t("换个游戏", "Another game")) { [weak self] in self?.renderNode("games") },
+            Choice(label: t("不玩了", "Back to chatting")) { [weak self] in self?.startFresh() },
         ]
     }
 
     private func playRPS() {
-        prompt = "出什么？输了不许哭。"
-        let moves = [("✊ 石头", 0), ("✌️ 剪刀", 1), ("🖐 布", 2)]
+        prompt = t("选一个吧。慢慢来。", "Choose one. Take your time.")
+        let moves = [(t("✊ 石头", "✊ Rock"), 0), (t("✌️ 剪刀", "✌️ Scissors"), 1), (t("🖐 布", "🖐 Paper"), 2)]
         choices = moves.map { label, move in
             Choice(label: label) { [weak self] in self?.finishRPS(player: move) }
         }
@@ -101,22 +120,22 @@ final class DialogueViewModel: ObservableObject {
 
     private func finishRPS(player: Int) {
         let fish = Int.random(in: 0..<3)
-        let names = ["石头", "剪刀", "布"]
+        let names = [t("石头", "rock"), t("剪刀", "scissors"), t("布", "paper")]
         let playerWon = (player == 0 && fish == 1) || (player == 1 && fish == 2) || (player == 2 && fish == 0)
         let text: String
         let face: String
-        if player == fish { text = "我出\(names[fish])。……想到一块去了。"; face = "face-side-eye" }
-        else if playerWon { text = "我出\(names[fish])。……哼，让你了。"; face = "face-annoyed" }
-        else { text = "我出\(names[fish])。嘿，我赢了。"; face = "face-proud" }
+        if player == fish { text = t("我出\(names[fish])。……想到一块去了。", "I chose \(names[fish]). …Same idea."); face = "face-side-eye" }
+        else if playerWon { text = t("我出\(names[fish])。这局你赢了。", "I chose \(names[fish]). You won this round."); face = "face-annoyed" }
+        else { text = t("我出\(names[fish])。这局是我赢了。", "I chose \(names[fish]). This round is mine."); face = "face-proud" }
         react(text, face: face)
         afterRound { [weak self] in self?.playRPS() }
     }
 
     private func playDice() {
-        prompt = "猜大小。骰子要摇了。"
+        prompt = t("猜大小。两颗骰子，七点算我赢。", "Guess the total of two dice. Seven is my win.")
         choices = [
-            Choice(label: "压大（8-11）") { [weak self] in self?.finishDice(bet: "big") },
-            Choice(label: "压小（3-6）") { [weak self] in self?.finishDice(bet: "small") },
+            Choice(label: t("大（8–12）", "Big (8–12)")) { [weak self] in self?.finishDice(bet: "big") },
+            Choice(label: t("小（2–6）", "Small (2–6)")) { [weak self] in self?.finishDice(bet: "small") },
         ]
     }
 
@@ -125,8 +144,8 @@ final class DialogueViewModel: ObservableObject {
         let total = dice[0] + dice[1]
         let size = total <= 6 ? "small" : total >= 8 ? "big" : "seven"
         let won = size == bet
-        let reply = size == "seven" ? "七点，归我。运气不好吧你。" : won ? "……真让你猜中了。" : "猜错咯～"
-        react("🎲 \(dice[0]) + \(dice[1]) = \(total)。\(reply)", face: size == "seven" ? "face-teasing" : won ? "face-shocked" : "face-smug")
+        let reply = size == "seven" ? t("七点，这局归我。", "Seven. This round is mine.") : won ? t("……猜中了。", "…You guessed it.") : t("没猜中。下次再试。", "Not this time. Try again.")
+        react("🎲 \(dice[0]) + \(dice[1]) = \(total). \(reply)", face: size == "seven" ? "face-teasing" : won ? "face-shocked" : "face-smug")
         afterRound { [weak self] in self?.playDice() }
     }
 
@@ -136,10 +155,10 @@ final class DialogueViewModel: ObservableObject {
 
     private func playRiddle() {
         let riddles = [
-            Riddle(question: "什么鱼没有骨头，还整天摆臭脸？", options: ["金鱼", "水滴鱼", "章鱼"], answer: 1, reveal: "……说的就是我。谢谢。"),
-            Riddle(question: "什么东西越洗越脏？", options: ["衣服", "水", "碗"], answer: 1, reveal: "水。洗什么都把自己弄脏。"),
-            Riddle(question: "一年里哪个月睡得最少？", options: ["二月", "十二月", "看心情"], answer: 0, reveal: "二月呀，天数最少。"),
-            Riddle(question: "什么帽子摘不下来？", options: ["安全帽", "瓶盖", "螺丝帽"], answer: 2, reveal: "螺丝帽。你试试摘。"),
+            Riddle(question: t("什么有很多齿，却不能咬东西？", "What has teeth but cannot bite?"), options: [t("梳子", "A comb"), t("猫", "A cat"), t("鱼", "A fish")], answer: 0, reveal: t("梳子。那些齿只会梳头。", "A comb. Its teeth only tidy hair.")),
+            Riddle(question: t("什么东西越洗越脏？", "What gets dirtier as it washes things?"), options: [t("衣服", "Clothes"), t("水", "Water"), t("碗", "A bowl")], answer: 1, reveal: t("水。洗什么都把自己弄脏。", "Water. It collects the dirt.")),
+            Riddle(question: t("平年的哪個月天數最少？", "Which month has the fewest days in a common year?"), options: [t("二月", "February"), t("十二月", "December"), t("六月", "June")], answer: 0, reveal: t("二月，只有二十八天。", "February, with only twenty-eight days.")),
+            Riddle(question: t("什么越擦越湿？", "What gets wetter as it dries things?"), options: [t("阳光", "Sunlight"), t("毛巾", "A towel"), t("风", "The wind")], answer: 1, reveal: t("毛巾。水都留在它身上了。", "A towel. It holds the water.")),
         ]
         let riddle = riddles.randomElement()!
         prompt = riddle.question
@@ -150,7 +169,7 @@ final class DialogueViewModel: ObservableObject {
 
     private func finishRiddle(_ riddle: Riddle, choice: Int) {
         let correct = choice == riddle.answer
-        react(correct ? "……居然答对了。" : "不对。\(riddle.reveal)", face: correct ? "face-star-eye" : "face-teasing")
+        react(correct ? t("……答对了。", "…That's right.") : t("不对。", "Not quite. ") + riddle.reveal, face: correct ? "face-star-eye" : "face-teasing")
         afterRound { [weak self] in self?.playRiddle() }
     }
 }
@@ -167,7 +186,7 @@ struct DialogueView: View {
     var body: some View {
         VStack(spacing: 12) {
             HStack {
-                Text(model.runtime.config.ui.locale == "en" ? "Chat with your pet" : "和水滴鱼聊聊")
+                Text(model.uiLocale == "en" ? "Chat with your pet" : "和桌宠聊聊")
                     .font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
                 Spacer()
                 Button(action: close) { Image(systemName: "xmark") }
@@ -209,12 +228,14 @@ struct DialogueView: View {
 
 @MainActor
 final class DialogueWindowController: NSWindowController {
+    private let model: DialogueViewModel
     init(runtime: AppRuntime, pack: DialoguePack, onReact: @escaping (String, String?) -> Void) {
         let model = DialogueViewModel(runtime: runtime, pack: pack, onReact: onReact)
+        self.model = model
         var window: NSWindow!
         let hosting = NSHostingController(rootView: DialogueView(model: model) { window.close() })
         window = NSWindow(contentViewController: hosting)
-        window.title = runtime.config.ui.locale == "en" ? "Chat with your pet" : "和水滴鱼聊天"
+        window.title = runtime.config.ui.locale == "en" ? "Chat with your pet" : "和桌宠聊天"
         window.styleMask = [.titled, .closable]
         window.level = .floating
         window.isReleasedWhenClosed = false
@@ -224,4 +245,9 @@ final class DialogueWindowController: NSWindowController {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func synchronize(pack: DialoguePack) {
+        model.synchronize(pack: pack)
+        window?.title = model.uiLocale == "en" ? "Chat with your pet" : "和桌宠聊天"
+    }
 }

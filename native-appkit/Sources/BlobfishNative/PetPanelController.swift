@@ -623,6 +623,7 @@ final class PetPanelController {
     private var bobVisibility: CGFloat = 1
     private var lastAutomaticOrigin: NSPoint?
     private var config: AppConfig
+    private var speechPackID: String?
     private var interactionTimer: Timer?
     private var remoteInteractionTimer: Timer?
     private var remoteInteractionOriginalOrigin: NSPoint?
@@ -695,6 +696,7 @@ final class PetPanelController {
 
     init(runtime: AppRuntime) {
         config = runtime.config
+        speechPackID = runtime.language?.id
         let size = NSSize(width: 340, height: 165)
         let initialVisibleFrame = NSScreen.main?.visibleFrame
             ?? NSRect(x: 0, y: 0, width: 800, height: 600)
@@ -792,6 +794,11 @@ final class PetPanelController {
     }
 
     func apply(runtime: AppRuntime) {
+        let speechChanged = speechPackID != runtime.language?.id || petView.character?.id != runtime.character?.id
+        speechPackID = runtime.language?.id
+        // Local automatic speech belongs to the previous language/character. Real friend
+        // messages use their separate bubble store and must not be cleared here.
+        if speechChanged { speechQueue.clear() }
         config = runtime.config
         petView.character = runtime.character
         overlayView.character = runtime.character

@@ -109,7 +109,7 @@ final class RoutineService {
         let event: String?
         var context: [String: JSONValue] = [:]
         if schedule.lunchReminder, current == lunch - 5 { event = "schedule.lunchSoon" }
-        else if schedule.offWorkReminder, current == offWork - 5 { event = "schedule.offWorkSoon"; context["farewell"] = .string("下次见") }
+        else if schedule.offWorkReminder, current == offWork - 5 { event = "schedule.offWorkSoon"; context["farewell"] = .string(runtime.speechText("下次见", "see you next time")) }
         else if schedule.offWorkReminder, current == offWork - 30 { event = "schedule.offWorkHalfHour" }
         else if schedule.halfHourReminders, minute == 0 || minute == 30 { event = "schedule.halfHour" }
         else { event = nil }

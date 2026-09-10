@@ -1,31 +1,569 @@
 {
   "nodes": {
-    "growing": {
-      "prompt": "Hello. I have been growing. Barely.",
+    "poke": {
+      "prompt": "…You found a patch of grass.",
       "options": [
-        { "label": "You look good", "reply": "Thank you. I will process that slowly.", "face": "face-shy" },
-        { "label": "Need water?", "reply": "Probably. You might too.", "face": "face-satisfied" },
-        { "label": "Just checking in", "reply": "I am still grass. This is reassuring.", "face": "face-blank" }
+        {
+          "label": "Just checking",
+          "reply": "Still here. Growth is hard to spot.",
+          "face": "face-grass-calm"
+        },
+        {
+          "label": "Let's talk",
+          "reply": "All right. I listen slowly.",
+          "face": "face-grass-calm",
+          "next": "chat"
+        },
+        {
+          "label": "Play something?",
+          "reply": "Let me settle my leaves.",
+          "face": "face-grass-calm",
+          "next": "games"
+        }
       ],
       "opener": true
     },
-    "pace": {
-      "prompt": "Everything seems to be moving quickly today.",
+    "mood": {
+      "prompt": "How is today feeling?",
       "options": [
-        { "label": "Too quickly", "reply": "We can do one thing slowly.", "face": "face-coy" },
-        { "label": "I can handle it", "reply": "Good. Remember to breathe anyway.", "face": "face-satisfied" },
-        { "label": "I want to stop", "reply": "Stopping is allowed. Even plants have quiet seasons.", "face": "face-sleepy" }
+        {
+          "label": "Pretty good",
+          "reply": "Some light, then. That's good.",
+          "face": "face-grass-happy",
+          "next": "goodmood"
+        },
+        {
+          "label": "A bit tired",
+          "reply": "Rest a little. Grass does too.",
+          "face": "face-grass-calm",
+          "next": "tired"
+        },
+        {
+          "label": "Not good",
+          "reply": "Sit here. No need to feel better immediately.",
+          "face": "face-grass-happy",
+          "next": "comfort"
+        }
       ],
       "opener": true
     },
-    "break": {
-      "prompt": "Do you need a small break?",
+    "hungry": {
+      "prompt": "Is it lunchtime already?",
       "options": [
-        { "label": "Yes", "reply": "Then look away from the screen for a minute.", "face": "face-satisfied" },
-        { "label": "Not yet", "reply": "All right. I will wait here.", "face": "face-blank" },
-        { "label": "Stay with me", "reply": "I can do that. Quietly.", "face": "face-coy" }
+        {
+          "label": "I've eaten",
+          "reply": "Good. I'm still absorbing light.",
+          "face": "face-grass-calm",
+          "next": "ate"
+        },
+        {
+          "label": "Not yet",
+          "reply": "Have something. I'll wait.",
+          "face": "face-grass-calm",
+          "next": "eat"
+        },
+        {
+          "label": "Brought you food",
+          "reply": "Thank you. Beside the leaves is fine.",
+          "face": "face-grass-happy",
+          "next": "fed"
+        }
       ],
       "opener": true
+    },
+    "work": {
+      "prompt": "Still busy? My leaves are drooping.",
+      "options": [
+        {
+          "label": "Nearly done",
+          "reply": "Then rest. Slowly is fine.",
+          "face": "face-grass-calm",
+          "next": "almost"
+        },
+        {
+          "label": "So much left",
+          "reply": "Pick one thing. Not the whole pile.",
+          "face": "face-grass-calm",
+          "next": "overwork"
+        },
+        {
+          "label": "Taking a break",
+          "reply": "I can help with that. Quietly.",
+          "face": "face-grass-calm",
+          "next": "games"
+        }
+      ],
+      "opener": true
+    },
+    "praise": {
+      "prompt": "This leaf today. Does it look all right?",
+      "options": [
+        {
+          "label": "Looks lovely",
+          "reply": "Noted. Happiness may arrive slowly.",
+          "face": "face-grass-happy",
+          "next": "shy"
+        },
+        {
+          "label": "It's fine",
+          "reply": "Room to grow, then.",
+          "face": "face-grass-calm",
+          "next": "provoke"
+        },
+        {
+          "label": "A little blank",
+          "reply": "Yes. That's the usual expression.",
+          "face": "face-grass-calm",
+          "next": "uglycute"
+        }
+      ],
+      "opener": true
+    },
+    "weather": {
+      "prompt": "Is there light outside?",
+      "options": [
+        {
+          "label": "Lots of sunshine",
+          "reply": "I'll sit a little closer to it.",
+          "face": "face-grass-happy",
+          "next": "sunny"
+        },
+        {
+          "label": "It's raining",
+          "reply": "Good for listening. No words needed.",
+          "face": "face-grass-happy",
+          "next": "rainy"
+        },
+        {
+          "label": "Haven't looked",
+          "reply": "We could look for a moment.",
+          "face": "face-grass-calm"
+        }
+      ],
+      "opener": true
+    },
+    "secret": {
+      "prompt": "I have a small thing to tell you.",
+      "options": [
+        {
+          "label": "What is it?",
+          "reply": "I grew today. Possibly a tiny bit.",
+          "face": "face-grass-calm",
+          "next": "tricked"
+        },
+        {
+          "label": "Want a pat?",
+          "reply": "You noticed. Gently, please.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "Tell me later",
+          "reply": "All right. Small things can wait.",
+          "face": "face-grass-happy"
+        }
+      ],
+      "opener": true
+    },
+    "bored": {
+      "prompt": "It feels rather quiet right now.",
+      "options": [
+        {
+          "label": "Let's play",
+          "reply": "All right. I may react slowly.",
+          "face": "face-grass-calm",
+          "next": "games"
+        },
+        {
+          "label": "I have a story",
+          "reply": "I'm listening.",
+          "face": "face-grass-calm",
+          "next": "listen"
+        },
+        {
+          "label": "Sit together",
+          "reply": "Good. No preparation needed.",
+          "face": "face-grass-calm",
+          "next": "daze"
+        }
+      ],
+      "opener": true
+    },
+    "care": {
+      "prompt": "Have you had some water?",
+      "options": [
+        {
+          "label": "Yes",
+          "reply": "Good. The leaves are reassured.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "Forgot",
+          "reply": "Get a little. I'll still be here.",
+          "face": "face-grass-calm",
+          "next": "drink"
+        },
+        {
+          "label": "Please don't remind me",
+          "reply": "All right. Keep some within reach.",
+          "face": "face-grass-worried",
+          "next": "sulk"
+        }
+      ],
+      "opener": true
+    },
+    "games": {
+      "prompt": "Choose one. I'll learn slowly.",
+      "options": [
+        {
+          "label": "Rock, paper, scissors",
+          "face": "face-grass-calm",
+          "game": "rps"
+        },
+        {
+          "label": "High or low",
+          "face": "face-grass-calm",
+          "game": "dice"
+        },
+        {
+          "label": "Riddles",
+          "face": "face-grass-calm",
+          "game": "riddle"
+        },
+        {
+          "label": "Let's talk",
+          "reply": "Good. No speed required.",
+          "face": "face-grass-calm",
+          "next": "chat"
+        }
+      ]
+    },
+    "chat": {
+      "prompt": "Go on. I've settled my leaves.",
+      "options": [
+        {
+          "label": "A compliment for you",
+          "reply": "Listening. Happiness might take a moment.",
+          "face": "face-grass-happy",
+          "next": "more-chat"
+        },
+        {
+          "label": "Something's bothering me",
+          "reply": "Set it here. We can think together.",
+          "face": "face-grass-calm",
+          "next": "vent"
+        },
+        {
+          "label": "Let's play a game",
+          "reply": "All right. Choose one.",
+          "face": "face-grass-calm",
+          "next": "games"
+        }
+      ]
+    },
+    "more-chat": {
+      "prompt": "…Anything else?",
+      "options": [
+        {
+          "label": "You look nice today",
+          "reply": "Thank you. This leaf will remember.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "Glad you're here",
+          "reply": "Me too. We can stay a while.",
+          "face": "face-grass-happy"
+        }
+      ]
+    },
+    "vent": {
+      "prompt": "Where would you like to start?",
+      "options": [
+        {
+          "label": "Just feeling low",
+          "reply": "No need to cheer up on command.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "Talking helped",
+          "reply": "Good. We can sit a little longer.",
+          "face": "face-grass-happy"
+        }
+      ]
+    },
+    "goodmood": {
+      "prompt": "May I borrow some of that good mood?",
+      "options": [
+        {
+          "label": "Have some",
+          "reply": "Received. One leaf lifted slightly.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "Find your own",
+          "reply": "All right. I'll look outside.",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "tired": {
+      "prompt": "A pause won't cost you a leaf.",
+      "options": [
+        {
+          "label": "I'll rest",
+          "reply": "I'll stay with you.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "Need to keep going",
+          "reply": "Remember to loosen your shoulders midway.",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "comfort": {
+      "prompt": "No hurry. Words can come slowly.",
+      "options": [
+        {
+          "label": "I might cry",
+          "reply": "That's allowed. I'll sit quietly.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "Feeling a bit better",
+          "reply": "Good. This is enough for now.",
+          "face": "face-grass-happy"
+        }
+      ]
+    },
+    "ate": {
+      "prompt": "What did you eat today?",
+      "options": [
+        {
+          "label": "Hot pot",
+          "reply": "Sounds warm. Mind the heat.",
+          "face": "face-grass-worried"
+        },
+        {
+          "label": "Something quick",
+          "reply": "Leave some time for your next meal.",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "eat": {
+      "prompt": "What would you like? I can think along.",
+      "options": [
+        {
+          "label": "Hot pot",
+          "reply": "Fine. I'm not a side dish, though.",
+          "face": "face-grass-worried"
+        },
+        {
+          "label": "Anything",
+          "reply": "That name isn't on the menu.",
+          "face": "face-grass-calm"
+        },
+        {
+          "label": "What you're having",
+          "reply": "Sunlight. It may not fill you up.",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "fed": {
+      "prompt": "What did you bring? Let me see.",
+      "options": [
+        {
+          "label": "Your favorite",
+          "reply": "Thank you. You remembered.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "Just teasing",
+          "reply": "…Slowly withdrawing the leaf.",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "almost": {
+      "prompt": "After this bit, could you rest?",
+      "options": [
+        {
+          "label": "Yes",
+          "reply": "Good. Agreed.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "We'll see",
+          "reply": "All right. Don't misplace the break.",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "overwork": {
+      "prompt": "Can anything wait until tomorrow?",
+      "options": [
+        {
+          "label": "Some of it",
+          "reply": "Set that down. Grow again tomorrow.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "Not today",
+          "reply": "A sip of water can still fit in.",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "shy": {
+      "prompt": "…The leaves feel a little warm.",
+      "options": [
+        {
+          "label": "I'll stay a moment",
+          "reply": "All right. Not too close.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "I'll look away",
+          "reply": "You can still sit here.",
+          "face": "face-grass-worried"
+        }
+      ]
+    },
+    "provoke": {
+      "prompt": "I'll grow a little more, then.",
+      "options": [
+        {
+          "label": "You're fine already",
+          "reply": "Good. No overtime growth today.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "Take your time",
+          "reply": "Yes. Speed wasn't an option.",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "uglycute": {
+      "prompt": "A little blank is all right, isn't it?",
+      "options": [
+        {
+          "label": "It's a good look",
+          "reply": "Then I'll keep it.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "Very blank",
+          "reply": "Yes. No hidden features.",
+          "face": "face-grass-worried"
+        }
+      ]
+    },
+    "sunny": {
+      "prompt": "A little sunshine together?",
+      "options": [
+        {
+          "label": "Sounds good",
+          "reply": "I've left some room.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "Still working",
+          "reply": "Look outside when you have a moment.",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "rainy": {
+      "prompt": "What goes well with the rain?",
+      "options": [
+        {
+          "label": "A nap",
+          "reply": "All right. Close your eyes slowly.",
+          "face": "face-grass-calm"
+        },
+        {
+          "label": "Sitting with you",
+          "reply": "Good. We can just listen.",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "tricked": {
+      "prompt": "I was trying a small joke.",
+      "options": [
+        {
+          "label": "It worked",
+          "reply": "Oh. Good to know.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "A little dry",
+          "reply": "Yes. I may need water.",
+          "face": "face-grass-worried"
+        }
+      ]
+    },
+    "listen": {
+      "prompt": "Go on. I won't interrupt.",
+      "options": [
+        {
+          "label": "Something happened today",
+          "reply": "Mm. What happened next?",
+          "face": "face-grass-calm"
+        },
+        {
+          "label": "I'll tell you later",
+          "reply": "All right. I'll remember there's a story.",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "daze": {
+      "prompt": "…Even the leaves have stopped moving.",
+      "options": [
+        {
+          "label": "Stay a little longer",
+          "reply": "All right. No countdown.",
+          "face": "face-grass-calm"
+        },
+        {
+          "label": "Time to go",
+          "reply": "Okay. Get up slowly.",
+          "face": "face-grass-happy"
+        }
+      ]
+    },
+    "drink": {
+      "prompt": "Had some water now?",
+      "options": [
+        {
+          "label": "Yes",
+          "reply": "Good. Look after yourself too.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "Getting some now",
+          "reply": "I'll be right here.",
+          "face": "face-grass-calm"
+        }
+      ]
+    },
+    "sulk": {
+      "prompt": "Not angry. The leaves just look like this.",
+      "options": [
+        {
+          "label": "That's a relief",
+          "reply": "Yes. A breeze usually helps.",
+          "face": "face-grass-happy"
+        },
+        {
+          "label": "Sorry",
+          "reply": "It's all right. We can speak slowly.",
+          "face": "face-grass-happy"
+        }
+      ]
     }
   }
 }
