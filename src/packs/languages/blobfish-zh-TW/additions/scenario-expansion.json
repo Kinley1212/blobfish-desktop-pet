@@ -1,0 +1,794 @@
+{
+  "category": "scenario",
+  "phrases": [
+    {
+      "id": "bf-scenario-001",
+      "event": "idle.chatter",
+      "text": "早上的光太積極了。我還沒有。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-002",
+      "event": "idle.chatter",
+      "text": "天已經亮了。魚的反應還在路上。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-003",
+      "event": "idle.chatter",
+      "text": "早起這件事。我只是路過。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-004",
+      "event": "idle.chatter",
+      "text": "先讓我浮一會兒。今天還長。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-005",
+      "event": "idle.chatter",
+      "text": "螢幕醒了。別要求魚也立刻精神。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-006",
+      "event": "idle.chatter",
+      "text": "下午的時間。好像比我還懶。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-007",
+      "event": "idle.chatter",
+      "text": "這個時候。連泡泡都不想上班。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-008",
+      "event": "idle.chatter",
+      "text": "游了一圈。事情還在原來的位置。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-009",
+      "event": "idle.chatter",
+      "text": "眼睛累了就看看遠處。我不會丟。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-010",
+      "event": "idle.chatter",
+      "text": "午後的精神。大概還留在飯桌上。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-011",
+      "event": "idle.chatter",
+      "text": "天色暗了一點。今天也用掉不少了。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 17,
+        "hourMax": 23
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-012",
+      "event": "idle.chatter",
+      "text": "事情做不完。也可以先喘一口氣。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 17,
+        "hourMax": 23
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-013",
+      "event": "idle.chatter",
+      "text": "晚上的螢幕。比魚有精神多了。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 17,
+        "hourMax": 23
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-014",
+      "event": "idle.chatter",
+      "text": "肩膀放鬆一點。我看著都累。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 17,
+        "hourMax": 23
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-015",
+      "event": "idle.chatter",
+      "text": "今天先不評分。能坐穩就不錯了。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 17,
+        "hourMax": 23
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-016",
+      "event": "idle.chatter",
+      "text": "這個時間。海底應該也在關燈。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 0,
+        "hourMax": 4
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-017",
+      "event": "idle.chatter",
+      "text": "夜已經很深了。我還沒那麼深。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 0,
+        "hourMax": 4
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-018",
+      "event": "idle.chatter",
+      "text": "困了就去睡。魚不需要人值夜。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 0,
+        "hourMax": 4
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-019",
+      "event": "idle.chatter",
+      "text": "螢幕還亮著。希望不是又忘了時間。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 0,
+        "hourMax": 4
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-020",
+      "event": "idle.chatter",
+      "text": "先別和明天借精神。利息很高。",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 0,
+        "hourMax": 4
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-021",
+      "event": "startup.workdayMorning",
+      "text": "又到工作日了。先別把事情全抱過來。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-022",
+      "event": "startup.workdayMorning",
+      "text": "早。今天的第一口氣先留給自己。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-023",
+      "event": "startup.workdayMorning",
+      "text": "工作日開始。我先慢慢游進狀態。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-024",
+      "event": "startup.workdayMorning",
+      "text": "見面了。先挑一件能開始的小事吧。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-025",
+      "event": "startup.dayOff",
+      "text": "今天的安排。可以留一點空白。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-026",
+      "event": "startup.dayOff",
+      "text": "今天不用趕的話。我很樂意示範發呆。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-027",
+      "event": "startup.dayOff",
+      "text": "又見面了。休息也不用做得很用力。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-028",
+      "event": "startup.dayOff",
+      "text": "有空就待一會兒。沒有議程。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-029",
+      "event": "schedule.halfHour",
+      "text": "又半小時了。把肩膀從耳朵旁放下來。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-030",
+      "event": "schedule.halfHour",
+      "text": "時間走了半小時。你也可以動一下。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-031",
+      "event": "schedule.lunchSoon",
+      "text": "快到午飯時間。別讓肚子空等。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-032",
+      "event": "schedule.lunchSoon",
+      "text": "再忙也給午飯留個位置。我先替你惦記。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-033",
+      "event": "schedule.offWorkHalfHour",
+      "text": "按安排還有半小時。可以慢慢收尾了。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-034",
+      "event": "schedule.offWorkHalfHour",
+      "text": "離下班還有半小時。別又開一大堆事情。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-035",
+      "event": "schedule.offWorkSoon",
+      "text": "快到下班時間。記得把自己也帶走。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-036",
+      "event": "schedule.offWorkSoon",
+      "text": "今天的收尾。留一點精神給回家以後。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-037",
+      "event": "system.unlocked",
+      "text": "回來了。游到這裡剛好等到你。",
+      "weight": 2,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-038",
+      "event": "system.unlocked",
+      "text": "螢幕又亮了。先把眼睛慢慢叫醒。",
+      "weight": 2,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-039",
+      "event": "system.unlocked",
+      "text": "隔了挺久。魚還在這裡浮著。",
+      "weight": 2,
+      "conditions": {
+        "lockedMinSeconds": 7200
+      },
+      "cooldownMs": 5400000
+    },
+    {
+      "id": "bf-scenario-040",
+      "event": "system.unlocked",
+      "text": "好一陣子沒見。先不用急著追回時間。",
+      "weight": 2,
+      "conditions": {
+        "lockedMinSeconds": 7200
+      },
+      "cooldownMs": 5400000
+    },
+    {
+      "id": "bf-scenario-041",
+      "event": "system.battery",
+      "text": "電量剩兩成了。找一下充電線吧。",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 20
+      }
+    },
+    {
+      "id": "bf-scenario-042",
+      "event": "system.battery",
+      "text": "20%。魚還能游，電腦得留點餘力。",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 20
+      }
+    },
+    {
+      "id": "bf-scenario-043",
+      "event": "system.battery",
+      "text": "10%了。先接上電，再處理那一件。",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 10
+      }
+    },
+    {
+      "id": "bf-scenario-044",
+      "event": "system.battery",
+      "text": "只剩一成電。充電線現在比較重要。",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 10
+      }
+    },
+    {
+      "id": "bf-scenario-045",
+      "event": "system.battery",
+      "text": "5%了。先救電量，別和它賭。",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 5
+      }
+    },
+    {
+      "id": "bf-scenario-046",
+      "event": "system.battery",
+      "text": "電量快到底了。插上電再慢慢來。",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 5
+      }
+    },
+    {
+      "id": "bf-scenario-047",
+      "event": "system.error",
+      "text": "剛才卡住了。先看看原因。",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-048",
+      "event": "system.error",
+      "text": "出了岔子。我有看見。",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-049",
+      "event": "system.error",
+      "text": "剛才沒能照預想的走。得再看一下。",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-050",
+      "event": "agent.started",
+      "text": "新事情動起來了。我也得動了。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-051",
+      "event": "agent.started",
+      "text": "那邊開始忙了。我先游一小圈。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-052",
+      "event": "agent.needsInput",
+      "text": "那邊在等你選。這個魚不能替你猜。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-053",
+      "event": "agent.needsInput",
+      "text": "有一步需要你看看。我先停在這裡。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-054",
+      "event": "agent.failed",
+      "text": "那件事沒跑完。先看出錯的地方吧。",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-055",
+      "event": "agent.failed",
+      "text": "這次沒成。不急，先弄清楚原因。",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-056",
+      "event": "agent.completed",
+      "text": "這一件回報完成了。需要的話再核對一下。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-057",
+      "event": "agent.completed",
+      "text": "一件事情收尾了。我先緩一口氣。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-058",
+      "event": "agent.allCompleted",
+      "text": "目前這批都回報完成了。成果再慢慢看。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-059",
+      "event": "agent.allCompleted",
+      "text": "待辦的動靜停了。先歇一下再檢查吧。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-060",
+      "event": "calendar.upcoming",
+      "text": "行程快到了。先給自己留點轉場時間。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-061",
+      "event": "calendar.upcoming",
+      "text": "待會兒有安排。手上這件先找個停靠點。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-062",
+      "event": "calendar.starting",
+      "text": "安排的時間到了。我先不擋你的路。",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-063",
+      "event": "calendar.starting",
+      "text": "這一項行程開始了。別忘了看看。",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-064",
+      "event": "calendar.busyDay",
+      "text": "今天的行程挺擠。空隙記得留給自己。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-065",
+      "event": "calendar.busyDay",
+      "text": "事情排得很近。中間也要有口氣能喘。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-066",
+      "event": "clock.alarmClockAppeared",
+      "text": "鐘拿好了。剩下這段，我陪你等。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-067",
+      "event": "clock.alarmClockDisappeared",
+      "text": "鐘先放回去了。魚的手也要休息。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-068",
+      "event": "clock.alarmRinging",
+      "text": "鬧鐘響了。先看看原本要做什麼吧。",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-069",
+      "event": "clock.timerStarted",
+      "text": "計時開始了。這段時間慢慢用。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-070",
+      "event": "clock.timerPaused",
+      "text": "計時停在這裡。先處理眼前的事。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-071",
+      "event": "clock.timerResumed",
+      "text": "繼續計時了。我也重新浮起來。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-072",
+      "event": "clock.timerExtended",
+      "text": "時間加了一點。別把自己也拉得太緊。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-073",
+      "event": "clock.timerCancelled",
+      "text": "這次計時取消了。可以重新安排。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-074",
+      "event": "clock.timerCompleted",
+      "text": "計時到了。把注意力收回來一下。",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-075",
+      "event": "interaction.click",
+      "text": "我在。用不著每次都確認這麼用力。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-076",
+      "event": "interaction.click",
+      "text": "點到了。魚不是按鈕。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-077",
+      "event": "interaction.petting",
+      "text": "輕一點。我的脾氣也很軟。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-078",
+      "event": "interaction.petting",
+      "text": "……可以。別突然換成戳的。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-079",
+      "event": "interaction.pettingMore",
+      "text": "還摸啊。那我再晚一點游。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-080",
+      "event": "interaction.pettingMore",
+      "text": "先這樣吧。魚暫時沒有意見。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-081",
+      "event": "interaction.pettingLots",
+      "text": "夠久了。我都快忘了自己會游。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-082",
+      "event": "interaction.pettingLots",
+      "text": "手也歇一歇吧。我不會跑很遠。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-083",
+      "event": "interaction.goodbye",
+      "text": "我先下去了。你也別一直亮著螢幕。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-084",
+      "event": "interaction.goodbye",
+      "text": "今天先到這裡。魚要去省點力氣。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-085",
+      "event": "messenger.sent",
+      "text": "話已經傳出去了。剩下的慢慢等。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-086",
+      "event": "messenger.sent",
+      "text": "信出發了。對方什麼時候看，還不知道。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-087",
+      "event": "messenger.visitAccept",
+      "text": "借個位置。我游過來的樣子有點慢。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-088",
+      "event": "messenger.visitIdle",
+      "text": "在別人的桌面發呆。也算換了個風景。",
+      "weight": 2,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-089",
+      "event": "messenger.visitIdle",
+      "text": "串門也不用一直說話。一起浮著就行。",
+      "weight": 2,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-090",
+      "event": "messenger.visitEnd",
+      "text": "這趟串門結束了。我慢慢游回去。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-091",
+      "event": "messenger.visitOffline",
+      "text": "對方下線了。這趟就先到這裡。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-092",
+      "event": "messenger.friendHit",
+      "text": "客人也不是按鈕。輕一點行嗎。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-093",
+      "event": "messenger.remote.pet",
+      "text": "隔著桌面也摸到了。先不躲了。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-094",
+      "event": "messenger.remote.hug",
+      "text": "……靠一下就好。別把魚擠扁。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-095",
+      "event": "messenger.remote.highFive",
+      "text": "碰到了。我的鰭就只有這麼大。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-096",
+      "event": "messenger.remote.launch",
+      "text": "又飛起來了。魚的履歷越來越奇怪。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-097",
+      "event": "messenger.remote.bomb",
+      "text": "動靜真大。我先把魂找回來。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-098",
+      "event": "messenger.remote.vortex",
+      "text": "先別轉了。海在哪邊我都快忘了。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-099",
+      "event": "messenger.remote.wave",
+      "text": "浪過來了。我勉強算熟悉這個。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-100",
+      "event": "messenger.remote.bubble",
+      "text": "泡泡把我裝好了。就是不太方便游。",
+      "weight": 2,
+      "cooldownMs": 600000
+    }
+  ]
+}

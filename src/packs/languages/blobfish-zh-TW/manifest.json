@@ -22,7 +22,10 @@
       "additions/clock.json",
       "additions/messenger.json",
       "additions/state-variants.json",
-      "additions/rare.json"
+      "additions/rare.json",
+      "additions/scenario-expansion.json",
+      "additions/time-easter-eggs.json",
+      "additions/date-easter-eggs.json"
     ]
   }
 }

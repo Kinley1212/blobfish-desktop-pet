@@ -2,7 +2,10 @@
   "id": "blobfish-en",
   "displayName": "Blobfish English",
   "locale": "en",
-  "characterPackIds": ["blobfish", "blobfish-wotou"],
+  "characterPackIds": [
+    "blobfish",
+    "blobfish-wotou"
+  ],
   "version": 1,
   "style": "style.json",
   "files": {
@@ -17,7 +20,10 @@
       "additions/clock.json",
       "additions/messenger.json",
       "additions/state-variants.json",
-      "additions/rare.json"
+      "additions/rare.json",
+      "additions/scenario-expansion.json",
+      "additions/time-easter-eggs.json",
+      "additions/date-easter-eggs.json"
     ]
   }
 }

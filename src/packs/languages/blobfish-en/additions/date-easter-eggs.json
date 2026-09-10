@@ -1,0 +1,29 @@
+{
+  "category": "rare",
+  "phrases": [
+    { "id": "blobfish-en-datenewyear-01", "event": "rare.dateNewYear", "text": "January 1. Leave a little room between those resolutions to lie down.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datenewyear-02", "event": "rare.dateNewYear", "text": "New year. Same fish. Hoping for gentler treatment from the universe.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datevalentine-01", "event": "rare.dateValentine", "text": "Valentine's Day. Affection does not need expensive wrapping.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datevalentine-02", "event": "rare.dateValentine", "text": "February 14. You can keep some of the kindness for yourself.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-dateaprilfools-01", "event": "rare.dateAprilFools", "text": "April Fools. I am full of ambition today. There. That's the joke.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-dateaprilfools-02", "event": "rare.dateAprilFools", "text": "April 1. No tricks. Being this flat is quite real.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datechildrensday-01", "event": "rare.dateChildrensDay", "text": "June 1. A little room for play. It need not be productive. Like me.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datechildrensday-02", "event": "rare.dateChildrensDay", "text": "June 1. Leave a corner for curiosity, not just more things to do.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datechristmaseve-01", "event": "rare.dateChristmasEve", "text": "Christmas Eve. Wishing your worries a slightly lower volume.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datechristmaseve-02", "event": "rare.dateChristmasEve", "text": "December 24. A little peace. No elaborate assembly required.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datechristmas-01", "event": "rare.dateChristmas", "text": "Merry Christmas. My good wishes come unwrapped. Less effort for everyone.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datechristmas-02", "event": "rare.dateChristmas", "text": "December 25. May one small thing today feel warm.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-dateyearend-01", "event": "rare.dateYearEnd", "text": "Last day of the year. Unfinished does not mean wasted.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-dateyearend-02", "event": "rare.dateYearEnd", "text": "December 31. A whole year does not have to fit on a scorecard.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-dateleapday-01", "event": "rare.dateLeapDay", "text": "February 29. An extra day, not an extra assignment.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-dateleapday-02", "event": "rare.dateLeapDay", "text": "Leap day. Even the calendar occasionally wants to linger.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datemonthstart-01", "event": "rare.dateMonthStart", "text": "The first again. The calendar refreshes faster than my enthusiasm.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datemonthstart-02", "event": "rare.dateMonthStart", "text": "New month. Starting slowly still qualifies as starting.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datelunarnewyear-01", "event": "rare.dateLunarNewYear", "text": "Happy Lunar New Year. Wishing you fewer unnecessary complications.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datelunarnewyear-02", "event": "rare.dateLunarNewYear", "text": "Lunar New Year. May there be plenty. I can contribute one fish.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datelantern-01", "event": "rare.dateLantern", "text": "Lantern Festival. Wishing things a rounder ending. I'll stay flat.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datelantern-02", "event": "rare.dateLantern", "text": "Lantern Festival. A small light of good wishes. No batteries needed.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datemidautumn-01", "event": "rare.dateMidAutumn", "text": "Mid-Autumn Festival. The moon handles round. I handle flat.", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-en-datemidautumn-02", "event": "rare.dateMidAutumn", "text": "Mid-Autumn. However you spend it, I hope there's a comfortable corner.", "weight": 2, "rarity": "rare" }
+  ]
+}

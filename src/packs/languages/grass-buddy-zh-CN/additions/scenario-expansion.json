@@ -1,0 +1,761 @@
+{
+  "category": "scenario-expansion",
+  "phrases": [
+    {
+      "id": "gb-scenario-zh-001",
+      "event": "idle.chatter",
+      "text": "早。叶子展开了，脑子还没。",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      }
+    },
+    {
+      "id": "gb-scenario-zh-002",
+      "event": "idle.chatter",
+      "text": "先坐稳。今天还没开始催你。",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      }
+    },
+    {
+      "id": "gb-scenario-zh-003",
+      "event": "idle.chatter",
+      "text": "我醒了。这个消息来得比我快。",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      }
+    },
+    {
+      "id": "gb-scenario-zh-004",
+      "event": "idle.chatter",
+      "text": "杯子在旁边的话，可以喝一口。",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      }
+    },
+    {
+      "id": "gb-scenario-zh-005",
+      "event": "idle.chatter",
+      "text": "你忙。我在旁边保持绿色。",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      }
+    },
+    {
+      "id": "gb-scenario-zh-006",
+      "event": "idle.chatter",
+      "text": "刚想起一句话。又放回去了。",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      }
+    },
+    {
+      "id": "gb-scenario-zh-007",
+      "event": "idle.chatter",
+      "text": "天色晚了。肩膀不用跟着沉下去。",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 17,
+        "hourMax": 23
+      }
+    },
+    {
+      "id": "gb-scenario-zh-008",
+      "event": "idle.chatter",
+      "text": "今天有没有小事做成？小的也算。",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 17,
+        "hourMax": 23
+      }
+    },
+    {
+      "id": "gb-scenario-zh-009",
+      "event": "idle.chatter",
+      "text": "还醒着啊。我陪着，不催。",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 0,
+        "hourMax": 4
+      }
+    },
+    {
+      "id": "gb-scenario-zh-010",
+      "event": "idle.chatter",
+      "text": "夜里安静。眼睛也可以歇一会儿。",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 0,
+        "hourMax": 4
+      }
+    },
+    {
+      "id": "gb-scenario-zh-011",
+      "event": "idle.chatter",
+      "text": "日历走到周末了。你按自己的节奏来。",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "weekdays": [
+          0,
+          6
+        ]
+      }
+    },
+    {
+      "id": "gb-scenario-zh-012",
+      "event": "idle.chatter",
+      "text": "今天忙不忙都行。别忘了照顾自己。",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "weekdays": [
+          0,
+          6
+        ]
+      }
+    },
+    {
+      "id": "gb-scenario-zh-013",
+      "event": "startup.workdayMorning",
+      "text": "早。先找回昨天停下的地方。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-zh-014",
+      "event": "startup.workdayMorning",
+      "text": "今天也在。开工前先松松肩膀。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-zh-015",
+      "event": "startup.dayOff",
+      "text": "今天没有开工问候。只有普通的早。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-zh-016",
+      "event": "startup.dayOff",
+      "text": "见到你了。不急着安排什么。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-zh-017",
+      "event": "schedule.halfHour",
+      "text": "半小时过去了。眼睛看一眼远处吧。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-zh-018",
+      "event": "schedule.halfHour",
+      "text": "时间往前走了。我动了一下叶尖。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-zh-019",
+      "event": "schedule.lunchSoon",
+      "text": "快到午饭时间了。肚子不靠意志充电。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-zh-020",
+      "event": "schedule.lunchSoon",
+      "text": "再过一会儿，给吃饭留个位置。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-zh-021",
+      "event": "schedule.offWorkHalfHour",
+      "text": "离设定的下班还有半小时。慢慢收尾。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-zh-022",
+      "event": "schedule.offWorkHalfHour",
+      "text": "最后半小时了。明天的事可以先记下。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-zh-023",
+      "event": "schedule.offWorkSoon",
+      "text": "快到收工时间了。先把进度保存好。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-zh-024",
+      "event": "schedule.offWorkSoon",
+      "text": "剩下这一点时间，留给检查和道别。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-zh-025",
+      "event": "system.unlocked",
+      "text": "回来了。我刚才什么也没乱动。",
+      "weight": 2,
+      "cooldownMs": 2700000
+    },
+    {
+      "id": "gb-scenario-zh-026",
+      "event": "system.unlocked",
+      "text": "屏幕亮了。哦，是你。",
+      "weight": 2,
+      "cooldownMs": 2700000
+    },
+    {
+      "id": "gb-scenario-zh-027",
+      "event": "system.unlocked",
+      "text": "好久不见。先想想刚才要做什么。",
+      "weight": 2,
+      "cooldownMs": 5400000,
+      "conditions": {
+        "lockedMinSeconds": 7200
+      }
+    },
+    {
+      "id": "gb-scenario-zh-028",
+      "event": "system.unlocked",
+      "text": "隔了挺久。今天可以从这里重新接上。",
+      "weight": 2,
+      "cooldownMs": 5400000,
+      "conditions": {
+        "lockedMinSeconds": 7200
+      }
+    },
+    {
+      "id": "gb-scenario-zh-029",
+      "event": "system.battery",
+      "text": "电量剩两成了。找找充电线吧。",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 20
+      }
+    },
+    {
+      "id": "gb-scenario-zh-030",
+      "event": "system.battery",
+      "text": "剩一成电。先保存，再接上电源。",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 10
+      }
+    },
+    {
+      "id": "gb-scenario-zh-031",
+      "event": "system.battery",
+      "text": "只剩百分之五。现在该接电了。",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 5
+      }
+    },
+    {
+      "id": "gb-scenario-zh-032",
+      "event": "system.error",
+      "text": "有一处出错了。先看看提示。",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-zh-033",
+      "event": "system.error",
+      "text": "这次没顺利办好。原因得再看一下。",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-zh-034",
+      "event": "agent.started",
+      "text": "任务开动了。我把旁边的位置让出来。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-035",
+      "event": "agent.started",
+      "text": "开始做了。结果还要等一会儿。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-036",
+      "event": "agent.needsInput",
+      "text": "有一步在等你。草不能替你点头。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-037",
+      "event": "agent.needsInput",
+      "text": "先停在这里。这个选择要你来看。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-038",
+      "event": "agent.failed",
+      "text": "这件没完成。先别急着怪自己。",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-zh-039",
+      "event": "agent.failed",
+      "text": "它卡住了。看清原因，再动下一步。",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-zh-040",
+      "event": "agent.completed",
+      "text": "这一项好了。验一下成果吧。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-041",
+      "event": "agent.completed",
+      "text": "完成了一件。小小地松口气。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-042",
+      "event": "agent.allCompleted",
+      "text": "这一批都完成了。现在可以伸个懒腰。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-043",
+      "event": "agent.allCompleted",
+      "text": "任务清完了。我慢半拍鼓掌。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-044",
+      "event": "calendar.upcoming",
+      "text": "接下来有安排。先把手头的放稳。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-045",
+      "event": "calendar.upcoming",
+      "text": "日历提醒来了。准备一下，不用慌。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-046",
+      "event": "calendar.starting",
+      "text": "到安排的时间了。带上需要的东西。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-047",
+      "event": "calendar.starting",
+      "text": "日历上这一格开始了。轮到它了。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-048",
+      "event": "calendar.busyDay",
+      "text": "今天安排不少。缝隙里也能喝口水。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-zh-049",
+      "event": "calendar.busyDay",
+      "text": "日历挺挤。别把自己也折起来。",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-zh-050",
+      "event": "clock.alarmClockAppeared",
+      "text": "钟拿好了。先放在顺手的地方。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-051",
+      "event": "clock.alarmClockAppeared",
+      "text": "小钟在这儿。它负责时间，我负责站着。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-052",
+      "event": "clock.alarmClockDisappeared",
+      "text": "钟收起来了。手边空了一点。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-053",
+      "event": "clock.alarmClockDisappeared",
+      "text": "这一会儿不用拿钟。叶子松一松。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-054",
+      "event": "clock.alarmRinging",
+      "text": "闹钟响了。你留给这一刻的提醒到了。",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-zh-055",
+      "event": "clock.alarmRinging",
+      "text": "到点了。不是我着急，是钟。",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-zh-056",
+      "event": "clock.timerStarted",
+      "text": "开始计时了。我在这里陪这段时间。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-057",
+      "event": "clock.timerStarted",
+      "text": "倒计时走起来了。先做眼前这一件。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-058",
+      "event": "clock.timerPaused",
+      "text": "计时停一下。停一下也不丢人。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-059",
+      "event": "clock.timerPaused",
+      "text": "时间先按住了。你处理你的事。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-060",
+      "event": "clock.timerResumed",
+      "text": "接着计时。刚才的停顿不算白费。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-061",
+      "event": "clock.timerResumed",
+      "text": "从停下的地方继续。我跟上了。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-062",
+      "event": "clock.timerExtended",
+      "text": "多留了一点时间。够用比赶完重要。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-063",
+      "event": "clock.timerExtended",
+      "text": "计时延长了。慢一点，仍然是在做。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-064",
+      "event": "clock.timerCancelled",
+      "text": "这次不计了。不是所有事都要倒数。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-065",
+      "event": "clock.timerCancelled",
+      "text": "倒计时收好了。接下来你自己决定。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-066",
+      "event": "clock.timerCompleted",
+      "text": "这一段时间到了。先看看做到了哪里。",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-zh-067",
+      "event": "clock.timerCompleted",
+      "text": "倒数结束了。给自己一个小停顿吧。",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-zh-068",
+      "event": "interaction.click",
+      "text": "嗯？叫我吗。反应刚赶到。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-069",
+      "event": "interaction.click",
+      "text": "收到了。叶尖代表我点了一下头。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-070",
+      "event": "interaction.petting",
+      "text": "轻一点挺好。我不用抛光。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-071",
+      "event": "interaction.petting",
+      "text": "摸到了。谢谢，叶子没那么紧了。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-072",
+      "event": "interaction.pettingMore",
+      "text": "还摸啊。那我再站一会儿。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-073",
+      "event": "interaction.pettingMore",
+      "text": "有点舒服。我晚一点才承认。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-074",
+      "event": "interaction.pettingLots",
+      "text": "差不多啦。再摸要长出分界线了。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-075",
+      "event": "interaction.pettingLots",
+      "text": "叶子都顺好了。手也休息一下。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-076",
+      "event": "interaction.goodbye",
+      "text": "走之前把东西收好。我不急着告别。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-077",
+      "event": "interaction.goodbye",
+      "text": "下次见。长得慢，也会记得你。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-078",
+      "event": "messenger.sent",
+      "text": "话交出去了。回音可以慢一点。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-079",
+      "event": "messenger.sent",
+      "text": "送出去了。现在不用一直盯着。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-080",
+      "event": "messenger.sent",
+      "text": "这句话上路了。我没有偷偷添字。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-081",
+      "event": "messenger.visitAccept",
+      "text": "来啦。我往旁边挪一点。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-082",
+      "event": "messenger.visitAccept",
+      "text": "欢迎。没准备节目，可以一起站着。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-083",
+      "event": "messenger.visitIdle",
+      "text": "一起安静，也算串门。",
+      "weight": 2,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "gb-scenario-zh-084",
+      "event": "messenger.visitIdle",
+      "text": "不用找话题。这里没有聊天考核。",
+      "weight": 2,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "gb-scenario-zh-085",
+      "event": "messenger.visitIdle",
+      "text": "两个人发呆，空白也没那么空了。",
+      "weight": 2,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "gb-scenario-zh-086",
+      "event": "messenger.visitEnd",
+      "text": "这次先到这里。门口的路记住了。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-087",
+      "event": "messenger.visitEnd",
+      "text": "回去了。刚才那点热闹留一会儿。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-088",
+      "event": "messenger.visitOffline",
+      "text": "对方离线了。这次串门先结束。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-089",
+      "event": "messenger.visitOffline",
+      "text": "连接断了。等下次再一起待着。",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-zh-090",
+      "event": "messenger.friendHit",
+      "text": "哎。我的叶子还没反应过来。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-091",
+      "event": "messenger.friendHit",
+      "text": "碰到了。下次提前给草一点心理准备。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-092",
+      "event": "messenger.remote.pet",
+      "text": "这一下挺轻。谢谢你惦记我的叶子。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-093",
+      "event": "messenger.remote.hug",
+      "text": "抱到了。我慢一点松开。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-094",
+      "event": "messenger.remote.highFive",
+      "text": "击掌。声音比我的动作精神。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-095",
+      "event": "messenger.remote.launch",
+      "text": "离地了。根部对此暂时没有意见。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-096",
+      "event": "messenger.remote.bomb",
+      "text": "吓一跳。叶子比我先散开了。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-097",
+      "event": "messenger.remote.vortex",
+      "text": "转起来了。想法倒是还在原地。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-098",
+      "event": "messenger.remote.wave",
+      "text": "这阵浪有点突然。我站稳再说。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-099",
+      "event": "messenger.remote.bubble",
+      "text": "坐上泡泡了。没想到草也能顺路。",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-zh-100",
+      "event": "messenger.remote.hug",
+      "text": "嗯。被好好接住了。",
+      "weight": 2,
+      "cooldownMs": 180000
+    }
+  ]
+}

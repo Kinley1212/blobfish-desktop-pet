@@ -1,0 +1,761 @@
+{
+  "category": "scenario-expansion",
+  "phrases": [
+    {
+      "id": "gb-scenario-en-001",
+      "event": "idle.chatter",
+      "text": "Morning. Leaves open. Mind still folded.",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      }
+    },
+    {
+      "id": "gb-scenario-en-002",
+      "event": "idle.chatter",
+      "text": "Settle in. The day has not asked for anything yet.",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      }
+    },
+    {
+      "id": "gb-scenario-en-003",
+      "event": "idle.chatter",
+      "text": "I am awake. That news arrived before I did.",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      }
+    },
+    {
+      "id": "gb-scenario-en-004",
+      "event": "idle.chatter",
+      "text": "If your cup is nearby, a sip might be nice.",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      }
+    },
+    {
+      "id": "gb-scenario-en-005",
+      "event": "idle.chatter",
+      "text": "You carry on. I will stay green over here.",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      }
+    },
+    {
+      "id": "gb-scenario-en-006",
+      "event": "idle.chatter",
+      "text": "I thought of something to say. Put it back.",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      }
+    },
+    {
+      "id": "gb-scenario-en-007",
+      "event": "idle.chatter",
+      "text": "It is getting late. Your shoulders can still relax.",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 17,
+        "hourMax": 23
+      }
+    },
+    {
+      "id": "gb-scenario-en-008",
+      "event": "idle.chatter",
+      "text": "Did one small thing work out today? Small counts.",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 17,
+        "hourMax": 23
+      }
+    },
+    {
+      "id": "gb-scenario-en-009",
+      "event": "idle.chatter",
+      "text": "Still awake. I will stay here. No hurry.",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 0,
+        "hourMax": 4
+      }
+    },
+    {
+      "id": "gb-scenario-en-010",
+      "event": "idle.chatter",
+      "text": "It is quiet at night. Your eyes can rest a little too.",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "hourMin": 0,
+        "hourMax": 4
+      }
+    },
+    {
+      "id": "gb-scenario-en-011",
+      "event": "idle.chatter",
+      "text": "The calendar says weekend. Your own pace still applies.",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "weekdays": [
+          0,
+          6
+        ]
+      }
+    },
+    {
+      "id": "gb-scenario-en-012",
+      "event": "idle.chatter",
+      "text": "Busy or not today, leave a little care for yourself.",
+      "weight": 2,
+      "cooldownMs": 3600000,
+      "conditions": {
+        "weekdays": [
+          0,
+          6
+        ]
+      }
+    },
+    {
+      "id": "gb-scenario-en-013",
+      "event": "startup.workdayMorning",
+      "text": "Morning. First, find where you left things yesterday.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-en-014",
+      "event": "startup.workdayMorning",
+      "text": "Here again. Loosen your shoulders before starting.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-en-015",
+      "event": "startup.dayOff",
+      "text": "No workday greeting today. Just a plain hello.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-en-016",
+      "event": "startup.dayOff",
+      "text": "There you are. No need to plan anything just yet.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-en-017",
+      "event": "schedule.halfHour",
+      "text": "Half an hour passed. Give your eyes a farther view.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-en-018",
+      "event": "schedule.halfHour",
+      "text": "Time moved on. I moved one leaf tip.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-en-019",
+      "event": "schedule.lunchSoon",
+      "text": "Lunch is soon. Willpower does not feed a stomach.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-en-020",
+      "event": "schedule.lunchSoon",
+      "text": "In a little while, make some room for lunch.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-en-021",
+      "event": "schedule.offWorkHalfHour",
+      "text": "Half an hour until your set finish time. Ease toward it.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-en-022",
+      "event": "schedule.offWorkHalfHour",
+      "text": "Last half hour. Tomorrow's tasks can stay as notes.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-en-023",
+      "event": "schedule.offWorkSoon",
+      "text": "Nearly your finish time. Save your progress first.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-en-024",
+      "event": "schedule.offWorkSoon",
+      "text": "Leave these last few minutes for checking and goodbye.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-en-025",
+      "event": "system.unlocked",
+      "text": "Welcome back. I did not rearrange anything.",
+      "weight": 2,
+      "cooldownMs": 2700000
+    },
+    {
+      "id": "gb-scenario-en-026",
+      "event": "system.unlocked",
+      "text": "The screen lit up. Oh. It is you.",
+      "weight": 2,
+      "cooldownMs": 2700000
+    },
+    {
+      "id": "gb-scenario-en-027",
+      "event": "system.unlocked",
+      "text": "It has been a while. Take a moment to find your place.",
+      "weight": 2,
+      "cooldownMs": 5400000,
+      "conditions": {
+        "lockedMinSeconds": 7200
+      }
+    },
+    {
+      "id": "gb-scenario-en-028",
+      "event": "system.unlocked",
+      "text": "A fair while passed. You can pick up from here.",
+      "weight": 2,
+      "cooldownMs": 5400000,
+      "conditions": {
+        "lockedMinSeconds": 7200
+      }
+    },
+    {
+      "id": "gb-scenario-en-029",
+      "event": "system.battery",
+      "text": "Battery at twenty percent. A charger would be useful.",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 20
+      }
+    },
+    {
+      "id": "gb-scenario-en-030",
+      "event": "system.battery",
+      "text": "Ten percent left. Save your work and plug in.",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 10
+      }
+    },
+    {
+      "id": "gb-scenario-en-031",
+      "event": "system.battery",
+      "text": "Five percent left. Please plug in now.",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 5
+      }
+    },
+    {
+      "id": "gb-scenario-en-032",
+      "event": "system.error",
+      "text": "Something went wrong. Check the error message first.",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-en-033",
+      "event": "system.error",
+      "text": "That did not go smoothly. The cause needs a look.",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-en-034",
+      "event": "agent.started",
+      "text": "The task started. I will make a little room.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-035",
+      "event": "agent.started",
+      "text": "It has begun. The result will take a little time.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-036",
+      "event": "agent.needsInput",
+      "text": "One step needs you. Grass cannot nod on your behalf.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-037",
+      "event": "agent.needsInput",
+      "text": "Paused here. This choice needs your attention.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-038",
+      "event": "agent.failed",
+      "text": "This one failed. No need to blame yourself first.",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-en-039",
+      "event": "agent.failed",
+      "text": "It hit a problem. Check why before the next step.",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-en-040",
+      "event": "agent.completed",
+      "text": "This task is done. Give the result a look.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-041",
+      "event": "agent.completed",
+      "text": "One finished. A small sigh of relief is allowed.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-042",
+      "event": "agent.allCompleted",
+      "text": "This batch is done. A stretch would fit here.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-043",
+      "event": "agent.allCompleted",
+      "text": "All tasks cleared. My applause is a little late.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-044",
+      "event": "calendar.upcoming",
+      "text": "Something is coming up. Leave your current work tidy.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-045",
+      "event": "calendar.upcoming",
+      "text": "A calendar reminder. Get ready; no need to rush.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-046",
+      "event": "calendar.starting",
+      "text": "Your event starts now. Bring what you need.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-047",
+      "event": "calendar.starting",
+      "text": "This calendar slot has begun. Its turn now.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-048",
+      "event": "calendar.busyDay",
+      "text": "A busy calendar today. There is room for a sip between.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-en-049",
+      "event": "calendar.busyDay",
+      "text": "The calendar is crowded. You need not fold yourself up.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "gb-scenario-en-050",
+      "event": "clock.alarmClockAppeared",
+      "text": "Clock in place. Somewhere within easy reach.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-051",
+      "event": "clock.alarmClockAppeared",
+      "text": "The clock is here. It keeps time. I keep standing.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-052",
+      "event": "clock.alarmClockDisappeared",
+      "text": "Clock put away. A little more room beside me.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-053",
+      "event": "clock.alarmClockDisappeared",
+      "text": "No clock to hold just now. Leaves can loosen up.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-054",
+      "event": "clock.alarmRinging",
+      "text": "The alarm rang. Your reminder for this moment is here.",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-en-055",
+      "event": "clock.alarmRinging",
+      "text": "Time is up. It is the clock being insistent, not me.",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-en-056",
+      "event": "clock.timerStarted",
+      "text": "Timer started. I will keep you company for this stretch.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-057",
+      "event": "clock.timerStarted",
+      "text": "Countdown running. Just the thing in front of you now.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-058",
+      "event": "clock.timerPaused",
+      "text": "Timer paused. Pausing is nothing to be embarrassed about.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-059",
+      "event": "clock.timerPaused",
+      "text": "Timer on hold. Take care of what you need.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-060",
+      "event": "clock.timerResumed",
+      "text": "Timer resumed. That pause was not wasted.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-061",
+      "event": "clock.timerResumed",
+      "text": "Continuing where you paused. I have caught up.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-062",
+      "event": "clock.timerExtended",
+      "text": "A little time added. Enough time beats a rushed finish.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-063",
+      "event": "clock.timerExtended",
+      "text": "Timer extended. Slower is still doing.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-064",
+      "event": "clock.timerCancelled",
+      "text": "Timer cancelled. Not everything needs a countdown.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-065",
+      "event": "clock.timerCancelled",
+      "text": "Countdown put away. What comes next is up to you.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-066",
+      "event": "clock.timerCompleted",
+      "text": "This stretch is over. See how far you got.",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-en-067",
+      "event": "clock.timerCompleted",
+      "text": "Countdown done. Give yourself a small pause.",
+      "weight": 2
+    },
+    {
+      "id": "gb-scenario-en-068",
+      "event": "interaction.click",
+      "text": "Hm? Me? My reaction just arrived.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-069",
+      "event": "interaction.click",
+      "text": "Received. One leaf tip nodded on my behalf.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-070",
+      "event": "interaction.petting",
+      "text": "Gentle is nice. I do not need polishing.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-071",
+      "event": "interaction.petting",
+      "text": "Felt that. Thanks. My leaves are less tense now.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-072",
+      "event": "interaction.pettingMore",
+      "text": "More pats? All right. I will stay a little longer.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-073",
+      "event": "interaction.pettingMore",
+      "text": "Quite nice. I am admitting it a little late.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-074",
+      "event": "interaction.pettingLots",
+      "text": "That will do. You are about to part my leaves.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-075",
+      "event": "interaction.pettingLots",
+      "text": "Leaves all neat now. Your hand can rest too.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-076",
+      "event": "interaction.goodbye",
+      "text": "Pack your things first. Goodbye can wait a moment.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-077",
+      "event": "interaction.goodbye",
+      "text": "See you next time. Slow-growing does not mean forgetful.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-078",
+      "event": "messenger.sent",
+      "text": "Your words are sent. The reply can take its time.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-079",
+      "event": "messenger.sent",
+      "text": "Sent. You do not have to keep watching now.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-080",
+      "event": "messenger.sent",
+      "text": "Those words are on their way. I added nothing.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-081",
+      "event": "messenger.visitAccept",
+      "text": "You are here. I will move over a little.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-082",
+      "event": "messenger.visitAccept",
+      "text": "Welcome. No entertainment planned. Standing is available.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-083",
+      "event": "messenger.visitIdle",
+      "text": "Being quiet together still counts as a visit.",
+      "weight": 2,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "gb-scenario-en-084",
+      "event": "messenger.visitIdle",
+      "text": "No need for a topic. There is no conversation exam.",
+      "weight": 2,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "gb-scenario-en-085",
+      "event": "messenger.visitIdle",
+      "text": "Daydreaming together makes the quiet less empty.",
+      "weight": 2,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "gb-scenario-en-086",
+      "event": "messenger.visitEnd",
+      "text": "That is all for this visit. I remember the way.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-087",
+      "event": "messenger.visitEnd",
+      "text": "Heading back. The little warmth can stay a while.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-088",
+      "event": "messenger.visitOffline",
+      "text": "They went offline. This visit ends here for now.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-089",
+      "event": "messenger.visitOffline",
+      "text": "Connection lost. We can spend time together another day.",
+      "weight": 2,
+      "cooldownMs": 300000
+    },
+    {
+      "id": "gb-scenario-en-090",
+      "event": "messenger.friendHit",
+      "text": "Oh. My leaves have not caught up with that yet.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-091",
+      "event": "messenger.friendHit",
+      "text": "That made contact. A little warning for the grass next time.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-092",
+      "event": "messenger.remote.pet",
+      "text": "A gentle pat. Thanks for thinking of my leaves.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-093",
+      "event": "messenger.remote.hug",
+      "text": "Hug received. I will let go a little slowly.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-094",
+      "event": "messenger.remote.highFive",
+      "text": "High five. The sound has more energy than my arm.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-095",
+      "event": "messenger.remote.launch",
+      "text": "Off the ground. The roots have no comment yet.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-096",
+      "event": "messenger.remote.bomb",
+      "text": "A surprise. My leaves scattered before I reacted.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-097",
+      "event": "messenger.remote.vortex",
+      "text": "Spinning. My thoughts stayed where they were.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-098",
+      "event": "messenger.remote.wave",
+      "text": "That wave was sudden. Let me find my footing.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-099",
+      "event": "messenger.remote.bubble",
+      "text": "Bubble ride. Did not know grass could catch a lift.",
+      "weight": 2,
+      "cooldownMs": 180000
+    },
+    {
+      "id": "gb-scenario-en-100",
+      "event": "messenger.remote.hug",
+      "text": "Mm. Someone caught me gently.",
+      "weight": 2,
+      "cooldownMs": 180000
+    }
+  ]
+}

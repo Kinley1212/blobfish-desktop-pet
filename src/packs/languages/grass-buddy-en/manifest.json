@@ -2,7 +2,9 @@
   "id": "grass-buddy-en",
   "displayName": "Grass Buddy English",
   "locale": "en",
-  "characterPackIds": ["grass-buddy"],
+  "characterPackIds": [
+    "grass-buddy"
+  ],
   "version": 1,
   "style": "style.json",
   "files": {
@@ -17,7 +19,10 @@
       "additions/clock.json",
       "additions/messenger.json",
       "additions/state-variants.json",
-      "additions/rare.json"
+      "additions/scenario-expansion.json",
+      "additions/rare.json",
+      "additions/time-easter-eggs.json",
+      "additions/date-easter-eggs.json"
     ]
   }
 }

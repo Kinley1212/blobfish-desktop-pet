@@ -1,0 +1,29 @@
+{
+  "category": "rare",
+  "phrases": [
+    { "id": "blobfish-zh-tw-datenewyear-01", "event": "rare.dateNewYear", "text": "新年第一天。願望先別列太滿，留個位置躺著。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datenewyear-02", "event": "rare.dateNewYear", "text": "一月一日。新的一年，舊魚也想被溫柔對待。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datevalentine-01", "event": "rare.dateValentine", "text": "情人節。喜歡不一定要包得很貴。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datevalentine-02", "event": "rare.dateValentine", "text": "二月十四。也可以把一點好意留給自己。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-dateaprilfools-01", "event": "rare.dateAprilFools", "text": "愚人節。我今天積極向上。好，笑話說完了。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-dateaprilfools-02", "event": "rare.dateAprilFools", "text": "四月一日。不騙你，當魚真的有點扁。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datechildrensday-01", "event": "rare.dateChildrensDay", "text": "六一。今天可以喜歡一點沒有用的東西，比如我。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datechildrensday-02", "event": "rare.dateChildrensDay", "text": "六月一日。留一小塊地方給好奇心，別全放待辦。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datechristmaseve-01", "event": "rare.dateChristmasEve", "text": "平安夜。平平安安就好，不必平平整整。看我。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datechristmaseve-02", "event": "rare.dateChristmasEve", "text": "十二月二十四。願今晚的煩惱稍微小聲一點。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datechristmas-01", "event": "rare.dateChristmas", "text": "聖誕節。我的祝福沒包裝，拆起來省事。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datechristmas-02", "event": "rare.dateChristmas", "text": "十二月二十五。願今天有一件小事讓你覺得暖。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-dateyearend-01", "event": "rare.dateYearEnd", "text": "今年最後一天。沒完成的，不等於白過了。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-dateyearend-02", "event": "rare.dateYearEnd", "text": "十二月三十一。不必把一年擠成一張成績單。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-dateleapday-01", "event": "rare.dateLeapDay", "text": "二月二十九。多出來的一天，不是多出來的作業。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-dateleapday-02", "event": "rare.dateLeapDay", "text": "今天是閏日。日曆偶爾也想再待一會。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datemonthstart-01", "event": "rare.dateMonthStart", "text": "又到一號了。月曆更新得比我的精神快。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datemonthstart-02", "event": "rare.dateMonthStart", "text": "新的一個月。慢慢開始也算開始。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datelunarnewyear-01", "event": "rare.dateLunarNewYear", "text": "正月初一。新春快樂，願今年少一點瞎折騰。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datelunarnewyear-02", "event": "rare.dateLunarNewYear", "text": "過年了。祝你年年有餘，我負責當魚。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datelantern-01", "event": "rare.dateLantern", "text": "元宵節。願事情圓滿一點，我就維持扁的。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datelantern-02", "event": "rare.dateLantern", "text": "正月十五。送你一盞小燈，祝福不耗電。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datemidautumn-01", "event": "rare.dateMidAutumn", "text": "中秋了。月亮管圓，我管在旁邊扁著。", "weight": 2, "rarity": "rare" },
+    { "id": "blobfish-zh-tw-datemidautumn-02", "event": "rare.dateMidAutumn", "text": "八月十五。無論怎麼過，願心裡有個舒服的位置。", "weight": 2, "rarity": "rare" }
+  ]
+}

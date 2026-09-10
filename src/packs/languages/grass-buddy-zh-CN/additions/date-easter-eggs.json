@@ -1,0 +1,29 @@
+{
+  "category": "rare",
+  "phrases": [
+    { "id": "grass-buddy-zh-cn-datenewyear-01", "event": "rare.dateNewYear", "text": "新年第一天。先种一点希望。花盆不用太大。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datenewyear-02", "event": "rare.dateNewYear", "text": "一月一日。年份长了，我再跟一跟。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datevalentine-01", "event": "rare.dateValentine", "text": "情人节。没有玫瑰，有草。品种不影响心意。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datevalentine-02", "event": "rare.dateValentine", "text": "二月十四。对自己好一点，也算认真照料。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-dateaprilfools-01", "event": "rare.dateAprilFools", "text": "愚人节。我其实是一棵大树。只是还没长完。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-dateaprilfools-02", "event": "rare.dateAprilFools", "text": "四月一日。准备了一个笑话，发芽有点慢。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datechildrensday-01", "event": "rare.dateChildrensDay", "text": "六一。好奇心可以留着，不占太多土。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datechildrensday-02", "event": "rare.dateChildrensDay", "text": "六月一日。玩一小会，不必长出什么成果。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datechristmaseve-01", "event": "rare.dateChristmasEve", "text": "平安夜。愿风轻一点，不把心事吹乱。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datechristmaseve-02", "event": "rare.dateChristmasEve", "text": "十二月二十四。平安是好词。不需要修剪。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datechristmas-01", "event": "rare.dateChristmas", "text": "圣诞节。树负责挂灯，我负责小面积的绿。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datechristmas-02", "event": "rare.dateChristmas", "text": "十二月二十五。送一片心意，不用真的摘叶子。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-dateyearend-01", "event": "rare.dateYearEnd", "text": "今年最后一天。根长在哪里，不全看得见。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-dateyearend-02", "event": "rare.dateYearEnd", "text": "十二月三十一。不必拔出来，才能证明长过。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-dateleapday-01", "event": "rare.dateLeapDay", "text": "二月二十九。日历多长了一片叶子。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-dateleapday-02", "event": "rare.dateLeapDay", "text": "今天是闰日。额外的一天，可以普通地过。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datemonthstart-01", "event": "rare.dateMonthStart", "text": "又是一号。月历翻土了，我慢一点跟上。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datemonthstart-02", "event": "rare.dateMonthStart", "text": "新月份。小目标先种浅一点，好透气。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datelunarnewyear-01", "event": "rare.dateLunarNewYear", "text": "正月初一。新春快乐。草也来拜个年。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datelunarnewyear-02", "event": "rare.dateLunarNewYear", "text": "过年了。愿新的一年，根稳一点，心松一点。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datelantern-01", "event": "rare.dateLantern", "text": "元宵节。猜个灯谜：绿的，反应慢。是我。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datelantern-02", "event": "rare.dateLantern", "text": "正月十五。祝福团成一团。外形跟我差不多。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datemidautumn-01", "event": "rare.dateMidAutumn", "text": "中秋了。月亮圆，我也团。多少有点参与感。", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-zh-cn-datemidautumn-02", "event": "rare.dateMidAutumn", "text": "八月十五。愿你在哪里，都有一小块安心的土。", "weight": 2, "rarity": "rare" }
+  ]
+}

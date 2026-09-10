@@ -45,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var timerCancelItem: NSMenuItem?
     private var quickTimerItem: NSMenuItem?
     private var previousSnapshot = TaskSnapshot.idle
+    private var taskSnapshotReady = false
     private var clickCount = 0
     private var chatInviteTimer: Timer?
     private var chatInviteUntil = Date.distantPast
@@ -379,6 +380,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         clocks.start()
 
         let routine = RoutineService(runtime: runtime)
+        routine.canPresentEasterEgg = { [weak self] in
+            guard let self else { return false }
+            return self.taskSnapshotReady && self.panelController.canPresentEasterEgg
+                && self.clockService?.state.alerts.contains(where: { $0.state == "ringing" }) != true
+                && self.dialogueController?.window?.isVisible != true
+        }
+        routine.onEasterEgg = { [weak self] event in
+            guard let self, self.panelController.canPresentEasterEgg,
+                  let text = self.runtime.phrase(event: event) else { return false }
+            self.panelController.say(text, event: event, duration: 6, priority: 10, replaceKey: "calendar.easterEgg")
+            return true
+        }
         routine.onPhrase = { [weak self] event, context in
             DispatchQueue.main.async { self?.deliverPhrase(event: event, context: context) }
         }
@@ -416,6 +429,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         monitor.includeTitles = runtime.config.privacy.includeTaskTitles
         monitor.enabledProviders = enabledProviders()
         monitor.onUpdate = { [weak self] snapshot in
+            self?.taskSnapshotReady = true
             self?.handleTaskFeedback(snapshot)
             self?.routineService?.hasActiveTasks = snapshot.activeCount > 0
             self?.panelController.update(snapshot: snapshot)

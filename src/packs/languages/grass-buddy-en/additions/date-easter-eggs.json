@@ -1,0 +1,29 @@
+{
+  "category": "rare",
+  "phrases": [
+    { "id": "grass-buddy-en-datenewyear-01", "event": "rare.dateNewYear", "text": "New Year's Day. Plant a little hope. A small pot will do.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datenewyear-02", "event": "rare.dateNewYear", "text": "January 1. The year grew a number. I will catch up slowly.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datevalentine-01", "event": "rare.dateValentine", "text": "Valentine's Day. No roses. Just grass with good intentions.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datevalentine-02", "event": "rare.dateValentine", "text": "February 14. A little care for yourself counts as tending.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-dateaprilfools-01", "event": "rare.dateAprilFools", "text": "April Fools. I am a large tree. Still downloading the height.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-dateaprilfools-02", "event": "rare.dateAprilFools", "text": "April 1. I planted a joke. The punchline has not sprouted.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datechildrensday-01", "event": "rare.dateChildrensDay", "text": "June 1. Keep a little curiosity. It uses very little soil.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datechildrensday-02", "event": "rare.dateChildrensDay", "text": "June 1. A little play need not grow into a useful result.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datechristmaseve-01", "event": "rare.dateChristmasEve", "text": "Christmas Eve. Wishing your thoughts a gentler breeze.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datechristmaseve-02", "event": "rare.dateChristmasEve", "text": "December 24. Peace is a good word. Needs no pruning.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datechristmas-01", "event": "rare.dateChristmas", "text": "Christmas. Trees handle the lights. I provide a little green.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datechristmas-02", "event": "rare.dateChristmas", "text": "December 25. A leaf-sized good wish. No actual leaves picked.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-dateyearend-01", "event": "rare.dateYearEnd", "text": "Last day of the year. Not all the roots are visible.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-dateyearend-02", "event": "rare.dateYearEnd", "text": "December 31. No need to uproot yourself to prove you grew.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-dateleapday-01", "event": "rare.dateLeapDay", "text": "February 29. The calendar grew an extra leaf.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-dateleapday-02", "event": "rare.dateLeapDay", "text": "Leap day. An extra day may be an ordinary one. That is fine.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datemonthstart-01", "event": "rare.dateMonthStart", "text": "The first again. Fresh calendar soil. Same slow roots.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datemonthstart-02", "event": "rare.dateMonthStart", "text": "New month. Give the small plans a little room to breathe.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datelunarnewyear-01", "event": "rare.dateLunarNewYear", "text": "Happy Lunar New Year. A small greeting from a small plant.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datelunarnewyear-02", "event": "rare.dateLunarNewYear", "text": "Lunar New Year. Steadier roots. A little more ease above them.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datelantern-01", "event": "rare.dateLantern", "text": "Lantern Festival riddle: green, slow to answer. It is me.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datelantern-02", "event": "rare.dateLantern", "text": "Lantern Festival. Good wishes in a little round bundle. Like me.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datemidautumn-01", "event": "rare.dateMidAutumn", "text": "Mid-Autumn. Round moon, round clump. Some visual agreement.", "weight": 2, "rarity": "rare" },
+    { "id": "grass-buddy-en-datemidautumn-02", "event": "rare.dateMidAutumn", "text": "Mid-Autumn Festival. Wishing you a small patch of comfort.", "weight": 2, "rarity": "rare" }
+  ]
+}

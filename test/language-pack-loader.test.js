@@ -95,7 +95,8 @@ test('both characters have additive workday and day-off startup greetings', () =
     for (const eventName of ['startup.workdayMorning', 'startup.dayOff']) {
       const phrases = pack.phrases.filter((phrase) => phrase.event === eventName);
       assert.ok(phrases.length >= 8, `${packId} needs more ${eventName} phrases`);
-      assert.ok(phrases.every((phrase) => phrase.sourcePath === 'additions/greetings.json'));
+      assert.ok(phrases.filter((phrase) => phrase.sourcePath === 'additions/greetings.json').length >= 8);
+      assert.ok(phrases.every((phrase) => ['additions/greetings.json', 'additions/scenario-expansion.json'].includes(phrase.sourcePath)));
     }
   }
 });
@@ -121,7 +122,8 @@ test('runtime error phrases are short additive system lines', () => {
   const phrases = pack.phrases.filter((phrase) => phrase.event === 'system.error');
   assert.ok(phrases.length >= 4);
   assert.ok(phrases.every((phrase) => phrase.sourceGroup === 'additions'));
-  assert.ok(phrases.every((phrase) => phrase.sourcePath === 'additions/errors.json'));
+  assert.ok(phrases.filter((phrase) => phrase.sourcePath === 'additions/errors.json').length >= 4);
+  assert.ok(phrases.every((phrase) => ['additions/errors.json', 'additions/scenario-expansion.json'].includes(phrase.sourcePath)));
   assert.ok(phrases.every((phrase) => phrase.text.length <= 16));
 });
 
@@ -178,7 +180,7 @@ test('grass buddy language pack covers every runtime event with its own restrain
   assert.ok(pack.phrases.length >= 150);
   for (const eventName of runtimeEvents) assert.ok(events.has(eventName), `missing ${eventName}`);
   assert.ok(pack.phrases.every((phrase) => phrase.text.length <= 40));
-  assert.ok(pack.phrases.every((phrase) => !/[主人宝宝宝贝]/u.test(phrase.text)));
+  assert.ok(pack.phrases.every((phrase) => !/(?:主人|宝宝|宝贝)/u.test(phrase.text)));
 });
 
 test('grass buddy warns separately at 3% and 2% battery', () => {

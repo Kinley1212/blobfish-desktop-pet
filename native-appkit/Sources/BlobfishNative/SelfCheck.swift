@@ -18,6 +18,7 @@ enum SelfCheck {
             ("shared pack compatibility", sharedPackCompatibility),
             ("localized catalog display names", localizedCatalogDisplayNames),
             ("language preference survives character changes", languagePreferenceSurvivesCharacterChanges),
+            ("calendar easter eggs respect time, dates, quiet hours and persistence", calendarEasterEggPolicy),
             ("dialogue updates without crossing language boundaries", { try MainActor.assumeIsolated { try dialogueUpdatesWithoutCrossingLanguages() } }),
             ("phrase rules and templates", phraseRulesAndTemplates),
             ("shared runtime recovery", sharedRuntimeRecovery),

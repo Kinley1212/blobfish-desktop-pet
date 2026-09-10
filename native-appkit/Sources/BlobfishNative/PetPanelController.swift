@@ -872,6 +872,11 @@ final class PetPanelController {
 
     func playEffect(_ state: TaskDisplayState) { petView.playEffect(state) }
 
+    var canPresentEasterEgg: Bool {
+        speechQueue.current == nil && speechQueue.pending.isEmpty && speakingPresentations.isEmpty
+            && guestView.isHidden && !dragging && flingVelocity == nil && !interactionPaused && !menuPaused
+    }
+
     func playCompletionEffect(all: Bool) {
         petView.playEffect(.completed)
         overlayView.playCompletionEffect(all: all)

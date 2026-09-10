@@ -1,0 +1,794 @@
+{
+  "category": "scenario",
+  "phrases": [
+    {
+      "id": "bf-scenario-001",
+      "event": "idle.chatter",
+      "text": "The morning light is very keen. I'm not there yet.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-002",
+      "event": "idle.chatter",
+      "text": "Daylight arrived. My response is still on its way.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-003",
+      "event": "idle.chatter",
+      "text": "Getting up early. I'm only passing through.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-004",
+      "event": "idle.chatter",
+      "text": "Let me float for a bit. There's plenty of day left.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-005",
+      "event": "idle.chatter",
+      "text": "The screen is awake. Give the fish a little longer.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 5,
+        "hourMax": 10
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-006",
+      "event": "idle.chatter",
+      "text": "The afternoon seems even slower than I am.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-007",
+      "event": "idle.chatter",
+      "text": "Even the bubbles seem reluctant to work at this hour.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-008",
+      "event": "idle.chatter",
+      "text": "One lap later. Everything is still where I left it.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-009",
+      "event": "idle.chatter",
+      "text": "Rest your eyes on something distant. I won't get lost.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-010",
+      "event": "idle.chatter",
+      "text": "My afternoon energy may still be at the lunch table.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 11,
+        "hourMax": 16
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-011",
+      "event": "idle.chatter",
+      "text": "The light is fading. Quite a bit of today has gone.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 17,
+        "hourMax": 23
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-012",
+      "event": "idle.chatter",
+      "text": "Things can be unfinished while you take a breath.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 17,
+        "hourMax": 23
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-013",
+      "event": "idle.chatter",
+      "text": "The evening screen has far more energy than the fish.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 17,
+        "hourMax": 23
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-014",
+      "event": "idle.chatter",
+      "text": "Loosen your shoulders a little. They look tired.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 17,
+        "hourMax": 23
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-015",
+      "event": "idle.chatter",
+      "text": "No score for today. Staying afloat will do.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 17,
+        "hourMax": 23
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-016",
+      "event": "idle.chatter",
+      "text": "Even the seabed should be turning out the lights by now.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 0,
+        "hourMax": 4
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-017",
+      "event": "idle.chatter",
+      "text": "The night is deep. Even by my standards.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 0,
+        "hourMax": 4
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-018",
+      "event": "idle.chatter",
+      "text": "Sleep if you're tired. The fish needs no night watch.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 0,
+        "hourMax": 4
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-019",
+      "event": "idle.chatter",
+      "text": "Still a bright screen. I hope the time hasn't slipped away.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 0,
+        "hourMax": 4
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-020",
+      "event": "idle.chatter",
+      "text": "Don't borrow too much energy from tomorrow. It charges interest.",
+      "weight": 2,
+      "conditions": {
+        "hourMin": 0,
+        "hourMax": 4
+      },
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-021",
+      "event": "startup.workdayMorning",
+      "text": "Another workday. You needn't carry the whole pile at once.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-022",
+      "event": "startup.workdayMorning",
+      "text": "Morning. Keep the first breath of the day for yourself.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-023",
+      "event": "startup.workdayMorning",
+      "text": "A workday begins. I'll swim into it slowly.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-024",
+      "event": "startup.workdayMorning",
+      "text": "Here we are. Start with one small thing, perhaps.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-025",
+      "event": "startup.dayOff",
+      "text": "Leave a little blank space in today's plans.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-026",
+      "event": "startup.dayOff",
+      "text": "If there's no rush today, I can demonstrate doing nothing.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-027",
+      "event": "startup.dayOff",
+      "text": "Here again. Rest needn't become hard work.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-028",
+      "event": "startup.dayOff",
+      "text": "Stay a while if you have time. There's no agenda.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-029",
+      "event": "schedule.halfHour",
+      "text": "Another half hour. Let your shoulders move away from your ears.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-030",
+      "event": "schedule.halfHour",
+      "text": "Half an hour has moved on. You could move a little too.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-031",
+      "event": "schedule.lunchSoon",
+      "text": "Lunch is coming up. Don't leave your stomach waiting.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-032",
+      "event": "schedule.lunchSoon",
+      "text": "Leave room for lunch, however busy it gets. I'll remember.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-033",
+      "event": "schedule.offWorkHalfHour",
+      "text": "Half an hour left on your schedule. Time to start wrapping up.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-034",
+      "event": "schedule.offWorkHalfHour",
+      "text": "Half an hour until your finish time. Mind the new pile of tasks.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-035",
+      "event": "schedule.offWorkSoon",
+      "text": "Nearly your finish time. Remember to take yourself with you.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-036",
+      "event": "schedule.offWorkSoon",
+      "text": "As you wrap up, keep a little energy for after work.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-037",
+      "event": "system.unlocked",
+      "text": "You're back. My slow lap had decent timing.",
+      "weight": 2,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-038",
+      "event": "system.unlocked",
+      "text": "The screen is bright again. Let your eyes catch up.",
+      "weight": 2,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-039",
+      "event": "system.unlocked",
+      "text": "It's been a while. The fish is still afloat.",
+      "weight": 2,
+      "conditions": {
+        "lockedMinSeconds": 7200
+      },
+      "cooldownMs": 5400000
+    },
+    {
+      "id": "bf-scenario-040",
+      "event": "system.unlocked",
+      "text": "A while since we last met. No need to chase all the lost time.",
+      "weight": 2,
+      "conditions": {
+        "lockedMinSeconds": 7200
+      },
+      "cooldownMs": 5400000
+    },
+    {
+      "id": "bf-scenario-041",
+      "event": "system.battery",
+      "text": "Twenty percent left. Perhaps find the charger.",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 20
+      }
+    },
+    {
+      "id": "bf-scenario-042",
+      "event": "system.battery",
+      "text": "20%. I can still swim, but the computer needs a reserve.",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 20
+      }
+    },
+    {
+      "id": "bf-scenario-043",
+      "event": "system.battery",
+      "text": "10% left. Plug in before tackling the next thing.",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 10
+      }
+    },
+    {
+      "id": "bf-scenario-044",
+      "event": "system.battery",
+      "text": "One tenth of the battery left. The charger has priority now.",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 10
+      }
+    },
+    {
+      "id": "bf-scenario-045",
+      "event": "system.battery",
+      "text": "5% left. Save the battery before testing your luck.",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 5
+      }
+    },
+    {
+      "id": "bf-scenario-046",
+      "event": "system.battery",
+      "text": "The battery is nearly at the bottom. Plug in, then take your time.",
+      "weight": 2,
+      "conditions": {
+        "batteryEquals": 5
+      }
+    },
+    {
+      "id": "bf-scenario-047",
+      "event": "system.error",
+      "text": "That step didn't work. Let's see where it got stuck.",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-048",
+      "event": "system.error",
+      "text": "Something went wrong. I won't pretend otherwise.",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-049",
+      "event": "system.error",
+      "text": "That didn't go as expected. It needs another look.",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-050",
+      "event": "agent.started",
+      "text": "A new task is moving. Apparently I must move too.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-051",
+      "event": "agent.started",
+      "text": "Work has started over there. I'll take a small lap.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-052",
+      "event": "agent.needsInput",
+      "text": "It's waiting for your choice. A fish shouldn't guess that.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-053",
+      "event": "agent.needsInput",
+      "text": "One step needs your attention. I'll pause here.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-054",
+      "event": "agent.failed",
+      "text": "That task didn't finish. Check where it went wrong.",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-055",
+      "event": "agent.failed",
+      "text": "Not this time. First find out why.",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-056",
+      "event": "agent.completed",
+      "text": "This task reports it's done. Check the result if needed.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-057",
+      "event": "agent.completed",
+      "text": "One task has wrapped up. I'll catch my breath.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-058",
+      "event": "agent.allCompleted",
+      "text": "This batch reports it's done. Take your time reviewing the results.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-059",
+      "event": "agent.allCompleted",
+      "text": "The task queue has gone quiet. Rest a moment, then review.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-060",
+      "event": "calendar.upcoming",
+      "text": "Something is coming up. Leave yourself time to switch over.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-061",
+      "event": "calendar.upcoming",
+      "text": "An event is coming. Find a stopping point for this task.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-062",
+      "event": "calendar.starting",
+      "text": "It's the scheduled time. I'll stay out of your way.",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-063",
+      "event": "calendar.starting",
+      "text": "This event is starting. Remember to take a look.",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-064",
+      "event": "calendar.busyDay",
+      "text": "Today's calendar looks crowded. Keep the gaps for yourself.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-065",
+      "event": "calendar.busyDay",
+      "text": "Those events sit close together. Leave room for a breath.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-066",
+      "event": "clock.alarmClockAppeared",
+      "text": "Clock in hand. I'll wait through this last stretch with you.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-067",
+      "event": "clock.alarmClockDisappeared",
+      "text": "The clock is put away. Even fish hands need a rest.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-068",
+      "event": "clock.alarmRinging",
+      "text": "The alarm is ringing. Check what you meant to do.",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-069",
+      "event": "clock.timerStarted",
+      "text": "The timer has started. Use this stretch at your own pace.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-070",
+      "event": "clock.timerPaused",
+      "text": "The timer is paused here. Take care of what's in front of you.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-071",
+      "event": "clock.timerResumed",
+      "text": "The timer is running again. I'll float back into place.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-072",
+      "event": "clock.timerExtended",
+      "text": "A little time added. Don't stretch yourself too thin.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-073",
+      "event": "clock.timerCancelled",
+      "text": "This timer is cancelled. You can make a new plan.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-074",
+      "event": "clock.timerCompleted",
+      "text": "Time is up. Bring your attention back for a moment.",
+      "weight": 2
+    },
+    {
+      "id": "bf-scenario-075",
+      "event": "interaction.click",
+      "text": "I'm here. You needn't check quite so firmly.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-076",
+      "event": "interaction.click",
+      "text": "That landed. A fish is not a button.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-077",
+      "event": "interaction.petting",
+      "text": "Gently. Even my temper is soft around the edges.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-078",
+      "event": "interaction.petting",
+      "text": "…Fine. Just don't turn it into a poke.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-079",
+      "event": "interaction.pettingMore",
+      "text": "Still patting? I'll postpone the next lap, then.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-080",
+      "event": "interaction.pettingMore",
+      "text": "This will do. The fish has no objections for now.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-081",
+      "event": "interaction.pettingLots",
+      "text": "It's been a while. I'm almost forgetting how to swim.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-082",
+      "event": "interaction.pettingLots",
+      "text": "Rest your hand a little. I won't go far.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-083",
+      "event": "interaction.goodbye",
+      "text": "I'll head down now. Don't leave yourself at the screen forever.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-084",
+      "event": "interaction.goodbye",
+      "text": "That's enough for today. The fish needs to save some energy.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-085",
+      "event": "messenger.sent",
+      "text": "The message is sent. The rest is a matter of waiting.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-086",
+      "event": "messenger.sent",
+      "text": "The note is on its way. No telling when they'll read it.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-087",
+      "event": "messenger.visitAccept",
+      "text": "Save me a spot. My arrival may involve slow swimming.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-088",
+      "event": "messenger.visitIdle",
+      "text": "Doing nothing on another desk. A change of scenery, at least.",
+      "weight": 2,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-089",
+      "event": "messenger.visitIdle",
+      "text": "A visit needn't be all talking. Floating together is fine.",
+      "weight": 2,
+      "cooldownMs": 3600000
+    },
+    {
+      "id": "bf-scenario-090",
+      "event": "messenger.visitEnd",
+      "text": "This visit is over. I'll swim back at my usual pace.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-091",
+      "event": "messenger.visitOffline",
+      "text": "They've gone offline. This visit ends here for now.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-092",
+      "event": "messenger.friendHit",
+      "text": "A guest isn't a button either. A little gentler, please.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-093",
+      "event": "messenger.remote.pet",
+      "text": "That pat made it across the desks. I won't dodge this one.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-094",
+      "event": "messenger.remote.hug",
+      "text": "…A brief hug is fine. Try not to flatten the fish.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-095",
+      "event": "messenger.remote.highFive",
+      "text": "Contact made. My fin only gets this big.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-096",
+      "event": "messenger.remote.launch",
+      "text": "Airborne again. My fish credentials are getting unusual.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-097",
+      "event": "messenger.remote.bomb",
+      "text": "Quite a noise. Give me a moment to collect myself.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-098",
+      "event": "messenger.remote.vortex",
+      "text": "Enough spinning. I'm losing track of where the sea is.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-099",
+      "event": "messenger.remote.wave",
+      "text": "A wave. At least this is vaguely familiar territory.",
+      "weight": 2,
+      "cooldownMs": 600000
+    },
+    {
+      "id": "bf-scenario-100",
+      "event": "messenger.remote.bubble",
+      "text": "Neatly packed in a bubble. Not ideal for swimming.",
+      "weight": 2,
+      "cooldownMs": 600000
+    }
+  ]
+}

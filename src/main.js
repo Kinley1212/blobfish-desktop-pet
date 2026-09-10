@@ -38,6 +38,7 @@ const {
 } = require('./core/pet-window-geometry');
 const { PhraseEngine } = require('./core/phrase-engine');
 const { ReminderScheduler, isInQuietHours } = require('./core/reminder-scheduler');
+const { CalendarEasterEggScheduler } = require('./core/calendar-easter-eggs');
 const {
   DEFAULT_NEEDS_INPUT_SOUND_ID,
   DEFAULT_TASK_COMPLETE_SOUND_ID,
@@ -183,6 +184,8 @@ let chatInviteTimer = null;
 let reminderTimer = null;
 let displayRecoveryTimer = null;
 const reminderScheduler = new ReminderScheduler();
+let calendarEasterEggScheduler;
+let calendarEasterEggsDisabled = false;
 let clickCount = 0;
 let configStore;
 let startupGreetingStore;
@@ -2048,6 +2051,26 @@ function startFling(vx, vy) {
   }, TICK_MS);
 }
 
+function maybeSpeakCalendarEasterEgg(now) {
+  if (calendarEasterEggsDisabled) return;
+  try {
+    if (!calendarEasterEggScheduler) calendarEasterEggScheduler = new CalendarEasterEggScheduler({
+      filePath: path.join(app.getPath('userData'), 'calendar-easter-eggs-state.json'),
+    });
+    calendarEasterEggScheduler.poll(now, {
+      enabled: config.language.rareEnabled,
+      quiet: isInQuietHours(now, config.quietHours),
+      busy: !taskTracker || isIdleSpeechPaused() || !!flingIntervalId || !!lockedAt || currentAgentSnapshot.activeCount > 0
+        || (dialogueWin && !dialogueWin.isDestroyed() && dialogueWin.isVisible())
+        || (clockService && clockService.getState().alerts.some((alert) => alert.state === 'ringing'))
+        || !speechQueue || !!speechQueue.current || speechQueue.pending.length > 0,
+    }, (event) => speak(event, {}, { priority: SPEECH_PRIORITY.idle, durationMs: 6000, replaceKey: 'calendar.easterEgg' }));
+  } catch (error) {
+    calendarEasterEggsDisabled = true;
+    console.warn('Calendar easter eggs disabled:', error.message);
+  }
+}
+
 function scheduleReminders() {
   clearTimeout(reminderTimer);
 
@@ -2055,12 +2078,13 @@ function scheduleReminders() {
     const now = new Date();
     maybeSpeakStartupGreeting(now);
     const reminder = reminderScheduler.poll(now, config.schedule);
-    if (!reminder) return;
+    if (!reminder) { maybeSpeakCalendarEasterEgg(now); return; }
     speak(reminder.event, reminder.context, {
       priority: SPEECH_PRIORITY.schedule,
       durationMs: 9000,
       replaceKey: reminder.event,
     });
+    maybeSpeakCalendarEasterEgg(now);
   };
 
   const queueNextTick = () => {

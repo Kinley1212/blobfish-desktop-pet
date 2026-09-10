@@ -1,0 +1,19 @@
+{
+  "times": {
+    "00:00": "rare.time0000", "01:23": "rare.time0123", "05:20": "rare.time0520",
+    "08:08": "rare.time0808", "09:09": "rare.time0909", "11:11": "rare.time1111",
+    "12:34": "rare.time1234", "13:14": "rare.time1314", "17:20": "rare.time1720",
+    "20:20": "rare.time2020", "22:22": "rare.time2222", "23:59": "rare.time2359"
+  },
+  "primaryTimes": ["05:20", "13:14", "17:20"],
+  "solar": {
+    "01-01": "rare.dateNewYear", "02-14": "rare.dateValentine",
+    "04-01": "rare.dateAprilFools", "06-01": "rare.dateChildrensDay",
+    "12-24": "rare.dateChristmasEve", "12-25": "rare.dateChristmas",
+    "12-31": "rare.dateYearEnd", "02-29": "rare.dateLeapDay"
+  },
+  "lunar": {
+    "1-1": "rare.dateLunarNewYear", "1-15": "rare.dateLantern", "8-15": "rare.dateMidAutumn"
+  },
+  "monthStart": "rare.dateMonthStart"
+}

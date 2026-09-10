@@ -33,6 +33,8 @@ struct BoundedKeyHistory {
 
 final class RoutineService {
     var onPhrase: ((String, [String: JSONValue]) -> Void)?
+    var onEasterEgg: ((String) -> Bool)?
+    var canPresentEasterEgg: (() -> Bool)?
     var onError: ((Error) -> Void)?
     var hasActiveTasks = false
 
@@ -47,6 +49,7 @@ final class RoutineService {
     private var isRunning = false
     private var runGeneration = 0
     private var batteryPollGeneration: Int?
+    private var easterEggs: CalendarEasterEggScheduler?
 
     private enum BatterySample {
         case battery(Int)
@@ -57,6 +60,10 @@ final class RoutineService {
     init(runtime: AppRuntime) {
         self.runtime = runtime
         supportDirectory = runtime.configStore.fileURL.deletingLastPathComponent()
+        do {
+            easterEggs = CalendarEasterEggScheduler(rules: try CalendarEasterEggRules.load(), fileURL: supportDirectory.appendingPathComponent("calendar-easter-eggs-state.json"))
+            if let error = easterEggs?.loadError { NSLog("Calendar easter eggs disabled: %@", String(describing: error)) }
+        } catch { NSLog("Calendar easter egg rules unavailable: %@", String(describing: error)) }
     }
 
     func start() {
@@ -65,7 +72,7 @@ final class RoutineService {
         runGeneration += 1
         deliverStartupGreetingIfNeeded()
         scheduleNextIdle()
-        poll()
+        poll(allowEasterEggs: false)
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.poll() }
         if let timer { RunLoop.main.add(timer, forMode: .common) }
         DistributedNotificationCenter.default().addObserver(
@@ -84,17 +91,30 @@ final class RoutineService {
         DistributedNotificationCenter.default().removeObserver(self)
     }
 
-    private func poll() {
+    private func poll(allowEasterEggs: Bool = true) {
         guard isRunning else { return }
         let now = Date()
+        var routinePending = false
         if !isQuiet(now), let reminder = scheduleReminder(at: now) {
             onPhrase?(reminder.0, reminder.1)
+            routinePending = true
         }
         if runtime.config.language.idleEnabled, !hasActiveTasks, !isQuiet(now), now >= nextIdleAt {
             onPhrase?("idle.chatter", dateContext(now))
+            routinePending = true
             scheduleNextIdle()
         }
         readBattery()
+        do {
+            try easterEggs?.poll(at: now, enabled: runtime.config.language.rareEnabled,
+                                quiet: isQuiet(now), busy: !allowEasterEggs || routinePending || hasActiveTasks || lockedAt != nil || !(canPresentEasterEgg?() ?? false)) { [weak self] event in
+                self?.onEasterEgg?(event) ?? false
+            }
+        } catch {
+            // Optional surprises must never turn a broken state file into repeating alerts.
+            NSLog("Calendar easter egg state could not be saved: %@", String(describing: error))
+            easterEggs = nil
+        }
     }
 
     private func scheduleReminder(at date: Date) -> (String, [String: JSONValue])? {
