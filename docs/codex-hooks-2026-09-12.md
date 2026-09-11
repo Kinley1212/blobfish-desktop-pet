@@ -1,6 +1,16 @@
 # Codex hooks、问题面板与轻量接入（2026-09-12）
 
-状态：macOS 原生 2.8.0-beta.1 发布候选。模拟协议、原生自检、独立 UI 预览与压力测试已验证；**尚未重启当前 Codex，未做真实桌面会话端到端验收**。因此发布为预发行，不取代稳定版。未替换桌面水滴鱼，Windows 未提交工作不混入本次发布。
+状态：macOS 原生 **2.8.0-beta.1 已发布**。模拟协议、原生自检、独立 UI 预览与压力测试已验证；**尚未重启当前 Codex，未做真实桌面会话端到端验收**。因此为预发行，不取代 2.7.5 稳定版。未替换桌面水滴鱼，Windows 未提交工作不混入本次发布。
+
+## 发布记录
+
+- [GitHub Release](https://github.com/Kinley1212/blobfish-desktop-pet/releases/tag/v2.8.0-beta.1)，源码提交 14aeca38327453b088c5856c350aa526e6dc92c0，发布标签 v2.8.0-beta.1。
+- [GitHub Actions 34637548817](https://github.com/Kinley1212/blobfish-desktop-pet/actions/runs/34637548817) 已成功：原生自检、观察器压力测试、arm64/x64 构建、架构/签名验证、Release 上传均通过。
+- 发布 API 已确认非草稿、预发行，两个 ZIP 和原生更新清单均为 uploaded；latest 稳定版仍为 v2.7.5。
+- 发布 API 报告的 ZIP SHA-256：arm64 为 06d920ee85c159a9fd9ddd388c44d784ec6c459ec95fe2659b98c20b89438088；x64 为 82fbb0e4052a9d54c81b643fd9848d45168d290bfd389cca92ab95eee89d9053。这是 GitHub 元数据，不能冒充本机重下载后计算的值。
+- 本机两次连接 release-assets.githubusercontent.com 失败，详细 CI 日志 CDN 也不可达，因此未完成发布后的回下载/解包复验。此前本地实际安装包 107/107、ad-hoc 签名验证，以及云端构建状态均成功；此处保留网络验证限制。
+- 仅推送当前功能分支 codex/runtime-stability-optimization 和新标签。权限检查未批准同时更新 main，因此默认分支保持不变，不改写历史。
+- CI 提示旧版 actions 使用 Node 20 的弃用警告，但已由平台使用 Node 24 执行且本轮成功；后续维护时单独验证 Actions 版本升级。
 
 ## 维护者决策
 
