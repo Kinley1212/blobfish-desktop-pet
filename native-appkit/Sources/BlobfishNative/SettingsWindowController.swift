@@ -1489,6 +1489,21 @@ struct BrandedSettingsView: View {
         SettingsPage(title: t("连接与隐私", "Connections & Privacy"), subtitle: t("只读取本机状态文件；任务正文不会上传。", "Only local status files are read; task content is never uploaded.")) {
             SettingsCard {
                 Toggle("Codex", isOn: $model.draft.integrations.codex)
+                Toggle(t("显示 Codex 问题与选项", "Show Codex questions and options"), isOn: $model.draft.integrations.codexQuestions)
+                    .disabled(!model.draft.integrations.codex)
+                Text(t("需要通过水滴鱼专用启动器打开 Codex。问题只在本机展示，回答仍在 Codex；关闭并应用后收起面板并停止采集正文。人工审批提醒不受此开关影响。", "Requires the Blobfish Codex launcher. Questions stay on this Mac; answer in Codex. Turn off and Apply to dismiss the panel and stop collecting question text. Human approval alerts remain enabled."))
+                    .font(.caption).foregroundStyle(.secondary)
+                Button(t("显示 Codex 专用启动器", "Show Codex launcher")) {
+                    let packaged = Bundle.main.resourceURL?.appendingPathComponent("native/LaunchCodexWithBlobfish.command")
+                    let development = ResourceLocator.packsRoot().deletingLastPathComponent().deletingLastPathComponent()
+                        .appendingPathComponent("native/build/LaunchCodexWithBlobfish.command")
+                    let target = packaged.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil } ?? development
+                    if FileManager.default.fileExists(atPath: target.path) {
+                        NSWorkspace.shared.activateFileViewerSelecting([target])
+                    } else {
+                        model.message = t("此构建未包含启动器，请使用完整测试包。", "This build has no launcher. Use the complete test bundle.")
+                    }
+                }.controlSize(.small)
                 Toggle("Claude Code", isOn: $model.draft.integrations.claudeCode)
                 Toggle(t("日历", "Calendar"), isOn: $model.draft.integrations.calendar)
                 Toggle(t("显示任务标题", "Show task titles"), isOn: $model.draft.privacy.includeTaskTitles)

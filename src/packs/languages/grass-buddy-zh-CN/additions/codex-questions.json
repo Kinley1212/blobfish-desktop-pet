@@ -1,0 +1,68 @@
+{
+  "category": "agents",
+  "phrases": [
+    {
+      "id": "gb-codex-question-1",
+      "event": "agent.question",
+      "text": "有个问题，落在叶子上了。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-codex-question-2",
+      "event": "agent.question",
+      "text": "这题问你。我只是草。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-codex-question-3",
+      "event": "agent.question",
+      "text": "选项送到了。我不替你选。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-codex-question-4",
+      "event": "agent.questions",
+      "text": "几道题，分几片叶子放。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-codex-question-5",
+      "event": "agent.questions",
+      "text": "问题有点多。慢慢翻。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-codex-question-6",
+      "event": "agent.questions",
+      "text": "一题一题来，根还稳着。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-codex-question-7",
+      "event": "agent.questionAsync",
+      "text": "它还在做。顺便问一题。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-codex-question-8",
+      "event": "agent.questionAsync",
+      "text": "问题先放这儿。叶子照常晃。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-codex-question-9",
+      "event": "agent.questionAsync",
+      "text": "边做边问。草也还在长。",
+      "weight": 1,
+      "cooldownMs": 60000
+    }
+  ]
+}

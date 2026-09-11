@@ -31,10 +31,13 @@ struct TaskSnapshotDeduplicator {
 
 final class TaskMonitor {
     var onUpdate: ((TaskSnapshot) -> Void)?
+    var onCodexUpdate: (([CodexObservedThread]) -> Void)?
+    var showQuestions = false
     var includeTitles = true
     var enabledProviders = Set(["codex", "claude-code"])
 
     private let reader: TaskLeaseReader
+    private let observationDirectory: URL
     private let queue = DispatchQueue(label: "com.blobfish.native.task-monitor", qos: .utility)
     private var timer: Timer?
     private var polling = false
@@ -45,6 +48,7 @@ final class TaskMonitor {
 
     init(directoryURL: URL) {
         reader = TaskLeaseReader(directoryURL: directoryURL)
+        observationDirectory = directoryURL.deletingLastPathComponent().appendingPathComponent("codex-observations")
     }
 
     func start() {
@@ -74,26 +78,47 @@ final class TaskMonitor {
         let generation = runGeneration
         let providers = enabledProviders
         let shouldIncludeTitles = includeTitles
+        let shouldShowQuestions = showQuestions
         queue.async { [weak self] in
             guard let self else { return }
             let now = Date().timeIntervalSince1970 * 1_000
             let snapshot: TaskSnapshot
             let errorDescription: String?
+            var observations: [CodexObservedThread] = []
             do {
                 snapshot = try TaskMonitorPollingPolicy.snapshot(
                     enabledProviders: providers,
                     includeTitles: shouldIncludeTitles,
                     nowMilliseconds: now,
-                    readLeases: { try self.reader.read(nowMilliseconds: now) }
+                    readLeases: {
+                        let observed = providers.contains("codex") ? CodexObservationFiles.load(directory: self.observationDirectory, now: now) : []
+                        observations = observed.map { value in
+                            var value = value
+                            if !shouldShowQuestions { value.questions = [] }
+                            return value
+                        }
+                        return CodexTaskProjection.merge(
+                            leases: try self.reader.read(nowMilliseconds: now), observations: observed, now: now
+                        )
+                    }
                 )
                 errorDescription = nil
             } catch {
-                snapshot = .idle
+                snapshot = TaskSnapshot.build(
+                    from: CodexTaskProjection.merge(leases: [], observations: observations, now: now),
+                    nowMilliseconds: now, includeTitles: shouldIncludeTitles
+                )
                 errorDescription = String(describing: error)
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.isRunning, self.runGeneration == generation else { return }
                 self.polling = false
+                guard providers == self.enabledProviders, shouldIncludeTitles == self.includeTitles,
+                      shouldShowQuestions == self.showQuestions else {
+                    self.poll()
+                    return
+                }
+                self.onCodexUpdate?(observations)
                 if errorDescription != self.lastLoggedError {
                     self.lastLoggedError = errorDescription
                     if let errorDescription {

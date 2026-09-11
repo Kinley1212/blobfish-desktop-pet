@@ -1,0 +1,68 @@
+{
+  "category": "agents",
+  "phrases": [
+    {
+      "id": "gb-en-codex-question-1",
+      "event": "agent.question",
+      "text": "A question landed on my leaf.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-en-codex-question-2",
+      "event": "agent.question",
+      "text": "This one's for you. I'm just grass.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-en-codex-question-3",
+      "event": "agent.question",
+      "text": "The options arrived. I won't choose for you.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-en-codex-question-4",
+      "event": "agent.questions",
+      "text": "A few questions. A leaf for each.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-en-codex-question-5",
+      "event": "agent.questions",
+      "text": "Quite a few questions. Turn the leaves slowly.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-en-codex-question-6",
+      "event": "agent.questions",
+      "text": "One at a time. The roots are holding.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-en-codex-question-7",
+      "event": "agent.questionAsync",
+      "text": "It's still working. Just asking along the way.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-en-codex-question-8",
+      "event": "agent.questionAsync",
+      "text": "I'll leave the question here. The leaves keep swaying.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "gb-en-codex-question-9",
+      "event": "agent.questionAsync",
+      "text": "Working and asking. I'm still growing, too.",
+      "weight": 1,
+      "cooldownMs": 60000
+    }
+  ]
+}

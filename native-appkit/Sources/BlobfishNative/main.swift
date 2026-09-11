@@ -1,6 +1,13 @@
 import AppKit
 import Darwin
 
+#if DEBUG
+if let index = CommandLine.arguments.firstIndex(of: "--codex-question-preview"), CommandLine.arguments.indices.contains(index + 1) {
+    MainActor.assumeIsolated { CodexQuestionPreview.run(output: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
+    Darwin.exit(0)
+}
+#endif
+
 if CommandLine.arguments.contains("--self-test") {
     Darwin.exit(SelfCheck.run() ? 0 : 1)
 } else {

@@ -45,7 +45,10 @@ struct AppConfig: Codable, Equatable {
         var panelVerticalPosition: Double
         var panelDistance: Double
     }
-    struct Integrations: Codable, Equatable { var calendar: Bool; var codex: Bool; var claudeCode: Bool }
+    struct Integrations: Codable, Equatable {
+        var calendar: Bool; var codex: Bool; var claudeCode: Bool
+        var codexQuestions: Bool = false
+    }
     struct Privacy: Codable, Equatable { var includeTaskTitles: Bool; var includeCalendarTitles: Bool }
     struct SoundChoice: Codable, Equatable { var enabled: Bool; var soundId: String }
     struct Sound: Codable, Equatable { var taskComplete: SoundChoice; var needsInput: SoundChoice }

@@ -20,6 +20,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var fishChatController: FishChatWindowController?
     private var fishMessageComposeController: FishMessageComposeWindowController?
     private var taskMonitor: TaskMonitor?
+    private var codexQuestionController: CodexQuestionWindowController?
+    private var observedCodexThreads = Set<String>()
+    private var codexApprovalIDs = Set<String>()
+    private var codexQuestionIDs = Set<String>()
     private var clockService: ClockService?
     private var routineService: RoutineService?
     private var calendarService: CalendarService?
@@ -123,6 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Task { @MainActor in self?.openFishMessageComposer() }
         }
         panelController.onSceneAnchorChanged = { [weak self] sceneAnchor in
+            self?.codexQuestionController?.updateAnchor(sceneAnchor)
             guard let controller = self?.fishMessageComposeController,
                   controller.window?.isVisible == true else { return }
             Task { @MainActor in
@@ -427,7 +432,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .appendingPathComponent("Library/Application Support/BlobfishDesktopPet/agent-task-leases", isDirectory: true)
         let monitor = TaskMonitor(directoryURL: leaseDirectory)
         monitor.includeTitles = runtime.config.privacy.includeTaskTitles
+        monitor.showQuestions = runtime.config.integrations.codexQuestions
         monitor.enabledProviders = enabledProviders()
+        monitor.onCodexUpdate = { [weak self] observations in
+            MainActor.assumeIsolated { self?.handleCodexObservations(observations) }
+        }
         monitor.onUpdate = { [weak self] snapshot in
             self?.taskSnapshotReady = true
             self?.handleTaskFeedback(snapshot)
@@ -679,11 +688,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }.count
     }
 
+    @MainActor private func handleCodexObservations(_ observations: [CodexObservedThread]) {
+        observedCodexThreads = Set(observations.map(\.id))
+        let approvals = Set(observations.flatMap { thread in thread.approvals.map { "\(thread.id)|\(thread.turnID)|\($0)" } })
+        let requests = runtime.config.integrations.codexQuestions ? observations.flatMap(\.questions) : []
+        let requestIDs = Set(requests.map { "\($0.threadID)|\($0.turnID)|\($0.id)" })
+        let newApprovals = approvals.subtracting(codexApprovalIDs)
+        let newQuestions = requestIDs.subtracting(codexQuestionIDs)
+        codexApprovalIDs = approvals; codexQuestionIDs = requestIDs
+        if !requests.isEmpty, codexQuestionController == nil { codexQuestionController = CodexQuestionWindowController() }
+        codexQuestionController?.synchronize(requests, locale: runtime.config.ui.locale, anchor: panelController.sceneAnchor)
+        if !newApprovals.isEmpty {
+            if runtime.config.sound.needsInput.enabled { soundPlayer.play(id: runtime.config.sound.needsInput.soundId) }
+            panelController.say(runtime.phrase(event: "agent.needsInput") ?? runtime.speechText("这里要你决定。", "This needs your decision."),
+                                event: "agent.needsInput", priority: SpeechPriority.urgent, replaceKey: "agent.needsInput")
+        } else if !newQuestions.isEmpty {
+            let newRequests = requests.filter { newQuestions.contains("\($0.threadID)|\($0.turnID)|\($0.id)") }
+            let event = newRequests.contains(where: \.blocking)
+                ? (newRequests.reduce(0) { $0 + $1.questions.count } > 1 ? "agent.questions" : "agent.question")
+                : "agent.questionAsync"
+            if newRequests.contains(where: \.blocking), runtime.config.sound.needsInput.enabled {
+                soundPlayer.play(id: runtime.config.sound.needsInput.soundId)
+            }
+            if let phrase = runtime.phrase(event: event) {
+                panelController.say(phrase, event: event, priority: SpeechPriority.agent, replaceKey: "codex.question")
+            }
+        }
+    }
+
     private func handleTaskFeedback(_ snapshot: TaskSnapshot) {
         defer { previousSnapshot = snapshot }
         let wasActive = previousSnapshot.activeCount
         let isActive = snapshot.activeCount
-        if snapshot.state == .waiting && previousSnapshot.state != .waiting {
+        let newlyWaiting = snapshot.tasks.contains { task in
+            task.state == .waiting
+                && !(task.provider == "codex" && observedCodexThreads.contains(task.id))
+                && !previousSnapshot.tasks.contains { $0.id == task.id && $0.provider == task.provider && $0.state == .waiting }
+        }
+        if newlyWaiting {
             if runtime.config.sound.needsInput.enabled {
                 soundPlayer.play(id: runtime.config.sound.needsInput.soundId)
             }
@@ -1251,6 +1293,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.panelController.apply(runtime: self.runtime)
                 self.refreshMessengerStatusAppearance()
                 self.taskMonitor?.includeTitles = self.runtime.config.privacy.includeTaskTitles
+                self.taskMonitor?.showQuestions = self.runtime.config.integrations.codexQuestions
+                if !self.runtime.config.integrations.codexQuestions || !self.runtime.config.integrations.codex {
+                    self.codexQuestionController?.synchronize([], locale: self.runtime.config.ui.locale, anchor: nil)
+                    self.codexQuestionController?.close()
+                    self.codexQuestionController = nil
+                    self.codexQuestionIDs = []
+                }
                 self.taskMonitor?.enabledProviders = self.enabledProviders()
                 self.clockService?.workdays = self.runtime.config.schedule.workdays
                 self.syncQuickSettingsMenu()

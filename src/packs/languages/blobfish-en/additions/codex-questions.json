@@ -1,0 +1,68 @@
+{
+  "category": "agents",
+  "phrases": [
+    {
+      "id": "bf-en-codex-question-1",
+      "event": "agent.question",
+      "text": "Codex has a question. I brought it over.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-en-codex-question-2",
+      "event": "agent.question",
+      "text": "This one needs you. Fish don't answer for people.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-en-codex-question-3",
+      "event": "agent.question",
+      "text": "Options on the paper. I'll float here.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-en-codex-question-4",
+      "event": "agent.questions",
+      "text": "More than one question. One page at a time.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-en-codex-question-5",
+      "event": "agent.questions",
+      "text": "The questions are lined up. No pushing.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-en-codex-question-6",
+      "event": "agent.questions",
+      "text": "They're all here. Take your time.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-en-codex-question-7",
+      "event": "agent.questionAsync",
+      "text": "It's working and asking. I'm swimming and delivering.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-en-codex-question-8",
+      "event": "agent.questionAsync",
+      "text": "A question came in. The work hasn't stopped.",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-en-codex-question-9",
+      "event": "agent.questionAsync",
+      "text": "Passing a question along. No need to stop swimming.",
+      "weight": 1,
+      "cooldownMs": 60000
+    }
+  ]
+}

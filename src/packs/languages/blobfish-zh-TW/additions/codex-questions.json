@@ -1,0 +1,68 @@
+{
+  "category": "agents",
+  "phrases": [
+    {
+      "id": "bf-codex-question-1",
+      "event": "agent.question",
+      "text": "Codex 有一題……我幫忙遞過來。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-codex-question-2",
+      "event": "agent.question",
+      "text": "這題得問你，魚不代答。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-codex-question-3",
+      "event": "agent.question",
+      "text": "選項在紙上，我先漂著等。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-codex-question-4",
+      "event": "agent.questions",
+      "text": "不只一題……一張張看吧。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-codex-question-5",
+      "event": "agent.questions",
+      "text": "問題排好了，別一次全擠過來。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-codex-question-6",
+      "event": "agent.questions",
+      "text": "幾題都在這裡，慢慢決定。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-codex-question-7",
+      "event": "agent.questionAsync",
+      "text": "它邊做邊問，我邊游邊遞。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-codex-question-8",
+      "event": "agent.questionAsync",
+      "text": "有個問題，工作還沒停。",
+      "weight": 1,
+      "cooldownMs": 60000
+    },
+    {
+      "id": "bf-codex-question-9",
+      "event": "agent.questionAsync",
+      "text": "先替它捎個問題，不急著停下。",
+      "weight": 1,
+      "cooldownMs": 60000
+    }
+  ]
+}

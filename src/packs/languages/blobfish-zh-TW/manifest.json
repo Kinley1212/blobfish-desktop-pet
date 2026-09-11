@@ -25,7 +25,8 @@
       "additions/rare.json",
       "additions/scenario-expansion.json",
       "additions/time-easter-eggs.json",
-      "additions/date-easter-eggs.json"
+      "additions/date-easter-eggs.json",
+      "additions/codex-questions.json"
     ]
   }
 }

@@ -35,6 +35,13 @@ jobs:
         if: matrix.swift_arch == 'arm64'
         working-directory: native-appkit
         run: make test
+      - uses: actions/setup-node@v4
+        if: matrix.swift_arch == 'arm64'
+        with:
+          node-version: "22.12.0"
+      - name: Test Codex observer transport and stress limits
+        if: matrix.swift_arch == 'arm64'
+        run: node --test test/codex-observer.test.js
       - name: Package ad-hoc signed app
         working-directory: native-appkit
         run: make app ARCH=${{ matrix.swift_arch }}
@@ -48,8 +55,11 @@ jobs:
           app="native-appkit/.build/水滴鱼.app"
           executable="$app/Contents/MacOS/BlobfishNative"
           helper="$app/Contents/Resources/native/blobfish-agent-event-sender"
+          observer="$app/Contents/Resources/native/blobfish-codex-observer"
           test "$(/usr/bin/lipo -archs "$executable")" = "${{ matrix.swift_arch }}"
           test "$(/usr/bin/lipo -archs "$helper")" = "${{ matrix.swift_arch }}"
+          test "$(/usr/bin/lipo -archs "$observer")" = "${{ matrix.swift_arch }}"
+          test -x "$app/Contents/Resources/native/LaunchCodexWithBlobfish.command"
           /usr/bin/codesign --verify --deep --strict --verbose=2 "$app"
           test "$(/usr/bin/codesign -dv --verbose=4 "$app" 2>&1 | sed -n 's/^Signature=//p')" = "adhoc"
       - uses: actions/upload-artifact@v4

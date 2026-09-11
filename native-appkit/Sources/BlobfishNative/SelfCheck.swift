@@ -5,6 +5,12 @@ import Foundation
 enum SelfCheck {
     static func run() -> Bool {
         let checks: [(String, () throws -> Bool)] = [
+            ("Codex real approvals and multi-question lifecycle", codexObservationPolicy),
+            ("Codex duplicate events and oversized question batches retain correct state", codexDuplicateAndCapacityRegression),
+            ("Codex crowded crash cache recovers", codexCrowdedCacheRecovery),
+            ("Codex settings changes reject in-flight stale delivery", codexSettingsRaceRegression),
+            ("Codex observation files reject stale and unsafe data", codexObservationFilesArePrivate),
+            ("Codex question pages retain selection and clear safely", { MainActor.assumeIsolated { codexQuestionPaging() } }),
             ("private lease recovery", privateLeaseRecovery),
             ("orphaned task leases expire promptly", orphanedTaskLeasesExpirePromptly),
             ("waiting fallback title", waitingFallbackTitle),
