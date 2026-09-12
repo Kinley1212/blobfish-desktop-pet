@@ -4,6 +4,10 @@
 
 维护者明确要求修复后发布正式版，版本为 2.8.0，构建号 20801（高于 beta 的 20800）。下方 beta 记录保留为历史；正式版说明见 release-2.8.0.md。
 
+**已完成正式发布**：[v2.8.0](https://github.com/Kinley1212/blobfish-desktop-pet/releases/tag/v2.8.0)，源码提交 51668357a211e37376a3e3de4aaa0703fc65e246；[Actions 34682562544](https://github.com/Kinley1212/blobfish-desktop-pet/actions/runs/34682562544) 全部成功。API 确认 isPrerelease=false、isDraft=false、Latest=v2.8.0，两种安装包和更新清单均 uploaded。正式安装包在本机打包后自检 109/109、签名通过，云端也完成双架构与签名检查。
+
+正式发布后的回下载仍因 release-assets.githubusercontent.com 连接失败未完成（使用正常权限网络重试亦失败），不得声称下载分发包已在本机重新验算。GitHub 报告的 ZIP SHA-256：arm64 为 c878ef753f5c971146c50ae57d9fe8664a9a2f47c8ffa126811ae2c072f5c90f，x64 为 a0e0a0133364522a23a781858bd2c32ccf2525ad869e928261a15382430bb5ac。真实会话验收也仍待通过启动器重新打开 Codex 后执行。
+
 - 官方 App Server 文档确认连接器可通过 tool/requestUserInput 请求审批，因此“关闭问题预览”不能取消这些阻塞请求的通用人工处理提醒。新增 CodexAttentionPolicy，按 thread/turn/request 去重；有预览时不重复通用提醒，异步问题不新增阻塞提醒。
 - 缓存读取增加嵌套字段与归属校验、终态清理、跨观察器统一上限；无效正文被丢弃时仍保留合法的必要状态。
 - 未知 turn/completed 状态不再默认算完成。
@@ -11,7 +15,7 @@
 - 只发布当前功能分支与新正式标签，不混入既有 Windows 工作，不改写 main 或 beta 标签。
 - 正式版精确暂存源码的干净副本运行全套 Node 测试，374/374 通过；release 构建完成。
 
-状态：macOS 原生 **2.8.0-beta.1 已发布**。模拟协议、原生自检、独立 UI 预览与压力测试已验证；**尚未重启当前 Codex，未做真实桌面会话端到端验收**。因此为预发行，不取代 2.7.5 稳定版。未替换桌面水滴鱼，Windows 未提交工作不混入本次发布。
+以下为 beta 发布时的历史记录（当前稳定版已是上方的 2.8.0）：macOS 原生 **2.8.0-beta.1 已发布**。模拟协议、原生自检、独立 UI 预览与压力测试已验证；**当时未重启 Codex，未做真实桌面会话端到端验收**。当时为预发行，不取代 2.7.5 稳定版。未替换桌面水滴鱼，Windows 未提交工作不混入本次发布。
 
 ## 发布记录
 
