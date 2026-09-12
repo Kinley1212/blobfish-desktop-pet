@@ -7,13 +7,13 @@ enum NativeLocalization {
     }
 
     static func characterName(id: String, fallback: String, locale: String) -> String {
-        guard locale == "en" else { return simplified(fallback) }
+        guard locale == "en" else { return InterfaceLanguage.authored(fallback, locale: locale) }
         return ["blobfish": "Blobfish", "blobfish-wotou": "Blobfish (Wotou)", "grass-buddy": "Grass Buddy"][id]
             ?? titleCaseID(id, fallback: fallback)
     }
 
     static func accessoryName(id: String, fallback: String, locale: String) -> String {
-        guard locale == "en" else { return simplified(fallback) }
+        guard locale == "en" else { return InterfaceLanguage.authored(fallback, locale: locale) }
         let names = [
             "alarm-clock": "Coral Hug Clock", "alarm-clock-honey": "Honey Sugar-Cube Clock",
             "alarm-clock-plum-night": "Moonlight Jellyfish Clock", "alarm-clock-seafoam": "Seafoam Shell Clock",
@@ -31,7 +31,7 @@ enum NativeLocalization {
     }
 
     static func shapeName(label: String, locale: String) -> String {
-        guard locale == "en" else { return simplified(label) }
+        guard locale == "en" else { return InterfaceLanguage.authored(label, locale: locale) }
         // Keep these names aligned with the shared Electron UI dictionary.
         return [
             "圆润": "Rounded", "窝窝头": "Wotou", "水滴": "Droplet", "扁圆": "Wide oval",
@@ -49,10 +49,11 @@ enum NativeLocalization {
                 "grass-buddy-zh-CN": "Grass Buddy · Simplified Chinese", "grass-buddy-en": "Grass Buddy · English",
             ][id] ?? fallback
         }
-        return [
+        let name = [
             "blobfish-zh-TW": "水滴鱼 · 繁体中文", "blobfish-en": "水滴鱼 · 英文",
             "grass-buddy-zh-CN": "小草团 · 简体中文", "grass-buddy-en": "小草团 · 英文",
-        ][id] ?? simplified(fallback)
+        ][id] ?? fallback
+        return InterfaceLanguage.authored(name, locale: locale)
     }
 
     private static func titleCaseID(_ id: String, fallback: String) -> String {

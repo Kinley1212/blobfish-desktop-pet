@@ -25,6 +25,8 @@ enum SelfCheck {
             ("unsafe config rejection", unsafeConfigRejection),
             ("shared pack compatibility", sharedPackCompatibility),
             ("localized catalog display names", localizedCatalogDisplayNames),
+            ("three interface languages preserve interpolated user content", interfaceLanguageRendering),
+            ("settings interface language persists without resetting drafts or speech", { try MainActor.assumeIsolated { try settingsInterfaceLanguageRoundTrip() } }),
             ("language preference survives character changes", languagePreferenceSurvivesCharacterChanges),
             ("calendar easter eggs respect time, dates, quiet hours and persistence", calendarEasterEggPolicy),
             ("dialogue updates without crossing language boundaries", { try MainActor.assumeIsolated { try dialogueUpdatesWithoutCrossingLanguages() } }),

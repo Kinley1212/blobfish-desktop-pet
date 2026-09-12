@@ -108,7 +108,7 @@ struct AppConfig: Codable, Equatable {
     func validated() throws -> AppConfig {
         var normalized = self
         guard version == 1 else { throw ConfigError.invalid("unsupported version") }
-        normalized.ui.locale = ui.locale == "en" ? "en" : "zh-CN"
+        normalized.ui.locale = InterfaceLanguage.normalize(ui.locale)
         guard schedule.workdays.count <= 7,
               schedule.workdays.allSatisfy({ (0...6).contains($0) }) else {
             throw ConfigError.invalid("workdays")

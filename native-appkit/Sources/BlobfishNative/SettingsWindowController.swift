@@ -107,35 +107,33 @@ final class SettingsViewModel: ObservableObject {
         fishContacts = messengerService?.profile?.contacts ?? []
         guard let messengerService else {
             replaceFishInviteCode("")
-            fishIdentityStatus = isEnglish ? "Unavailable" : "功能不可用"
+            fishIdentityStatus = uiText("功能不可用", "Unavailable")
             return
         }
         guard messengerService.profileState == .available, messengerService.profile != nil else {
             replaceFishInviteCode("")
             switch messengerService.profileState {
             case .notConfigured:
-                fishIdentityStatus = isEnglish ? "Not configured" : "尚未建立身份"
+                fishIdentityStatus = uiText("尚未建立身份", "Not configured")
             case .authorizationRequired:
-                fishIdentityStatus = isEnglish ? "Authorization required" : "需要明确授权读取现有身份"
+                fishIdentityStatus = uiText("需要明确授权读取现有身份", "Authorization required")
             case .locked:
-                fishIdentityStatus = isEnglish ? "Keychain is locked" : "系统钥匙串尚未解锁"
+                fishIdentityStatus = uiText("系统钥匙串尚未解锁", "Keychain is locked")
             case .corrupt:
-                fishIdentityStatus = isEnglish ? "Stored identity is invalid" : "已保存的身份资料无效"
+                fishIdentityStatus = uiText("已保存的身份资料无效", "Stored identity is invalid")
             case .unavailable:
-                fishIdentityStatus = isEnglish ? "Keychain is unavailable" : "系统钥匙串暂时不可用"
+                fishIdentityStatus = uiText("系统钥匙串暂时不可用", "Keychain is unavailable")
             case .available:
-                fishIdentityStatus = isEnglish ? "Identity is unavailable" : "身份暂时不可用"
+                fishIdentityStatus = uiText("身份暂时不可用", "Identity is unavailable")
             }
             return
         }
         do {
             replaceFishInviteCode(try messengerService.inviteCode())
-            fishIdentityStatus = isEnglish
-                ? "Valid · private key protected by Keychain"
-                : "有效 · 私钥由系统钥匙串保护"
+            fishIdentityStatus = uiText("有效 · 私钥由系统钥匙串保护", "Valid · private key protected by Keychain")
         } catch {
             replaceFishInviteCode("")
-            fishIdentityStatus = isEnglish ? "Identity is invalid" : "身份资料无效"
+            fishIdentityStatus = uiText("身份资料无效", "Identity is invalid")
         }
     }
 
@@ -185,7 +183,7 @@ final class SettingsViewModel: ObservableObject {
             nextPreferences.currentStatus = messengerService.preferences.currentStatus
             try messengerService.updatePreferences(nextPreferences)
             fishPreferences = nextPreferences
-            message = isEnglish ? "Fish friend settings saved." : "鱼友设置已保存。"
+            message = uiText("鱼友设置已保存。", "Fish friend settings saved.")
         } catch { message = error.localizedDescription }
     }
 
@@ -358,12 +356,10 @@ final class SettingsViewModel: ObservableObject {
             _ = try messengerService.unlockProfileInteractively(isEnglish: isEnglish)
             loadFishDrafts()
             refreshFishState()
-            message = isEnglish ? "Fish identity is available." : "鱼鱼身份已恢复。"
+            message = uiText("鱼鱼身份已恢复。", "Fish identity is available.")
         } catch {
             refreshFishState()
-            message = isEnglish
-                ? "Authorization was not completed. The existing identity was kept unchanged."
-                : "未完成授权；现有身份保持不变。"
+            message = uiText("未完成授权；现有身份保持不变。", "Authorization was not completed. The existing identity was kept unchanged.")
         }
     }
 
@@ -378,13 +374,11 @@ final class SettingsViewModel: ObservableObject {
               relayURL.user == nil, relayURL.password == nil,
               relayURL.query == nil, relayURL.fragment == nil,
               (16...256).contains(token.utf8.count) else {
-            fishIdentityStatus = isEnglish
-                ? "Check the display name, HTTPS relay URL, and 16–256 character setup secret."
-                : "请检查显示名称、HTTPS 中转地址和 16–256 字符的设置密钥。"
+            fishIdentityStatus = uiText("请检查显示名称、HTTPS 中转地址和 16–256 字符的设置密钥。", "Check the display name, HTTPS relay URL, and 16–256 character setup secret.")
             return
         }
         fishSetupBusy = true
-        fishIdentityStatus = isEnglish ? "Checking relay and creating identity…" : "正在验证中转并建立身份…"
+        fishIdentityStatus = uiText("正在验证中转并建立身份…", "Checking relay and creating identity…")
         Task { @MainActor in
             defer { self.fishSetupBusy = false }
             do {
@@ -392,9 +386,9 @@ final class SettingsViewModel: ObservableObject {
                 self.fishSetupToken = ""
                 self.loadFishDrafts()
                 self.refreshFishState()
-                self.message = self.isEnglish ? "Fish identity created." : "鱼鱼身份已建立。"
+                self.message = self.uiText("鱼鱼身份已建立。", "Fish identity created.")
             } catch {
-                self.fishIdentityStatus = (self.isEnglish ? "Relay validation failed: " : "中转验证失败：")
+                self.fishIdentityStatus = (self.uiText("中转验证失败：", "Relay validation failed: "))
                     + error.localizedDescription
             }
         }
@@ -403,42 +397,38 @@ final class SettingsViewModel: ObservableObject {
     func validateFishInvite() {
         let code = fishInviteInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !code.isEmpty else {
-            fishInviteStatus = isEnglish ? "Paste a fish code first." : "请先粘贴鱼鱼码。"
+            fishInviteStatus = uiText("请先粘贴鱼鱼码。", "Paste a fish code first.")
             return
         }
         do {
             let invite = try FishInvite.decode(code)
             let ownInvite = fishInviteCode.isEmpty ? nil : (try? FishInvite.decode(fishInviteCode))
             if ownInvite?.publicKey == invite.publicKey {
-                fishInviteStatus = isEnglish ? "This is your own fish code." : "这是你自己的鱼鱼码。"
+                fishInviteStatus = uiText("这是你自己的鱼鱼码。", "This is your own fish code.")
             } else if fishContacts.contains(where: { $0.invite.publicKey == invite.publicKey }) {
-                fishInviteStatus = isEnglish ? "This friend has already been added." : "这个好友已经添加过。"
+                fishInviteStatus = uiText("这个好友已经添加过。", "This friend has already been added.")
             } else if let relay = messengerService?.profile?.relayURL, relay != invite.relayURL {
-                fishInviteStatus = isEnglish
-                    ? "Valid code, but it uses a different relay."
-                    : "鱼鱼码有效，但中转站与当前身份不同。"
+                fishInviteStatus = uiText("鱼鱼码有效，但中转站与当前身份不同。", "Valid code, but it uses a different relay.")
             } else {
-                fishInviteStatus = isEnglish
-                    ? "Valid fish code · \(invite.displayName)"
-                    : "鱼鱼码有效 · \(invite.displayName)"
+                fishInviteStatus = uiText("鱼鱼码有效 · \(invite.displayName)", "Valid fish code · \(invite.displayName)")
             }
         } catch {
-            fishInviteStatus = isEnglish ? "Invalid or unsupported fish code." : "鱼鱼码无效或版本不受支持。"
+            fishInviteStatus = uiText("鱼鱼码无效或版本不受支持。", "Invalid or unsupported fish code.")
         }
     }
 
     func addFishContact() {
         guard let messengerService, messengerService.profile != nil else {
-            fishInviteStatus = isEnglish ? "Create your fish identity first." : "请先建立自己的鱼鱼身份。"
+            fishInviteStatus = uiText("请先建立自己的鱼鱼身份。", "Create your fish identity first.")
             return
         }
         do {
             try messengerService.addContact(code: fishInviteInput)
             fishInviteInput = ""
-            fishInviteStatus = isEnglish ? "Friend added." : "好友已添加。"
+            fishInviteStatus = uiText("好友已添加。", "Friend added.")
             refreshFishState()
         } catch {
-            fishInviteStatus = isEnglish ? "Could not add this fish code." : "无法添加这个鱼鱼码。"
+            fishInviteStatus = uiText("无法添加这个鱼鱼码。", "Could not add this fish code.")
         }
     }
 
@@ -446,7 +436,7 @@ final class SettingsViewModel: ObservableObject {
         guard !fishInviteCode.isEmpty else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(fishInviteCode, forType: .string)
-        message = isEnglish ? "Fish code copied." : "鱼鱼码已复制。"
+        message = uiText("鱼鱼码已复制。", "Fish code copied.")
     }
 
     func reloadFromRuntime() {
@@ -483,17 +473,17 @@ final class SettingsViewModel: ObservableObject {
             case .success(let status):
                 self.integrationStatuses[provider] = status
                 self.message = provider == "codex"
-                    ? (self.isEnglish ? "Installed. Allow the pet in Codex /hooks, then continue a task." : "已安装。请在 Codex 的 /hooks 允许水滴鱼，然后继续一次任务。")
-                    : (self.isEnglish ? "Installed. Restart Claude Code and continue a task." : "已安装。重新打开 Claude Code，然后继续一次任务。")
+                    ? (self.uiText("已安装。请在 Codex 的 /hooks 允许水滴鱼，然后继续一次任务。", "Installed. Allow the pet in Codex /hooks, then continue a task."))
+                    : (self.uiText("已安装。重新打开 Claude Code，然后继续一次任务。", "Installed. Restart Claude Code and continue a task."))
             case .failure(let error):
-                self.message = (self.isEnglish ? "Connection failed: " : "连接失败：") + error.localizedDescription
+                self.message = (self.uiText("连接失败：", "Connection failed: ")) + error.localizedDescription
             }
         }
     }
 
     func checkUpdate() {
         guard updateProgress == nil else { return }
-        updateStatus = isEnglish ? "Checking the native release channel…" : "正在检查原生版更新…"
+        updateStatus = uiText("正在检查原生版更新…", "Checking the native release channel…")
         updateProgress = 0
         updater.check { [weak self] result in
             guard let self else { return }
@@ -501,11 +491,11 @@ final class SettingsViewModel: ObservableObject {
             case .success(.upToDate(let version)):
                 self.availableUpdate = nil; self.updateProgress = nil
                 self.updateAvailable = false
-                self.updateStatus = self.isEnglish ? "Native v\(version) is up to date." : "原生版 v\(version) 已是最新。"
+                self.updateStatus = self.uiText("原生版 v\(version) 已是最新。", "Native v\(version) is up to date.")
             case .success(.available(let manifest, let asset)):
                 self.availableUpdate = (manifest, asset); self.updateProgress = nil
                 self.updateAvailable = true
-                self.updateStatus = self.isEnglish ? "Native v\(manifest.version) is ready." : "发现原生版 v\(manifest.version)，可以安装。"
+                self.updateStatus = self.uiText("发现原生版 v\(manifest.version)，可以安装。", "Native v\(manifest.version) is ready.")
             case .failure(let error):
                 self.availableUpdate = nil; self.updateProgress = nil
                 self.updateAvailable = false
@@ -517,7 +507,7 @@ final class SettingsViewModel: ObservableObject {
     func installUpdate() {
         guard updateProgress == nil, let update = availableUpdate else { return }
         updateProgress = 0.05
-        updateStatus = isEnglish ? "Downloading and verifying…" : "正在下载并校验…"
+        updateStatus = uiText("正在下载并校验…", "Downloading and verifying…")
         updater.install(manifest: update.0, asset: update.1, progress: { [weak self] value in
             self?.updateProgress = value
         }) { [weak self] result in
@@ -526,12 +516,12 @@ final class SettingsViewModel: ObservableObject {
             case .success(let url):
                 self.updateAvailable = false
                 self.availableUpdate = nil
-                self.updateStatus = self.isEnglish ? "Installed. Restarting…" : "安装完成，正在重新打开…"
+                self.updateStatus = self.uiText("安装完成，正在重新打开…", "Installed. Restarting…")
                 self.updater.relaunch(at: url) { error in
                     DispatchQueue.main.async {
                         if let error {
                             self.updateProgress = nil
-                            self.updateStatus = (self.isEnglish ? "Installed. Please reopen the app manually: " : "已安装，请手动重新打开应用：") + error.localizedDescription
+                            self.updateStatus = (self.uiText("已安装，请手动重新打开应用：", "Installed. Please reopen the app manually: ")) + error.localizedDescription
                         }
                         else if let delegate = NSApp.delegate as? AppDelegate { delegate.requestTermination() }
                         else { NSApp.terminate(nil) }
@@ -581,7 +571,7 @@ final class SettingsViewModel: ObservableObject {
 
     func saveClockPreferences() {
         guard let clockService else {
-            message = isEnglish ? "Alarm clock settings are unavailable." : "闹钟设置暂时不可用。"
+            message = uiText("闹钟设置暂时不可用。", "Alarm clock settings are unavailable.")
             return
         }
         do {
@@ -595,7 +585,7 @@ final class SettingsViewModel: ObservableObject {
 
     func selectAlarmAccessory(_ id: String) {
         guard let clockService else {
-            message = isEnglish ? "Alarm clock settings are unavailable." : "闹钟设置暂时不可用。"
+            message = uiText("闹钟设置暂时不可用。", "Alarm clock settings are unavailable.")
             return
         }
         var preferences = clockService.state.preferences
@@ -603,10 +593,10 @@ final class SettingsViewModel: ObservableObject {
         do {
             try clockService.updatePreferences(preferences)
             refreshClock()
-            message = isEnglish ? "Clock appearance saved." : "闹钟外观已保存。"
+            message = uiText("闹钟外观已保存。", "Clock appearance saved.")
         } catch {
             refreshClock()
-            message = (isEnglish ? "Could not save clock appearance: " : "无法保存闹钟外观：") + error.localizedDescription
+            message = (uiText("无法保存闹钟外观：", "Could not save clock appearance: ")) + error.localizedDescription
         }
     }
 
@@ -631,6 +621,32 @@ final class SettingsViewModel: ObservableObject {
     func refreshClock() { clockState = clockService?.state ?? .empty }
 
     var isEnglish: Bool { draft.ui.locale == "en" }
+    private var statusTemplates: [String: (InterfaceText, InterfaceText)] = [:]
+    func uiText(_ zh: InterfaceText, _ en: InterfaceText) -> String {
+        // Retain templates only for the four visible status messages. Literal
+        // prefixes may be followed by an OS error, which must remain verbatim.
+        let statuses = [message, fishIdentityStatus, fishInviteStatus, updateStatus]
+        statusTemplates = statusTemplates.filter { key, _ in statuses.contains { $0.hasPrefix(key) } }
+        let rendered = InterfaceLanguage.text(zh, en, locale: draft.ui.locale)
+        if !rendered.isEmpty { statusTemplates[rendered] = (zh, en) }
+        return rendered
+    }
+
+    func refreshInterfaceStatusLanguage() {
+        let templates = statusTemplates.sorted { $0.key.count > $1.key.count }
+        var refreshed: [String: (InterfaceText, InterfaceText)] = [:]
+        func translated(_ source: String) -> String {
+            guard let entry = templates.first(where: { source.hasPrefix($0.key) }) else { return source }
+            let value = InterfaceLanguage.text(entry.value.0, entry.value.1, locale: draft.ui.locale)
+            refreshed[value] = entry.value
+            return value + source.dropFirst(entry.key.count)
+        }
+        message = translated(message)
+        fishIdentityStatus = translated(fishIdentityStatus)
+        fishInviteStatus = translated(fishInviteStatus)
+        updateStatus = translated(updateStatus)
+        statusTemplates = refreshed
+    }
 
     func apply() {
         do {
@@ -647,16 +663,16 @@ final class SettingsViewModel: ObservableObject {
                 )
             }
             draft = runtime.config
-            message = isEnglish ? "Saved." : "已保存。"
+            message = uiText("已保存。", "Saved.")
             onApply()
         } catch {
-            message = (isEnglish ? "Could not save: " : "无法保存：") + String(describing: error)
+            message = (uiText("无法保存：", "Could not save: ")) + String(describing: error)
         }
     }
 
     func reset() {
         draft = .defaults
-        message = isEnglish ? "Defaults restored in this window. Select Apply to save." : "已在当前窗口恢复默认值，点“应用”后保存。"
+        message = uiText("已在当前窗口恢复默认值，点“应用”后保存。", "Defaults restored in this window. Select Apply to save.")
     }
 
     func diyValue(part: String, key: String, fallback: Double) -> Double {
@@ -778,8 +794,8 @@ struct BrandedSettingsView: View {
                 HStack {
                     Text(model.message).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                     Spacer()
-                    Button(model.isEnglish ? "Reset" : "恢复默认") { model.reset() }
-                    Button(model.isEnglish ? "Apply" : "应用") { model.apply() }
+                    Button(t("恢复默认", "Reset")) { model.reset() }
+                    Button(t("应用", "Apply")) { model.apply() }
                         .keyboardShortcut(.defaultAction)
                 }
                 .padding(.horizontal, 14)
@@ -792,6 +808,7 @@ struct BrandedSettingsView: View {
         }
         .frame(minWidth: 760, minHeight: 540)
         .background(SettingsSurfacePalette.windowBackground)
+        .onChange(of: model.draft.ui.locale) { _ in model.refreshInterfaceStatusLanguage() }
     }
 
     private var brandedSidebar: some View {
@@ -823,7 +840,7 @@ struct BrandedSettingsView: View {
         .overlay(alignment: .trailing) { Divider() }
     }
 
-    private func sidebarButton(_ section: SettingsSection, _ icon: String, zh: String, en: String) -> some View {
+    private func sidebarButton(_ section: SettingsSection, _ icon: String, zh: InterfaceText, en: InterfaceText) -> some View {
         Button {
             model.selectedSection = section
         } label: {
@@ -985,7 +1002,7 @@ struct BrandedSettingsView: View {
                     ForEach(FishRemoteInteraction.allCases) { interaction in
                         HStack(spacing: 8) {
                             Toggle(
-                                interaction.title(isEnglish: model.isEnglish),
+                                InterfaceLanguage.authored(interaction.title(isEnglish: model.isEnglish), locale: model.draft.ui.locale),
                                 isOn: model.interactionSoundEnabledBinding(interaction)
                             )
                             Spacer(minLength: 6)
@@ -1016,7 +1033,7 @@ struct BrandedSettingsView: View {
                             ) {
                                 ForEach(FishRemoteInteraction.allCases) { interaction in
                                     Label(
-                                        interaction.title(isEnglish: model.isEnglish),
+                                        InterfaceLanguage.authored(interaction.title(isEnglish: model.isEnglish), locale: model.draft.ui.locale),
                                         systemImage: interaction.symbolName
                                     )
                                     .tag(interaction)
@@ -1070,7 +1087,7 @@ struct BrandedSettingsView: View {
             HStack {
                 Text(t("添加好友", "Add a friend")).font(.headline)
                 Spacer()
-                Text(model.isEnglish ? "\(model.fishContacts.count) friends" : "\(model.fishContacts.count) 位好友")
+                Text(t("\(model.fishContacts.count) 位好友", "\(model.fishContacts.count) friends"))
                     .font(.caption).foregroundStyle(.secondary)
             }
             TextField(t("粘贴对方的鱼鱼码", "Paste a friend's fish code"), text: $model.fishInviteInput)
@@ -1111,7 +1128,7 @@ struct BrandedSettingsView: View {
                 .font(.caption).foregroundStyle(.secondary)
             Picker(t("預覽狀態", "Preview status"), selection: $model.fishStatusPreview) {
                 ForEach(FishUserStatus.allCases) { status in
-                    Text("\(status.emoji) \(status.title(isEnglish: model.isEnglish))").tag(status)
+                    Text("\(status.emoji) \(InterfaceLanguage.authored(status.title(isEnglish: model.isEnglish), locale: model.draft.ui.locale))").tag(status)
                 }
             }
             .pickerStyle(.segmented)
@@ -1127,7 +1144,7 @@ struct BrandedSettingsView: View {
             .frame(height: 125)
             .background(SettingsSurfacePalette.previewBackground, in: RoundedRectangle(cornerRadius: 12))
             let status = model.fishStatusPreview
-            Text("\(status.emoji) \(status.title(isEnglish: model.isEnglish)) · \(t("細節 DIY", "Detailed DIY"))")
+            Text("\(status.emoji) \(InterfaceLanguage.authored(status.title(isEnglish: model.isEnglish), locale: model.draft.ui.locale)) · \(t("細節 DIY", "Detailed DIY"))")
                 .font(.subheadline.weight(.semibold))
             Picker(t("表情", "Expression"), selection: model.statusFaceBinding(status)) {
                 Text(t("無表情", "No expression")).tag("")
@@ -1408,7 +1425,7 @@ struct BrandedSettingsView: View {
         let names = model.isEnglish
             ? ["face": "Expression", "hat": "Hat", "eyewear": "Eyewear", "hand": "Hand"]
             : ["face": "表情", "hat": "头顶", "eyewear": "眼镜", "hand": "手边"]
-        return names[slot] ?? slot
+        return InterfaceLanguage.authored(names[slot] ?? slot, locale: model.draft.ui.locale)
     }
 
     private var scheduleSection: some View {
@@ -1445,7 +1462,9 @@ struct BrandedSettingsView: View {
         SettingsPage(title: t("台词", "Dialogue"), subtitle: t("选择语言包与偶尔出现的台词。", "Choose a dialogue pack and occasional chatter.")) {
             SettingsCard {
                 Picker(t("界面语言", "Interface language"), selection: $model.draft.ui.locale) {
-                    Text("简体中文").tag("zh-CN"); Text("English").tag("en")
+                    Text("简体中文").tag("zh-CN")
+                    Text("繁體中文（香港）").tag("zh-HK")
+                    Text("English").tag("en")
                 }
                 Picker(t("语言包", "Dialogue pack"), selection: $model.draft.language.packId) {
                     ForEach(model.compatibleLanguages) {
@@ -1521,7 +1540,7 @@ struct BrandedSettingsView: View {
                     Text(title).font(.headline)
                     if let status = model.integrationStatuses[provider] {
                         Label(
-                            status.detail,
+                            InterfaceLanguage.integrationDetail(status.detail, locale: model.draft.ui.locale),
                             systemImage: status.verified ? "checkmark.circle.fill" : status.installed ? "exclamationmark.circle" : "xmark.circle"
                         )
                         .foregroundStyle(status.verified ? .green : status.installed ? .orange : .secondary)
@@ -1677,7 +1696,7 @@ struct BrandedSettingsView: View {
         let names = model.isEnglish
             ? ["once": "Once", "daily": "Daily", "workdays": "Workdays", "weekly": "Weekly"]
             : ["once": "单次", "daily": "每天", "workdays": "工作日", "weekly": "每周"]
-        return names[mode] ?? mode
+        return InterfaceLanguage.authored(names[mode] ?? mode, locale: model.draft.ui.locale)
     }
 
     private var performanceSection: some View {
@@ -1731,7 +1750,9 @@ struct BrandedSettingsView: View {
         }
     }
 
-    private func t(_ zh: String, _ en: String) -> String { model.isEnglish ? en : zh }
+    private func t(_ zh: InterfaceText, _ en: InterfaceText) -> String {
+        InterfaceLanguage.text(zh, en, locale: model.draft.ui.locale)
+    }
 }
 
 struct SettingsPage<Content: View>: View {
@@ -1761,6 +1782,7 @@ struct SettingsCard<Content: View>: View {
 final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     private let viewModel: SettingsViewModel
     private var refreshTimer: Timer?
+    private var localeSubscription: AnyCancellable?
     init(
         runtime: AppRuntime, clockService: ClockService?, messengerService: FishMessengerService?,
         onApply: @escaping @MainActor () -> Void
@@ -1782,6 +1804,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         window.minSize = NSSize(width: 760, height: 540)
         window.center()
         super.init(window: window)
+        localeSubscription = viewModel.$draft.map { $0.ui.locale }.removeDuplicates().sink { [weak window] locale in
+            window?.title = InterfaceLanguage.text("水滴鱼", "Blobfish", locale: locale)
+        }
         window.delegate = self
         shouldCascadeWindows = true
     }

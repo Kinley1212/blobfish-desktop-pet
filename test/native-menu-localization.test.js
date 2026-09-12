@@ -42,7 +42,7 @@ test('applying settings refreshes menu locale before restoring unread counts and
   assert.match(method('openSettings'), /self\.syncQuickSettingsMenu\(\)/u);
   const sync = method('syncQuickSettingsMenu');
   assert.match(sync, /for entry in localizedMenuItems/u);
-  assert.match(sync, /entry\.item\.title = english \? entry\.english : entry\.chinese/u);
+  assert.match(sync, /entry\.item\.title = InterfaceLanguage\.authored\(english \? entry\.english : entry\.chinese, locale: runtime\.config\.ui\.locale\)/u);
   assert.match(sync, /updateMessengerMenu\(unreadCount: messengerMenuUnreadCount\)/u);
   assert.match(sync, /if let state = clockService\?\.state \{ updateClockMenu\(state\) \}/u);
   assert.ok(sync.indexOf('entry.item.title') < sync.indexOf('updateMessengerMenu('));
@@ -60,7 +60,7 @@ test('language changes refresh both enum submenus without discarding their actio
   assert.match(messenger, /for item in fishStatusMenuItem\?\.submenu\?\.items/u);
   assert.match(messenger, /FishUserStatus\(rawValue: raw\)/u);
   assert.match(messenger, /status\.title\(isEnglish: english\)/u);
-  assert.match(messenger, /"Clear Status" : "清除状态"/u);
+  assert.match(messenger, /uiText\("清除状态", "Clear Status"\)/u);
   assert.match(messenger, /for item in friendInteractionMenuItem\?\.submenu\?\.items/u);
   assert.match(messenger, /FishRemoteInteraction\(rawValue: raw\)/u);
   assert.match(messenger, /interaction\.title\(isEnglish: english\)/u);

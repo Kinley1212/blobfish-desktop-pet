@@ -495,8 +495,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.terminate(nil)
     }
 
+    private func uiText(_ zh: InterfaceText, _ en: InterfaceText) -> String {
+        InterfaceLanguage.text(zh, en, locale: runtime.config.ui.locale)
+    }
+
     private func localizedMenuItem(_ chinese: String, _ english: String, action: Selector? = nil, keyEquivalent: String = "") -> NSMenuItem {
-        let item = NSMenuItem(title: runtime.config.ui.locale == "en" ? english : chinese, action: action, keyEquivalent: keyEquivalent)
+        let item = NSMenuItem(title: InterfaceLanguage.authored(runtime.config.ui.locale == "en" ? english : chinese, locale: runtime.config.ui.locale), action: action, keyEquivalent: keyEquivalent)
         localizedMenuItems.append((item, chinese, english))
         return item
     }
@@ -654,23 +658,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func updateMessengerMenu(unreadCount: Int) {
         messengerMenuUnreadCount = unreadCount
         let english = runtime.config.ui.locale == "en"
-        let title = english ? "Chat History" : "聊天记录"
+        let title = uiText("聊天记录", "Chat History")
         messengerMenuItem?.title = unreadCount > 0
             ? "\(title) · \(unreadCount > 99 ? "99+" : String(unreadCount))"
             : title
-        messengerSendMenuItem?.title = english ? "Fish Message…" : "鱼鱼传话…"
-        friendInteractionMenuItem?.title = english ? "Fish Friend Actions" : "鱼友互动"
-        fishStatusMenuItem?.title = english ? "My Status" : "我的状态"
+        messengerSendMenuItem?.title = uiText("鱼鱼传话…", "Fish Message…")
+        friendInteractionMenuItem?.title = uiText("鱼友互动", "Fish Friend Actions")
+        fishStatusMenuItem?.title = uiText("我的状态", "My Status")
         for item in fishStatusMenuItem?.submenu?.items ?? [] where !item.isSeparatorItem {
             if let raw = item.representedObject as? String, let status = FishUserStatus(rawValue: raw) {
-                item.title = NativeLocalization.simplified(status.title(isEnglish: english))
+                item.title = InterfaceLanguage.authored(status.title(isEnglish: english), locale: runtime.config.ui.locale)
             } else {
-                item.title = english ? "Clear Status" : "清除状态"
+                item.title = uiText("清除状态", "Clear Status")
             }
         }
         for item in friendInteractionMenuItem?.submenu?.items ?? [] {
             guard let raw = item.representedObject as? String, let interaction = FishRemoteInteraction(rawValue: raw) else { continue }
-            item.title = NativeLocalization.simplified(interaction.title(isEnglish: english))
+            item.title = InterfaceLanguage.authored(interaction.title(isEnglish: english), locale: runtime.config.ui.locale)
         }
     }
 
@@ -965,20 +969,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func syncQuickSettingsMenu() {
         let english = runtime.config.ui.locale == "en"
         for entry in localizedMenuItems {
-            entry.item.title = english ? entry.english : entry.chinese
+            entry.item.title = InterfaceLanguage.authored(english ? entry.english : entry.chinese, locale: runtime.config.ui.locale)
         }
-        statusItem?.button?.setAccessibilityLabel(english ? "Blobfish" : "水滴鱼")
-        statusItem?.button?.toolTip = english ? "Blobfish" : "水滴鱼"
-        if statusItem?.button?.image == nil { statusItem?.button?.title = english ? "Blobfish" : "水滴鱼" }
+        statusItem?.button?.setAccessibilityLabel(uiText("水滴鱼", "Blobfish"))
+        statusItem?.button?.toolTip = uiText("水滴鱼", "Blobfish")
+        if statusItem?.button?.image == nil { statusItem?.button?.title = uiText("水滴鱼", "Blobfish") }
         updateMessengerMenu(unreadCount: messengerMenuUnreadCount)
         if let state = clockService?.state { updateClockMenu(state) }
-        pauseItem?.title = runtime.config.ui.locale == "en" ? "Move while idle" : "没有任务时也继续游动"
+        pauseItem?.title = uiText("没有任务时也继续游动", "Move while idle")
         pauseItem?.state = runtime.config.pet.roamWhenNoTasks ? .on : .off
-        taskRoamItem?.title = runtime.config.ui.locale == "en" ? "Move while tasks run" : "任务进行时游动"
+        taskRoamItem?.title = uiText("任务进行时游动", "Move while tasks run")
         taskRoamItem?.state = runtime.config.pet.roamWhenTasks ? .on : .off
-        performanceItem?.title = runtime.config.ui.locale == "en" ? "Show performance panel" : "显示性能面板"
+        performanceItem?.title = uiText("显示性能面板", "Show performance panel")
         performanceItem?.state = runtime.config.performance.panelEnabled ? .on : .off
-        launchAtLoginItem?.title = runtime.config.ui.locale == "en" ? "Open at login" : "登录后自动启动"
+        launchAtLoginItem?.title = uiText("登录后自动启动", "Open at login")
         launchAtLoginItem?.state = runtime.config.startup.launchAtLogin ? .on : .off
     }
 
@@ -1090,7 +1094,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func startQuickTimer(_ sender: NSMenuItem) {
         guard let minutes = sender.representedObject as? Int else { return }
-        let label = minutes == 25 ? (runtime.config.ui.locale == "en" ? "Focus" : "专注") : ""
+        let label = minutes == 25 ? (uiText("专注", "Focus")) : ""
         do {
             try clockService?.startTimer(minutes: minutes, label: label, source: ClockTimerSource.quick)
             panelController.say(runtime.speechText("计时开始了。", "The timer has started."), event: "clock.timerStarted", priority: SpeechPriority.schedule, replaceKey: "clock.control")
@@ -1099,27 +1103,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func updateClockMenu(_ state: ClockState) {
-        let english = runtime.config.ui.locale == "en"
         let ringing = state.alerts.first(where: { $0.state == "ringing" })
         clockAlertTitleItem?.isHidden = ringing == nil
         clockSnoozeItem?.isHidden = ringing == nil
         clockDismissItem?.isHidden = ringing == nil
         if let ringing {
             let icon = ringing.sourceType == "alarm" ? "⏰" : "⏱"
-            clockAlertTitleItem?.title = "\(icon) \(ringing.label.isEmpty ? (english ? "Time is up" : "时间到了") : ringing.label)"
-            clockSnoozeItem?.title = english ? "Snooze 5 minutes" : "稍后 5 分钟"
-            clockDismissItem?.title = english ? "Dismiss" : "知道了"
+            clockAlertTitleItem?.title = "\(icon) \(ringing.label.isEmpty ? (uiText("时间到了", "Time is up")) : ringing.label)"
+            clockSnoozeItem?.title = uiText("稍后 5 分钟", "Snooze 5 minutes")
+            clockDismissItem?.title = uiText("知道了", "Dismiss")
         }
 
         timerControlItem?.isHidden = state.timer == nil
         quickTimerItem?.isHidden = state.timer != nil
         guard let timer = state.timer else { return }
-        timerControlItem?.title = "\(english ? "Timer" : "计时器") · \(clockService?.remainingTimerText() ?? "00:00")"
+        timerControlItem?.title = "\(uiText("计时器", "Timer")) · \(clockService?.remainingTimerText() ?? "00:00")"
         timerPauseItem?.title = timer.state == "running"
-            ? (english ? "Pause timer" : "暂停计时")
-            : (english ? "Resume timer" : "继续计时")
-        timerExtendItem?.title = english ? "Add 5 minutes" : "增加 5 分钟"
-        timerCancelItem?.title = english ? "Cancel timer" : "取消计时"
+            ? (uiText("暂停计时", "Pause timer"))
+            : (uiText("继续计时", "Resume timer"))
+        timerExtendItem?.title = uiText("增加 5 分钟", "Add 5 minutes")
+        timerCancelItem?.title = uiText("取消计时", "Cancel timer")
     }
 
     @objc private func snoozeClockAlert() {
