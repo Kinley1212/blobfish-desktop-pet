@@ -6,6 +6,8 @@ enum SelfCheck {
     static func run() -> Bool {
         let checks: [(String, () throws -> Bool)] = [
             ("Codex real approvals and multi-question lifecycle", codexObservationPolicy),
+            ("Codex hidden blocking requests retain human attention alerts", codexHiddenQuestionsStillNotify),
+            ("Codex cache validates question ownership and aggregate bounds", codexCachePayloadBounds),
             ("Codex duplicate events and oversized question batches retain correct state", codexDuplicateAndCapacityRegression),
             ("Codex crowded crash cache recovers", codexCrowdedCacheRecovery),
             ("Codex settings changes reject in-flight stale delivery", codexSettingsRaceRegression),

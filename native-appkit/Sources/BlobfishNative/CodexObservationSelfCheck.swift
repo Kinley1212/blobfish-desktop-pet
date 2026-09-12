@@ -2,6 +2,55 @@ import AppKit
 import Foundation
 
 extension SelfCheck {
+    static func codexHiddenQuestionsStillNotify() -> Bool {
+        var thread = CodexObservedThread(id: "t", turnID: "a", state: "running", timestamp: 1000)
+        thread.blockingQuestions = ["s:q"]
+        let request = CodexQuestionRequest(id: "s:q", threadID: "t", turnID: "a", blocking: true, questions: [.init(id: "0", title: "Approve?", options: [])])
+        let all = CodexAttentionPolicy.blockingIDs([thread])
+        guard CodexAttentionPolicy.unpreviewedBlockingIDs([thread], previews: [], previous: []).count == 1,
+              CodexAttentionPolicy.unpreviewedBlockingIDs([thread], previews: [request], previous: []).isEmpty,
+              CodexAttentionPolicy.unpreviewedBlockingIDs([thread], previews: [], previous: all).isEmpty else { return false }
+        thread.blockingQuestions = []
+        return CodexAttentionPolicy.unpreviewedBlockingIDs([thread], previews: [], previous: []).isEmpty
+    }
+
+    static func codexCachePayloadBounds() throws -> Bool {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("blobfish-payload-check-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let file = root.appendingPathComponent("sample.json")
+        var thread = CodexObservedThread(id: "t", turnID: "a", state: "running", timestamp: 1000)
+        thread.blockingQuestions = ["s:q"]
+        let question = CodexQuestion(id: "0", title: "Safe question", options: [])
+        for request in [
+            CodexQuestionRequest(id: "s:q", threadID: "other-thread", turnID: "a", blocking: true, questions: [question]),
+            CodexQuestionRequest(id: "s:q", threadID: "t", turnID: "old-turn", blocking: true, questions: [question]),
+            CodexQuestionRequest(id: "s:q", threadID: "t", turnID: "a", blocking: true, questions: [question, question])
+        ] {
+            thread.questions = [request]
+            guard CodexObservationFiles.write(try JSONEncoder().encode(CodexObservationSnapshot(timestamp: 1000, threads: [thread])), to: file) else { return false }
+            let loaded = CodexObservationFiles.load(directory: root, now: 1001)
+            guard loaded.count == 1, loaded[0].questions.isEmpty, loaded[0].blockingQuestions == ["s:q"] else { return false }
+        }
+        thread.state = "ended"
+        thread.approvals = ["n:1"]
+        guard CodexObservationFiles.write(try JSONEncoder().encode(CodexObservationSnapshot(timestamp: 1000, threads: [thread])), to: file) else { return false }
+        let terminal = CodexObservationFiles.load(directory: root, now: 1001)
+        guard terminal.first?.approvals.isEmpty == true, terminal.first?.blockingQuestions.isEmpty == true else { return false }
+        for batch in 0..<2 {
+            let threads = (0..<40).map { index -> CodexObservedThread in
+                let id = "batch-\(batch)-\(index)"
+                return .init(id: id, turnID: "a", state: "running", timestamp: 1000, questions: [
+                    .init(id: "s:q", threadID: id, turnID: "a", blocking: false, questions: [.init(id: "0", title: String(repeating: "x", count: 8192), options: [])])
+                ])
+            }
+            guard CodexObservationFiles.write(try JSONEncoder().encode(CodexObservationSnapshot(timestamp: 1000, threads: threads)), to: root.appendingPathComponent("batch-\(batch).json")) else { return false }
+        }
+        let loaded = CodexObservationFiles.load(directory: root, now: 1001)
+        let textBytes = loaded.flatMap(\.questions).flatMap(\.questions).reduce(0) { $0 + $1.title.utf8.count }
+        return loaded.count == 64 && textBytes <= 64 * 1024
+    }
+
     static func codexDuplicateAndCapacityRegression() -> Bool {
         var reducer = CodexObservationReducer()
         let start: [String: Any] = ["method": "turn/started", "params": ["threadId": "t", "turn": ["id": "a"]]]
@@ -14,6 +63,8 @@ extension SelfCheck {
         guard reducer.threads["t"]?.blockingQuestions == ["s:q"], reducer.threads["t"]?.questions.isEmpty == true else { return false }
         reducer.receive(request(false), now: 1002, includeQuestions: true)
         guard reducer.threads["t"]?.blockingQuestions.isEmpty == true else { return false }
+        reducer.receive(["method": "turn/completed", "params": ["threadId": "t", "turn": ["id": "a", "status": "unknown"]]], now: 1002, includeQuestions: true)
+        guard reducer.threads["t"]?.state == "running" else { return false }
         let completed: [String: Any] = ["method": "turn/completed", "params": ["threadId": "t", "turn": ["id": "a", "status": "completed"]]]
         reducer.receive(completed, now: 1003, includeQuestions: true)
         let before = reducer.snapshot(now: 0)

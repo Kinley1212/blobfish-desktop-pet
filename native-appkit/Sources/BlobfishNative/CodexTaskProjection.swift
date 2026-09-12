@@ -1,5 +1,16 @@
 import Foundation
 
+enum CodexAttentionPolicy {
+    static func blockingIDs(_ observations: [CodexObservedThread]) -> Set<String> {
+        Set(observations.flatMap { thread in thread.blockingQuestions.map { "\(thread.id)|\(thread.turnID)|\($0)" } })
+    }
+
+    static func unpreviewedBlockingIDs(_ observations: [CodexObservedThread], previews: [CodexQuestionRequest], previous: Set<String>) -> Set<String> {
+        let visible = Set(previews.filter(\.blocking).map { "\($0.threadID)|\($0.turnID)|\($0.id)" })
+        return blockingIDs(observations).subtracting(previous).subtracting(visible)
+    }
+}
+
 enum CodexTaskProjection {
     static func merge(leases: [TaskLease], observations: [CodexObservedThread], now: Double) -> [TaskLease] {
         let observedIDs = Set(observations.map(\.id))

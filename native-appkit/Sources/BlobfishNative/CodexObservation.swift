@@ -85,7 +85,8 @@ struct CodexObservationReducer {
             if let turnID, turnID != thread.turnID { return }
             switch method {
             case "turn/completed":
-                let status = turn?["status"] as? String
+                guard let status = turn?["status"] as? String,
+                      ["completed", "failed", "interrupted"].contains(status) else { return }
                 thread.state = status == "failed" ? "failed" : status == "interrupted" ? "interrupted" : "ended"
                 thread.approvals = []; thread.blockingQuestions = []; thread.questions = []
             case "serverRequest/resolved":
@@ -235,12 +236,55 @@ enum CodexObservationFiles {
             for thread in snapshot.threads {
                 guard CodexObservationReducer.identifier(thread.id) != nil, CodexObservationReducer.identifier(thread.turnID) != nil,
                       ["running", "ended", "failed", "interrupted"].contains(thread.state), thread.timestamp.isFinite,
-                      thread.timestamp <= snapshot.timestamp, thread.approvals.count <= 32, thread.blockingQuestions.count <= 32,
+                      thread.timestamp >= 0, thread.timestamp <= snapshot.timestamp, thread.approvals.count <= 32, thread.blockingQuestions.count <= 32,
+                      thread.approvals.union(thread.blockingQuestions).allSatisfy({ CodexObservationReducer.text($0, limit: 258) != nil }),
                       thread.questions.count <= 16 else { continue }
-                if (newest[thread.id]?.0 ?? -.infinity) < thread.timestamp { newest[thread.id] = (thread.timestamp, thread) }
+                if (newest[thread.id]?.0 ?? -.infinity) < thread.timestamp {
+                    var safe = thread
+                    if thread.state != "running" { safe.approvals = []; safe.blockingQuestions = [] }
+                    var requestIDs = Set<String>()
+                    safe.questions = thread.state == "running" ? thread.questions.filter { request in
+                        guard request.threadID == thread.id, request.turnID == thread.turnID,
+                              CodexObservationReducer.text(request.id, limit: 258) != nil,
+                              requestIDs.insert(request.id).inserted, (1...12).contains(request.questions.count),
+                              Set(request.questions.map(\.id)).count == request.questions.count,
+                              request.blocking == thread.blockingQuestions.contains(request.id) else { return false }
+                        return request.questions.allSatisfy { question in
+                            CodexObservationReducer.identifier(question.id) != nil
+                                && CodexObservationReducer.text(question.title, limit: 8192) != nil
+                                && question.options.count <= 12
+                                && question.options.allSatisfy { option in
+                                    CodexObservationReducer.text(option.label, limit: 1024) != nil
+                                        && (option.description.isEmpty || CodexObservationReducer.text(option.description, limit: 4096) != nil)
+                                }
+                        }
+                    } : []
+                    newest[thread.id] = (thread.timestamp, safe)
+                }
             }
         }
-        return newest.values.map(\.1).sorted { $0.id < $1.id }
+        // Multiple observers must share the same UI budget, not multiply it.
+        var remainingTextBytes = 64 * 1024
+        let candidates: [CodexObservedThread] = newest.values.map { $0.1 }.sorted {
+            $0.timestamp == $1.timestamp ? $0.id < $1.id : $0.timestamp > $1.timestamp
+        }
+        var bounded: [CodexObservedThread] = []
+        for var thread in candidates.prefix(CodexObservationReducer.maxThreads) {
+            var questions: [CodexQuestionRequest] = []
+            for request in thread.questions {
+                var size = 0
+                for question in request.questions {
+                    size += question.title.utf8.count
+                    for option in question.options { size += option.label.utf8.count + option.description.utf8.count }
+                }
+                guard size <= remainingTextBytes else { continue }
+                remainingTextBytes -= size
+                questions.append(request)
+            }
+            thread.questions = questions
+            bounded.append(thread)
+        }
+        return bounded.sorted { $0.id < $1.id }
     }
 
     private static func pruneExpiredProjection(_ url: URL, now: Double) {

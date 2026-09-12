@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var observedCodexThreads = Set<String>()
     private var codexApprovalIDs = Set<String>()
     private var codexQuestionIDs = Set<String>()
+    private var codexBlockingQuestionIDs = Set<String>()
     private var clockService: ClockService?
     private var routineService: RoutineService?
     private var calendarService: CalendarService?
@@ -695,10 +696,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let requestIDs = Set(requests.map { "\($0.threadID)|\($0.turnID)|\($0.id)" })
         let newApprovals = approvals.subtracting(codexApprovalIDs)
         let newQuestions = requestIDs.subtracting(codexQuestionIDs)
+        let unpreviewedBlocking = CodexAttentionPolicy.unpreviewedBlockingIDs(observations, previews: requests, previous: codexBlockingQuestionIDs)
+        codexBlockingQuestionIDs = CodexAttentionPolicy.blockingIDs(observations)
         codexApprovalIDs = approvals; codexQuestionIDs = requestIDs
         if !requests.isEmpty, codexQuestionController == nil { codexQuestionController = CodexQuestionWindowController() }
         codexQuestionController?.synchronize(requests, locale: runtime.config.ui.locale, anchor: panelController.sceneAnchor)
-        if !newApprovals.isEmpty {
+        if !newApprovals.isEmpty || !unpreviewedBlocking.isEmpty {
             if runtime.config.sound.needsInput.enabled { soundPlayer.play(id: runtime.config.sound.needsInput.soundId) }
             panelController.say(runtime.phrase(event: "agent.needsInput") ?? runtime.speechText("这里要你决定。", "This needs your decision."),
                                 event: "agent.needsInput", priority: SpeechPriority.urgent, replaceKey: "agent.needsInput")
