@@ -605,6 +605,8 @@ final class PetPanelController {
     private let overlayPanel: NSPanel
     private let petView: PetView
     private let guestView: PetView
+    private let visitDoorView = FishVisitDoorView(frame: .zero)
+    private var visitArrivalStartedAt: TimeInterval?
     private let overlayView: PetView
     private var visibleFrames = NSScreen.screens.map(\.visibleFrame)
     private var screenParametersObserver: NSObjectProtocol?
@@ -725,6 +727,8 @@ final class PetPanelController {
         panel.contentView = petView
         overlayPanel.contentView = overlayView
         petView.addSubview(guestView)
+        petView.addSubview(visitDoorView, positioned: .below, relativeTo: guestView)
+        visitDoorView.isHidden = true
         guestView.isHidden = true
         guestView.ignoresMouseInteraction = true
         panel.backgroundColor = .clear
@@ -834,6 +838,7 @@ final class PetPanelController {
     }
 
     func stop() {
+        finishVisitArrival()
         movementDisplayLink.stop()
         interactionTimer?.invalidate()
         interactionTimer = nil
@@ -1447,6 +1452,27 @@ final class PetPanelController {
         show()
     }
 
+    func setVisitCalling(_ calling: Bool) {
+        overlayView.visitCalling = calling
+    }
+
+    private func finishVisitArrival() {
+        visitArrivalStartedAt = nil
+        visitDoorView.isHidden = true
+        guestView.arrivalProgress = 1
+    }
+
+    private func updateVisitArrival(now: TimeInterval) {
+        guard let startedAt = visitArrivalStartedAt else { return }
+        let arrival = FishVisitArrival(elapsed: now - startedAt,
+                                      reducedMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+        guestView.arrivalProgress = arrival.guestProgress
+        visitDoorView.frame = guestView.frame
+        visitDoorView.characterRect = guestView.characterBounds
+        visitDoorView.arrival = arrival
+        if arrival.progress >= 1 { finishVisitArrival() }
+    }
+
     func showVisit(presence: FishPresence, friendName: String, runtime: AppRuntime) {
         let isBeginningVisit = guestView.isHidden || displayedVisitFriendName != friendName
         if !guestView.isHidden,
@@ -1471,6 +1497,11 @@ final class PetPanelController {
         guestView.motionState = .idle
         guestView.updateMotion(elapsed: 0, bobOffset: 0)
         guestView.isHidden = false
+        if isBeginningVisit {
+            visitArrivalStartedAt = ProcessInfo.processInfo.systemUptime
+            visitDoorView.isHidden = false
+            updateVisitArrival(now: visitArrivalStartedAt!)
+        }
         overlayView.visitingFriendName = friendName
         overlayView.visitingFriendStatus = presence.status
         if isBeginningVisit {
@@ -1490,6 +1521,9 @@ final class PetPanelController {
     }
 
     func endVisit() {
+        guard !guestView.isHidden || displayedVisitPresence != nil || visitArrivalStartedAt != nil
+            || overlayView.friendMessageBubbles.contains(where: { $0.speaker == .visitor }) else { return }
+        finishVisitArrival()
         visitAnnouncementWorkItem?.cancel()
         visitAnnouncementWorkItem = nil
         guestView.isHidden = true
@@ -1538,6 +1572,7 @@ final class PetPanelController {
     }
 
     private func moveOneFrame() {
+        updateVisitArrival(now: ProcessInfo.processInfo.systemUptime)
         let frameVisibleFrames = visibleFrames
         let visualBounds = currentMovementBounds
         let actualOrigin = panel.frame.origin

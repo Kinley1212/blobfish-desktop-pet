@@ -205,6 +205,7 @@ enum FishMessengerServiceError: LocalizedError {
     case rejectedUnknownSender
     case rejectedInvalidEnvelope
     case visitsUnavailable
+    case visitAlreadyInProgress
     case profileCreationInProgress
 
     var errorDescription: String? {
@@ -217,6 +218,8 @@ enum FishMessengerServiceError: LocalizedError {
             return "Fish messenger discarded a message that failed authentication."
         case .visitsUnavailable:
             return "Fish visits are disabled or this contact is muted."
+        case .visitAlreadyInProgress:
+            return "A visit or call is already in progress. End it before calling another friend."
         case .profileCreationInProgress:
             return "A fish identity is already being created."
         }
@@ -338,6 +341,8 @@ final class FishMessengerService: NSObject {
     private(set) var preferences: FishFriendPreferences
     private(set) var records: [FishMessageRecord]
     private(set) var activeVisitContactID: UUID?
+    private(set) var pendingVisit: FishPendingVisit?
+    private var pendingVisitTimer: Timer?
     private var activeVisitLastSeenAt: Date?
     private var lastVisitHeartbeatSentAt: Date?
     private var pollTimer: Timer?
@@ -348,6 +353,7 @@ final class FishMessengerService: NSObject {
     private var deferredErrors: [Error] = []
     var onMessage: ((FishMessage, FishContact) -> Void)?
     var onVisitTimedOut: ((FishContact) -> Void)?
+    var onVisitConnectionTimedOut: (() -> Void)?
     var onError: ((Error) -> Void)? {
         didSet { flushDeferredErrors() }
     }
@@ -433,6 +439,7 @@ final class FishMessengerService: NSObject {
         }
         preferences = value
         if !value.visitsEnabled {
+            setPendingVisit(nil)
             activeVisitContactID = nil
             activeVisitLastSeenAt = nil
             lastVisitHeartbeatSentAt = nil
@@ -505,6 +512,9 @@ final class FishMessengerService: NSObject {
         profile = next
         profileState = .available
         profileDiagnostic = nil
+        if pendingVisit?.contactID == contact.id, contact.blocked || contact.muted {
+            setPendingVisit(nil)
+        }
         if activeVisitContactID == contact.id, contact.blocked || contact.muted {
             activeVisitContactID = nil
             activeVisitLastSeenAt = nil
@@ -595,6 +605,12 @@ final class FishMessengerService: NSObject {
             interaction: interaction
         )
         let envelope = try FishMessengerIdentity(rawPrivateKey: privateKey).encrypt(message, for: contact.invite.publicKey)
+        if kind == .visitStart {
+            guard pendingVisit == nil, activeVisitContactID == nil else { throw FishMessengerServiceError.visitAlreadyInProgress }
+            setPendingVisit(FishPendingVisit(requestID: message.id, contactID: contactID, startedAt: Date()))
+        } else if kind == .visitEnd, pendingVisit?.contactID == contactID {
+            setPendingVisit(nil)
+        }
         var outgoingRecord = FishMessageRecord(
             id: message.id, contactID: contact.id, direction: .outgoing, sentAt: message.sentAt,
             senderName: profile.displayName, text: message.text, kind: kind, isRead: true,
@@ -616,6 +632,7 @@ final class FishMessengerService: NSObject {
                 outgoingRecord.deliveryState = current
             } else {
                 outgoingRecord.deliveryState = .failed
+                if pendingVisit?.requestID == message.id { setPendingVisit(nil) }
                 _ = updateRecord(outgoingRecord, operation: "outgoing message failure")
                 notifyState()
                 throw error
@@ -623,7 +640,8 @@ final class FishMessengerService: NSObject {
         }
         let historyPersisted = updateRecord(outgoingRecord, operation: "outgoing message")
         let previousActiveVisitContactID = activeVisitContactID
-        activeVisitContactID = FishVisitPolicy.activeContactID(
+        // A successful relay upload is not a peer handshake.
+        activeVisitContactID = (kind == .visitStart || kind == .visitAccept) ? activeVisitContactID : FishVisitPolicy.activeContactID(
             after: kind,
             from: contact,
             current: activeVisitContactID,
@@ -639,8 +657,27 @@ final class FishMessengerService: NSObject {
         return SendResult(record: outgoingRecord, historyPersisted: historyPersisted)
     }
 
+    private func setPendingVisit(_ value: FishPendingVisit?) {
+        pendingVisitTimer?.invalidate()
+        pendingVisitTimer = nil
+        pendingVisit = value
+        guard let value else { return }
+        let remaining = max(0.01, FishPendingVisit.timeout - Date().timeIntervalSince(value.startedAt))
+        let timer = Timer(timeInterval: remaining, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.pendingVisit?.requestID == value.requestID else { return }
+                self.setPendingVisit(nil)
+                self.notifyState()
+                self.onVisitConnectionTimedOut?()
+            }
+        }
+        pendingVisitTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
     func endActiveVisitForShutdown() async {
-        guard let contactID = activeVisitContactID else { return }
+        guard let contactID = activeVisitContactID ?? pendingVisit?.contactID else { return }
+        setPendingVisit(nil)
         defer {
             activeVisitContactID = nil
             activeVisitLastSeenAt = nil
@@ -718,6 +755,9 @@ final class FishMessengerService: NSObject {
             $0.id == recordID && $0.direction == .outgoing && $0.deliveryState == .failed
         }) else { throw FishMessengerError.invalidMessage }
         var record = records[index]
+        if record.kind == .visitStart {
+            return try await send(text: record.text, to: record.contactID, kind: .visitStart, presence: record.presence)
+        }
         guard let contact = profile.contacts.first(where: { $0.id == record.contactID }),
               !contact.blocked,
               let privateKey = Data(base64Encoded: profile.privateKey) else {
@@ -770,9 +810,11 @@ final class FishMessengerService: NSObject {
     }
 
     func stop() {
+        setPendingVisit(nil)
         pollingRequested = false
         pollTimer?.invalidate()
         pollTimer = nil
+        notifyState()
     }
 
     @objc private func pollTimerFired() { Task { await poll() } }
@@ -800,6 +842,9 @@ final class FishMessengerService: NSObject {
             let previousRecords = records
             let previousProfile = profile
             let previousActiveVisitContactID = activeVisitContactID
+            let previousPendingVisit = pendingVisit
+            let previousVisitLastSeenAt = activeVisitLastSeenAt
+            let previousHeartbeatSentAt = lastVisitHeartbeatSentAt
             var incomingPersistenceSucceeded = true
 
             for record in relayRecords {
@@ -833,6 +878,21 @@ final class FishMessengerService: NSObject {
                 guard pendingMessageIDs.insert(message.id).inserted else { continue }
 
                 let kind = message.kind ?? .text
+                if kind == .visitStart, !FishPendingVisit.invitationIsFresh(sentAt: message.sentAt, now: Date()) {
+                    acknowledged.append(record.id)
+                    continue
+                }
+                if kind == .visitStart,
+                   let occupied = activeVisitContactID ?? pendingVisit?.contactID, occupied != contact.id {
+                    acknowledged.append(record.id)
+                    continue
+                }
+                if kind == .visitAccept {
+                    guard pendingVisit?.accepts(contactID: contact.id, replyTo: message.replyTo, sentAt: message.sentAt, now: Date()) == true else {
+                        acknowledged.append(record.id)
+                        continue
+                    }
+                }
                 if kind == .status, message.text == "visit-heartbeat" {
                     if activeVisitContactID == contact.id {
                         activeVisitLastSeenAt = Date()
@@ -881,6 +941,10 @@ final class FishMessengerService: NSObject {
                     current: activeVisitContactID,
                     preferences: preferences
                 )
+                if pendingVisit?.contactID == contact.id,
+                   kind == .visitAccept || kind == .visitStart || kind == .visitEnd {
+                    setPendingVisit(nil)
+                }
                 if nextActiveContactID != activeVisitContactID {
                     let previousContactID = activeVisitContactID
                     activeVisitContactID = nextActiveContactID
@@ -918,6 +982,9 @@ final class FishMessengerService: NSObject {
                     records = previousRecords
                     profile = previousProfile
                     activeVisitContactID = previousActiveVisitContactID
+                    setPendingVisit(previousPendingVisit)
+                    activeVisitLastSeenAt = previousVisitLastSeenAt
+                    lastVisitHeartbeatSentAt = previousHeartbeatSentAt
                     deliveries.removeAll()
                     deliveryReceipts.removeAll()
                 }

@@ -113,6 +113,9 @@ enum SelfCheck {
             ("fish composer chooses an explicit recipient", fishComposerChoosesExplicitRecipient),
             ("fish stationery preserves multiline drafts and screen bounds", fishStationeryContract),
             ("fish composer Return sends and Command Return inserts newline", fishComposeReturnKeys),
+            ("fish composer placeholder follows native text and IME composition", { MainActor.assumeIsolated { fishComposePlaceholderFollowsIME() } }),
+            ("visit handshake rejects stale and unrelated acceptances", visitHandshakeRejectsStaleResponses),
+            ("visit door sequence preserves movement bounds and reduced motion", visitArrivalPreservesMovementBounds),
             ("task monitor drops callbacks after stop", taskMonitorDropsCallbacksAfterStop),
             ("task monitor skips disabled providers and duplicate snapshots", taskMonitorSkipsDisabledProvidersAndDuplicates),
             ("bounded reminder history keeps recent deduplication", boundedReminderHistoryKeepsRecentDeduplication),
@@ -264,6 +267,41 @@ enum SelfCheck {
         }
         return FishComposeReturnAction.resolve(keyCode: 0, modifiers: [], hasMarkedText: false, isRepeat: false) == .system
             && FishComposeReturnAction.resolve(keyCode: 36, modifiers: .capsLock, hasMarkedText: false, isRepeat: false) == .send
+    }
+
+    @MainActor private static func fishComposePlaceholderFollowsIME() -> Bool {
+        let editor = FishComposeTextView(frame: NSRect(x: 0, y: 0, width: 224, height: 58))
+        editor.isRichText = false
+        editor.placeholder = "说点什么…"
+        func check(_ condition: Bool, _ step: String) -> Bool {
+            if !condition { print("Placeholder check failed at \(step): marked=\(editor.hasMarkedText()), hint=\(editor.shouldShowPlaceholder), redraw=\(editor.needsDisplay), text=\(editor.string.debugDescription)") }
+            return condition
+        }
+        guard editor.shouldShowPlaceholder else { return false }
+        let automaticRange = NSRange(location: NSNotFound, length: 0)
+        // This editor has no window: AppKit can discard drawing invalidations.
+        // Exercise real IME state here; redraw hooks have source-contract checks.
+        editor.setMarkedText("ni", selectedRange: NSRange(location: 2, length: 0), replacementRange: automaticRange)
+        guard check(editor.hasMarkedText() && !editor.shouldShowPlaceholder, "preedit") else { return false }
+        editor.insertText("你", replacementRange: automaticRange)
+        guard check(editor.string == "你" && !editor.hasMarkedText() && !editor.shouldShowPlaceholder, "commit") else { return false }
+        editor.selectAll(nil)
+        editor.deleteBackward(nil)
+        guard check(editor.string.isEmpty && editor.shouldShowPlaceholder, "delete") else { return false }
+        editor.setMarkedText(NSAttributedString(string: "hao"), selectedRange: NSRange(location: 3, length: 0), replacementRange: automaticRange)
+        guard !editor.shouldShowPlaceholder else { return false }
+        // Cancelling preedit must restore the hint without leaving ghost text.
+        editor.insertText("", replacementRange: automaticRange)
+        guard check(editor.string.isEmpty && !editor.hasMarkedText() && editor.shouldShowPlaceholder, "cancel") else { return false }
+        editor.setMarkedText("好", selectedRange: NSRange(location: 1, length: 0), replacementRange: automaticRange)
+        editor.unmarkText()
+        guard check(!editor.hasMarkedText() && !editor.shouldShowPlaceholder, "unmark") else { return false }
+        editor.string = " \n"
+        guard !editor.shouldShowPlaceholder else { return false }
+        editor.string = "已保存的草稿"
+        guard !editor.shouldShowPlaceholder else { return false }
+        editor.string = ""
+        return editor.shouldShowPlaceholder
     }
 
     private static func fishStationeryContract() throws -> Bool {

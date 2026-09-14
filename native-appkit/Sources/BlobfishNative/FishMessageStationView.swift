@@ -74,7 +74,7 @@ struct FishMessageComposeView: View {
                     .accessibilityLabel(interaction.title(isEnglish: model.isEnglish))
                 }
                 Button { model.toggleVisit() } label: {
-                    Image(systemName: model.isActiveVisit ? "house.fill" : "door.left.hand.open")
+                    Image(systemName: model.isWaitingForVisit ? "phone.down.fill" : model.isActiveVisit ? "house.fill" : "door.left.hand.open")
                         .frame(width: 22, height: 22).contentShape(Rectangle())
                 }
                 .help(visitTitle).accessibilityLabel(visitTitle)
@@ -85,7 +85,7 @@ struct FishMessageComposeView: View {
     }
 
     private var visitTitle: String {
-        model.isChangingVisit ? t("處理中…", "Please wait…")
+        model.isWaitingForVisit ? t("取消呼叫", "Cancel call") : model.isChangingVisit ? t("處理中…", "Please wait…")
             : (model.isActiveVisit ? t("回自己家", "Head home") : t("去串門", "Visit friend"))
     }
 
@@ -106,17 +106,11 @@ struct FishMessageComposeView: View {
     }
 
     private var editor: some View {
-        ZStack(alignment: .topLeading) {
-            FishComposeEditor(text: $model.draft, ink: NSColor(palette.ink),
-                              accessibilityLabel: t("傳話內容", "Message"),
-                              onSend: sendMessageSafely)
-            if model.draft.isEmpty {
-                Text(t("說點什麼…", "Say something…"))
-                    .font(.system(size: 13)).foregroundStyle(palette.muted)
-                    .padding(.leading, 5).padding(.top, 8)
-                    .allowsHitTesting(false).accessibilityHidden(true)
-            }
-        }
+        FishComposeEditor(text: $model.draft, ink: NSColor(palette.ink),
+                          placeholder: t("說點什麼…", "Say something…"),
+                          placeholderColor: NSColor(palette.muted),
+                          accessibilityLabel: t("傳話內容", "Message"),
+                          onSend: sendMessageSafely)
         .background(palette.paper, in: RoundedRectangle(cornerRadius: 7))
         .clipShape(RoundedRectangle(cornerRadius: 7))
     }

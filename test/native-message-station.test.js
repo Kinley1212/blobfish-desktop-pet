@@ -39,6 +39,20 @@ test('stationery editor is multiline and guards IME composition before sending',
   assert.match(view, /disabled\(model.sendDisabled\)/);
 });
 
+test('both message inputs delegate placeholder visibility to the native IME buffer', () => {
+  const editor = fs.readFileSync(path.join(root, 'FishComposeEditor.swift'), 'utf8');
+  assert.match(editor, /var shouldShowPlaceholder: Bool \{ string.isEmpty && !hasMarkedText\(\) \}/);
+  assert.match(editor, /guard shouldShowPlaceholder else \{ return \}/);
+  for (const input of [view, controller]) {
+    assert.match(input, /FishComposeEditor\(text: \$model.draft, ink:[\s\S]*?placeholder:/);
+    assert.doesNotMatch(input, /if model.draft.isEmpty \{\s*Text\(/);
+  }
+  assert.match(editor, /override func setMarkedText\([\s\S]*?super.setMarkedText\([\s\S]*?needsDisplay = true/);
+  assert.match(editor, /override func unmarkText\(\)[\s\S]*?super.unmarkText\(\)[\s\S]*?needsDisplay = true/);
+  assert.match(editor, /override func didChangeText\(\)[\s\S]*?super.didChangeText\(\)[\s\S]*?needsDisplay = true/);
+  assert.match(editor, /if editor.string != text, !editor.hasMarkedText\(\) \{[\s\S]*?editor.string = text[\s\S]*?editor.needsDisplay = true/);
+});
+
 test('stationery pairs paper and ink in both appearances without outlined art', () => {
   for (const token of ['backdrop', 'paper', 'ink', 'muted']) {
     assert.match(view, new RegExp('var ' + token + ': Color \\{ dark \\?'));

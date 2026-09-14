@@ -16,6 +16,36 @@ enum FishComposeReturnAction {
 
 final class FishComposeTextView: NSTextView {
     var onSend: () -> Void = {}
+    var placeholder = "" { didSet { needsDisplay = true } }
+    var placeholderColor: NSColor = .placeholderTextColor { didSet { needsDisplay = true } }
+
+    // The native buffer sees IME preedit before the SwiftUI binding does.
+    // Keep the hint in this same surface so marked text never overlaps it.
+    var shouldShowPlaceholder: Bool { string.isEmpty && !hasMarkedText() }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard shouldShowPlaceholder else { return }
+        (placeholder as NSString).draw(
+            at: NSPoint(x: textContainerOrigin.x + (textContainer?.lineFragmentPadding ?? 5), y: textContainerOrigin.y),
+            withAttributes: [.font: font ?? NSFont.systemFont(ofSize: 13), .foregroundColor: placeholderColor]
+        )
+    }
+
+    override func didChangeText() {
+        super.didChangeText()
+        needsDisplay = true
+    }
+
+    override func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+        super.setMarkedText(string, selectedRange: selectedRange, replacementRange: replacementRange)
+        needsDisplay = true
+    }
+
+    override func unmarkText() {
+        super.unmarkText()
+        needsDisplay = true
+    }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
@@ -56,6 +86,8 @@ struct FishComposeEditor: NSViewRepresentable {
     @Binding var text: String
     @Environment(\.isEnabled) private var isEnabled
     let ink: NSColor
+    let placeholder: String
+    let placeholderColor: NSColor
     let accessibilityLabel: String
     let onSend: () -> Void
 
@@ -96,6 +128,7 @@ struct FishComposeEditor: NSViewRepresentable {
         if editor.string != text, !editor.hasMarkedText() {
             editor.string = text
             editor.undoManager?.removeAllActions()
+            editor.needsDisplay = true
         }
     }
 
@@ -103,6 +136,8 @@ struct FishComposeEditor: NSViewRepresentable {
         editor.isEditable = isEnabled
         editor.textColor = ink
         editor.insertionPointColor = ink
+        editor.placeholder = placeholder
+        editor.placeholderColor = placeholderColor
         editor.setAccessibilityLabel(accessibilityLabel)
         editor.onSend = onSend
     }

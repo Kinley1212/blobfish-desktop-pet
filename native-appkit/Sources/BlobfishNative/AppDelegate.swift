@@ -191,6 +191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             )
             self.updateMessengerMenu(unreadCount: messenger.unreadCount)
             self.refreshMessengerStatusAppearance(using: messenger)
+            self.panelController.setVisitCalling(messenger.pendingVisit != nil)
             if let contactID = messenger.activeVisitContactID,
                let contact = messenger.profile?.contacts.first(where: { $0.id == contactID }),
                let presence = contact.lastPresence {
@@ -229,6 +230,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 replaceKey: "messenger.visitOffline"
             )
         }
+        messenger.onVisitConnectionTimedOut = { [weak self] in
+            guard let self else { return }
+            self.panelController.say(
+                self.runtime.speechText("这次没有接通，晚点再打给鱼友吧。", "No answer this time. Try calling your fish friend later."),
+                event: "messenger.error", duration: 4.5,
+                priority: SpeechPriority.messenger, replaceKey: "messenger.visitConnecting"
+            )
+        }
         messenger.onMessage = { [weak self, weak messenger] message, contact in
             guard let self, let messenger, !contact.muted else { return }
             let kind = message.kind ?? .text
@@ -244,7 +253,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                         ?? (self.runtime.speechText("我來啦！", "I'm here!"))
                     do {
                         let result = try await messenger.send(
-                            text: reply, to: contact.id, kind: .visitAccept,
+                            text: reply, to: contact.id, replyTo: message.id, kind: .visitAccept,
                             presence: self.currentFishPresence()
                         )
                         if messenger.preferences.currentStatus != .doNotDisturb,
@@ -348,7 +357,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                         replaceKey: "messenger.persistenceError"
                     )
                     return
-                case .visitsUnavailable, .profileCreationInProgress:
+                case .visitsUnavailable, .visitAlreadyInProgress, .profileCreationInProgress:
                     return
                 }
             }
@@ -472,7 +481,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @MainActor func requestTermination() {
-        switch terminationGate.request(needsCleanup: messengerService?.activeVisitContactID != nil) {
+        switch terminationGate.request(needsCleanup: messengerService?.activeVisitContactID != nil || messengerService?.pendingVisit != nil) {
         case .terminateNow: NSApp.terminate(nil); return
         case .wait: return
         case .prepare: break

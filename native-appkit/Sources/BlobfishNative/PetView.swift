@@ -386,6 +386,10 @@ final class PetView: NSView, CALayerDelegate {
         }
     }
     var visitingFriendName: String? { didSet { if oldValue != visitingFriendName { invalidateOverlay() } } }
+    var visitCalling = false { didSet { if oldValue != visitCalling { invalidateOverlay() } } }
+    private lazy var visitCallImage = NSImage(systemSymbolName: "phone.fill", accessibilityDescription: nil)?
+        .withSymbolConfiguration(.init(paletteColors: [NSColor(calibratedRed: 0.63, green: 0.24, blue: 0.4, alpha: 1)]))
+    var arrivalProgress: CGFloat = 1 { didSet { if oldValue != arrivalProgress { updateArtworkTransform() } } }
     var visitingFriendStatus: FishUserStatus? { didSet { if oldValue != visitingFriendStatus { invalidateOverlay() } } }
     var visitAnnouncementFriendName: String? {
         didSet { if oldValue != visitAnnouncementFriendName { invalidateOverlay() } }
@@ -755,8 +759,8 @@ final class PetView: NSView, CALayerDelegate {
         transform = CATransform3DRotate(transform, motion.rotation * .pi / 180, 0, 0, 1)
         transform = CATransform3DScale(
             transform,
-            geometry.scaleX * motion.scaleX * speaking.scaleX * (direction < 0 ? -1 : 1),
-            geometry.scaleY * motion.scaleY * speaking.scaleY,
+            geometry.scaleX * motion.scaleX * speaking.scaleX * (direction < 0 ? -1 : 1) * (0.45 + 0.55 * arrivalProgress),
+            geometry.scaleY * motion.scaleY * speaking.scaleY * (0.45 + 0.55 * arrivalProgress),
             1
         )
         CATransaction.begin()
@@ -767,6 +771,7 @@ final class PetView: NSView, CALayerDelegate {
             y: art.midY + geometry.offsetY + visualBobOffset
         )
         artworkLayer.transform = transform
+        artworkLayer.opacity = Float(arrivalProgress)
         CATransaction.commit()
     }
 
@@ -816,6 +821,7 @@ final class PetView: NSView, CALayerDelegate {
         drawVisitStatus(in: layout)
         drawFriendMessageBubbles(in: layout)
         drawUnreadBadge()
+        drawVisitCalling()
     }
 
     private func currentSceneLayout() -> PetSceneLayout {
@@ -1915,6 +1921,20 @@ final class PetView: NSView, CALayerDelegate {
             in: rect.insetBy(dx: 9, dy: 5),
             withAttributes: fadedAttributes
         )
+    }
+
+    private func drawVisitCalling() {
+        guard visitCalling else { return }
+        let owner = sceneCharacterBounds ?? characterBounds
+        // Keep the call above the mailbox, inside the existing scene surface.
+        let rect = NSRect(x: min(bounds.maxX - 30, max(bounds.minX + 2, owner.maxX - 18)),
+                          y: min(bounds.maxY - 30, max(bounds.minY + 2, owner.maxY + (unreadMessageCount > 0 ? 42 : 8))),
+                          width: 28, height: 28)
+        NSColor(calibratedRed: 1, green: 0.86, blue: 0.91, alpha: 0.98).setFill()
+        NSBezierPath(roundedRect: rect, xRadius: 11, yRadius: 11).fill()
+        visitCallImage?.draw(in: rect.insetBy(dx: 7, dy: 7))
+        NSColor(calibratedRed: 0.83, green: 0.43, blue: 0.57, alpha: 1).setFill()
+        NSBezierPath(ovalIn: NSRect(x: rect.maxX - 7, y: rect.maxY - 9, width: 3, height: 6)).fill()
     }
 
     private func drawVisitStatus(in layout: PetSceneLayout) {

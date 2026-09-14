@@ -165,6 +165,10 @@ final class FishChatViewModel: ObservableObject {
         messengerService.activeVisitContactID == contactID
     }
 
+    func isWaitingForVisit(_ contactID: UUID) -> Bool {
+        messengerService.pendingVisit?.contactID == contactID
+    }
+
     func refresh() {
         contacts = messengerService.profile?.contacts ?? []
         records = messengerService.records
@@ -227,7 +231,7 @@ final class FishChatViewModel: ObservableObject {
 
     func toggleVisit() {
         guard let contact = selectedContact, !contact.blocked, !isSending else { return }
-        if isActiveVisit(contact.id) {
+        if isActiveVisit(contact.id) || messengerService.pendingVisit?.contactID == contact.id {
             let text = visitPhraseProvider(
                 "messenger.visitEnd",
                 isEnglish ? "See you next time." : "下次再玩。"
@@ -438,13 +442,13 @@ struct FishChatView: View {
             Button {
                 model.toggleVisit()
             } label: {
-                Image(systemName: model.isActiveVisit(contact.id) ? "house.fill" : "door.left.hand.open")
+                Image(systemName: model.isWaitingForVisit(contact.id) ? "phone.down.fill" : model.isActiveVisit(contact.id) ? "house.fill" : "door.left.hand.open")
                     .font(.system(size: 14)).frame(width: 28, height: 28)
                     .background(palette.paper, in: RoundedRectangle(cornerRadius: 9))
             }
             .buttonStyle(.plain)
-            .help(model.isActiveVisit(contact.id) ? t("回自己家", "Head home") : t("去串門", "Visit friend"))
-            .accessibilityLabel(model.isActiveVisit(contact.id) ? t("回自己家", "Head home") : t("去串門", "Visit friend"))
+            .help(model.isWaitingForVisit(contact.id) ? t("取消呼叫", "Cancel call") : model.isActiveVisit(contact.id) ? t("回自己家", "Head home") : t("去串門", "Visit friend"))
+            .accessibilityLabel(model.isWaitingForVisit(contact.id) ? t("取消呼叫", "Cancel call") : model.isActiveVisit(contact.id) ? t("回自己家", "Head home") : t("去串門", "Visit friend"))
             .disabled(model.visitButtonDisabled(for: contact))
         }
         .padding(.horizontal, 12)
@@ -489,21 +493,15 @@ struct FishChatView: View {
 
     private var replyComposer: some View {
         VStack(spacing: 4) {
-            ZStack(alignment: .topLeading) {
-                FishComposeEditor(text: $model.draft, ink: NSColor(palette.ink),
-                                  accessibilityLabel: t("傳話內容", "Message"), onSend: sendReply)
-                    .id(model.selectedContactID)
-                    .disabled(model.selectedContact?.blocked != false)
-                if model.draft.isEmpty {
-                    Text(t("寫給魚友的一句話…", "A little note for your fish…"))
-                        .font(.system(size: 12)).foregroundStyle(palette.muted)
-                        .padding(.leading, 5).padding(.top, 8)
-                        .allowsHitTesting(false).accessibilityHidden(true)
-                }
-            }
-            .frame(height: 44)
-            .background(palette.paper, in: RoundedRectangle(cornerRadius: 8))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            FishComposeEditor(text: $model.draft, ink: NSColor(palette.ink),
+                              placeholder: t("寫給魚友的一句話…", "A little note for your fish…"),
+                              placeholderColor: NSColor(palette.muted),
+                              accessibilityLabel: t("傳話內容", "Message"), onSend: sendReply)
+                .id(model.selectedContactID)
+                .disabled(model.selectedContact?.blocked != false)
+                .frame(height: 44)
+                .background(palette.paper, in: RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             HStack(spacing: 6) {
                 Text(model.draftByteCount > FishMessage.maximumTextBytes
                      ? "\(model.draftByteCount)/\(FishMessage.maximumTextBytes) UTF-8"
@@ -564,6 +562,7 @@ final class FishMessageComposeViewModel: ObservableObject {
     @Published private(set) var displayedUnreadMessages: [FishMessageRecord] = []
     @Published private(set) var isChangingVisit = false
     @Published private(set) var activeVisitContactID: UUID?
+    @Published private(set) var pendingVisitContactID: UUID?
     @Published private(set) var locale: String
     private var lastSentRecordID: UUID?
 
@@ -583,10 +582,12 @@ final class FishMessageComposeViewModel: ObservableObject {
         self.presenceProvider = presenceProvider
         self.onSent = onSent
         self.activeVisitContactID = messengerService.activeVisitContactID
+        self.pendingVisitContactID = messengerService.pendingVisit?.contactID
         refreshContacts(preferredContactID: nil)
         messengerService.addStateObserver { [weak self] in
             guard let self else { return }
             self.activeVisitContactID = self.messengerService.activeVisitContactID
+            self.pendingVisitContactID = self.messengerService.pendingVisit?.contactID
             self.refreshContacts(preferredContactID: self.selectedContactID)
             if self.isPresented { self.captureAndMarkUnread() }
             self.refreshDeliveryStatus()
@@ -620,9 +621,13 @@ final class FishMessageComposeViewModel: ObservableObject {
         selectedContactID != nil && activeVisitContactID == selectedContactID
     }
 
+    var isWaitingForVisit: Bool {
+        selectedContactID != nil && pendingVisitContactID == selectedContactID
+    }
+
     func toggleVisit() {
         guard let contact = selectedContact, !isSending else { return }
-        let ending = isActiveVisit
+        let ending = isActiveVisit || isWaitingForVisit
         let text = ending
             ? (isEnglish ? "See you next time." : "下次再玩。")
             : (isEnglish ? "Coming over to visit!" : "來串門啦！")
