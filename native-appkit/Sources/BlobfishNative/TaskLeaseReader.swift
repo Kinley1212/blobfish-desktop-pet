@@ -16,7 +16,10 @@ struct TaskLeaseReader {
 
     let directoryURL: URL
 
-    func read(nowMilliseconds: Double = Date().timeIntervalSince1970 * 1_000) throws -> [TaskLease] {
+    func read(nowMilliseconds: Double = Date().timeIntervalSince1970 * 1_000,
+              cache: PrivateFileDecodeCache<TaskLease>? = nil) throws -> [TaskLease] {
+        var retained = Set<URL>()
+        defer { cache?.retainOnly(retained) }
         guard FileManager.default.fileExists(atPath: directoryURL.path) else { return [] }
         let directoryInfo = try metadata(atPath: directoryURL.path)
         guard isType(directoryInfo.st_mode, S_IFDIR),
@@ -43,7 +46,14 @@ struct TaskLeaseReader {
 
         var leases: [TaskLease] = []
         for (url, _) in candidates {
-            if let lease = try readLease(at: url, nowMilliseconds: nowMilliseconds) {
+            let decoded: TaskLease?
+            if let cache {
+                decoded = try cache.load(url, maximumFileBytes: Self.maximumFileBytes) { try readLease(at: url) }
+            } else {
+                decoded = try readLease(at: url)
+            }
+            if let lease = decoded, isValid(lease, nowMilliseconds: nowMilliseconds) {
+                retained.insert(url)
                 leases.append(lease)
                 if leases.count >= Self.maximumLeaseCount { break }
             }
@@ -51,8 +61,8 @@ struct TaskLeaseReader {
         return leases.sorted { $0.timestamp < $1.timestamp }
     }
 
-    private func readLease(at url: URL, nowMilliseconds: Double) throws -> TaskLease? {
-        let descriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW)
+    private func readLease(at url: URL) throws -> TaskLease? {
+        let descriptor = Darwin.open(url.path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
         if descriptor < 0 {
             if errno == ENOENT || errno == ELOOP { return nil }
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
@@ -83,9 +93,7 @@ struct TaskLeaseReader {
               sameFile(finalInfo, pathInfo),
               isType(pathInfo.st_mode, S_IFREG) else { return nil }
 
-        guard let decoded = try? JSONDecoder().decode(TaskLease.self, from: data),
-              isValid(decoded, nowMilliseconds: nowMilliseconds) else { return nil }
-        return decoded
+        return try? JSONDecoder().decode(TaskLease.self, from: data)
     }
 
     private func isValid(_ lease: TaskLease, nowMilliseconds: Double) -> Bool {

@@ -37,6 +37,8 @@ final class TaskMonitor {
     var enabledProviders = Set(["codex", "claude-code"])
 
     private let reader: TaskLeaseReader
+    private let leaseCache = PrivateFileDecodeCache<TaskLease>(maximumEntries: 256, maximumSourceBytes: 256 * 1024)
+    private let observationCache = PrivateFileDecodeCache<CodexObservationSnapshot>(maximumEntries: 32, maximumSourceBytes: 512 * 1024)
     private let observationDirectory: URL
     private let queue = DispatchQueue(label: "com.blobfish.native.task-monitor", qos: .utility)
     private var timer: Timer?
@@ -70,6 +72,10 @@ final class TaskMonitor {
         timer?.invalidate()
         timer = nil
         polling = false
+        queue.async { [weak self] in
+            self?.leaseCache.removeAll()
+            self?.observationCache.removeAll()
+        }
     }
 
     private func poll() {
@@ -81,6 +87,8 @@ final class TaskMonitor {
         let shouldShowQuestions = showQuestions
         queue.async { [weak self] in
             guard let self else { return }
+            if providers.isEmpty { self.leaseCache.removeAll() }
+            if !providers.contains("codex") { self.observationCache.removeAll() }
             let now = Date().timeIntervalSince1970 * 1_000
             let snapshot: TaskSnapshot
             let errorDescription: String?
@@ -91,14 +99,24 @@ final class TaskMonitor {
                     includeTitles: shouldIncludeTitles,
                     nowMilliseconds: now,
                     readLeases: {
-                        let observed = providers.contains("codex") ? CodexObservationFiles.load(directory: self.observationDirectory, now: now) : []
+                        var observationURLs = Set<URL>()
+                        defer { self.observationCache.retainOnly(observationURLs) }
+                        let observed = providers.contains("codex") ? CodexObservationFiles.load(directory: self.observationDirectory, now: now) { url in
+                            let snapshot = self.observationCache.load(url, maximumFileBytes: CodexObservationFiles.maximumBytes) {
+                                guard let data = CodexObservationFiles.read(url), data.count <= CodexObservationFiles.maximumBytes else { return nil }
+                                return try? JSONDecoder().decode(CodexObservationSnapshot.self, from: data)
+                            }
+                            if let snapshot, snapshot.timestamp.isFinite, now - snapshot.timestamp <= 6000,
+                               snapshot.timestamp <= now + 1000 { observationURLs.insert(url) }
+                            return snapshot
+                        } : []
                         observations = observed.map { value in
                             var value = value
                             if !shouldShowQuestions { value.questions = [] }
                             return value
                         }
                         return CodexTaskProjection.merge(
-                            leases: try self.reader.read(nowMilliseconds: now), observations: observed, now: now
+                            leases: try self.reader.read(nowMilliseconds: now, cache: self.leaseCache), observations: observed, now: now
                         )
                     }
                 )

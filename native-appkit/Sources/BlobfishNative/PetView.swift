@@ -386,10 +386,12 @@ final class PetView: NSView, CALayerDelegate {
         }
     }
     var visitingFriendName: String? { didSet { if oldValue != visitingFriendName { invalidateOverlay() } } }
-    var visitCalling = false { didSet { if oldValue != visitCalling { invalidateOverlay() } } }
-    private lazy var visitCallImage = NSImage(systemSymbolName: "phone.fill", accessibilityDescription: nil)?
-        .withSymbolConfiguration(.init(paletteColors: [NSColor(calibratedRed: 0.63, green: 0.24, blue: 0.4, alpha: 1)]))
+    var visitCalling = false {
+        didSet { if oldValue != visitCalling { updateVisitCallMotion(reducedMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion) } }
+    }
+    private let visitCallLayer = CALayer()
     var arrivalProgress: CGFloat = 1 { didSet { if oldValue != arrivalProgress { updateArtworkTransform() } } }
+    var arrivalOffset = NSPoint.zero { didSet { if oldValue != arrivalOffset { updateArtworkTransform() } } }
     var visitingFriendStatus: FishUserStatus? { didSet { if oldValue != visitingFriendStatus { invalidateOverlay() } } }
     var visitAnnouncementFriendName: String? {
         didSet { if oldValue != visitAnnouncementFriendName { invalidateOverlay() } }
@@ -479,8 +481,6 @@ final class PetView: NSView, CALayerDelegate {
     var timerText: String? {
         didSet {
             guard oldValue != timerText else { return }
-            rebuildArtworkLayer()
-            updateArtworkTransform()
             invalidateOverlay()
         }
     }
@@ -607,21 +607,25 @@ final class PetView: NSView, CALayerDelegate {
     private var accessoryImages: [(AccessoryPack, NSImage)] = []
     private var messageIndicatorImage: NSImage?
     private let artworkLayer = CALayer()
+    private var artworkUpdateDepth = 0
+    private var artworkTransformPending = false
+    private var artworkRebuildPending = false
     private let overlayLayer = CALayer()
     private var artworkBackingScale: CGFloat = 0
     private var artworkCanvasSize = NSSize.zero
     private var effect: PetVisualEffect?
     private var effectPhase: CGFloat = 0
-    private var effectTimer: Timer?
-    private var completionTimer: Timer?
+    private var effectTimeline: PetAnimationTimeline?
+    private var completionTimeline: PetAnimationTimeline?
     private var completionPhase: CGFloat?
     private var completionAll = false
     private var performanceFromSample: PerformanceSample?
     private var performanceAnimationStartedAt: TimeInterval?
     private var performanceAnimationElapsed = PerformancePanelAnimation.duration
-    private var clockAnimationTimer: Timer?
+    private var clockAnimationStartedAt: TimeInterval?
     private var clockShakePhase: CGFloat = 0
-    private var alarmClockTransitionTimer: Timer?
+    private var alarmClockTransitionTimeline: PetAnimationTimeline?
+    private var lastTimedAnimationFrame: Int?
     private var alarmClockTransitionPhase: CGFloat?
     private var alarmClockAppearing = true
     private var alarmClockRenderVisible = false
@@ -677,6 +681,9 @@ final class PetView: NSView, CALayerDelegate {
             overlayLayer.delegate = self
             overlayLayer.masksToBounds = false
             rootLayer.addSublayer(overlayLayer)
+            visitCallLayer.name = "visit-call"
+            visitCallLayer.isHidden = true
+            rootLayer.addSublayer(visitCallLayer)
         }
         updateLayerGeometry()
         if contentMode.drawsArtwork { scheduleBlink() }
@@ -712,6 +719,10 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func rebuildArtworkLayer() {
+        if artworkUpdateDepth > 0 {
+            artworkRebuildPending = true
+            return
+        }
         guard artworkLayer.superlayer != nil,
               bounds.width > 0, bounds.height > 0 else { return }
         let scale = max(1, artworkBackingScale > 0 ? artworkBackingScale : 2)
@@ -743,7 +754,29 @@ final class PetView: NSView, CALayerDelegate {
         CATransaction.commit()
     }
 
+    // Flush synchronously before returning to the display-link callback. Nested
+    // updates share one transform without delaying a frame or changing physics.
+    func performArtworkUpdates(_ updates: () -> Void) {
+        artworkUpdateDepth += 1
+        defer {
+            artworkUpdateDepth -= 1
+            if artworkUpdateDepth == 0, artworkRebuildPending {
+                artworkRebuildPending = false
+                rebuildArtworkLayer()
+            }
+            if artworkUpdateDepth == 0, artworkTransformPending {
+                artworkTransformPending = false
+                updateArtworkTransform()
+            }
+        }
+        updates()
+    }
+
     private func updateArtworkTransform() {
+        if artworkUpdateDepth > 0 {
+            artworkTransformPending = true
+            return
+        }
         guard artworkLayer.superlayer != nil, !bounds.isEmpty else { return }
         let art = characterBounds
         let geometry = effect.map {
@@ -759,19 +792,19 @@ final class PetView: NSView, CALayerDelegate {
         transform = CATransform3DRotate(transform, motion.rotation * .pi / 180, 0, 0, 1)
         transform = CATransform3DScale(
             transform,
-            geometry.scaleX * motion.scaleX * speaking.scaleX * (direction < 0 ? -1 : 1) * (0.45 + 0.55 * arrivalProgress),
-            geometry.scaleY * motion.scaleY * speaking.scaleY * (0.45 + 0.55 * arrivalProgress),
+            geometry.scaleX * motion.scaleX * speaking.scaleX * (direction < 0 ? -1 : 1) * (FishVisitArrival.initialScale + (1 - FishVisitArrival.initialScale) * arrivalProgress),
+            geometry.scaleY * motion.scaleY * speaking.scaleY * (FishVisitArrival.initialScale + (1 - FishVisitArrival.initialScale) * arrivalProgress),
             1
         )
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         artworkLayer.anchorPoint = anchor
         artworkLayer.position = CGPoint(
-            x: art.midX + geometry.offsetX,
-            y: art.midY + geometry.offsetY + visualBobOffset
+            x: art.midX + geometry.offsetX + arrivalOffset.x,
+            y: art.midY + geometry.offsetY + visualBobOffset + arrivalOffset.y
         )
         artworkLayer.transform = transform
-        artworkLayer.opacity = Float(arrivalProgress)
+        artworkLayer.opacity = Float(min(1, arrivalProgress * 8))
         CATransaction.commit()
     }
 
@@ -779,10 +812,6 @@ final class PetView: NSView, CALayerDelegate {
         blinkTimer?.invalidate()
         animationDisplayLink?.stop()
         carouselTimer?.invalidate()
-        effectTimer?.invalidate()
-        completionTimer?.invalidate()
-        clockAnimationTimer?.invalidate()
-        alarmClockTransitionTimer?.invalidate()
         blushTimer?.invalidate()
         pendingSingleClickTimer?.invalidate()
         if contentMode.drawsOverlay { overlayLayer.delegate = nil }
@@ -821,7 +850,6 @@ final class PetView: NSView, CALayerDelegate {
         drawVisitStatus(in: layout)
         drawFriendMessageBubbles(in: layout)
         drawUnreadBadge()
-        drawVisitCalling()
     }
 
     private func currentSceneLayout() -> PetSceneLayout {
@@ -1282,30 +1310,14 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func startAlarmClockTransition(appearing: Bool) {
-        alarmClockTransitionTimer?.invalidate()
         alarmClockAppearing = appearing
         alarmClockTransitionPhase = 0
         if appearing {
             alarmClockRenderVisible = true
             rebuildAccessoryImages()
         }
-        let duration: TimeInterval = appearing ? 0.52 : 0.44
-        let started = Date()
-        alarmClockTransitionTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] timer in
-            guard let self else { timer.invalidate(); return }
-            self.alarmClockTransitionPhase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
-            if self.alarmClockTransitionPhase == 1 {
-                timer.invalidate()
-                self.alarmClockTransitionTimer = nil
-                self.alarmClockTransitionPhase = nil
-                if !appearing {
-                    self.alarmClockRenderVisible = false
-                    self.rebuildAccessoryImages()
-                }
-            }
-            self.rebuildArtworkLayer()
-        }
-        RunLoop.main.add(alarmClockTransitionTimer!, forMode: .common)
+        alarmClockTransitionTimeline = PetAnimationTimeline(duration: appearing ? 0.52 : 0.44)
+        syncAnimationDisplayLink()
     }
 
     private func alarmClockTransitionGeometry(
@@ -1588,18 +1600,12 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func syncClockAnimation() {
-        clockAnimationTimer?.invalidate(); clockAnimationTimer = nil
-        guard alarmRinging else {
+        clockAnimationStartedAt = alarmRinging ? ProcessInfo.processInfo.systemUptime : nil
+        if !alarmRinging {
             clockShakePhase = 0
             rebuildArtworkLayer()
-            return
         }
-        clockAnimationTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            self.clockShakePhase += 0.4
-            self.rebuildArtworkLayer()
-        }
-        RunLoop.main.add(clockAnimationTimer!, forMode: .common)
+        syncAnimationDisplayLink()
     }
 
     private func drawBlobfish() {
@@ -1923,18 +1929,30 @@ final class PetView: NSView, CALayerDelegate {
         )
     }
 
-    private func drawVisitCalling() {
-        guard visitCalling else { return }
+    func updateVisitCallMotion(reducedMotion: Bool) {
+        guard contentMode.drawsOverlay else { return }
+        if !visitCalling, visitCallLayer.isHidden, visitCallLayer.animation(forKey: "ringing") == nil { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        visitCallLayer.isHidden = !visitCalling
+        guard visitCalling else {
+            visitCallLayer.removeAnimation(forKey: "ringing")
+            return
+        }
         let owner = sceneCharacterBounds ?? characterBounds
-        // Keep the call above the mailbox, inside the existing scene surface.
-        let rect = NSRect(x: min(bounds.maxX - 30, max(bounds.minX + 2, owner.maxX - 18)),
-                          y: min(bounds.maxY - 30, max(bounds.minY + 2, owner.maxY + (unreadMessageCount > 0 ? 42 : 8))),
-                          width: 28, height: 28)
-        NSColor(calibratedRed: 1, green: 0.86, blue: 0.91, alpha: 0.98).setFill()
-        NSBezierPath(roundedRect: rect, xRadius: 11, yRadius: 11).fill()
-        visitCallImage?.draw(in: rect.insetBy(dx: 7, dy: 7))
-        NSColor(calibratedRed: 0.83, green: 0.43, blue: 0.57, alpha: 1).setFill()
-        NSBezierPath(ovalIn: NSRect(x: rect.maxX - 7, y: rect.maxY - 9, width: 3, height: 6)).fill()
+        visitCallLayer.frame = NSRect(x: min(bounds.maxX - 40, max(bounds.minX + 4, owner.maxX - 20)),
+                                     y: min(bounds.maxY - 40, max(bounds.minY + 4, owner.maxY + (unreadMessageCount > 0 ? 44 : 8))),
+                                     width: 36, height: 36)
+        if visitCallLayer.contents == nil {
+            visitCallLayer.contents = FishVisitCallArt.image.cgImage(forProposedRect: nil, context: nil, hints: nil)
+            visitCallLayer.contentsScale = 2
+        }
+        if reducedMotion {
+            visitCallLayer.removeAnimation(forKey: "ringing")
+        } else if visitCallLayer.animation(forKey: "ringing") == nil {
+            visitCallLayer.add(FishVisitCallArt.ringingAnimation(), forKey: "ringing")
+        }
     }
 
     private func drawVisitStatus(in layout: PetSceneLayout) {
@@ -2114,22 +2132,10 @@ final class PetView: NSView, CALayerDelegate {
 
     func playCompletionEffect(all: Bool) {
         if contentMode.drawsArtwork { playEffect(.completed) }
-        completionTimer?.invalidate()
         completionAll = all
         completionPhase = 0
-        let duration: TimeInterval = all ? 2 : 1.4
-        let started = Date()
-        completionTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] timer in
-            guard let self else { timer.invalidate(); return }
-            self.completionPhase = min(1, CGFloat(Date().timeIntervalSince(started) / duration))
-            if self.completionPhase == 1 {
-                timer.invalidate()
-                self.completionTimer = nil
-                self.completionPhase = nil
-            }
-            self.invalidateOverlay()
-        }
-        RunLoop.main.add(completionTimer!, forMode: .common)
+        completionTimeline = PetAnimationTimeline(duration: all ? 2 : 1.4)
+        syncAnimationDisplayLink()
     }
 
     private func drawCompletionEffect() {
@@ -2185,22 +2191,11 @@ final class PetView: NSView, CALayerDelegate {
     func playFriendlyEffect() { startEffect(.success, duration: 0.72) }
 
     private func startEffect(_ visualEffect: PetVisualEffect, duration: TimeInterval) {
-        effectTimer?.invalidate()
         effect = visualEffect
         effectPhase = 0
         updateArtworkTransform()
-        let started = Date()
-        effectTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / PetMotionTiming.framesPerSecond, repeats: true) { [weak self] timer in
-            guard let self else { timer.invalidate(); return }
-            self.effectPhase = CGFloat(Date().timeIntervalSince(started) / duration)
-            if self.effectPhase >= 1 {
-                timer.invalidate()
-                self.effectTimer = nil
-                self.effect = nil
-            }
-            self.updateArtworkTransform()
-        }
-        RunLoop.main.add(effectTimer!, forMode: .common)
+        effectTimeline = PetAnimationTimeline(duration: duration)
+        syncAnimationDisplayLink()
     }
 
     private func drawStatusIcon(state: TaskDisplayState, at center: NSPoint, alpha: CGFloat) {
@@ -2291,7 +2286,9 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func syncAnimationDisplayLink() {
-        if spinnerStartedAt != nil || carouselStartedAt != nil || performanceAnimationStartedAt != nil {
+        if spinnerStartedAt != nil || carouselStartedAt != nil || performanceAnimationStartedAt != nil
+            || effectTimeline != nil || completionTimeline != nil
+            || clockAnimationStartedAt != nil || alarmClockTransitionTimeline != nil {
             if animationDisplayLink == nil {
                 animationDisplayLink = DisplayLinkDriver { [weak self] uptime in
                     self?.advanceDisplayAnimations(uptime: uptime)
@@ -2304,7 +2301,44 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func advanceDisplayAnimations(uptime: TimeInterval) {
+        performArtworkUpdates { advanceAnimations(uptime: uptime) }
+    }
+
+    private func advanceAnimations(uptime: TimeInterval) {
         var changed = false
+        // Keep former timer-driven effects at their existing maximum rate,
+        // including on 120 Hz displays. Progress is elapsed-time based.
+        let timedFrame = Int(floor(uptime * PetMotionTiming.framesPerSecond))
+        if timedFrame != lastTimedAnimationFrame {
+            lastTimedAnimationFrame = timedFrame
+            if let timeline = effectTimeline {
+                effectPhase = timeline.progress(at: uptime)
+                if effectPhase >= 1 { effectTimeline = nil; effect = nil }
+                updateArtworkTransform()
+            }
+            if let timeline = completionTimeline {
+                let phase = timeline.progress(at: uptime)
+                completionPhase = phase < 1 ? phase : nil
+                if phase >= 1 { completionTimeline = nil }
+                changed = true
+            }
+            if let startedAt = clockAnimationStartedAt {
+                clockShakePhase = max(0, uptime - startedAt) * PetMotionTiming.framesPerSecond * 0.4
+                rebuildArtworkLayer()
+            }
+            if let timeline = alarmClockTransitionTimeline {
+                let phase = timeline.progress(at: uptime)
+                alarmClockTransitionPhase = phase < 1 ? phase : nil
+                if phase >= 1 {
+                    alarmClockTransitionTimeline = nil
+                    if !alarmClockAppearing {
+                        alarmClockRenderVisible = false
+                        rebuildAccessoryImages()
+                    }
+                }
+                rebuildArtworkLayer()
+            }
+        }
         if let spinnerStartedAt {
             spinnerPhase = TaskSpinnerTimeline.angle(start: spinnerStartedAt, now: uptime)
             changed = true

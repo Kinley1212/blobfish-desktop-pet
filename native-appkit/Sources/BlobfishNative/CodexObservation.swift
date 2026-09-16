@@ -214,7 +214,8 @@ enum CodexObservationFiles {
         return written && rename(temporary.path, url.path) == 0
     }
 
-    static func load(directory: URL = directory, now: Double) -> [CodexObservedThread] {
+    static func load(directory: URL = directory, now: Double,
+                     readSnapshot: ((URL) -> CodexObservationSnapshot?)? = nil) -> [CodexObservedThread] {
         guard secureDirectory(directory), let entries = FileManager.default.enumerator(
             at: directory, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants]
         ) else { return [] }
@@ -229,8 +230,16 @@ enum CodexObservationFiles {
         }
         var newest: [String: (Double, CodexObservedThread)] = [:]
         for url in urls where url.pathExtension == "json" {
-            guard let data = read(url), data.count <= maximumBytes,
-                  let snapshot = try? JSONDecoder().decode(CodexObservationSnapshot.self, from: data), snapshot.version == 1,
+            let decoded: CodexObservationSnapshot?
+            if let readSnapshot {
+                decoded = readSnapshot(url)
+            } else {
+                decoded = read(url).flatMap { data in
+                    guard data.count <= maximumBytes else { return nil }
+                    return try? JSONDecoder().decode(CodexObservationSnapshot.self, from: data)
+                }
+            }
+            guard let snapshot = decoded, snapshot.version == 1,
                   snapshot.timestamp.isFinite, snapshot.timestamp <= now + 1000, now - snapshot.timestamp <= 6000,
                   snapshot.threads.count <= CodexObservationReducer.maxThreads else { continue }
             for thread in snapshot.threads {

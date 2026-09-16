@@ -5,6 +5,12 @@ import Foundation
 enum SelfCheck {
     static func run() -> Bool {
         let checks: [(String, () throws -> Bool)] = [
+            ("decode cache preserves permissions, replacement and capacity", decodeCachePreservesFileSafety),
+            ("cached tasks and approvals still expire on time", cachedTasksStillExpire),
+            ("shared frames respect subscriber cancellation and restart", sharedFramesRespectSubscriberLifecycle),
+            ("effect timelines preserve duration across refresh rates", effectTimelinesPreserveDuration),
+            ("batched artwork preserves frame transforms", batchedArtworkPreservesFrameTransforms),
+            ("timer updates retain artwork and refresh overlay", timerUpdatesRetainArtwork),
             ("Codex real approvals and multi-question lifecycle", codexObservationPolicy),
             ("Codex hidden blocking requests retain human attention alerts", codexHiddenQuestionsStillNotify),
             ("Codex cache validates question ownership and aggregate bounds", codexCachePayloadBounds),
@@ -116,6 +122,7 @@ enum SelfCheck {
             ("fish composer placeholder follows native text and IME composition", { MainActor.assumeIsolated { fishComposePlaceholderFollowsIME() } }),
             ("visit handshake rejects stale and unrelated acceptances", visitHandshakeRejectsStaleResponses),
             ("visit door sequence preserves movement bounds and reduced motion", visitArrivalPreservesMovementBounds),
+            ("visit call animation stops on cancellation and reduced motion", visitCallAnimationLifecycle),
             ("task monitor drops callbacks after stop", taskMonitorDropsCallbacksAfterStop),
             ("task monitor skips disabled providers and duplicate snapshots", taskMonitorSkipsDisabledProvidersAndDuplicates),
             ("bounded reminder history keeps recent deduplication", boundedReminderHistoryKeepsRecentDeduplication),

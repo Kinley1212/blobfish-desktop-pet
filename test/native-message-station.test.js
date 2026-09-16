@@ -60,3 +60,18 @@ test('stationery pairs paper and ink in both appearances without outlined art', 
   assert.match(view, /colorScheme == \.dark/);
   assert.doesNotMatch(view, /\.stroke\(|\.strokeBorder\(/);
 });
+
+test('visit doorplate is separate from the three lightweight interactions without growing the composer', () => {
+  const recipient = view.slice(view.indexOf('private var recipient:'), view.indexOf('private var visitButton:'));
+  assert.match(recipient, /ForEach\(model.quickInteractions\)/);
+  assert.doesNotMatch(recipient, /model.toggleVisit/);
+  assert.match(recipient, /visitButton/);
+  const button = view.slice(view.indexOf('private var visitButton:'), view.indexOf('private var visitTitle:'));
+  assert.match(button, /model.toggleVisit\(\)/);
+  assert.match(button, /FishVisitDoorplateButtonStyle/);
+  assert.match(button, /frame\(width: 56, height: 22\)/);
+  for (const label of ['Cancel', 'Home', 'Visit']) assert.ok(button.includes(`"${label}"`));
+  assert.match(button, /disabled\(model.isSending \|\| model.selectedContact == nil\)/);
+  assert.match(button, /accessibilityLabel\(visitTitle\)/);
+  assert.match(view, /NSSize\(width: 240, height: hasIncoming \? 178 : 132\)/);
+});

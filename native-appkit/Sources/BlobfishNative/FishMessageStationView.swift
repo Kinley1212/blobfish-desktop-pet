@@ -73,15 +73,29 @@ struct FishMessageComposeView: View {
                     .help(interaction.title(isEnglish: model.isEnglish))
                     .accessibilityLabel(interaction.title(isEnglish: model.isEnglish))
                 }
-                Button { model.toggleVisit() } label: {
-                    Image(systemName: model.isWaitingForVisit ? "phone.down.fill" : model.isActiveVisit ? "house.fill" : "door.left.hand.open")
-                        .frame(width: 22, height: 22).contentShape(Rectangle())
-                }
-                .help(visitTitle).accessibilityLabel(visitTitle)
             }
             .font(.system(size: 12)).buttonStyle(.plain).fixedSize()
             .disabled(model.isSending || model.selectedContact == nil)
+            visitButton
         }
+    }
+
+    private var visitButton: some View {
+        Button { model.toggleVisit() } label: {
+            HStack(spacing: 3) {
+                Image(systemName: model.isWaitingForVisit ? "phone.down.fill" : model.isActiveVisit ? "house.fill" : "door.left.hand.open")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(model.isWaitingForVisit ? t("取消", "Cancel") : model.isActiveVisit ? t("回家", "Home") : t("串門", "Visit"))
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+            }
+            .frame(width: 56, height: 22)
+        }
+        .buttonStyle(FishVisitDoorplateButtonStyle(dark: colorScheme == .dark, active: model.isActiveVisit))
+        .fixedSize()
+        .padding(.leading, 3)
+        .help(visitTitle).accessibilityLabel(visitTitle)
+        .disabled(model.isSending || model.selectedContact == nil)
     }
 
     private var visitTitle: String {
@@ -150,4 +164,21 @@ struct FishMessageComposeView: View {
     }
 
     private func t(_ zh: String, _ en: String) -> String { model.isEnglish ? en : zh }
+}
+
+private struct FishVisitDoorplateButtonStyle: ButtonStyle {
+    let dark: Bool
+    let active: Bool
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        let fill = active
+            ? Color(red: 0.61, green: 0.21, blue: 0.35)
+            : (dark ? Color(red: 0.93, green: 0.70, blue: 0.77) : Color(red: 0.97, green: 0.79, blue: 0.83))
+        configuration.label
+            .foregroundStyle(active ? Color.white : Color(red: 0.34, green: 0.12, blue: 0.22))
+            .background(fill, in: RoundedRectangle(cornerRadius: 6))
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .opacity(!isEnabled ? 0.45 : configuration.isPressed ? 0.75 : 1)
+    }
 }

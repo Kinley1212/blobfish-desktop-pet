@@ -40,10 +40,22 @@ test('arrival reuses the movement display link and cleans up without changing fl
   const arrival = panel.slice(panel.indexOf('private func finishVisitArrival'), panel.indexOf('func showVisit'));
   assert.doesNotMatch(arrival, /Timer\(|asyncAfter|flingVelocity|setFrameOrigin/);
   assert.match(arrival, /accessibilityDisplayShouldReduceMotion/);
-  assert.match(panel, /func moveOneFrame\(\) \{\s*updateVisitArrival\(/);
+  assert.match(panel, /func advanceMovementFrame\(\) \{\s*updateVisitArrival\(/);
   assert.match(panel, /positioned: \.below, relativeTo: guestView/);
   assert.match(panel, /func endVisit\(\)[\s\S]*?finishVisitArrival\(\)/);
   const view = read('PetView');
-  assert.match(view, /artworkLayer.opacity = Float\(arrivalProgress\)/);
+  assert.match(view, /artworkLayer.opacity = Float\(min\(1, arrivalProgress \* 8\)\)/);
   assert.match(view, /var visitCalling = false/);
+});
+
+test('approach adds render-only diagonal walking sway and calling uses a separate animated layer', () => {
+  const view = read('PetView');
+  assert.match(panel, /offset.y \+ arrival.walkingBob/);
+  assert.match(panel, /visitDoorView.doorRect = path.doorRect/);
+  assert.match(panel, /guestView.arrivalOffset = \.zero/);
+  assert.match(view, /art.midX \+ geometry.offsetX \+ arrivalOffset.x/);
+  assert.match(view, /visualBobOffset \+ arrivalOffset.y/);
+  assert.match(view, /visitCallLayer.add\(FishVisitCallArt.ringingAnimation\(\), forKey: "ringing"\)/);
+  assert.match(view, /visitCallLayer.removeAnimation\(forKey: "ringing"\)/);
+  assert.doesNotMatch(view, /drawVisitCalling\(\)/);
 });

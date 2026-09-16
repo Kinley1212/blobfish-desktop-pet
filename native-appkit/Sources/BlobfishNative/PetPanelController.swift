@@ -838,6 +838,7 @@ final class PetPanelController {
     }
 
     func stop() {
+        overlayView.visitCalling = false
         finishVisitArrival()
         movementDisplayLink.stop()
         interactionTimer?.invalidate()
@@ -1460,15 +1461,25 @@ final class PetPanelController {
         visitArrivalStartedAt = nil
         visitDoorView.isHidden = true
         guestView.arrivalProgress = 1
+        guestView.arrivalOffset = .zero
     }
 
     private func updateVisitArrival(now: TimeInterval) {
+        overlayView.updateVisitCallMotion(reducedMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
         guard let startedAt = visitArrivalStartedAt else { return }
         let arrival = FishVisitArrival(elapsed: now - startedAt,
                                       reducedMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
         guestView.arrivalProgress = arrival.guestProgress
+        let screen = sceneAnchor?.visibleFrame ?? panel.frame
+        let screenInGuest = screen.offsetBy(dx: -panel.frame.minX - guestView.frame.minX,
+                                           dy: -panel.frame.minY - guestView.frame.minY)
+        let canvas = guestView.bounds.intersection(screenInGuest)
+        let path = FishVisitArrivalPath(character: guestView.characterBounds, canvas: canvas.isEmpty ? guestView.bounds : canvas,
+                                        ownerIsLeft: petView.characterBounds.midX < guestView.frame.minX + guestView.characterBounds.midX)
+        let offset = path.offset(at: arrival.guestProgress)
+        guestView.arrivalOffset = NSPoint(x: offset.x, y: offset.y + arrival.walkingBob)
         visitDoorView.frame = guestView.frame
-        visitDoorView.characterRect = guestView.characterBounds
+        visitDoorView.doorRect = path.doorRect
         visitDoorView.arrival = arrival
         if arrival.progress >= 1 { finishVisitArrival() }
     }
@@ -1572,6 +1583,14 @@ final class PetPanelController {
     }
 
     private func moveOneFrame() {
+        petView.performArtworkUpdates {
+            guestView.performArtworkUpdates {
+                advanceMovementFrame()
+            }
+        }
+    }
+
+    private func advanceMovementFrame() {
         updateVisitArrival(now: ProcessInfo.processInfo.systemUptime)
         let frameVisibleFrames = visibleFrames
         let visualBounds = currentMovementBounds
