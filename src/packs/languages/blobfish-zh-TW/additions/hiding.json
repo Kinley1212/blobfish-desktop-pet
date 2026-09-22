@@ -1,0 +1,115 @@
+{
+  "category": "interaction",
+  "phrases": [
+    {
+      "id": "blobfish-zh-tw-coral-0",
+      "event": "interaction.hide",
+      "text": "我去珊瑚裡躲 {minutes} 分鐘……別叫我加班。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-1",
+      "event": "interaction.return",
+      "text": "回來了……珊瑚裡沒有待辦事項。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-hide-01",
+      "event": "interaction.hide",
+      "text": "我去珊瑚後面摸魚 {minutes} 分鐘。專業對口。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-hide-02",
+      "event": "interaction.hide",
+      "text": "借珊瑚擋一下，{minutes} 分鐘後再面對世界。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-hide-03",
+      "event": "interaction.hide",
+      "text": "接下來 {minutes} 分鐘，我是一塊有理想的海底石頭。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-hide-04",
+      "event": "interaction.hide",
+      "text": "珊瑚說它缺個室友。我去試住 {minutes} 分鐘。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-hide-05",
+      "event": "interaction.hide",
+      "text": "我的社交電量見底了。進去充 {minutes} 分鐘。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-hide-06",
+      "event": "interaction.hide",
+      "text": "有事找珊瑚。它代理我 {minutes} 分鐘。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-hide-07",
+      "event": "interaction.hide",
+      "text": "去裡面躺 {minutes} 分鐘。橫著進去，符合魚體工學。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-hide-08",
+      "event": "interaction.hide",
+      "text": "申請隱身 {minutes} 分鐘。批准人：我。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-hide-09",
+      "event": "interaction.hide",
+      "text": "把我藏好，{minutes} 分鐘內不接待辦事項。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-hide-10",
+      "event": "interaction.hide",
+      "text": "珊瑚後面沒有會議吧？我先躲 {minutes} 分鐘。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-return-01",
+      "event": "interaction.return",
+      "text": "回來了。珊瑚收房租，我付不起。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-return-02",
+      "event": "interaction.return",
+      "text": "剛才不是消失，是切換成海底背景。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-return-03",
+      "event": "interaction.return",
+      "text": "珊瑚說我太躺了，影響它向上生長。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-return-04",
+      "event": "interaction.return",
+      "text": "休息完了。現在可以換個地方發呆。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-return-05",
+      "event": "interaction.return",
+      "text": "我不在的時候，滑鼠有沒有欺負別人？"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-return-06",
+      "event": "interaction.return",
+      "text": "珊瑚裡挺好，就是沒有外送。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-return-07",
+      "event": "interaction.return",
+      "text": "我帶回了一個重要發現：還是躺著舒服。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-return-08",
+      "event": "interaction.return",
+      "text": "出來透口氣。順便看看你有沒有下班。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-return-09",
+      "event": "interaction.return",
+      "text": "珊瑚挽留了我。也可能只是勾到我的鰭。"
+    },
+    {
+      "id": "blobfish-zh-tw-coral-return-10",
+      "event": "interaction.return",
+      "text": "魚已到位。幹勁還在珊瑚裡。"
+    }
+  ]
+}

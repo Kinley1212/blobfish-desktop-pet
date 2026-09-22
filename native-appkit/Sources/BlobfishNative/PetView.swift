@@ -390,6 +390,23 @@ final class PetView: NSView, CALayerDelegate {
         didSet { if oldValue != visitCalling { updateVisitCallMotion(reducedMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion) } }
     }
     private let visitCallLayer = CALayer()
+    var coralTravelDistance: CGFloat = 0 { didSet { updateArtworkTransform() } }
+    var coralRetreatProgress: CGFloat = 0 { didSet { updateArtworkTransform() } }
+    var animationsSuspended = false {
+        didSet {
+            guard oldValue != animationsSuspended else { return }
+            if animationsSuspended {
+                blinkTimer?.invalidate()
+                carouselTimer?.invalidate()
+                blinking = false
+                rebuildCharacterImage()
+            } else {
+                if contentMode.drawsArtwork { scheduleBlink() }
+                syncCarousel(previous: .idle)
+            }
+            syncAnimationDisplayLink()
+        }
+    }
     var arrivalProgress: CGFloat = 1 { didSet { if oldValue != arrivalProgress { updateArtworkTransform() } } }
     var arrivalOffset = NSPoint.zero { didSet { if oldValue != arrivalOffset { updateArtworkTransform() } } }
     var visitingFriendStatus: FishUserStatus? { didSet { if oldValue != visitingFriendStatus { invalidateOverlay() } } }
@@ -800,7 +817,7 @@ final class PetView: NSView, CALayerDelegate {
         CATransaction.setDisableActions(true)
         artworkLayer.anchorPoint = anchor
         artworkLayer.position = CGPoint(
-            x: art.midX + geometry.offsetX + arrivalOffset.x,
+            x: art.midX + geometry.offsetX + arrivalOffset.x + coralTravelDistance * coralRetreatProgress,
             y: art.midY + geometry.offsetY + visualBobOffset + arrivalOffset.y
         )
         artworkLayer.transform = transform
@@ -2260,7 +2277,7 @@ final class PetView: NSView, CALayerDelegate {
         } else if carouselIndex >= newTasks.count {
             setCarouselIndex(0, animated: false)
         }
-        guard newTasks.count > 1 else { return }
+        guard !animationsSuspended, newTasks.count > 1 else { return }
         carouselTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             guard let self, !self.snapshot.tasks.isEmpty else { return }
             self.setCarouselIndex((self.carouselIndex + 1) % self.snapshot.tasks.count, animated: true)
@@ -2286,6 +2303,7 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func syncAnimationDisplayLink() {
+        guard !animationsSuspended else { animationDisplayLink?.stop(); return }
         if spinnerStartedAt != nil || carouselStartedAt != nil || performanceAnimationStartedAt != nil
             || effectTimeline != nil || completionTimeline != nil
             || clockAnimationStartedAt != nil || alarmClockTransitionTimeline != nil {
@@ -2367,6 +2385,7 @@ final class PetView: NSView, CALayerDelegate {
     }
 
     private func scheduleBlink() {
+        guard !animationsSuspended else { return }
         blinkTimer?.invalidate()
         blinkTimer = Timer.scheduledTimer(withTimeInterval: Double.random(in: 3.5...8.5), repeats: false) { [weak self] _ in
             guard let self else { return }

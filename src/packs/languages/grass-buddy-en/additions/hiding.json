@@ -1,0 +1,115 @@
+{
+  "category": "interaction",
+  "phrases": [
+    {
+      "id": "grass-buddy-en-coral-0",
+      "event": "interaction.hide",
+      "text": "A little coral break! Back in {minutes} minutes."
+    },
+    {
+      "id": "grass-buddy-en-coral-1",
+      "event": "interaction.return",
+      "text": "I'm back! Did you miss me?"
+    },
+    {
+      "id": "grass-buddy-en-coral-hide-01",
+      "event": "interaction.hide",
+      "text": "Being a potted plant in the coral for {minutes} minutes. Remember me!"
+    },
+    {
+      "id": "grass-buddy-en-coral-hide-02",
+      "event": "interaction.hide",
+      "text": "Borrowing the coral lounge for {minutes} minutes. Brought my own leaf cushion!"
+    },
+    {
+      "id": "grass-buddy-en-coral-hide-03",
+      "event": "interaction.hide",
+      "text": "Asking the coral for growing tips. Back in {minutes} minutes!"
+    },
+    {
+      "id": "grass-buddy-en-coral-hide-04",
+      "event": "interaction.hide",
+      "text": "A {minutes}-minute game of hide-and-seek! You already know the answer."
+    },
+    {
+      "id": "grass-buddy-en-coral-hide-05",
+      "event": "interaction.hide",
+      "text": "Giving my leaves a {minutes}-minute holiday!"
+    },
+    {
+      "id": "grass-buddy-en-coral-hide-06",
+      "event": "interaction.hide",
+      "text": "The coral invited me for tea. Back in {minutes} minutes!"
+    },
+    {
+      "id": "grass-buddy-en-coral-hide-07",
+      "event": "interaction.hide",
+      "text": "Joining the coral choir for a {minutes}-minute rehearsal!"
+    },
+    {
+      "id": "grass-buddy-en-coral-hide-08",
+      "event": "interaction.hide",
+      "text": "Pretending to be seaweed for {minutes} minutes. Wish me luck!"
+    },
+    {
+      "id": "grass-buddy-en-coral-hide-09",
+      "event": "interaction.hide",
+      "text": "A tiny {minutes}-minute holiday, then back to keeping you company."
+    },
+    {
+      "id": "grass-buddy-en-coral-hide-10",
+      "event": "interaction.hide",
+      "text": "Waiting behind the coral for inspiration. Giving it {minutes} minutes!"
+    },
+    {
+      "id": "grass-buddy-en-coral-return-01",
+      "event": "interaction.return",
+      "text": "I'm back! The coral complimented my leaves."
+    },
+    {
+      "id": "grass-buddy-en-coral-return-02",
+      "event": "interaction.return",
+      "text": "Hide-and-seek is over! You win. You saw me the whole time."
+    },
+    {
+      "id": "grass-buddy-en-coral-return-03",
+      "event": "interaction.return",
+      "text": "The coral's growing advice? Take your time."
+    },
+    {
+      "id": "grass-buddy-en-coral-return-04",
+      "event": "interaction.return",
+      "text": "Brought back a little sea breeze. Half is yours!"
+    },
+    {
+      "id": "grass-buddy-en-coral-return-05",
+      "event": "interaction.return",
+      "text": "Tea is over! The cups were tiny seashells."
+    },
+    {
+      "id": "grass-buddy-en-coral-return-06",
+      "event": "interaction.return",
+      "text": "Tried to be seaweed. My leaves started giggling."
+    },
+    {
+      "id": "grass-buddy-en-coral-return-07",
+      "event": "interaction.return",
+      "text": "All rested! Even my leaves have perked up."
+    },
+    {
+      "id": "grass-buddy-en-coral-return-08",
+      "event": "interaction.return",
+      "text": "The coral said to visit again. I said you were waiting."
+    },
+    {
+      "id": "grass-buddy-en-coral-return-09",
+      "event": "interaction.return",
+      "text": "No inspiration, but I did meet some lovely bubbles."
+    },
+    {
+      "id": "grass-buddy-en-coral-return-10",
+      "event": "interaction.return",
+      "text": "The choir turned me down. Too much rustling, apparently."
+    }
+  ]
+}

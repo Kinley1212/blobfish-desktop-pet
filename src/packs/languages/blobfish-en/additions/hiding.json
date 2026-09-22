@@ -1,0 +1,115 @@
+{
+  "category": "interaction",
+  "phrases": [
+    {
+      "id": "blobfish-en-coral-0",
+      "event": "interaction.hide",
+      "text": "The coral has no deadlines. Give me {minutes} minutes."
+    },
+    {
+      "id": "blobfish-en-coral-1",
+      "event": "interaction.return",
+      "text": "I'm back. The coral was quieter."
+    },
+    {
+      "id": "blobfish-en-coral-hide-01",
+      "event": "interaction.hide",
+      "text": "Going to slack off for {minutes} minutes. Finally, work in my field."
+    },
+    {
+      "id": "blobfish-en-coral-hide-02",
+      "event": "interaction.hide",
+      "text": "Borrowing this coral. I will face reality in {minutes} minutes."
+    },
+    {
+      "id": "blobfish-en-coral-hide-03",
+      "event": "interaction.hide",
+      "text": "For {minutes} minutes, I am a rock with potential."
+    },
+    {
+      "id": "blobfish-en-coral-hide-04",
+      "event": "interaction.hide",
+      "text": "The coral needs a roommate. Trying it out for {minutes} minutes."
+    },
+    {
+      "id": "blobfish-en-coral-hide-05",
+      "event": "interaction.hide",
+      "text": "Social battery flat. Recharging for {minutes} minutes."
+    },
+    {
+      "id": "blobfish-en-coral-hide-06",
+      "event": "interaction.hide",
+      "text": "The coral is covering my shift for {minutes} minutes."
+    },
+    {
+      "id": "blobfish-en-coral-hide-07",
+      "event": "interaction.hide",
+      "text": "Taking a {minutes}-minute horizontal break. Fish ergonomics."
+    },
+    {
+      "id": "blobfish-en-coral-hide-08",
+      "event": "interaction.hide",
+      "text": "Requested {minutes} minutes off. Approved by me."
+    },
+    {
+      "id": "blobfish-en-coral-hide-09",
+      "event": "interaction.hide",
+      "text": "Hide me for {minutes} minutes. Especially from the to-do list."
+    },
+    {
+      "id": "blobfish-en-coral-hide-10",
+      "event": "interaction.hide",
+      "text": "No meetings behind this coral, right? Back in {minutes} minutes."
+    },
+    {
+      "id": "blobfish-en-coral-return-01",
+      "event": "interaction.return",
+      "text": "Back. The coral started charging rent."
+    },
+    {
+      "id": "blobfish-en-coral-return-02",
+      "event": "interaction.return",
+      "text": "I was not missing. I was part of the scenery."
+    },
+    {
+      "id": "blobfish-en-coral-return-03",
+      "event": "interaction.return",
+      "text": "The coral said my attitude was stunting its growth."
+    },
+    {
+      "id": "blobfish-en-coral-return-04",
+      "event": "interaction.return",
+      "text": "Rest complete. Ready to stare into space somewhere else."
+    },
+    {
+      "id": "blobfish-en-coral-return-05",
+      "event": "interaction.return",
+      "text": "Did the mouse bother anyone while I was gone?"
+    },
+    {
+      "id": "blobfish-en-coral-return-06",
+      "event": "interaction.return",
+      "text": "Nice place. No food delivery, though."
+    },
+    {
+      "id": "blobfish-en-coral-return-07",
+      "event": "interaction.return",
+      "text": "My research confirms it: lying down is better."
+    },
+    {
+      "id": "blobfish-en-coral-return-08",
+      "event": "interaction.return",
+      "text": "Just checking whether you have clocked off yet."
+    },
+    {
+      "id": "blobfish-en-coral-return-09",
+      "event": "interaction.return",
+      "text": "The coral tried to keep me. Or snagged my fin."
+    },
+    {
+      "id": "blobfish-en-coral-return-10",
+      "event": "interaction.return",
+      "text": "The fish is back. Motivation is still in the coral."
+    }
+  ]
+}

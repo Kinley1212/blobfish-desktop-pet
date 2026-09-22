@@ -80,6 +80,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         panelController = PetPanelController(runtime: runtime)
+        panelController.onCoralReturn = { [weak self] in
+            guard let self else { return }
+            self.panelController.say(self.runtime.phrase(event: "interaction.return")
+                ?? self.runtime.speechText("我回来了……珊瑚里挺舒服。", "I am back… the coral was comfortable."), event: "interaction.return")
+        }
         panelController.moodFaceProvider = { [weak self] event in
             guard let self else { return nil }
             let available = Set(self.runtime.accessories
@@ -631,6 +636,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(timerControl)
         timerControlItem = timerControl
 
+        let hidePet = localizedMenuItem("隐藏水滴鱼", "Hide Blobfish")
+        let hideMenu = NSMenu()
+        for minutes in PetCoralHide.minutes {
+            let option = localizedMenuItem("\(minutes) 分钟", "\(minutes) minutes", action: #selector(hidePetInCoral(_:)))
+            option.target = self
+            option.representedObject = minutes
+            hideMenu.addItem(option)
+        }
+        hidePet.tag = 4101
+        hidePet.submenu = hideMenu
+        menu.addItem(hidePet)
+        let returnPet = localizedMenuItem("立即回来", "Come Back Now", action: #selector(returnPetFromCoral))
+        returnPet.tag = 4102
+        returnPet.target = self
+        menu.addItem(returnPet)
+
         let quickTimer = localizedMenuItem("快速计时", "Quick Timer")
         let quickMenu = NSMenu()
         for minutes in [5, 15, 25, 45] {
@@ -656,6 +677,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
+        menu.item(withTag: 4101)?.isHidden = panelController?.isTemporarilyHidden == true
+        menu.item(withTag: 4102)?.isHidden = panelController?.isTemporarilyHidden != true
         friendInteractionMenuItem?.isEnabled = messengerService?.activeVisitContactID != nil
         panelController?.setMenuPaused(true)
     }
@@ -1096,7 +1119,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    @objc private func hidePetInCoral(_ sender: NSMenuItem) {
+        guard let minutes = sender.representedObject as? Int else { return }
+        let phrase = runtime.phrase(event: "interaction.hide", context: ["minutes": .number(Double(minutes))])
+            ?? runtime.speechText("我去珊瑚里躲 \(minutes) 分钟……", "Hiding in the coral for \(minutes) minutes…")
+        panelController.hideInCoral(minutes: minutes, phrase: phrase)
+    }
+
+    @objc private func returnPetFromCoral() { panelController.returnFromCoral() }
+
     @objc private func locatePet() {
+        panelController.returnFromCoral(animated: false)
         panelController.centerOnPrimaryScreen()
         panelController.show()
     }
@@ -1346,6 +1379,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @MainActor @objc private func quitApplication() {
         guard !quitRequested else { requestTermination(); return }
         quitRequested = true
+        if panelController.isTemporarilyHidden {
+            panelController.stop()
+            requestTermination()
+            return
+        }
         let goodbye = runtime.phrase(event: "interaction.goodbye") ?? runtime.speechText("好吧，我先沉下去了。", "All right. I am sinking down for now.")
         panelController.say(goodbye, event: "interaction.goodbye", duration: 1.2, priority: SpeechPriority.interaction, replaceKey: "interaction.goodbye")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in

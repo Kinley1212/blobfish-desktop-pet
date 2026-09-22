@@ -605,6 +605,16 @@ final class PetPanelController {
     private let overlayPanel: NSPanel
     private let petView: PetView
     private let guestView: PetView
+    private let coralView = CoralRefugeView(frame: .zero)
+    private var coralHide: PetCoralHide?
+    private var coralTimelineProgress: CGFloat = 0
+    private var coralReturnProgress: CGFloat = 1
+    private var coralReturnStartedAt: Date?
+    private var coralReturnTimer: Timer?
+    private var coralWakeObserver: NSObjectProtocol?
+    var onCoralReturn: (() -> Void)?
+    var isTemporarilyHidden: Bool { coralHide != nil }
+
     private let visitDoorView = FishVisitDoorView(frame: .zero)
     private var visitArrivalStartedAt: TimeInterval?
     private let overlayView: PetView
@@ -775,15 +785,123 @@ final class PetPanelController {
     }
 
     deinit {
+        coralReturnTimer?.invalidate()
+        if let coralWakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(coralWakeObserver) }
         if let screenParametersObserver {
             NotificationCenter.default.removeObserver(screenParametersObserver)
         }
     }
 
     func show() {
+        guard !isTemporarilyHidden else { return }
         panel.orderFrontRegardless()
         overlayPanel.orderFrontRegardless()
         syncSceneOverlay()
+    }
+
+    func hideInCoral(minutes: Int, phrase: String) {
+        guard PetCoralHide.minutes.contains(minutes), !isTemporarilyHidden else { return }
+        cancelRemoteInteraction(restorePosition: true)
+        flingVelocity = nil
+        speechQueue.clear()
+        say(phrase, event: "interaction.hide", duration: 2.8, priority: 100)
+        show()
+        coralHide = PetCoralHide(minutes: minutes)
+        coralReturnStartedAt = nil
+        coralTimelineProgress = 0
+        let art = petView.characterBounds
+        let screen = panel.screen?.visibleFrame ?? panel.frame
+        let rightSpace = max(0, min(petView.bounds.maxX - art.maxX - 8,
+                                    screen.maxX - panel.frame.minX - art.maxX - 8))
+        let leftSpace = max(0, min(art.minX - petView.bounds.minX - 8,
+                                   panel.frame.minX + art.minX - screen.minX - 8))
+        petView.coralTravelDistance = rightSpace >= leftSpace
+            ? min(art.width * 0.7, rightSpace) : -min(art.width * 0.7, leftSpace)
+        coralView.refugeRect = art.offsetBy(dx: petView.coralTravelDistance, dy: 0)
+        coralView.frame = petView.bounds
+        coralView.autoresizingMask = [.width, .height]
+        if coralView.superview == nil { petView.addSubview(coralView) }
+        coralView.isHidden = false
+        coralView.alphaValue = 0
+        panel.ignoresMouseEvents = true
+        for view in [petView, guestView, overlayView] { view.animationsSuspended = true }
+        let timer = Timer(fire: coralHide!.deadline, interval: 0, repeats: false) { [weak self] _ in
+            self?.returnFromCoral()
+        }
+        coralReturnTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+        if coralWakeObserver == nil {
+            coralWakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+            ) { [weak self] _ in
+                guard let self, let hide = self.coralHide, Date() >= hide.deadline else { return }
+                self.returnFromCoral()
+            }
+        }
+        syncMovementTimer()
+    }
+
+    func returnFromCoral(animated: Bool = true) {
+        guard coralHide != nil, coralReturnStartedAt == nil else { return }
+        coralReturnTimer?.invalidate()
+        coralReturnTimer = nil
+        speechQueue.clear()
+        coralReturnProgress = coralTimelineProgress
+        coralReturnStartedAt = Date()
+        if !animated || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            finishCoralReturn()
+        } else {
+            panel.orderFrontRegardless()
+            movementDisplayLink.start()
+        }
+    }
+
+    private func finishCoralReturn() {
+        coralHide = nil
+        coralReturnStartedAt = nil
+        petView.coralRetreatProgress = 0
+        petView.coralTravelDistance = 0
+        coralTimelineProgress = 0
+        coralView.isHidden = true
+        panel.alphaValue = 1
+        overlayPanel.alphaValue = 1
+        panel.ignoresMouseEvents = false
+        preciseOrigin = nil
+        bobBaselineY = nil
+        lastFrameUptime = nil
+        for view in [petView, guestView, overlayView] { view.animationsSuspended = false }
+        show()
+        syncMovementTimer()
+        onCoralReturn?()
+    }
+
+    private func advanceCoralHide() -> Bool {
+        guard let hide = coralHide else { return false }
+        let now = Date()
+        if let returning = coralReturnStartedAt {
+            coralTimelineProgress = max(0, coralReturnProgress - now.timeIntervalSince(returning) / 1.8)
+            applyCoralFrame()
+            if coralTimelineProgress <= 0 { finishCoralReturn() }
+        } else {
+            if now >= hide.deadline { returnFromCoral(); return true }
+            coralTimelineProgress = hide.progress(at: now)
+            applyCoralFrame()
+            if coralTimelineProgress >= 1 {
+                speechQueue.clear()
+                panel.orderOut(nil)
+                overlayPanel.orderOut(nil)
+                movementDisplayLink.stop()
+            }
+        }
+        return true
+    }
+
+    private func applyCoralFrame() {
+        let frame = CoralHideFrame(progress: coralTimelineProgress)
+        petView.coralRetreatProgress = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : frame.travel
+        coralView.alphaValue = frame.coralOpacity
+        panel.alphaValue = frame.sceneOpacity
+        overlayPanel.alphaValue = 1 - min(1, coralTimelineProgress / 0.2)
     }
 
     func update(snapshot: TaskSnapshot) {
@@ -838,6 +956,10 @@ final class PetPanelController {
     }
 
     func stop() {
+        coralReturnTimer?.invalidate()
+        coralReturnTimer = nil
+        coralHide = nil
+        coralReturnStartedAt = nil
         overlayView.visitCalling = false
         finishVisitArrival()
         movementDisplayLink.stop()
@@ -865,6 +987,7 @@ final class PetPanelController {
         replaceKey: String? = nil,
         color: String? = nil
     ) {
+        guard !isTemporarilyHidden else { return }
         speechQueue.enqueue(
             text: text,
             event: event,
@@ -879,7 +1002,7 @@ final class PetPanelController {
     func playEffect(_ state: TaskDisplayState) { petView.playEffect(state) }
 
     var canPresentEasterEgg: Bool {
-        speechQueue.current == nil && speechQueue.pending.isEmpty && speakingPresentations.isEmpty
+        !isTemporarilyHidden && speechQueue.current == nil && speechQueue.pending.isEmpty && speakingPresentations.isEmpty
             && guestView.isHidden && !dragging && flingVelocity == nil && !interactionPaused && !menuPaused
     }
 
@@ -911,6 +1034,7 @@ final class PetPanelController {
     }
 
     func playRemoteInteraction(_ interaction: FishRemoteInteraction, incoming: Bool) {
+        guard !isTemporarilyHidden else { return }
         interactionTimer?.invalidate()
         cancelRemoteInteraction(restorePosition: true)
         interactionPaused = true
@@ -1573,6 +1697,7 @@ final class PetPanelController {
     }
 
     private func syncMovementTimer() {
+        if let hide = coralHide, coralReturnStartedAt == nil, hide.progress(at: Date()) >= 1 { return }
         movementEnabled = ((hasActiveTasks && taskWantsMovement && config.pet.roamWhenTasks)
             || (!hasActiveTasks && config.pet.roamWhenNoTasks))
         if !hasActiveTasks { motionState = movementEnabled ? .roam : .idle }
@@ -1583,6 +1708,7 @@ final class PetPanelController {
     }
 
     private func moveOneFrame() {
+        if advanceCoralHide() { return }
         petView.performArtworkUpdates {
             guestView.performArtworkUpdates {
                 advanceMovementFrame()

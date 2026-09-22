@@ -5,6 +5,7 @@ import Foundation
 enum SelfCheck {
     static func run() -> Bool {
         let checks: [(String, () throws -> Bool)] = [
+            ("coral hiding deadlines and artwork geometry", coralHidingPolicy),
             ("decode cache preserves permissions, replacement and capacity", decodeCachePreservesFileSafety),
             ("cached tasks and approvals still expire on time", cachedTasksStillExpire),
             ("shared frames respect subscriber cancellation and restart", sharedFramesRespectSubscriberLifecycle),

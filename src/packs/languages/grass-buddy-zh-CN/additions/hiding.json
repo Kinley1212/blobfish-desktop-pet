@@ -1,0 +1,115 @@
+{
+  "category": "interaction",
+  "phrases": [
+    {
+      "id": "grass-buddy-zh-cn-coral-0",
+      "event": "interaction.hide",
+      "text": "去珊瑚里休息 {minutes} 分钟，等我回来呀！"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-1",
+      "event": "interaction.return",
+      "text": "我回来啦！又可以陪着你了。"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-hide-01",
+      "event": "interaction.hide",
+      "text": "去珊瑚里当 {minutes} 分钟盆栽，别忘了我呀！"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-hide-02",
+      "event": "interaction.hide",
+      "text": "借珊瑚的小客厅坐 {minutes} 分钟，自带叶子坐垫！"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-hide-03",
+      "event": "interaction.hide",
+      "text": "我要和珊瑚聊 {minutes} 分钟，交流一下长高秘诀。"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-hide-04",
+      "event": "interaction.hide",
+      "text": "开启 {minutes} 分钟捉迷藏！你已经知道答案啦。"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-hide-05",
+      "event": "interaction.hide",
+      "text": "去里面给叶子放 {minutes} 分钟假！"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-hide-06",
+      "event": "interaction.hide",
+      "text": "珊瑚邀请我喝茶，{minutes} 分钟后回来！"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-hide-07",
+      "event": "interaction.hide",
+      "text": "暂时加入珊瑚合唱团，排练 {minutes} 分钟！"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-hide-08",
+      "event": "interaction.hide",
+      "text": "躲进去 {minutes} 分钟，假装是一棵海草！"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-hide-09",
+      "event": "interaction.hide",
+      "text": "给自己放个 {minutes} 分钟的小假，回来继续陪你。"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-hide-10",
+      "event": "interaction.hide",
+      "text": "我要去珊瑚后面蹲 {minutes} 分钟，看看灵感会不会路过。"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-return-01",
+      "event": "interaction.return",
+      "text": "我回来啦！珊瑚夸我的叶子很有精神。"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-return-02",
+      "event": "interaction.return",
+      "text": "捉迷藏结束！冠军当然是早就看见我的你。"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-return-03",
+      "event": "interaction.return",
+      "text": "和珊瑚聊完啦！它说长高要慢慢来。"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-return-04",
+      "event": "interaction.return",
+      "text": "带回来一点海风，免费分你一半！"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-return-05",
+      "event": "interaction.return",
+      "text": "茶喝完了！杯子是小贝壳做的。"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-return-06",
+      "event": "interaction.return",
+      "text": "我努力装成海草，结果叶子先笑出声了。"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-return-07",
+      "event": "interaction.return",
+      "text": "休息好啦！叶子也重新翘起来了。"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-return-08",
+      "event": "interaction.return",
+      "text": "珊瑚让我常去玩。我说要先回来陪你。"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-return-09",
+      "event": "interaction.return",
+      "text": "灵感没等到，倒是等到一串小泡泡。"
+    },
+    {
+      "id": "grass-buddy-zh-cn-coral-return-10",
+      "event": "interaction.return",
+      "text": "合唱团没收我，说我唱歌太像沙沙声。"
+    }
+  ]
+}
