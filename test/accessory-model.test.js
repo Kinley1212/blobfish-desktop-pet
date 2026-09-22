@@ -227,7 +227,10 @@ test('every bundled accessory declares a slot, an anchor and real art', () => {
   });
   assert.equal(new Set(catalog.map((item) => item.id)).size, catalog.length, 'ids must be unique');
   for (const item of catalog) {
-    assert.match(item.svg, /^<svg viewBox="0 0 100 100"/, `${item.id} must be drawn in the shared 100x100 box`);
+    // The centered tongue extends below the eye-anchored face canvas.
+    // Its extra height must not rescale or move the original 100-unit eye line.
+    const canvas = item.id === 'face-teasing' ? '0 0 100 120' : '0 0 100 100';
+    assert.ok(item.svg.startsWith(`<svg viewBox="${canvas}"`), `${item.id} must use its authored canvas`);
     assert.ok(item.anchor.x >= 0 && item.anchor.x <= 100);
     assert.ok(item.anchor.y >= 0 && item.anchor.y <= 100);
     assert.ok(item.displayName.length > 0);

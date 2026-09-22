@@ -39,6 +39,7 @@ enum SelfCheck {
             ("dialogue updates without crossing language boundaries", { try MainActor.assumeIsolated { try dialogueUpdatesWithoutCrossingLanguages() } }),
             ("phrase rules and templates", phraseRulesAndTemplates),
             ("shared runtime recovery", sharedRuntimeRecovery),
+            ("tongue expression preserves resting mouth and nose", tongueExpressionPreservesLowerFace),
             ("custom SVG and accessory rendering", customSVGAndAccessoryRendering),
             ("grass native expressions stay isolated", grassNativeExpressionsStayIsolated),
             ("alarm clock tuning has a wider safe range", alarmClockTuningHasWiderSafeRange),

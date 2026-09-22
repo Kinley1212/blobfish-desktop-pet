@@ -1210,7 +1210,9 @@ final class PetView: NSView, CALayerDelegate {
             guard let pack = byID[id],
                   character.map({ CharacterExpressionCompatibility.isCompatible(pack, with: $0) }) != false,
                   pack.manifest.nativeExpression == nil,
-                  let image = NSImage(contentsOf: pack.artURL) else { return nil }
+                  let image = (id == "face-teasing"
+                    ? SVGAppearanceRenderer.tongueExpressionEyesImage(artURL: pack.artURL)
+                    : NSImage(contentsOf: pack.artURL)) else { return nil }
             return (pack, image)
         }
         rebuildArtworkLayer()
@@ -1233,6 +1235,8 @@ final class PetView: NSView, CALayerDelegate {
                 customization: customization,
                 blinking: blinking,
                 hidesBaseEyes: hidesBaseEyes,
+                tongueArtworkURL: faceID == "face-teasing"
+                    ? accessoryPacks.first(where: { $0.id == faceID })?.artURL : nil,
                 nativeExpression: nativeExpression
             )
         }

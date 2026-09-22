@@ -13,6 +13,7 @@ enum SVGAppearanceRenderer {
         customization: JSONValue?,
         blinking: Bool,
         hidesBaseEyes: Bool = false,
+        tongueArtworkURL: URL? = nil,
         nativeExpression: String? = nil
     ) -> NSImage? {
         guard let data = renderedSVGData(
@@ -20,6 +21,7 @@ enum SVGAppearanceRenderer {
             customization: customization,
             blinking: blinking,
             hidesBaseEyes: hidesBaseEyes,
+            tongueArtworkURL: tongueArtworkURL,
             nativeExpression: nativeExpression
         ) else { return nil }
         return NSImage(data: data)
@@ -30,6 +32,7 @@ enum SVGAppearanceRenderer {
         customization: JSONValue?,
         blinking: Bool,
         hidesBaseEyes: Bool = false,
+        tongueArtworkURL: URL? = nil,
         nativeExpression: String? = nil
     ) -> Data? {
         guard let document = try? XMLDocument(contentsOf: character.artURL, options: [.nodePreserveAll]),
@@ -38,8 +41,33 @@ enum SVGAppearanceRenderer {
         applyNativeExpression(nativeExpression, to: root)
         hideRestingTearsAndCoveredEyes(root, hidesBaseEyes: hidesBaseEyes)
         applyShapes(root, manifest: character.manifest, customization: customization)
+        if let tongueArtworkURL {
+            insertTongue(artURL: tongueArtworkURL, into: root)
+        }
         applyTransforms(root, customization: customization, blinking: blinking)
         return document.xmlData(options: [])
+    }
+
+    /// Keep the original lips and place the tongue underneath the original nose.
+    /// Both built-in fish author their facial features around x=70 in local SVG space.
+    private static func insertTongue(artURL: URL, into root: XMLElement) {
+        guard let document = try? XMLDocument(contentsOf: artURL, options: []),
+              let source = try? document.nodes(forXPath: ".//*[@id='tongue']").first,
+              let tongue = source.copy() as? XMLElement,
+              let nose = elements(class: "nose", in: root).first,
+              let parent = nose.parent as? XMLElement,
+              let index = parent.children?.firstIndex(where: { $0 === nose }) else { return }
+        sanitize(tongue)
+        tongue.addAttribute(XMLNode.attribute(withName: "transform", stringValue: "translate(20 1)") as! XMLNode)
+        parent.insertChild(tongue, at: index)
+    }
+
+    static func tongueExpressionEyesImage(artURL: URL) -> NSImage? {
+        guard let document = try? XMLDocument(contentsOf: artURL, options: []),
+              let root = document.rootElement() else { return nil }
+        sanitize(root)
+        for node in (try? document.nodes(forXPath: ".//*[@id='tongue']")) ?? [] { node.detach() }
+        return NSImage(data: document.xmlData(options: []))
     }
 
     private static func applyNativeExpression(_ name: String?, to root: XMLElement) {

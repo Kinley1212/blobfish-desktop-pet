@@ -1,6 +1,28 @@
 import AppKit
 
 extension SelfCheck {
+    static func tongueExpressionPreservesLowerFace() throws -> Bool {
+        let catalog = try PackCatalog()
+        guard let face = try catalog.accessories().first(where: { $0.id == "face-teasing" }) else { return false }
+        for id in ["blobfish", "blobfish-wotou"] {
+            let character = try catalog.character(id: id)
+            guard let data = SVGAppearanceRenderer.renderedSVGData(
+                character: character, customization: nil, blinking: false, hidesBaseEyes: true, tongueArtworkURL: face.artURL
+            ), NSImage(data: data) != nil else { return false }
+            let document = try XMLDocument(data: data)
+            guard let tongue = try document.nodes(forXPath: ".//*[@id='tongue']").first,
+                  let nose = try document.nodes(forXPath: ".//*[@class='nose']").first,
+                  tongue.parent === nose.parent,
+                  let siblings = tongue.parent?.children,
+                  let ti = siblings.firstIndex(where: { $0 === tongue }),
+                  let ni = siblings.firstIndex(where: { $0 === nose }), ti < ni else { return false }
+            for name in ["mouth", "nose"] {
+                guard !(try document.nodes(forXPath: ".//*[@class='\(name)']")).isEmpty else { return false }
+            }
+        }
+        return SVGAppearanceRenderer.tongueExpressionEyesImage(artURL: face.artURL) != nil
+    }
+
     static func batchedArtworkPreservesFrameTransforms() -> Bool {
         let frame = NSRect(x: 0, y: 0, width: 170, height: 165)
         let immediate = PetView(frame: frame, contentMode: .artwork)

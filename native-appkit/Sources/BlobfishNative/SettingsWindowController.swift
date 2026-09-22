@@ -776,6 +776,8 @@ enum SettingsSurfacePalette {
 
 struct BrandedSettingsView: View {
     @ObservedObject var model: SettingsViewModel
+    @State private var expandedCharacterPanel: String?
+    @State private var showsNormalAppearance = true
 
     var body: some View {
         HStack(spacing: 0) {
@@ -830,6 +832,20 @@ struct BrandedSettingsView: View {
             sidebarButton(.clocks, "timer", zh: "闹钟与计时器", en: "Alarms & Timers")
             sidebarButton(.performance, "gauge.with.dots.needle.33percent", zh: "性能与更新", en: "Performance & Updates")
             Spacer()
+            VStack(alignment: .leading, spacing: 6) {
+                Text("LANGUAGE").font(.caption).foregroundStyle(.secondary)
+                Picker("LANGUAGE", selection: $model.draft.ui.locale) {
+                    Text("简体中文").tag("zh-CN")
+                    Text("繁體中文（香港）").tag("zh-HK")
+                    Text("English").tag("en")
+                }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity)
+                Text(t("点“应用”保存", "Select Apply to save"))
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            .padding(.bottom, 12)
             Text("NATIVE PREVIEW · " + model.updater.currentVersion)
                 .font(.caption2.monospaced()).foregroundStyle(.tertiary)
         }
@@ -880,9 +896,8 @@ struct BrandedSettingsView: View {
             subtitle: t("身份与好友码在这里设置；对话记录请从右键“消息”打开。", "Configure identity and fish codes here; open conversations from Messages in the context menu.")
         ) {
             fishIdentityCard
-            fishProfileCard
-            fishStatusAppearanceCard
             fishInviteCard
+            fishProfileCard
         }
     }
 
@@ -1062,14 +1077,6 @@ struct BrandedSettingsView: View {
                 .pickerStyle(.segmented)
                 Text(t("每条消息独立计时；新消息会顶开旧消息，不会覆盖。", "Each message has its own timer; new messages push older ones aside instead of replacing them."))
                     .font(.caption).foregroundStyle(.secondary)
-                visualStylePicker(
-                    title: t("未读消息提示", "Unread message indicator"),
-                    ids: FishMessageIndicatorStyle.ids,
-                    selection: Binding(
-                        get: { model.fishPreferences.effectiveMessageIndicatorID },
-                        set: { model.fishPreferences.messageIndicatorID = $0 }
-                    )
-                )
                 Toggle(t("好友来信播放音效", "Play sound for friend messages"), isOn: $model.fishPreferences.incomingSoundEnabled)
                 if model.fishPreferences.incomingSoundEnabled {
                     HStack {
@@ -1121,17 +1128,28 @@ struct BrandedSettingsView: View {
         }
     }
 
-    private var fishStatusAppearanceCard: some View {
-        SettingsCard {
-            Text(t("狀態外觀", "Status appearance")).font(.headline)
-            Text(t("每個狀態可指定表情與一件裝飾；串門時好友會看到。", "Choose a face and one decoration per status; visiting friends see them too."))
+    private var fishStatusAppearanceContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(t("日常栏目设置默认表情和饰品；其他状态可单独搭配，串门时好友也能看到。", "Set default expressions and accessories under Everyday, or customize each status for visits."))
                 .font(.caption).foregroundStyle(.secondary)
-            Picker(t("預覽狀態", "Preview status"), selection: $model.fishStatusPreview) {
+            Picker(t("外观栏目", "Appearance"), selection: Binding<String>(
+                get: { showsNormalAppearance ? "normal" : model.fishStatusPreview.rawValue },
+                set: { value in
+                    showsNormalAppearance = value == "normal"
+                    if let status = FishUserStatus(rawValue: value) { model.fishStatusPreview = status }
+                }
+            )) {
+                Text(t("日常", "Everyday")).tag("normal")
                 ForEach(FishUserStatus.allCases) { status in
-                    Text("\(status.emoji) \(InterfaceLanguage.authored(status.title(isEnglish: model.isEnglish), locale: model.draft.ui.locale))").tag(status)
+                    Text("\(status.emoji) \(InterfaceLanguage.authored(status.title(isEnglish: model.isEnglish), locale: model.draft.ui.locale))").tag(status.rawValue)
                 }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
+            if showsNormalAppearance {
+                accessoryEditors
+                Text(t("日常外观会同步显示在左侧预览，点“应用”保存。", "Everyday appearance updates in the left preview. Select Apply to save."))
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
             PetAppearancePreview(
                 character: currentCharacter,
                 scale: min(1, model.draft.pet.scale),
@@ -1166,6 +1184,7 @@ struct BrandedSettingsView: View {
                 }
             }
             Button(t("保存狀態外觀", "Save status appearance")) { model.saveFishSettings() }
+            }
         }
     }
 
@@ -1245,6 +1264,15 @@ struct BrandedSettingsView: View {
                 }
                 .pickerStyle(.menu)
 
+                Picker(t("语言包", "Dialogue pack"), selection: $model.draft.language.packId) {
+                    ForEach(model.compatibleLanguages) {
+                        Text(NativeLocalization.languageName(id: $0.id, fallback: $0.manifest.displayName, locale: model.draft.ui.locale)).tag($0.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                Text(t("台词语言独立于界面语言，点“应用”保存。", "Speech language is independent of the interface. Select Apply to save."))
+                    .font(.caption).foregroundStyle(.secondary)
+
                 VStack(alignment: .leading, spacing: 10) {
                     Text(t("大小", "Size")).font(.subheadline.weight(.semibold))
                     HStack {
@@ -1268,28 +1296,57 @@ struct BrandedSettingsView: View {
                 .background(SettingsSurfacePalette.controlBackground, in: RoundedRectangle(cornerRadius: 14))
                 }
                 .frame(width: 254, alignment: .topLeading)
+                .padding(.trailing, 20)
             }
-            .frame(width: 254)
+            .frame(width: 274)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    SettingsCard {
-                        Text(currentCharacter?.id == "grass-buddy" ? t("捏草", "Shape the grass") : t("捏鱼", "Shape the fish"))
-                            .font(.title3.weight(.bold))
+                    characterPanel("shape", title: currentCharacter?.id == "grass-buddy" ? t("捏草", "Shape the grass") : t("捏鱼", "Shape the fish")) {
                         Text(t("形状、五官和手脚会同步出现在左侧预览。", "Shape, face and limbs update in the live preview."))
                             .font(.callout).foregroundStyle(.secondary)
                         diyEditor
                     }
-                    SettingsCard {
-                        Text(t("饰品", "Accessories")).font(.title3.weight(.bold))
-                        accessoryEditors
+                    characterPanel("status", title: t("状态与外观", "Status & Appearance")) {
+                        fishStatusAppearanceContent
+                    }
+                    characterPanel("indicators", title: t("闹钟与邮箱样式", "Clock & Mailbox Styles")) {
+                        clockAndMailboxEditors
                     }
                 }
-                .padding(.trailing, 4)
+                .padding(.trailing, 20)
             }
             .frame(maxWidth: .infinity)
         }
         .padding(18)
+    }
+
+    private func characterPanel<Content: View>(
+        _ panel: String, title: String, @ViewBuilder content: () -> Content
+    ) -> some View {
+        let expanded = expandedCharacterPanel == panel
+        return SettingsCard {
+            Button {
+                expandedCharacterPanel = expanded ? nil : panel
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 14)
+                    Text(title).font(.title3.weight(.bold))
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(expanded ? t("已展开", "Expanded") : t("已收起", "Collapsed"))
+            if expanded {
+                VStack(alignment: .leading, spacing: 12) { content() }
+                    .padding(.top, 6)
+            }
+        }
     }
 
     private var accessoryEditors: some View {
@@ -1308,7 +1365,11 @@ struct BrandedSettingsView: View {
                     accessoryTuningEditor(id: id)
                 }
             }
-            Divider()
+        }
+    }
+
+    private var clockAndMailboxEditors: some View {
+        VStack(alignment: .leading, spacing: 14) {
             visualStylePicker(
                 title: t("闹钟样式", "Alarm clock style"),
                 ids: ClockAccessoryStyle.ids,
@@ -1320,6 +1381,16 @@ struct BrandedSettingsView: View {
             Text(t("样式会立即保存；位置与大小请点下方的“应用”保存。", "The style saves immediately; use Apply below to save its size and position."))
                 .font(.caption).foregroundStyle(.secondary)
             accessoryTuningEditor(id: model.clockState.preferences.effectiveAlarmAccessoryID)
+            Divider()
+                visualStylePicker(
+                    title: t("邮箱样式", "Mailbox style"),
+                    ids: FishMessageIndicatorStyle.ids,
+                    selection: Binding(
+                        get: { model.fishPreferences.effectiveMessageIndicatorID },
+                        set: { model.fishPreferences.messageIndicatorID = $0 }
+                    )
+                )
+            Button(t("保存邮箱样式", "Save mailbox style")) { model.saveFishSettings() }
         }
     }
 
@@ -1459,20 +1530,8 @@ struct BrandedSettingsView: View {
     }
 
     private var languageSection: some View {
-        SettingsPage(title: t("台词", "Dialogue"), subtitle: t("选择语言包与偶尔出现的台词。", "Choose a dialogue pack and occasional chatter.")) {
+        SettingsPage(title: t("台词", "Dialogue"), subtitle: t("设置闲聊频率、台词类型和提示音。", "Adjust chatter frequency, dialogue categories and sounds.")) {
             SettingsCard {
-                Picker(t("界面语言", "Interface language"), selection: $model.draft.ui.locale) {
-                    Text("简体中文").tag("zh-CN")
-                    Text("繁體中文（香港）").tag("zh-HK")
-                    Text("English").tag("en")
-                }
-                Picker(t("语言包", "Dialogue pack"), selection: $model.draft.language.packId) {
-                    ForEach(model.compatibleLanguages) {
-                        Text(NativeLocalization.languageName(id: $0.id, fallback: $0.manifest.displayName, locale: model.draft.ui.locale)).tag($0.id)
-                    }
-                }
-                Text(t("界面与台词语言独立设置。点“应用”后生效；更换角色会尽量保留台词语言。", "Interface and speech languages are independent. Select Apply to save; changing characters preserves the speech language when available."))
-                    .font(.caption).foregroundStyle(.secondary)
                 Toggle(t("闲聊", "Idle chatter"), isOn: $model.draft.language.idleEnabled)
                 Toggle(t("罕见台词", "Rare lines"), isOn: $model.draft.language.rareEnabled)
                 Stepper(t("最短间隔：\(Int(model.draft.language.idleMinMinutes)) 分钟", "Minimum interval: \(Int(model.draft.language.idleMinMinutes)) min"), value: $model.draft.language.idleMinMinutes, in: 1...180)
