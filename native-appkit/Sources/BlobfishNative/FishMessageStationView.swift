@@ -3,8 +3,15 @@ import SwiftUI
 
 // Share content dimensions with AppKit; the native title bar sits outside.
 enum FishComposeLayout {
-    static func contentSize(hasIncoming: Bool) -> NSSize {
-        NSSize(width: 240, height: hasIncoming ? 178 : 132)
+    static let interactionRowHeight: CGFloat = 40
+    static let interactionSpacing: CGFloat = 4
+    static var interactionGridHeight: CGFloat {
+        let rows = (FishRemoteInteraction.allCases.count + 2) / 3
+        return CGFloat(rows) * interactionRowHeight + CGFloat(max(0, rows - 1)) * interactionSpacing
+    }
+    static func contentSize(hasIncoming: Bool, interactionsExpanded: Bool = false) -> NSSize {
+        let baseHeight: CGFloat = hasIncoming ? 206 : 160
+        return NSSize(width: 240, height: baseHeight + (interactionsExpanded ? interactionGridHeight + 6 : 0))
     }
 }
 
@@ -21,7 +28,7 @@ struct FishMessageComposeView: View {
     @ObservedObject var model: FishMessageComposeViewModel
     @Environment(\.colorScheme) private var colorScheme
     private var palette: FishStationPalette { FishStationPalette(dark: colorScheme == .dark) }
-    private var size: NSSize { FishComposeLayout.contentSize(hasIncoming: !model.unreadIncomingMessages.isEmpty) }
+    private var size: NSSize { FishComposeLayout.contentSize(hasIncoming: !model.unreadIncomingMessages.isEmpty, interactionsExpanded: model.interactionsExpanded) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -36,6 +43,7 @@ struct FishMessageComposeView: View {
                 recipient.frame(height: 22)
                 if !model.unreadIncomingMessages.isEmpty { incomingMail }
                 editor.frame(height: 58)
+                interactionPanel
                 footer.frame(height: 24)
             }
         }
@@ -44,6 +52,44 @@ struct FishMessageComposeView: View {
         .background(palette.backdrop)
         .foregroundStyle(palette.ink)
         .tint(palette.stamp)
+    }
+
+    private var interactionPanel: some View {
+        VStack(spacing: 6) {
+            Button { model.interactionsExpanded.toggle() } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: model.interactionsExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                    Text(t("互動", "Interactions")).font(.system(size: 11, weight: .semibold))
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 7)
+                .frame(maxWidth: .infinity, minHeight: 22, maxHeight: 22)
+                .background(palette.paper.opacity(0.65), in: RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(model.interactionsExpanded ? t("已展開", "Expanded") : t("已收起", "Collapsed"))
+            if model.interactionsExpanded {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3), spacing: FishComposeLayout.interactionSpacing) {
+                    ForEach(FishRemoteInteraction.allCases) { interaction in
+                        Button { model.sendInteraction(interaction) } label: {
+                            VStack(spacing: 3) {
+                                Image(systemName: interaction.symbolName).font(.system(size: 13))
+                                Text(InterfaceLanguage.authored(interaction.title(isEnglish: model.isEnglish), locale: model.locale))
+                                    .font(.system(size: 10)).lineLimit(1).minimumScaleFactor(0.8)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: FishComposeLayout.interactionRowHeight, maxHeight: FishComposeLayout.interactionRowHeight)
+                            .background(palette.paper.opacity(0.8), in: RoundedRectangle(cornerRadius: 6))
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(model.isSending || model.selectedContact == nil)
+                    }
+                }
+                .frame(height: FishComposeLayout.interactionGridHeight)
+            }
+        }
     }
 
     private var recipient: some View {

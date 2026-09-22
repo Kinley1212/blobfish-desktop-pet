@@ -32,7 +32,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var messengerService: FishMessengerService?
     private var statusItem: NSStatusItem?
     private var localizedMenuItems: [(item: NSMenuItem, chinese: String, english: String)] = []
-    private var messengerGroupMenuItem: NSMenuItem?
     private var messengerMenuItem: NSMenuItem?
     private var messengerMenuUnreadCount = 0
     private var messengerSendMenuItem: NSMenuItem?
@@ -674,12 +673,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Reuse the existing items so live counts, checkmarks and clock actions
         // continue updating the same objects after grouping.
         menu.removeAllItems()
-        let messengerGroup = localizedMenuItem("传话与串门", "Messages & Visits")
-        let messengerMenu = NSMenu()
-        for entry in [sendMessage, messages, friendInteraction] { messengerMenu.addItem(entry) }
-        messengerGroup.submenu = messengerMenu
-        messengerGroupMenuItem = messengerGroup
-
         let clockGroup = localizedMenuItem("闹钟与计时器", "Alarms & Timers")
         let clockMenu = NSMenu()
         for entry in [quickTimer, timerControl, clocks] { clockMenu.addItem(entry) }
@@ -690,8 +683,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for entry in [taskRoam, pause, performance, launch, locate] { quickSettingsMenu.addItem(entry) }
         quickSettings.submenu = quickSettingsMenu
 
-        for entry in [messengerGroup, fishStatus, chat, hidePet, returnPet, clockGroup, quickSettings] {
-            menu.addItem(entry)
+        for entry in [sendMessage, messages, friendInteraction] { menu.addItem(entry) }
+        menu.addItem(.separator())
+        for entry in [fishStatus, chat, hidePet, returnPet, clockGroup, quickSettings] { menu.addItem(entry) }
+        let menuIcons: [(NSMenuItem, String)] = [
+            (sendMessage, "envelope"), (messages, "text.bubble"),
+            (friendInteraction, "person.2"), (fishStatus, "person.crop.circle"),
+            (chat, "bubble.left"), (hidePet, "eye.slash"), (returnPet, "eye"),
+            (clockGroup, "clock"), (quickSettings, "slider.horizontal.3"),
+            (settings, "gearshape"), (quit, "power"),
+            (snooze, "alarm"), (dismiss, "checkmark.circle")
+        ]
+        for (entry, symbol) in menuIcons {
+            let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 14, weight: .regular))
+            image?.isTemplate = true
+            entry.image = image
         }
         // Urgent alarm actions remain directly accessible while an alert is active.
         for entry in [alertTitle, snooze, dismiss] { menu.addItem(entry) }
@@ -718,10 +725,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func updateMessengerMenu(unreadCount: Int) {
         messengerMenuUnreadCount = unreadCount
         let english = runtime.config.ui.locale == "en"
-        let groupTitle = uiText("传话与串门", "Messages & Visits")
-        messengerGroupMenuItem?.title = unreadCount > 0
-            ? "\(groupTitle) · \(unreadCount > 99 ? "99+" : String(unreadCount))"
-            : groupTitle
         let title = uiText("聊天记录", "Chat History")
         messengerMenuItem?.title = unreadCount > 0
             ? "\(title) · \(unreadCount > 99 ? "99+" : String(unreadCount))"

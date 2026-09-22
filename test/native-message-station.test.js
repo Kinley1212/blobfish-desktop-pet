@@ -61,7 +61,7 @@ test('stationery pairs paper and ink in both appearances without outlined art', 
   assert.doesNotMatch(view, /\.stroke\(|\.strokeBorder\(/);
 });
 
-test('visit doorplate is separate from the three lightweight interactions without growing the composer', () => {
+test('visit doorplate remains separate from the three shortcuts and expandable interactions', () => {
   const recipient = view.slice(view.indexOf('private var recipient:'), view.indexOf('private var visitButton:'));
   assert.match(recipient, /ForEach\(model.quickInteractions\)/);
   assert.doesNotMatch(recipient, /model.toggleVisit/);
@@ -73,5 +73,8 @@ test('visit doorplate is separate from the three lightweight interactions withou
   for (const label of ['Cancel', 'Home', 'Visit']) assert.ok(button.includes(`"${label}"`));
   assert.match(button, /disabled\(model.isSending \|\| model.selectedContact == nil\)/);
   assert.match(button, /accessibilityLabel\(visitTitle\)/);
-  assert.match(view, /NSSize\(width: 240, height: hasIncoming \? 178 : 132\)/);
+  assert.match(view, /editor.frame\(height: 58\)\s+interactionPanel\s+footer/);
+  assert.match(view, /ForEach\(FishRemoteInteraction.allCases\)/);
+  assert.match(controller, /combineLatest\(viewModel.\$interactionsExpanded\)/);
+  assert.match(view, /if model.interactionsExpanded/);
 });

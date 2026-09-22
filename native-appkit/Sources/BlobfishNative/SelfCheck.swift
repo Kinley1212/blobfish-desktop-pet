@@ -331,11 +331,14 @@ enum SelfCheck {
                 primaryFrame: character, formationFrame: character, visibleFrames: [screen]
             ) else { return false }
             for hasIncoming in [false, true] {
-                // Both compact states include room for the native title bar.
-                var size = FishComposeLayout.contentSize(hasIncoming: hasIncoming)
-                size.height += 34
-                let frame = PetAttachedWindowGeometry.frame(windowSize: size, anchor: anchor)
-                guard screen.contains(frame), !frame.intersects(character) else { return false }
+                for expanded in [false, true] {
+                    var size = FishComposeLayout.contentSize(hasIncoming: hasIncoming, interactionsExpanded: expanded)
+                    guard size.width == 240,
+                          size.height == (hasIncoming ? 206 : 160) + (expanded ? FishComposeLayout.interactionGridHeight + 6 : 0) else { return false }
+                    size.height += 34
+                    let frame = PetAttachedWindowGeometry.frame(windowSize: size, anchor: anchor)
+                    guard screen.contains(frame), !frame.intersects(character) else { return false }
+                }
             }
         }
         return true

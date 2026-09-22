@@ -555,6 +555,7 @@ final class FishMessageComposeViewModel: ObservableObject {
             captureAndMarkUnread()
         }
     }
+    @Published var interactionsExpanded = false
     @Published var draft = ""
     @Published private(set) var isSending = false
     @Published private(set) var errorMessage = ""
@@ -825,12 +826,14 @@ final class FishMessageComposeWindowController: NSWindowController, NSWindowDele
         super.init(window: window)
         window.delegate = self
         incomingLayoutSubscription = viewModel.$displayedUnreadMessages
-            .map { !$0.isEmpty }
+            .combineLatest(viewModel.$interactionsExpanded)
+            .map { messages, expanded in
+                FishComposeLayout.contentSize(hasIncoming: !messages.isEmpty, interactionsExpanded: expanded)
+            }
             .removeDuplicates()
             .receive(on: RunLoop.main)
-            .sink { [weak self] hasIncoming in
+            .sink { [weak self] size in
                 guard let self, let window = self.window else { return }
-                let size = FishComposeLayout.contentSize(hasIncoming: hasIncoming)
                 if window.contentView?.frame.size != size { window.setContentSize(size) }
                 // Hosting may already have adopted the new intrinsic size;
                 // still recheck the edge so expanded mail cannot go offscreen.
