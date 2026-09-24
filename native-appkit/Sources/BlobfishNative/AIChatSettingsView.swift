@@ -108,8 +108,15 @@ struct AIChatSettingsView: View {
                     Button(t("测试连接", "Test connection")) { model.testAIConnection() }.disabled(model.aiTesting)
                     if model.aiTesting { ProgressView().controlSize(.small) }
                 }
-                Text(t("测试会发送一条无个人内容的请求，可能计入服务用量。聊天时仅发送当前对话和选取的记忆；不会读取桌面文件或好友消息。", "Testing sends one request without personal content and may count toward provider usage. Chats send only conversation context and selected memories, never desktop files or friend messages."))
+                Text(t("测试会发送一条无个人内容的请求，可能计入服务用量。聊天会发送当前对话、选取的记忆和你启用的任务背景；不会读取桌面文件或好友消息。", "Testing sends one request without personal content and may count toward provider usage. Chats send conversation context, selected memories and task background you enable, never desktop files or friend messages."))
                     .font(.caption).foregroundStyle(.secondary)
+                Toggle(t("让鱼了解最近任务", "Share recent tasks with your fish"), isOn: $model.draft.aiChat.includeRecentTasks)
+                Text(t("发送已启用连接中最近 3 天最多 6 条任务的标题、最后记录的状态与时间；不发送代码、路径或任务全文，也不另存任务历史。此项独立于聊天记忆开关。", "Sends titles, last recorded states and times for up to 6 tasks from enabled connections in the past 3 days. No code, paths, full transcripts or extra task history are collected. This is independent of chat memory."))
+                    .font(.caption).foregroundStyle(.secondary)
+                if model.draft.aiChat.includeRecentTasks && !model.draft.privacy.includeTaskTitles {
+                    Text(t("请先在“连接与隐私”开启任务标题；关闭时不会读取或发送任务背景。", "Enable task titles in Connections & Privacy first. Task background is neither read nor sent while titles are disabled."))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Toggle(t("保存本地聊天记忆", "Save local chat memory"), isOn: $model.draft.aiChat.memoryEnabled)
                 Text(t("最多 \(AIChatMemoryStore.entryCountLimit * 2) 条聊天消息、\(AIChatMemoryStore.factCountLimit) 条长期记忆，总占用（含写入临时文件）不超过 \(AIChatMemoryStore.totalDiskLimit / (1024 * 1024)) MB。关闭后仅保留本次窗口上下文，不写入也不发送旧记忆。", "Up to \(AIChatMemoryStore.entryCountLimit * 2) chat messages and \(AIChatMemoryStore.factCountLimit) saved notes; total storage including temporary writes stays within \(AIChatMemoryStore.totalDiskLimit / (1024 * 1024)) MB. When disabled, only this window's context is used; saved memory is neither read into requests nor updated."))
                     .font(.caption).foregroundStyle(.secondary)

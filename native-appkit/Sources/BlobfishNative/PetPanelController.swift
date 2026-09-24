@@ -654,6 +654,7 @@ final class PetPanelController {
     private var interactionPaused = false
     private var composerPaused = false
     private var dialoguePaused = false
+    private var dialogueReplySize: CGSize?
     private var dialogueText: String?
     private var dialogueFace: String?
     private var hoverPaused = false
@@ -1503,6 +1504,8 @@ final class PetPanelController {
 
     func setDialogueActive(_ active: Bool) {
         dialoguePaused = active
+        overlayView.prioritizeDialogueSpeech = active
+        if !active { dialogueReplySize = nil; overlayView.reservedOverlayRects = [] }
         if active {
             flingVelocity = nil
             if (speechQueue.current?.priority ?? 0) < 60 { speechQueue.clear() }
@@ -1528,12 +1531,14 @@ final class PetPanelController {
 
     func reserveDialogueSpace(_ size: CGSize) -> PetSceneAnchor? {
         guard let anchor = sceneAnchor else { return nil }
+        dialogueReplySize = size
         let lift = DialogueLayout.lift(size: size, anchor: anchor)
         if lift > 0.5 && !dragging {
             preciseOrigin = nil
             bobBaselineY = nil
             setPanelOriginIfChanged(NSPoint(x: panel.frame.minX, y: panel.frame.minY + lift))
         }
+        syncSceneOverlay()
         return sceneAnchor
     }
 
@@ -2060,6 +2065,12 @@ final class PetPanelController {
             dx: guestView.frame.minX,
             dy: guestView.frame.minY
         )
+        overlayView.reservedOverlayRects = dialoguePaused && dialogueReplySize != nil ? [
+            PetOverlayScreenGeometry.localRect(
+                for: DialogueLayout.frame(size: dialogueReplySize!, anchor: nextAnchor).insetBy(dx: -6, dy: -6),
+                visibleFrame: sceneFrame
+            )
+        ] : []
         if sceneAnchor != nextAnchor {
             sceneAnchor = nextAnchor
             onSceneAnchorChanged?(nextAnchor)

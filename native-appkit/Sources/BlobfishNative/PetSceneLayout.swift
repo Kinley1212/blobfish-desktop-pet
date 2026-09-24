@@ -113,6 +113,8 @@ struct PetSceneLayoutInput {
     let performancePanelSide: String
     let performancePanelVerticalPosition: Double
     let performancePanelDistance: Double
+    var reservedRects: [CGRect] = []
+    var prioritizeOwnerSpeech = false
 }
 
 struct PetSceneLayout: Equatable {
@@ -300,7 +302,7 @@ enum PetSceneLayoutCoordinator {
         // candidate owns its own gap contract (performance supports 2...28 pt;
         // cards and bubbles default to 6 pt), so a fixed expansion here would
         // silently override the user's performance distance.
-        var occupied = [formation]
+        var occupied = [formation] + input.reservedRects
 
         var timerRect: CGRect?
         var visitStatusRect: CGRect?
@@ -356,11 +358,15 @@ enum PetSceneLayoutCoordinator {
             input.clockAlertSize,
             preferred: verticalCandidates(size: input.clockAlertSize ?? .zero, anchor: formation)
         )
+        let prioritySpeechRect = input.prioritizeOwnerSpeech ? placeCard(
+            input.ownerSpeechSize,
+            preferred: verticalCandidates(size: input.ownerSpeechSize ?? .zero, anchor: input.characterBounds)
+        ) : nil
         let taskStackRect = placeCard(
             input.taskStackSize,
             preferred: verticalCandidates(size: input.taskStackSize ?? .zero, anchor: formation)
         )
-        let ownerSpeechRect = placeCard(
+        let ownerSpeechRect = input.prioritizeOwnerSpeech ? prioritySpeechRect : placeCard(
             input.ownerSpeechSize,
             preferred: verticalCandidates(size: input.ownerSpeechSize ?? .zero, anchor: input.characterBounds)
         )

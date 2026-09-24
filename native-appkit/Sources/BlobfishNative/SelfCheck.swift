@@ -6,6 +6,8 @@ enum SelfCheck {
     static func run() -> Bool {
         let checks: [(String, () throws -> Bool)] = [
             ("AI context preserves dated messages, legacy unknown times and timezone changes", { try MainActor.assumeIsolated { try aiChatTimeContext() } }),
+            ("AI recent tasks are opt-in, dated, bounded and exclude task contents", { try MainActor.assumeIsolated { try aiChatRecentTaskContext() } }),
+            ("dialogue speech and task overlays avoid expanded and collapsed replies", dialogueOverlaysAvoidReplyArea),
             ("AI companion interests migrate without changing custom preferences", aiChatCompanionSettings),
             ("chat artwork moves gently while reply anchor stays fixed", dialogueArtworkMotion),
             ("AI HTTP transport caps responses and refuses credential redirects", { try MainActor.assumeIsolated { try aiChatHTTPBounds() } }),

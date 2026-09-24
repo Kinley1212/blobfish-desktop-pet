@@ -18,6 +18,17 @@ struct TaskLeaseReader {
 
     func read(nowMilliseconds: Double = Date().timeIntervalSince1970 * 1_000,
               cache: PrivateFileDecodeCache<TaskLease>? = nil) throws -> [TaskLease] {
+        try read(nowMilliseconds: nowMilliseconds, earliestTimestamp: nil, cache: cache)
+    }
+
+    // Historical records are background evidence only. Never use this path to
+    // project live task state: it intentionally includes expired live leases.
+    func readRecent(nowMilliseconds: Double, sinceMilliseconds: Double) throws -> [TaskLease] {
+        try read(nowMilliseconds: nowMilliseconds, earliestTimestamp: sinceMilliseconds, cache: nil)
+    }
+
+    private func read(nowMilliseconds: Double, earliestTimestamp: Double?,
+                      cache: PrivateFileDecodeCache<TaskLease>?) throws -> [TaskLease] {
         var retained = Set<URL>()
         defer { cache?.retainOnly(retained) }
         guard FileManager.default.fileExists(atPath: directoryURL.path) else { return [] }
@@ -55,7 +66,7 @@ struct TaskLeaseReader {
             } else {
                 decoded = try readLease(at: url)
             }
-            if let lease = decoded, isValid(lease, nowMilliseconds: nowMilliseconds) {
+            if let lease = decoded, isValid(lease, nowMilliseconds: nowMilliseconds, earliestTimestamp: earliestTimestamp) {
                 retained.insert(url)
                 leases.append(lease)
                 if leases.count >= Self.maximumLeaseCount { break }
@@ -99,7 +110,7 @@ struct TaskLeaseReader {
         return try? JSONDecoder().decode(TaskLease.self, from: data)
     }
 
-    private func isValid(_ lease: TaskLease, nowMilliseconds: Double) -> Bool {
+    private func isValid(_ lease: TaskLease, nowMilliseconds: Double, earliestTimestamp: Double?) -> Bool {
         guard lease.version == 1,
               lease.provider == "codex" || lease.provider == "claude-code",
               (1...256).contains(lease.sessionId.utf8.count),
@@ -116,6 +127,7 @@ struct TaskLeaseReader {
             guard startedAt.isFinite, startedAt >= 0, startedAt <= lease.timestamp else { return false }
         }
 
+        if let earliestTimestamp { return lease.timestamp >= earliestTimestamp }
         let maximumAge: Double
         switch lease.event {
         case .started: maximumAge = Self.startedMaximumAgeMilliseconds

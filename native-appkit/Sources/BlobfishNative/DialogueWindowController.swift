@@ -149,6 +149,8 @@ final class DialogueViewModel: ObservableObject {
         if history.isEmpty { history = [AIChatMessage(role: "assistant", content: prompt, occurredAt: promptTime)] }
         let memories = config.memoryEnabled ? memory.state.facts : []
         let currentPack = pack
+        let contextConfig = runtime.config
+        let leaseDirectory = runtime.configStore.fileURL.deletingLastPathComponent().appendingPathComponent("agent-task-leases")
         sessionHistory = history
         isBusy = true
         notice = ""
@@ -159,10 +161,20 @@ final class DialogueViewModel: ObservableObject {
                 let key = try self.keyProvider(config.endpoint)
                 try Task.checkCancellation()
                 guard self.generation == token else { return }
+                let taskContext = await Task.detached(priority: .utility) {
+                    AIChatTaskContext.read(directory: leaseDirectory, configuration: contextConfig)
+                }.value
+                try Task.checkCancellation()
+                guard self.generation == token else { return }
                 var requestMessages = AIChatPrompt.messages(runtime: self.runtime, pack: currentPack, history: history,
-                                                           memories: memories, input: text, intent: intent, inputTime: inputTime)
+                                                           memories: memories, input: text, intent: intent, inputTime: inputTime, taskContext: taskContext)
                 var result: AIChatTurn?
                 for attempt in 0..<2 {
+                    if !AIChatTaskContext.isEnabled(self.runtime.config)
+                        || self.runtime.config.privacy != contextConfig.privacy
+                        || self.runtime.config.integrations != contextConfig.integrations {
+                        requestMessages.removeAll { $0.content == taskContext }
+                    }
                     let content = try await self.transport.complete(configuration: config, key: key, messages: requestMessages)
                     try Task.checkCancellation()
                     guard self.generation == token else { return }

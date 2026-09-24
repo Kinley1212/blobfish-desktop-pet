@@ -372,6 +372,8 @@ final class PetView: NSView, CALayerDelegate {
     var onDragEnd: ((CGFloat, CGFloat) -> Void)?
     var onClockSnooze: ((String) -> Void)?
     var onClockDismiss: ((String) -> Void)?
+    var reservedOverlayRects: [CGRect] = [] { didSet { if oldValue != reservedOverlayRects { invalidateOverlay() } } }
+    var prioritizeDialogueSpeech = false { didSet { if oldValue != prioritizeDialogueSpeech { invalidateOverlay() } } }
     var transientMessage: String? { didSet { invalidateOverlay() } }
     var transientMessageEvent: String? { didSet { invalidateOverlay() } }
     var transientMessageColor: String? { didSet { invalidateOverlay() } }
@@ -895,7 +897,9 @@ final class PetView: NSView, CALayerDelegate {
                 : PerformancePanelGeometry.size(for: characterBounds),
             performancePanelSide: performancePanelSide,
             performancePanelVerticalPosition: performancePanelVerticalPosition,
-            performancePanelDistance: performancePanelDistance
+            performancePanelDistance: performancePanelDistance,
+            reservedRects: reservedOverlayRects,
+            prioritizeOwnerSpeech: prioritizeDialogueSpeech
         ))
     }
 
