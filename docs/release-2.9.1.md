@@ -1,6 +1,4 @@
-# 水滴鱼 2.9.0（未发布）
-
-此标签推送后，发布构建因追加功能而取消。完整正式版本请查看 [2.9.1 发布说明](release-2.9.1.md)。
+# 水滴鱼 2.9.1
 
 ## 桌面 AI 陪伴聊天
 
@@ -14,7 +12,7 @@
 - 当前日期、时间及时区作为对话背景；历史消息保留各自原始时间，区分原话与保存记忆的时间，不强制每句话提及时间。
 - 本地最多保留 300 条聊天消息和 100 条长期记忆，文件连同临时写入不超过 3 MB；每次发送给模型的上下文仍有单独上限。
 - 支持查看、手动保存和删除记忆；旧记录缺失的时间保持未知。
-- API 密钥保存在 macOS Keychain；只发送对话及选入的记忆，不读取桌面文件或好友消息。模型服务可能按使用量计费。
+- API 密钥保存在 macOS Keychain；发送对话、选入的记忆及你启用的任务背景，不读取桌面文件或好友消息。模型服务可能按使用量计费。
 
 配置入口：**设置 → 台词 → AI 聊天**。联网新闻检索暂未启用。
 
@@ -23,10 +21,22 @@
 - 修复旧任务状态文件及锁文件积累超过 1,024 个后，桌宠忽略全部实时任务的问题。
 - 优先读取最新任务记录，仍限制单次解码数及有效任务数量，保留文件权限与符号链接校验；无需重装 Hooks 或重启 Codex。
 
+## 最近任务与聊天布局
+
+- 新增“让鱼了解最近任务”独立开关，默认关闭。开启后在聊天请求中附带最近 3 天最多 6 条任务的标题、最后记录状态与时间，仍需开启对应连接和任务标题。
+- 只使用已有的私有状态记录，不读取任务全文、代码或工具输出，不另存任务历史；每次任务背景最多 3 KB，总上下文仍限 24 KB。旧状态不会被当作当前进度。
+- 修复任务标题把聊天气泡挤到选项上方的问题：聊天气泡优先布局，回复栏参与避让，展开与收起都保持可点选。
+
+## 聊天表情与告别
+
+- 每轮聊天表情保持 5 秒后恢复，文字继续保留；新的回复会重新计时。
+- 点击关闭或按 Esc 结束聊天后，启用 AI 时生成一句贴合当前对话的告别；最多等待 5 秒，失败或未启用 AI 时使用本地台词。
+- 告别气泡与表情显示 5 秒。重新打开聊天会取消上一轮尚未完成的告别，不会重新弹出回复框。
+
 ## 下载
 
-- [Apple Silicon Mac](https://github.com/Kinley1212/blobfish-desktop-pet/releases/download/v2.9.0/BlobfishNative-2.9.0-macOS-arm64.zip)
-- [Intel Mac](https://github.com/Kinley1212/blobfish-desktop-pet/releases/download/v2.9.0/BlobfishNative-2.9.0-macOS-x64.zip)
+- [Apple Silicon Mac](https://github.com/Kinley1212/blobfish-desktop-pet/releases/download/v2.9.1/BlobfishNative-2.9.1-macOS-arm64.zip)
+- [Intel Mac](https://github.com/Kinley1212/blobfish-desktop-pet/releases/download/v2.9.1/BlobfishNative-2.9.1-macOS-x64.zip)
 - 原生自动更新清单：`blobfish-native-latest.json`
 
 要求 macOS 13 或以上。安装包为纯 Swift / AppKit，沿用 ad-hoc 签名，无 Apple 公证；首次打开可能需要在系统「隐私与安全性」中确认。
