@@ -8,7 +8,7 @@ enum TaskLeaseReaderError: Error {
 struct TaskLeaseReader {
     static let maximumFileBytes = 16 * 1024
     static let maximumLeaseCount = 256
-    static let maximumDirectoryEntries = 1_024
+    static let maximumCandidateCount = 1_024
     static let startedMaximumAgeMilliseconds: Double = 15 * 60 * 1_000
     static let runningMaximumAgeMilliseconds: Double = 30 * 60 * 1_000
     static let waitingMaximumAgeMilliseconds: Double = 8 * 60 * 60 * 1_000
@@ -34,15 +34,18 @@ struct TaskLeaseReader {
             includingPropertiesForKeys: Array(keys),
             options: [.skipsHiddenFiles]
         )
-        guard entries.count <= Self.maximumDirectoryEntries else { return [] }
 
+        // Session lock files persist to avoid splitting concurrent writers across
+        // different lock inodes. Their count must never disable live task reads.
+        // Bound decoding to the newest lease candidates instead of rejecting the
+        // whole directory when historical leases or lock files accumulate.
         let candidates = entries.compactMap { url -> (URL, Date)? in
             guard isLeaseName(url.lastPathComponent),
                   let values = try? url.resourceValues(forKeys: keys),
                   values.isRegularFile == true,
                   values.isSymbolicLink != true else { return nil }
             return (url, values.contentModificationDate ?? .distantPast)
-        }.sorted { $0.1 > $1.1 }
+        }.sorted { $0.1 > $1.1 }.prefix(Self.maximumCandidateCount)
 
         var leases: [TaskLease] = []
         for (url, _) in candidates {

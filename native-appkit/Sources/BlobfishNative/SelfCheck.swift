@@ -32,6 +32,8 @@ enum SelfCheck {
             ("Codex observation files reject stale and unsafe data", codexObservationFilesArePrivate),
             ("Codex question pages retain selection and clear safely", { MainActor.assumeIsolated { codexQuestionPaging() } }),
             ("private lease recovery", privateLeaseRecovery),
+            ("lease recovery despite accumulated history and locks", crowdedLeaseRecovery),
+            ("live task lease count remains bounded", boundedLiveLeaseRecovery),
             ("orphaned task leases expire promptly", orphanedTaskLeasesExpirePromptly),
             ("waiting fallback title", waitingFallbackTitle),
             ("terminal status expiry", terminalStatusExpiry),
@@ -848,6 +850,62 @@ enum SelfCheck {
                         title: "修复原生桌宠", timestamp: now - 500
                     )]
                 )
+        }
+    }
+
+    private static func crowdedLeaseRecovery() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let now = Date().timeIntervalSince1970 * 1_000
+            // Reproduce both sources of growth: permanent session locks and
+            // expired leases. Live records must survive beyond the old 1024 gate.
+            for index in 0..<1_100 {
+                let digest = String(format: "%064x", index)
+                try Data().write(to: directory.appendingPathComponent(digest + ".lock"))
+                try writeLease([
+                    "version": 1, "provider": "codex", "event": "ended",
+                    "sessionId": "old-\(index)", "timestamp": now - 86_400_000,
+                ], named: digest + ".json", in: directory)
+                try FileManager.default.setAttributes(
+                    [.modificationDate: Date(timeIntervalSince1970: now / 1_000 - 86_400)],
+                    ofItemAtPath: directory.appendingPathComponent(digest + ".json").path
+                )
+            }
+            try writeLease([
+                "version": 1, "provider": "codex", "event": "running",
+                "sessionId": "live-codex", "timestamp": now,
+            ], named: String(repeating: "e", count: 64) + ".json", in: directory)
+            try writeLease([
+                "version": 1, "provider": "claude-code", "event": "needs_input",
+                "sessionId": "live-claude", "timestamp": now,
+            ], named: String(repeating: "f", count: 64) + ".json", in: directory)
+            let reader = TaskLeaseReader(directoryURL: directory)
+            let cache = PrivateFileDecodeCache<TaskLease>(maximumEntries: 256, maximumSourceBytes: 256 * 1024)
+            for useCache in [false, true, true] {
+                let leases = try reader.read(nowMilliseconds: now, cache: useCache ? cache : nil)
+                guard Set(leases.map(\.sessionId)) == ["live-codex", "live-claude"] else { return false }
+            }
+            // Reading is non-destructive, including lock files used by senders.
+            return try FileManager.default.contentsOfDirectory(atPath: directory.path).count == 2_202
+        }
+    }
+
+    private static func boundedLiveLeaseRecovery() throws -> Bool {
+        try withPrivateDirectory { directory in
+            let now = Date().timeIntervalSince1970 * 1_000
+            for index in 0..<300 {
+                let name = String(format: "%064x.json", index)
+                try writeLease([
+                    "version": 1, "provider": "codex", "event": "running",
+                    "sessionId": "live-\(index)", "timestamp": now - Double(index),
+                ], named: name, in: directory)
+                try FileManager.default.setAttributes(
+                    [.modificationDate: Date(timeIntervalSince1970: (now - Double(index)) / 1_000)],
+                    ofItemAtPath: directory.appendingPathComponent(name).path
+                )
+            }
+            let leases = try TaskLeaseReader(directoryURL: directory).read(nowMilliseconds: now)
+            return leases.count == 256
+                && Set(leases.map(\.sessionId)) == Set((0..<256).map { "live-\($0)" })
         }
     }
 

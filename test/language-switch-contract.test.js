@@ -30,7 +30,9 @@ test('native minigames select the speech locale and describe the actual dice ran
   assert.match(source, /runtime\.speechText\(chinese, english\)/);
   assert.match(source, /Big \(8–12\)/);
   assert.match(source, /Small \(2–6\)/);
-  assert.match(source, /if changed \{ startFresh\(\) \}/);
+  const synchronize = source.slice(source.indexOf('func synchronize(pack: DialoguePack)'), source.indexOf('func ui('));
+  assert.match(synchronize, /self\.pack != pack/);
+  assert.match(synchronize, /if changed \{ cancel\(\); sessionHistory = \[\]; draft = ""; localOnlyThisSession = false; startFresh\(\) \}/);
 });
 
 test('changing speech identity clears only automatic speech, not friend messages', () => {
