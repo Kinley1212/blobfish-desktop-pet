@@ -12,7 +12,7 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 ![platform](https://img.shields.io/badge/platform-macOS-1f2328?style=flat-square)
 ![native](https://img.shields.io/badge/native-Swift%20%2F%20AppKit-f05138?style=flat-square)
 ![macOS](https://img.shields.io/badge/macOS-%E2%89%A513.0-1f2328?style=flat-square)
-![version](https://img.shields.io/badge/version-2.7.4-c87d95?style=flat-square)
+![version](https://img.shields.io/badge/version-2.9.0-c87d95?style=flat-square)
 
 </div>
 
@@ -31,6 +31,13 @@ A blobfish that lives on your macOS desktop — it swims, mutters, reminds you t
 - 点击会变形流泪（被揍），拖拽可以随便丢，甩出去有惯性和边界回弹
 - 鼠标停在身上它就停下来；来回撫摸会脸红、说话，越摸反应越夸张
 - 支持水平（沿底部）和垂直（沿边缘）两种游动方式
+
+**AI 陪伴聊天（可选）**
+
+- 在桌面鱼下方直接选择回复或打字，选项可折叠；聊天时保留轻微动作和表情反馈
+- 接入兼容 Chat Completions 的 API 后现场生成对话；不接 API 仍可使用原有台词和小游戏
+- 对话与记忆包含原始时间及时区，本地保存最多 300 条聊天消息、100 条长期记忆，总空间含临时写入不超过 3 MB
+- 在「设置 → 台词 → AI 聊天」配置，密钥保存在 Keychain；详见 [AI 聊天说明](docs/ai-chat-desktop.md)
 
 **捏鱼**
 
@@ -177,6 +184,13 @@ A native macOS desktop pet built with Swift, AppKit and SwiftUI. It lives in a t
 - Click it and it squashes and cries; drag it anywhere; fling it and it carries momentum and bounces off the screen edges
 - It stops swimming while your cursor rests on it, and blushes and talks when you stroke it back and forth — the longer you keep going, the more it gives in
 - Swims either horizontally along the bottom or vertically along an edge
+
+**Optional AI companion chat**
+
+- Reply directly beneath the desktop pet, using collapsible choices or typed messages, with gentle motion and expressive feedback
+- Connect a Chat Completions compatible API for generated dialogue; authored conversations and local games remain available without one
+- Messages and memories retain original timestamps and timezones; local storage holds up to 300 messages and 100 notes within 3 MB including temporary writes
+- Configure it in Settings → Dialogue → AI chat. API keys stay in Keychain; see the [AI chat guide](docs/ai-chat-desktop.md)
 
 **Shape editor**
 
