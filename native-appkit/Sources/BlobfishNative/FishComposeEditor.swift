@@ -90,6 +90,7 @@ struct FishComposeEditor: NSViewRepresentable {
     let placeholderColor: NSColor
     let accessibilityLabel: String
     let onSend: () -> Void
+    var fontSize: CGFloat = 13
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -104,7 +105,7 @@ struct FishComposeEditor: NSViewRepresentable {
         editor.isAutomaticQuoteSubstitutionEnabled = false
         editor.isAutomaticDashSubstitutionEnabled = false
         editor.drawsBackground = false
-        editor.font = .systemFont(ofSize: 13)
+        editor.font = .systemFont(ofSize: fontSize)
         editor.textContainerInset = NSSize(width: 0, height: 8)
         editor.isVerticallyResizable = true
         editor.isHorizontallyResizable = false
@@ -133,6 +134,7 @@ struct FishComposeEditor: NSViewRepresentable {
     }
 
     private func configure(_ editor: FishComposeTextView) {
+        if editor.font?.pointSize != fontSize { editor.font = .systemFont(ofSize: fontSize) }
         editor.isEditable = isEnabled
         editor.textColor = ink
         editor.insertionPointColor = ink

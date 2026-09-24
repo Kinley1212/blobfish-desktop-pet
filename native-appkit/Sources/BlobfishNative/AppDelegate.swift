@@ -134,6 +134,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         panelController.onSceneAnchorChanged = { [weak self] sceneAnchor in
             self?.codexQuestionController?.updateAnchor(sceneAnchor)
+            if self?.dialogueController?.window?.isVisible == true {
+                Task { @MainActor [weak self] in self?.dialogueController?.updateAnchor(sceneAnchor) }
+            }
             guard let controller = self?.fishMessageComposeController,
                   controller.window?.isVisible == true else { return }
             Task { @MainActor in
@@ -1154,10 +1157,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func hidePetInCoral(_ sender: NSMenuItem) {
+    @MainActor @objc private func hidePetInCoral(_ sender: NSMenuItem) {
         guard let minutes = sender.representedObject as? Int else { return }
         let phrase = runtime.phrase(event: "interaction.hide", context: ["minutes": .number(Double(minutes))])
             ?? runtime.speechText("我去珊瑚里躲 \(minutes) 分钟……", "Hiding in the coral for \(minutes) minutes…")
+        dialogueController?.close()
         panelController.hideInCoral(minutes: minutes, phrase: phrase)
     }
 
@@ -1280,6 +1284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @MainActor private func presentFishMessageComposer(preferredContactID: UUID?) {
+        dialogueController?.close()
         guard let messenger = messengerService else { return }
         if fishMessageComposeController == nil {
             fishMessageComposeController = FishMessageComposeWindowController(
@@ -1345,26 +1350,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             panelController.say(runtime.speechText("聊天内容没有加载好。", "I couldn't load our conversation."), event: "system.error", duration: 5.5, priority: SpeechPriority.urgent, replaceKey: "system.error")
             return
         }
-        if let controller = dialogueController, let window = controller.window, window.isVisible {
+        if let controller = dialogueController, controller.window?.isVisible == true {
             controller.synchronize(pack: pack)
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            controller.present(anchor: panelController.sceneAnchor)
             return
         }
+        fishMessageComposeController?.close()
+        guard !panelController.isTemporarilyHidden else { return }
+        panelController.setDialogueActive(true)
         let controller = DialogueWindowController(runtime: runtime, pack: pack) { [weak self] text, face in
-            self?.panelController.say(
-                text,
-                event: "interaction.chat",
-                faceID: face,
-                duration: 3.2,
-                priority: SpeechPriority.interaction,
-                replaceKey: "interaction.chat"
-            )
+            self?.panelController.presentDialogue(text, face: face)
         }
+        controller.onClose = { [weak self] in self?.panelController.setDialogueActive(false) }
+        controller.reserveSpace = { [weak self] size in self?.panelController.reserveDialogueSpace(size) }
         dialogueController = controller
-        controller.showWindow(nil)
-        controller.window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        controller.present(anchor: panelController.sceneAnchor)
     }
 
     @objc private func openSettings() {

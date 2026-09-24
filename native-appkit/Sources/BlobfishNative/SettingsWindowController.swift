@@ -35,6 +35,12 @@ enum FishInviteCodePresentationPolicy {
 @MainActor
 final class SettingsViewModel: ObservableObject {
     @Published var draft: AppConfig
+    @Published var aiKeyDraft = ""
+    @Published var aiStatus = ""
+    @Published var aiTesting = false
+    @Published var aiMemoryDraft = ""
+    @Published var aiFacts: [AIChatMemoryState.Fact] = []
+    @Published var aiMemoryBytes = 0
     @Published var message = ""
     @Published var selectedSection = SettingsSection.character
     @Published var clockState: ClockState
@@ -1531,6 +1537,7 @@ struct BrandedSettingsView: View {
 
     private var languageSection: some View {
         SettingsPage(title: t("台词", "Dialogue"), subtitle: t("设置闲聊频率、台词类型和提示音。", "Adjust chatter frequency, dialogue categories and sounds.")) {
+            SettingsCard { AIChatSettingsView(model: model) }
             SettingsCard {
                 Toggle(t("闲聊", "Idle chatter"), isOn: $model.draft.language.idleEnabled)
                 Toggle(t("罕见台词", "Rare lines"), isOn: $model.draft.language.rareEnabled)
@@ -1889,6 +1896,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         window?.makeFirstResponder(nil)
         stopRefreshTimer()
+        viewModel.aiKeyDraft = ""
     }
 
     private func constrainWindowToVisibleScreen() {

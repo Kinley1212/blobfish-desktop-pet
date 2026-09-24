@@ -53,6 +53,7 @@ struct AppConfig: Codable, Equatable {
     struct SoundChoice: Codable, Equatable { var enabled: Bool; var soundId: String }
     struct Sound: Codable, Equatable { var taskComplete: SoundChoice; var needsInput: SoundChoice }
 
+    var aiChat: AIChatConfiguration = .defaults
     var version: Int
     var ui: UI
     var schedule: Schedule
@@ -108,6 +109,7 @@ struct AppConfig: Codable, Equatable {
     func validated() throws -> AppConfig {
         var normalized = self
         guard version == 1 else { throw ConfigError.invalid("unsupported version") }
+        normalized.aiChat = try aiChat.validated()
         normalized.ui.locale = InterfaceLanguage.normalize(ui.locale)
         guard schedule.workdays.count <= 7,
               schedule.workdays.allSatisfy({ (0...6).contains($0) }) else {

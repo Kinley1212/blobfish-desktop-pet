@@ -1171,10 +1171,16 @@ final class PetView: NSView, CALayerDelegate {
             case .roam: period = 0.84; degrees = 0.8; stretch = 0
             case .working: period = 1.25; degrees = 1.2; stretch = 0.009
             case .waiting: period = 2.8; degrees = 1.5; stretch = 0
+            case .chatting: period = 3; degrees = 0.5; stretch = 0.004
             }
             let wave = CGFloat(sin(motionElapsed / period * 2 * .pi))
             let amount = stretch * (wave + 1)
             return (degrees * wave, 1 + amount, 1 - amount)
+        }
+        if motionState == .chatting {
+            let wave = CGFloat(sin(motionElapsed / 2.8 * 2 * .pi))
+            let breath = (wave + 1) * 0.003
+            return (0.6 * wave, 1 + breath, 1 - breath)
         }
         if motionState == .waiting {
             let rotation = -CGFloat(1 - cos(motionElapsed / 2.2 * 2 * .pi))

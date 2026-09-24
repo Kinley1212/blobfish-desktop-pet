@@ -3,6 +3,7 @@ import Foundation
 final class AppRuntime {
     let configStore: NativeConfigStore
     let catalog: PackCatalog?
+    lazy var chatMemory = AIChatMemoryStore(directory: configStore.fileURL.deletingLastPathComponent())
 
     private(set) var config: AppConfig
     private(set) var character: CharacterPack?

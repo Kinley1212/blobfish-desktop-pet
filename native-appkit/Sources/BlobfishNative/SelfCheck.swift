@@ -5,6 +5,17 @@ import Foundation
 enum SelfCheck {
     static func run() -> Bool {
         let checks: [(String, () throws -> Bool)] = [
+            ("AI context preserves dated messages, legacy unknown times and timezone changes", { try MainActor.assumeIsolated { try aiChatTimeContext() } }),
+            ("AI companion interests migrate without changing custom preferences", aiChatCompanionSettings),
+            ("chat artwork moves gently while reply anchor stays fixed", dialogueArtworkMotion),
+            ("AI HTTP transport caps responses and refuses credential redirects", { try MainActor.assumeIsolated { try aiChatHTTPBounds() } }),
+            ("chat options collapse without losing the editor or hiding local games", { try MainActor.assumeIsolated { try dialogueOptionsCollapse() } }),
+            ("desktop chat has a transparent, compact hosting surface", { try MainActor.assumeIsolated { try dialogueWindowLayout() } }),
+            ("AI chat validates endpoints, structured replies and character expressions", aiChatValidation),
+            ("AI chat memory stays private, bounded and deletable", aiChatMemoryBounds),
+            ("desktop dialogue stays below the fish on screen edges", dialogueBelowPetGeometry),
+            ("AI chat context follows speech language and byte budget", { try MainActor.assumeIsolated { try aiChatContextBounds() } }),
+            ("AI chat cancellation, repair, fallback and memory deletion", { try MainActor.assumeIsolated { try aiChatLifecycle() } }),
             ("coral hiding deadlines and artwork geometry", coralHidingPolicy),
             ("decode cache preserves permissions, replacement and capacity", decodeCachePreservesFileSafety),
             ("cached tasks and approvals still expire on time", cachedTasksStillExpire),

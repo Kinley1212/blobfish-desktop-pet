@@ -12,7 +12,7 @@ final class PetPanel: NSPanel {
 }
 
 enum PetMotionTiming {
-    enum State { case idle, roam, working, waiting }
+    enum State { case idle, roam, working, waiting, chatting }
     static let framesPerSecond = 60.0
     static let pointsPerSecondPerSpeedUnit = 1_000.0 / 30.0
     static let swimPeriod = 0.9
@@ -88,7 +88,11 @@ enum PetMotionTiming {
             case .roam: period = 0.84; distance = 4
             case .working: period = 1.25; distance = 3
             case .waiting: period = 2.8; distance = 1
+            case .chatting: period = 3; distance = 1.5
             }
+        } else if state == .chatting {
+            period = 2.4
+            distance = 3
         } else {
             period = swimPeriod
             distance = swimDistance
@@ -649,6 +653,9 @@ final class PetPanelController {
     private var visitAnnouncementWorkItem: DispatchWorkItem?
     private var interactionPaused = false
     private var composerPaused = false
+    private var dialoguePaused = false
+    private var dialogueText: String?
+    private var dialogueFace: String?
     private var hoverPaused = false
     private var menuPaused = false
     private var dragging = false
@@ -702,7 +709,7 @@ final class PetPanelController {
             self?.overlayView.transientMessage = nil
             self?.overlayView.transientMessageEvent = nil
             self?.overlayView.transientMessageColor = nil
-            self?.petView.setMoodFace(self?.statusFaceID)
+            self?.restoreDialoguePresentation()
         }
     )
 
@@ -987,7 +994,7 @@ final class PetPanelController {
         replaceKey: String? = nil,
         color: String? = nil
     ) {
-        guard !isTemporarilyHidden else { return }
+        guard !isTemporarilyHidden, !dialoguePaused || priority >= 60 else { return }
         speechQueue.enqueue(
             text: text,
             event: event,
@@ -1003,7 +1010,7 @@ final class PetPanelController {
 
     var canPresentEasterEgg: Bool {
         !isTemporarilyHidden && speechQueue.current == nil && speechQueue.pending.isEmpty && speakingPresentations.isEmpty
-            && guestView.isHidden && !dragging && flingVelocity == nil && !interactionPaused && !menuPaused
+            && guestView.isHidden && !dragging && flingVelocity == nil && !interactionPaused && !menuPaused && !dialoguePaused
     }
 
     func playCompletionEffect(all: Bool) {
@@ -1494,6 +1501,42 @@ final class PetPanelController {
         }
     }
 
+    func setDialogueActive(_ active: Bool) {
+        dialoguePaused = active
+        if active {
+            flingVelocity = nil
+            if (speechQueue.current?.priority ?? 0) < 60 { speechQueue.clear() }
+        } else {
+            dialogueText = nil
+            dialogueFace = nil
+        }
+        if speechQueue.current == nil { restoreDialoguePresentation() }
+    }
+
+    func presentDialogue(_ text: String, face: String?) {
+        dialogueText = text
+        dialogueFace = face
+        if dialoguePaused && speechQueue.current == nil { restoreDialoguePresentation() }
+    }
+
+    private func restoreDialoguePresentation() {
+        overlayView.transientMessage = dialoguePaused ? dialogueText : nil
+        overlayView.transientMessageEvent = dialoguePaused ? "interaction.chat" : nil
+        overlayView.transientMessageColor = nil
+        petView.setMoodFace(dialoguePaused ? dialogueFace : statusFaceID)
+    }
+
+    func reserveDialogueSpace(_ size: CGSize) -> PetSceneAnchor? {
+        guard let anchor = sceneAnchor else { return nil }
+        let lift = DialogueLayout.lift(size: size, anchor: anchor)
+        if lift > 0.5 && !dragging {
+            preciseOrigin = nil
+            bobBaselineY = nil
+            setPanelOriginIfChanged(NSPoint(x: panel.frame.minX, y: panel.frame.minY + lift))
+        }
+        return sceneAnchor
+    }
+
     func setComposerPaused(_ paused: Bool) {
         composerPaused = paused
         if paused {
@@ -1508,7 +1551,7 @@ final class PetPanelController {
         faceID: String?, accessoryID: String?, accessories: JSONValue?, customization: JSONValue?
     ) {
         statusFaceID = faceID
-        petView.setMoodFace(faceID)
+        petView.setMoodFace(dialoguePaused ? dialogueFace : faceID)
         var specification = CharacterAccessories(config.pet.accessories[config.pet.characterPackId])
         if let accessories {
             let override = CharacterAccessories(accessories)
@@ -1733,27 +1776,33 @@ final class PetPanelController {
         let step = PetMotionTiming.travelDistance(speed: config.pet.speed, elapsed: elapsed)
         let motionElapsed = uptime - motionStartUptime
         updatePointerInteraction()
-        let movementPaused = PetMovementPause.shouldPause(
+        let ambientPaused = PetMovementPause.shouldPause(
             hovering: hoverPaused,
             menuOpen: menuPaused,
             interacting: interactionPaused || composerPaused,
             dragging: dragging,
             flinging: flingVelocity != nil
         )
+        // Chat freezes the physical anchor, not the artwork's breathing/bob.
+        let movementPaused = ambientPaused || dialoguePaused
+        let reducedChatMotion = dialoguePaused && NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        let bobPaused = ambientPaused || reducedChatMotion
+        let primaryMotionState: PetMotionTiming.State = dialoguePaused ? (reducedChatMotion ? .idle : .chatting) : motionState
+        petView.motionState = primaryMotionState
         bobElapsed = PetMotionTiming.advancedBobElapsed(
             current: bobElapsed,
             frameElapsed: elapsed,
-            paused: movementPaused
+            paused: bobPaused
         )
         bobVisibility = PetMotionTiming.transitionedBobVisibility(
             current: bobVisibility,
             frameElapsed: elapsed,
-            paused: movementPaused
+            paused: bobPaused
         )
         let bob = PetMotionTiming.swimOffset(
             elapsed: bobElapsed,
             characterID: petView.characterID,
-            state: motionState
+            state: primaryMotionState
         ) * bobVisibility
         let externallyMoved = lastAutomaticOrigin.map {
             abs(actualOrigin.x - $0.x) > 1.5 || abs(actualOrigin.y - $0.y) > 1.5
