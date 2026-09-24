@@ -37,8 +37,12 @@ final class DialogueViewModel: ObservableObject {
     private let onReact: (String, String?) -> Void
     private var currentNodeID: String?
     private var transition: DispatchWorkItem?
+    private var expressionReset: DispatchWorkItem?
+    private var farewellDeadline: DispatchWorkItem?
+    private let expressionDuration: TimeInterval
 
-    init(runtime: AppRuntime, pack: DialoguePack, transport: AIChatTransport = AIChatHTTPTransport(), keyProvider: @escaping (String) throws -> String = AIChatKeychain.read, onReact: @escaping (String, String?) -> Void) {
+    init(runtime: AppRuntime, pack: DialoguePack, transport: AIChatTransport = AIChatHTTPTransport(), keyProvider: @escaping (String) throws -> String = AIChatKeychain.read, expressionDuration: TimeInterval = 5, onReact: @escaping (String, String?) -> Void) {
+        self.expressionDuration = expressionDuration
         self.configuration = runtime.config.aiChat
         self.transport = transport
         self.keyProvider = keyProvider
@@ -58,7 +62,7 @@ final class DialogueViewModel: ObservableObject {
             }
     }
 
-    deinit { transition?.cancel(); requestTask?.cancel() }
+    deinit { transition?.cancel(); requestTask?.cancel(); expressionReset?.cancel(); farewellDeadline?.cancel() }
 
     func synchronize(pack: DialoguePack) {
         uiLocale = runtime.config.ui.locale
@@ -75,10 +79,53 @@ final class DialogueViewModel: ObservableObject {
 
     func cancel() {
         generation = UUID()
+        expressionReset?.cancel()
+        farewellDeadline?.cancel()
         transition?.cancel()
         requestTask?.cancel()
         requestTask = nil
         isBusy = false
+    }
+
+    func finishConversation(timeout: TimeInterval = 5, onFarewell: @escaping (String, String?) -> Void) {
+        cancel()
+        let grass = characterID == "grass-buddy"
+        let fallback = grass
+            ? t("慢慢来。我在这里，等风，也等你。", "Take your time. I will be here, with the breeze.")
+            : [t("……去吧。我替你发会儿呆。", "…Go on. I will do the daydreaming for both of us."),
+               t("……下次再聊。我先漂一会儿。", "…Talk later. I will float here for a bit."),
+               t("行吧。今天的陪聊，鱼收到了。", "All right. This fish appreciated the company.")].randomElement()!
+        let fallbackFace = grass ? "face-grass-calm" : "face-coy"
+        guard aiActive, configuration.enabled else { onFarewell(fallback, fallbackFace); return }
+        let token = generation
+        let config = configuration
+        let english = runtime.language?.manifest.locale.hasPrefix("en") == true
+        let messages = AIChatPrompt.messages(runtime: runtime, pack: pack, history: sessionHistory, memories: [],
+                                            input: t("我要结束这次聊天了，和我道个别吧。", "I am closing this chat. Say a little goodbye."), intent: .farewell)
+        let deadline = DispatchWorkItem { [weak self] in
+            guard let self, self.generation == token else { return }
+            self.cancel()
+            onFarewell(fallback, fallbackFace)
+        }
+        farewellDeadline = deadline
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout, execute: deadline)
+        requestTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            var text = fallback
+            var face: String? = fallbackFace
+            do {
+                let key = try self.keyProvider(config.endpoint)
+                try Task.checkCancellation()
+                let content = try await self.transport.complete(configuration: config, key: key, messages: messages)
+                let turn = try AIChatTurn.decode(content, english: english)
+                if turn.text.count <= (english ? 180 : 60), !turn.text.contains("?"), !turn.text.contains("？") {
+                    text = turn.text; face = turn.face(characterID: self.characterID)
+                }
+            } catch { /* The closing UI stays closed; use the local farewell. */ }
+            guard self.generation == token, !Task.isCancelled else { return }
+            self.cancel()
+            onFarewell(text, face)
+        }
     }
 
     func useLocal() {
@@ -269,6 +316,16 @@ final class DialogueViewModel: ObservableObject {
         } else { compatibleFace = face }
         moodFaceID = compatibleFace
         onReact(text, compatibleFace)
+        expressionReset?.cancel()
+        guard compatibleFace != nil else { return }
+        let reset = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.moodFaceID = nil
+            // Keep the current words and original timestamp; only relax the face.
+            self.onReact(self.prompt, nil)
+        }
+        expressionReset = reset
+        DispatchQueue.main.asyncAfter(deadline: .now() + expressionDuration, execute: reset)
     }
 
     private func schedule(after delay: TimeInterval, _ action: @escaping () -> Void) {
@@ -527,11 +584,12 @@ enum DialogueLayout {
 }
 
 final class DialoguePanel: NSPanel {
+    var onDismiss: (() -> Void)?
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
-    override func cancelOperation(_ sender: Any?) { close() }
+    override func cancelOperation(_ sender: Any?) { if let onDismiss { onDismiss() } else { close() } }
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { close() } else { super.keyDown(with: event) }
+        if event.keyCode == 53 { cancelOperation(nil) } else { super.keyDown(with: event) }
     }
 }
 
@@ -541,6 +599,8 @@ final class DialogueWindowController: NSWindowController, NSWindowDelegate {
     private var anchor: PetSceneAnchor?
     private var subscription: AnyCancellable?
     var onClose: (() -> Void)?
+    var onFarewell: ((String, String?) -> Void)?
+    private var farewellRequested = false
     var reserveSpace: ((CGSize) -> PetSceneAnchor?)?
     private var positioning = false
     private var opened = false
@@ -550,7 +610,7 @@ final class DialogueWindowController: NSWindowController, NSWindowDelegate {
         self.model = model
         let panel = DialoguePanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         super.init(window: panel)
-        panel.contentView = NSHostingView(rootView: DialogueView(model: model) { [weak self] in self?.close() })
+        panel.contentView = NSHostingView(rootView: DialogueView(model: model) { [weak self] in self?.closeFromUser() })
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
@@ -559,6 +619,7 @@ final class DialogueWindowController: NSWindowController, NSWindowDelegate {
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.delegate = self
+        panel.onDismiss = { [weak self] in self?.closeFromUser() }
         subscription = model.objectWillChange.sink { [weak self] in
             DispatchQueue.main.async { self?.reposition() }
         }
@@ -589,9 +650,18 @@ final class DialogueWindowController: NSWindowController, NSWindowDelegate {
         window.setFrame(DialogueLayout.frame(size: size, anchor: anchor), display: true)
     }
 
+    private func closeFromUser() {
+        farewellRequested = true
+        close()
+    }
+
+    func cancelPendingResponses() { model.cancel() }
+
     func windowWillClose(_ notification: Notification) {
         model.cancel()
         onClose?()
+        if farewellRequested, let onFarewell { model.finishConversation(onFarewell: onFarewell) }
+        farewellRequested = false
     }
 
     func synchronize(pack: DialoguePack) { model.synchronize(pack: pack) }

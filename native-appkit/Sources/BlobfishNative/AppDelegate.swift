@@ -1355,6 +1355,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             controller.present(anchor: panelController.sceneAnchor)
             return
         }
+        dialogueController?.cancelPendingResponses()
         fishMessageComposeController?.close()
         guard !panelController.isTemporarilyHidden else { return }
         panelController.setDialogueActive(true)
@@ -1362,6 +1363,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.panelController.presentDialogue(text, face: face)
         }
         controller.onClose = { [weak self] in self?.panelController.setDialogueActive(false) }
+        controller.onFarewell = { [weak self] text, face in
+            self?.panelController.presentDialogueFarewell(text, face: face)
+        }
         controller.reserveSpace = { [weak self] size in self?.panelController.reserveDialogueSpace(size) }
         dialogueController = controller
         controller.present(anchor: panelController.sceneAnchor)

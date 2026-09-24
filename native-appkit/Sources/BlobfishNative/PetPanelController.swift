@@ -1516,6 +1516,14 @@ final class PetPanelController {
         if speechQueue.current == nil { restoreDialoguePresentation() }
     }
 
+    func presentDialogueFarewell(_ text: String, face: String?) {
+        // Do not leave a low-priority goodbye queued behind an urgent message;
+        // otherwise it could surface after the user has reopened the chat.
+        guard (speechQueue.current?.priority ?? 0) < 40 else { return }
+        say(text, event: "interaction.chat.goodbye", faceID: face,
+            duration: 5, priority: 40, replaceKey: "dialogue.goodbye")
+    }
+
     func presentDialogue(_ text: String, face: String?) {
         dialogueText = text
         dialogueFace = face

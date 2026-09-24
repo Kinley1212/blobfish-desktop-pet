@@ -38,6 +38,48 @@ private final class ChatHTTPFixture: URLProtocol {
 }
 
 extension SelfCheck {
+    @MainActor static func aiChatExpressionAndFarewell() throws -> Bool {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let runtime = AppRuntime(applicationSupportURL: directory)
+        try runtime.update { $0.aiChat = AIChatConfiguration(enabled: true, endpoint: "https://fixture.invalid/v1", model: "fixture", memoryEnabled: false) }
+        let pack = try runtime.catalog!.dialogue(id: "blobfish-zh-TW")
+        let reply = #"{"text":"……慢慢来。","options":["好","待会儿聊"],"emotion":"caring"}"#
+        let transport = ChatFixtureTransport([reply, reply])
+        var reactions: [(String, String?)] = []
+        let model = DialogueViewModel(runtime: runtime, pack: pack, transport: transport,
+                                      keyProvider: { _ in "fixture-key" }, expressionDuration: 0.08) { reactions.append(($0, $1)) }
+        model.submit("我回来了")
+        guard spinChat(until: { !model.isBusy }), reactions.last?.1 != nil,
+              spinChat(until: { model.moodFaceID == nil }),
+              reactions.last?.0 == "……慢慢来。", reactions.last?.1 == nil else { return false }
+        var farewells: [String] = []
+        model.finishConversation { text, _ in farewells.append(text) }
+        guard spinChat(until: { farewells.count == 1 }), farewells == ["……慢慢来。"],
+              transport.inputs.last?.first?.content.contains("Interaction: farewell") == true,
+              !FileManager.default.fileExists(atPath: runtime.chatMemory.fileURL.path) else { return false }
+        // Slow/late providers fall back once, never resurrect the closed chat.
+        transport.delay = 150_000_000
+        transport.replies = [reply]
+        farewells = []
+        model.finishConversation(timeout: 0.02) { text, _ in farewells.append(text) }
+        guard spinChat(until: { farewells.count == 1 }) else { return false }
+        let until = Date().addingTimeInterval(0.2)
+        while Date() < until { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+        guard farewells.count == 1, farewells[0] != "……慢慢来。" else { return false }
+        farewells = []
+        transport.replies = [reply]
+        model.finishConversation(timeout: 0.05) { text, _ in farewells.append(text) }
+        model.cancel() // Reopening/other lifecycle changes invalidate both paths.
+        let cancelledUntil = Date().addingTimeInterval(0.2)
+        while Date() < cancelledUntil { RunLoop.current.run(until: Date().addingTimeInterval(0.01)) }
+        guard farewells.isEmpty else { return false }
+        model.useLocal()
+        let calls = transport.calls
+        model.finishConversation { text, _ in farewells.append(text) }
+        return farewells.count == 1 && transport.calls == calls
+    }
+
     @MainActor static func aiChatTimeContext() throws -> Bool {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
